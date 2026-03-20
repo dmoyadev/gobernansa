@@ -1,0 +1,37 @@
+{
+	"compilerOptions": {
+		"target": "ESNext", // Target ECMAScript version
+		"jsx": "preserve", // JSX handling strategy
+		"useDefineForClassFields": true, // Enable class field declarations
+
+		/* Aliases */
+		"baseUrl": ".", // Base directory for module resolution
+		"module": "ESNext", // Module system
+
+		/* Bundler mode */
+		"moduleResolution": "bundler", // Module resolution strategy
+		"paths": {
+			"@/*": ["src/*"] // Path mappings for module resolution
+		},
+		"resolveJsonModule": true, // Enable JSON module resolution
+		"allowImportingTsExtensions": true, // Allow importing TypeScript extensions
+
+		/* Linting */
+		"strict": true, // Enable strict type checking
+		"noEmit": true, // Disable emitting output files (useful for non-library projects)
+		"allowSyntheticDefaultImports": true, // Allow default imports from modules with no default export
+		"isolatedModules": true, // Ensure module isolation
+		"skipLibCheck": true // Skip type checking of declaration files
+	},
+
+	"include": [
+		"**/*.ts", // Include TypeScript source files
+		"**/*.d.ts", // Include TypeScript declaration files
+		"**/*.vue" // Include Vue.js source files
+	],
+
+	"exclude": [
+		"dist", // Exclude the 'dist' directory
+		"node_modules" // Exclude the 'node_modules' directory
+	]
+}

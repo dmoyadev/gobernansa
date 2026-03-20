@@ -1,0 +1,35 @@
+{
+	"name": "gobernansa",
+	"type": "module",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "vite --mode localhost --host --port 5400",
+		"build": "rm -rf dist && npm run check-typing && vite build",
+		"preview": "vite preview --host --port 4400",
+		"lint": "eslint --fix",
+		"check-typing": "vue-tsc --build --noEmit",
+		"check-deps": "npx taze"
+	},
+	"dependencies": {
+		"iconify-icon": "^3.0.2",
+		"vue": "^3.5.30",
+		"vue-router": "^5.0.3"
+	},
+	"devDependencies": {
+		"@antfu/eslint-config": "^7.7.3",
+		"@tsconfig/node24": "^24.0.4",
+		"@types/node": "^24.11.0",
+		"@vitejs/plugin-vue": "^6.0.4",
+		"@vue/eslint-config-typescript": "^14.7.0",
+		"@vue/tsconfig": "^0.8.1",
+		"eslint": "^9.39.4",
+		"eslint-plugin-vue": "^10.8.0",
+		"jiti": "^2.6.1",
+		"typescript": "~5.9.3",
+		"vite": "8.0.1",
+		"vite-plugin-mkcert": "^1.17.10",
+		"vite-plugin-vue-devtools": "^8.0.6",
+		"vue-tsc": "^3.2.5"
+	}
+}
