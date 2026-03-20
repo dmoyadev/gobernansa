@@ -10,9 +10,6 @@
 
 		/* Bundler mode */
 		"moduleResolution": "bundler", // Module resolution strategy
-		"paths": {
-			"@/*": ["src/*"] // Path mappings for module resolution
-		},
 		"resolveJsonModule": true, // Enable JSON module resolution
 		"allowImportingTsExtensions": true, // Allow importing TypeScript extensions
 

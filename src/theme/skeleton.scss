@@ -1,0 +1,60 @@
+.skeleton-item {
+	overflow: hidden !important;
+	position: relative !important;
+	cursor: progress !important;
+	border: none !important;
+	border-radius: 100px;
+	background: var(--color-gray-1) !important;
+	display: inline-block;
+	width: 100%;
+	height: 1em;
+
+	&::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: var(--color-gray-1) !important;
+		z-index: 10 !important;
+	}
+
+	&::after {
+		content: '';
+		display: block;
+		position: absolute;
+		left: -150px;
+		top: 0;
+		height: 100%;
+		width: 100%;
+		z-index: 20;
+		background: linear-gradient(to right, transparent 0%, var(--color-gray-3) 50%, transparent 100%);
+		animation: load 1.1s linear infinite;
+	}
+
+	&--icon {
+		width: 1.2em;
+		height: 1.2em;
+		border-radius: 100%;
+	}
+
+	&--title {
+		height: var(--font-size-title);
+	}
+
+	&--small {
+		height: var(--font-size-small);
+	}
+
+	&--big-square {
+		height: 75px;
+		border-radius: 4px;
+	}
+}
+
+@keyframes load {
+	from {
+		left: -100%;
+	}
+	to   {
+		left: 100%;
+	}
+}
