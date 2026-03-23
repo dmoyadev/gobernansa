@@ -80,7 +80,7 @@ async function doSignIn() {
 	</header>
 
 	<main>
-		<h1>Tu hogar, gobernado.</h1>
+		<h1>Tu hogar, en buenas manos.</h1>
 		<p>
 			Tu comunidad de vecinos ahora tiene
 			<br>

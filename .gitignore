@@ -3,7 +3,7 @@ node_modules
 dist
 dist-ssr
 coverage
-*.local
+*.local*
 
 # Logs
 logs

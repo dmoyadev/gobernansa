@@ -9,7 +9,8 @@
 		"preview": "vite preview --host --port 4400",
 		"lint": "eslint --fix",
 		"check-typing": "vue-tsc --build --noEmit",
-		"check-deps": "npx taze"
+		"check-deps": "npx taze",
+		"seed-firebase": "node ./scripts/firebase-test/seed.js --reset"
 	},
 	"dependencies": {
 		"firebase": "^12.11.0",
@@ -28,6 +29,7 @@
 		"@vue/tsconfig": "^0.8.1",
 		"eslint": "^9.39.4",
 		"eslint-plugin-vue": "^10.8.0",
+		"firebase-admin": "^13.7.0",
 		"jiti": "^2.6.1",
 		"sass-embedded": "^1.98.0",
 		"typescript": "~5.9.3",
