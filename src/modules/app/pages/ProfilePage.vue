@@ -1,20 +1,19 @@
 <script setup lang="ts">
+import { LnxButton } from 'lnxjs-components';
+import useAuth from '../composables/useAuth.ts';
+import MainLayout from '../layouts/MainLayout.vue';
+
+const { logout } = useAuth();
 </script>
 
 <template>
-	<main>
+	<MainLayout>
 		Profile
-	</main>
+
+		<LnxButton @click="logout()" variant="danger">Cerrar sesión</LnxButton>
+	</MainLayout>
 </template>
 
 <style lang="scss" scoped>
-main {
-	min-height: 100svh;
-	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 16px;
-}
+
 </style>

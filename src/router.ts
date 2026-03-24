@@ -39,9 +39,27 @@ export const routes: Array<RouteRecordRaw> = [
 			},
 			{
 				path: '/issues',
-				name: 'Incidencias',
-				component: async () => import('./modules/app/pages/IssuesPage.vue'),
-				meta: { title: 'Incidencias' },
+				children: [
+					{
+						path: '',
+						name: 'Incidencias',
+						component: async () => import('./modules/app/pages/IssuesPage.vue'),
+						meta: { title: 'Incidencias' },
+					},
+					{
+						path: 'new',
+						name: 'Nueva incidencia',
+						component: async () => import('./modules/app/pages/IssuesCreatePage.vue'),
+						meta: { title: 'Nueva incidencia' },
+					},
+					{
+						path: ':id',
+						name: 'Detalle de incidencia',
+						component: async () => import('./modules/app/pages/IssuesDetailPage.vue'),
+						meta: { title: 'Detalle de incidencia' },
+						props: true,
+					}
+				],
 			},
 			{
 				path: '/neighborhood',

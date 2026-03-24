@@ -1,20 +1,13 @@
 <script setup lang="ts">
+import MainLayout from '../layouts/MainLayout.vue';
 </script>
 
 <template>
-	<main>
+	<MainLayout>
 		Issues
-	</main>
+	</MainLayout>
 </template>
 
 <style lang="scss" scoped>
-main {
-	min-height: 100svh;
-	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 16px;
-}
+
 </style>

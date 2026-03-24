@@ -32,6 +32,7 @@ onBeforeMount(async () => {
 });
 
 const email = ref<string>('');
+const password = ref<string>('');
 
 // Manage the error state of the form
 const triedSubmit = ref(false);
@@ -42,7 +43,7 @@ const isEmailValid = computed<boolean>(() => {
 		&& !!email.value
 		&& /.[^\n\r@\u2028\u2029]*@.+\..+/.test(email.value));
 });
-const errorLogin = ref<Error>();
+const errorLogin = ref<unknown>();
 const emailSent = ref(false);
 const loadingLogin = ref(false);
 
@@ -92,7 +93,7 @@ async function doSignIn() {
 				<LnxInput
 					v-model="email"
 					type="email"
-					:has-error="triedSubmit && !!errorLogin"
+					:has-error="triedSubmit && !!errorLogin && !password"
 					:disabled="loadingLogin"
 					autocomplete="username"
 					required
@@ -104,10 +105,25 @@ async function doSignIn() {
 					</template>
 
 					<template
-						v-if="triedSubmit && !errorLogin && emailSent"
+						v-if="triedSubmit && !errorLogin && emailSent && !password"
 						#helper
 					>
 						Hemos enviado un enlace para iniciar sesión a tu correo electrónico. Revisa tu bandeja de entrada y haz clic en el enlace para acceder a tu cuenta.
+					</template>
+				</LnxInput>
+
+				<LnxInput
+					v-if="errorLogin?.error?.message.includes('QUOTA_EXCEEDED')"
+					v-model="password"
+					type="password"
+					:has-error="triedSubmit && !!errorLogin && !!password"
+					:disabled="loadingLogin"
+					autocomplete="password"
+					required
+				>
+					Introduce tu contraseña
+					<template #error>
+						La contraseña no es correcta: {{ errorLogin }}
 					</template>
 				</LnxInput>
 
@@ -115,15 +131,19 @@ async function doSignIn() {
 					type="submit"
 					:color="(triedSubmit && errorLogin) ? BUTTON_VARIANTS.DANGER : BUTTON_VARIANTS.PRIMARY"
 					:loading="loadingLogin"
-					:disabled="!isEmailValid || loadingLogin || emailSent"
+					:disabled="!isEmailValid || loadingLogin || (emailSent && !password)"
 				>
-					<template v-if="(triedSubmit && errorLogin)">
+					<template v-if="(triedSubmit && errorLogin && !password)">
 						<LnxIcon icon="mdi:close" />
 						Error
 					</template>
-					<template v-else-if="emailSent">
+					<template v-else-if="emailSent && !password">
 						<LnxIcon icon="mdi:check" />
 						¡Enviado!
+					</template>
+					<template v-else-if="emailSent">
+						<LnxIcon icon="mdi:check" />
+						Entrando...
 					</template>
 					<template v-else>
 						<LnxIcon icon="mdi:arrow-right-thick" />

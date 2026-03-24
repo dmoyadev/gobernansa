@@ -10,7 +10,6 @@ import { VueFire, VueFireAuth } from 'vuefire'
 import 'iconify-icon';
 
 /* CSS Utils */
-import './theme/reset.css';
 import './theme/skeleton.scss';
 import './theme/colors.scss';
 import './theme/typography.scss';

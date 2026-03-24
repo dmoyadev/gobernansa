@@ -4,7 +4,7 @@ import MainLayout from '../layouts/MainLayout.vue';
 
 <template>
 	<MainLayout>
-		Neighborhood
+		New Issue
 	</MainLayout>
 </template>
 
