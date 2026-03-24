@@ -43,7 +43,7 @@ const tabs = [
 
 <style>
 :root {
-	--tab-height: 42px;
+	--tab-height: calc(58px + 16px) /* nav height + bottom padding */;
 }
 </style>
 
@@ -57,7 +57,7 @@ nav {
 	align-self: center;
 	padding: 0 16px;
 	border-radius: 80px;
-	height: calc(var(--tab-height) + 16px);
+	height: 58px;
 	background: var(--color-secondary-alpha);
 	backdrop-filter: blur(4px);
 	box-shadow: 0 8px 8px -4px rgba(0, 0, 0, 0.2);

@@ -2,14 +2,24 @@
 import { LnxButton } from 'lnxjs-components';
 import useAuth from '../composables/useAuth';
 import TheHeader from '../components/TheHeader.vue';
+import { useUserProperties } from '../composables/useUserProperties.ts';
+import { useUserCommunity } from '../composables/useUserCommunity.ts';
 
 const { user, logout } = useAuth();
+const { userProperties } = useUserProperties();
+const { userCommunity } = useUserCommunity();
 </script>
 
 <template>
 	<TheHeader />
 	<main>
 		Home
+		<br>
+		Propiedades:
+		<pre>{{ userProperties }}</pre>
+		Comunidad:
+		<pre>{{ userCommunity }}</pre>
+		Usuario:
 		<pre>{{ user }}</pre>
 		<LnxButton @click="logout()" variant="danger">Cerrar sesión</LnxButton>
 	</main>
@@ -18,11 +28,9 @@ const { user, logout } = useAuth();
 <style lang="scss" scoped>
 main {
 	min-height: 100svh;
-	padding: 16px;
+	padding: 16px 16px calc(16px + var(--tab-height));
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	justify-content: center;
 	gap: 16px;
 
 	pre {

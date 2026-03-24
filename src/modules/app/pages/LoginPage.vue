@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeMount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
 	BUTTON_VARIANTS,
@@ -13,7 +13,7 @@ import useAuth from '../composables/useAuth.ts';
 import BackgroundImage from '../components/BackgroundImage.vue';
 import { getCurrentUser } from 'vuefire';
 
-onMounted(async () => {
+onBeforeMount(async () => {
 	try {
 		await useAuth().completeMagicLink();
 
@@ -132,10 +132,6 @@ async function doSignIn() {
 				</LnxButton>
 			</section>
 		</form>
-
-		<p v-if="emailSent">
-			Revisa tu email para acceder 🔐
-		</p>
 
 		<small>
 			v.{{ pkg.version }}

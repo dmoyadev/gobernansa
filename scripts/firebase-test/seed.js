@@ -67,8 +67,9 @@ async function seed() {
 			['prop2', 'Piso 1B', 'home', '9yDJtg9E0kSDa8uVwtHvP8MSox03'],
 			['prop3', 'Piso 2A', 'home', 'user3'],
 			['prop4', 'Piso 2B', 'home', 'user4'],
-			['prop5', 'Garaje 12', 'garage', 'user1'],
-			['prop6', 'Trastero 3', 'storage', 'user2'],
+			['prop5', 'Garaje 12', 'parking', 'NfQwcVkiExgW9DSp5DykCxxmNK52'],
+			['prop6', 'Trastero 3', 'storage', '9yDJtg9E0kSDa8uVwtHvP8MSox03'],
+			['prop7', 'Solar 1', 'other', 'user 5'],
 		];
 
 		properties.forEach(([id, name, type, ownerUid]) => {
@@ -85,20 +86,19 @@ async function seed() {
 	// USERS
 	if (shouldRun('users')) {
 		const users = [
-			['HMyFJhZ3GOQoXRoS7Y8taHpyb7H2', 'lynx9011+admin@gmail.com', 'prop1', 'admin'],
-			['NfQwcVkiExgW9DSp5DykCxxmNK52', 'lynx9011+user1@gmail.com', 'prop1', 'user'],
-			['9yDJtg9E0kSDa8uVwtHvP8MSox03', 'lynx9011+user2@gmail.com', 'prop2', 'user'],
-			['user3', 'lynx9011+user3@gmail.com', 'prop2', 'user'],
-			['user4', 'lynx9011+user4@gmail.com', 'prop2', 'user'],
+			['HMyFJhZ3GOQoXRoS7Y8taHpyb7H2', 'lynx9011+admin@gmail.com', 'admin'],
+			['NfQwcVkiExgW9DSp5DykCxxmNK52', 'lynx9011+user1@gmail.com', 'user'],
+			['9yDJtg9E0kSDa8uVwtHvP8MSox03', 'lynx9011+user2@gmail.com', 'user'],
+			['01FbbUmlfHShICI9dlVs5gsvtPl2', 'lynx9011+manager1@gmail.com', 'manager'],
+			['user4', 'lynx9011+user4@gmail.com', 'user'],
 		];
 
-		users.forEach(([uid, email, propertyId, role]) => {
+		users.forEach(([uid, email, role]) => {
 			const ref = db.collection('users').doc(uid);
 			const userDisplayName = email.split('@')[0].substring(email.indexOf('+') + 1);
 			batch.set(ref, {
 				email,
 				communityId: 'res1',
-				propertyId,
 				name: userDisplayName[0].toUpperCase() + userDisplayName.slice(1),
 				role,
 			});

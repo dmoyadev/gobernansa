@@ -1,18 +1,26 @@
+import { ref, watchEffect } from 'vue';
 import {
 	sendSignInLinkToEmail,
 	isSignInWithEmailLink,
 	signInWithEmailLink,
 	signOut,
 } from 'firebase/auth';
+import { doc, DocumentReference } from 'firebase/firestore';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { auth, db } from '../../../utils/firebase';
-import { doc, DocumentReference } from 'firebase/firestore';
-import { ref, watchEffect } from 'vue';
+import { useRouter } from 'vue-router';
+
+export interface User {
+	email: string;
+	role: 'admin' | 'manager' | 'user';
+	communityId: string;
+	name: string;
+}
 
 export default function useAuth() {
 	const user = useCurrentUser();
 	const userRef = ref<DocumentReference>();
-	const userData = useDocument(userRef);
+	const userData = useDocument<User>(userRef);
 
 	async function sendMagicLink(email: string) {
 		const actionCodeSettings = {
@@ -48,9 +56,11 @@ export default function useAuth() {
 		}
 	});
 
+	const router = useRouter();
 	async function logout() {
 		await signOut(auth);
 		userRef.value = undefined;
+		await router.push('/logout');
 	}
 
 	return {
