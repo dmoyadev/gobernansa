@@ -58,14 +58,25 @@ export const routes: Array<RouteRecordRaw> = [
 						component: async () => import('./modules/app/pages/IssuesDetailPage.vue'),
 						meta: { title: 'Detalle de incidencia' },
 						props: true,
-					}
+					},
 				],
 			},
 			{
 				path: '/neighborhood',
-				name: 'Comunidad',
-				component: async () => import('./modules/app/pages/NeighborhoodPage.vue'),
-				meta: { title: 'Comunidad' },
+				children: [
+					{
+						path: '',
+						name: 'Comunidad',
+						component: async () => import('./modules/app/pages/NeighborhoodPage.vue'),
+						meta: { title: 'Comunidad' },
+					},
+					{
+						path: 'timeline',
+						name: 'Cronograma',
+						component: async () => import('./modules/app/pages/TimelinePage.vue'),
+						meta: { title: 'Cronograma' },
+					},
+				],
 			},
 			{
 				path: '/profile',
@@ -112,7 +123,9 @@ function setDocumentTitle(to: RouteLocationNormalized) {
 }
 
 export async function checkAuth(to: RouteLocationNormalized) {
-	if (to.meta?.isPublic) return;
+	if (to.meta?.isPublic) {
+		return;
+	}
 
 	const user = await getCurrentUser();
 	if (!user) {

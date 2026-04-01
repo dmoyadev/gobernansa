@@ -1,14 +1,15 @@
-import { ref, watchEffect } from 'vue';
+import type { DocumentReference } from 'firebase/firestore';
 import {
-	sendSignInLinkToEmail,
 	isSignInWithEmailLink,
+	sendSignInLinkToEmail,
 	signInWithEmailLink,
 	signOut,
 } from 'firebase/auth';
-import { doc, DocumentReference } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { ref, watchEffect } from 'vue';
+import { useRouter } from 'vue-router';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { auth, db } from '../../../utils/firebase';
-import { useRouter } from 'vue-router';
 
 export interface User {
 	email: string;
@@ -24,7 +25,7 @@ export default function useAuth() {
 
 	async function sendMagicLink(email: string) {
 		const actionCodeSettings = {
-			url: window.location.origin + '/login' + window.location.search,
+			url: `${window.location.origin}/login${window.location.search}`,
 			handleCodeInApp: true,
 		};
 
@@ -36,8 +37,10 @@ export default function useAuth() {
 		const url = window.location.href;
 
 		if (isSignInWithEmailLink(auth, url)) {
-			let email = localStorage.getItem('user');
-			if (!email) return;
+			const email = localStorage.getItem('user');
+			if (!email) {
+				return;
+			}
 
 			const result = await signInWithEmailLink(auth, email, url);
 			localStorage.removeItem('user');

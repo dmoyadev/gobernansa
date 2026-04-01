@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import useAuth from '../composables/useAuth.ts';
-import { useUserProperties } from '../composables/useUserProperties.ts';
-import { useUserCommunity } from '../composables/useUserCommunity.ts';
 
 const { user } = useAuth();
-const { selectedProperty } = useUserProperties();
-const { userCommunity } = useUserCommunity();
 </script>
 
 <template>
@@ -24,16 +20,7 @@ const { userCommunity } = useUserCommunity();
 			</LnxButton>
 		</div>
 
-		<div class="greeting">
-			<h1 v-if="selectedProperty">¡Hola, {{ selectedProperty.name }}!</h1>
-			<h1 v-else>¡Hola!</h1>
-			<h2
-				v-if="userCommunity"
-				class="text-cursive"
-			>
-				Bienvenido a {{ userCommunity?.name }}
-			</h2>
-		</div>
+		<slot />
 	</header>
 </template>
 
@@ -58,14 +45,6 @@ header {
 		.logo {
 			margin-bottom: -4px;
 			margin-right: auto;
-		}
-	}
-
-	.greeting {
-		h2 {
-			margin-top: calc(-1 * var(--lnx-spacing-3));
-			color: var(--lnx-color-gray-6);
-			opacity: .7;
 		}
 	}
 }

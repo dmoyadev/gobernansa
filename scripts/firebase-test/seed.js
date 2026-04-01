@@ -1,8 +1,8 @@
+import { readFileSync } from 'node:fs';
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
 
 const serviceAccount = JSON.parse(
-	readFileSync('./scripts/firebase-test/serviceAccountKey.local.json', 'utf-8')
+	readFileSync('./scripts/firebase-test/serviceAccountKey.local.json', 'utf-8'),
 );
 
 admin.initializeApp({
@@ -13,13 +13,15 @@ const db = admin.firestore();
 
 const SHOULD_RESET = process.argv.includes('--reset');
 
-const onlyArg = process.argv.find((arg) => arg.startsWith('--only='));
+const onlyArg = process.argv.find(arg => arg.startsWith('--only='));
 const ONLY = onlyArg
 	? onlyArg.replace('--only=', '').split(',')
 	: null;
 
 function shouldRun(collection) {
-	if (!ONLY) return true;
+	if (!ONLY) {
+		return true;
+	}
 	return ONLY.includes(collection);
 }
 
@@ -37,9 +39,33 @@ async function deleteCollection(collectionName) {
 async function resetDatabase() {
 	console.log('🧹 Borrando datos...');
 
-	if (shouldRun('communities')) await deleteCollection('communities');
-	if (shouldRun('properties')) await deleteCollection('properties');
-	if (shouldRun('users')) await deleteCollection('users');
+	if (shouldRun('communities')) {
+		await deleteCollection('communities');
+	}
+	if (shouldRun('properties')) {
+		await deleteCollection('properties');
+	}
+	if (shouldRun('users')) {
+		await deleteCollection('users');
+	}
+	if (shouldRun('events')) {
+		await deleteCollection('events');
+	}
+}
+
+function getRandomDate() {
+	const start = new Date(2020, 0, 1);
+	const end = new Date();
+	return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+}
+
+function getDatableProperties() {
+	return {
+		createdAt: getRandomDate(),
+		updatedAt: new Date(),
+		createdBy: 'admin1',
+		updatedBy: 'admin1',
+	};
 }
 
 async function seed() {
@@ -51,12 +77,12 @@ async function seed() {
 
 	// COMMUNITY
 	if (shouldRun('communities')) {
-		const res1 = db.collection('communities').doc('res1');
-		batch.set(res1, {
+		const comm1 = db.collection('communities').doc('comm1');
+		batch.set(comm1, {
 			name: 'Residencial Los Olivos',
 			address: 'Calle Falsa 123, Jaén',
-			createdAt: new Date(),
-			createdBy: 'admin1',
+			constructionYear: 1990,
+			...getDatableProperties(),
 		});
 	}
 
@@ -75,10 +101,11 @@ async function seed() {
 		properties.forEach(([id, name, type, ownerUid]) => {
 			const ref = db.collection('properties').doc(id);
 			batch.set(ref, {
-				communityId: 'res1',
+				communityId: 'comm1',
 				name,
 				type,
 				ownerUid,
+				...getDatableProperties(),
 			});
 		});
 	}
@@ -98,9 +125,56 @@ async function seed() {
 			const userDisplayName = email.split('@')[0].substring(email.indexOf('+') + 1);
 			batch.set(ref, {
 				email,
-				communityId: 'res1',
+				communityId: 'comm1',
 				name: userDisplayName[0].toUpperCase() + userDisplayName.slice(1),
 				role,
+			});
+		});
+	}
+
+	// EVENTS
+	if (shouldRun('events')) {
+		const now = new Date();
+		function daysFromNow(d) {
+			return new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, 10, 0);
+		}
+
+		const events = [
+			['event_1', 'Junta general ordinaria', 'Revisión anual de cuentas', 'other', daysFromNow(2), 'comm1'],
+			['event_2', 'Limpieza de garaje', 'Limpieza profunda mensual', 'maintenance', daysFromNow(3), 'comm1'],
+			['event_3', 'Barbacoa comunitaria', 'Evento social en el jardín', 'community', daysFromNow(5), 'comm1'],
+			['event_4', 'Revisión ascensor', 'Mantenimiento técnico', 'maintenance', daysFromNow(6), 'comm1'],
+			['event_5', 'Instalación cámaras seguridad', undefined, 'improvements', daysFromNow(8), 'comm1'],
+			['event_6', 'Reunión vecinos bloque A', undefined, 'other', daysFromNow(10), 'comm1'],
+			['event_7', 'Cambio luces portal', undefined, 'maintenance', daysFromNow(12), 'comm1'],
+			['event_8', 'Fiesta verano', undefined, 'community', daysFromNow(15), 'comm1'],
+			['event_9', 'Pintado zonas comunes', undefined, 'improvements', daysFromNow(18), 'comm1'],
+			['event_10', 'Revisión fontanería', undefined, 'maintenance', daysFromNow(20), 'comm1'],
+			...Array.from({ length: 20 }).map((_, i) => {
+				const index = i + 11;
+				const types = ['community', 'maintenance', 'improvements', 'other'];
+				const type = types[i % types.length];
+
+				const titles = {
+					community: 'Evento social vecinos',
+					maintenance: 'Mantenimiento general',
+					improvements: 'Mejora instalaciones',
+					other: 'Aviso comunidad',
+				};
+
+				return [`event_${index}`, `${titles[type]} ${index}`, `Descripción del evento ${index}`, type, daysFromNow(index * 2), 'comm1'];
+			}),
+		];
+
+		events.forEach(([id, title, description, type, date, communityId]) => {
+			const ref = db.collection('events').doc(id);
+			batch.set(ref, {
+				title,
+				...(description ? { description } : {}),
+				type,
+				date,
+				communityId,
+				...getDatableProperties(),
 			});
 		});
 	}

@@ -3,9 +3,9 @@
 </script>
 
 <template>
-<main>
-	<slot />
-</main>
+	<main>
+		<slot />
+	</main>
 </template>
 
 <style scoped lang="scss">

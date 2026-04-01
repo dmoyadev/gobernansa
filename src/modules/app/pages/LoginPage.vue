@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeMount, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
 import {
 	BUTTON_VARIANTS,
-	LnxInput,
 	LnxButton,
 	LnxIcon,
+	LnxInput,
 } from 'lnxjs-components';
+import { computed, onBeforeMount, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { getCurrentUser } from 'vuefire';
 import * as pkg from '../../../../package.json';
 import router from '../../../router.ts';
-import useAuth from '../composables/useAuth.ts';
 import BackgroundImage from '../components/BackgroundImage.vue';
-import { getCurrentUser } from 'vuefire';
+import useAuth from '../composables/useAuth.ts';
 
 onBeforeMount(async () => {
 	try {
@@ -40,8 +40,8 @@ watch(email, () => triedSubmit.value = false);
 const isEmailValid = computed<boolean>(() => {
 	return !triedSubmit.value
 		|| (triedSubmit.value
-		&& !!email.value
-		&& /.[^\n\r@\u2028\u2029]*@.+\..+/.test(email.value));
+			&& !!email.value
+			&& /.[^\n\r}@\u2028\u2029]*@.+\..+/.test(email.value));
 });
 const errorLogin = ref<unknown>();
 const emailSent = ref(false);
@@ -52,7 +52,9 @@ async function doSignIn() {
 	errorLogin.value = undefined;
 	triedSubmit.value = true;
 
-	if (!isEmailValid.value) return;
+	if (!isEmailValid.value) {
+		return;
+	}
 
 	loadingLogin.value = true;
 
@@ -113,7 +115,7 @@ async function doSignIn() {
 				</LnxInput>
 
 				<LnxInput
-					v-if="errorLogin?.error?.message.includes('QUOTA_EXCEEDED')"
+					v-if="(errorLogin as Error)?.message.includes('QUOTA_EXCEEDED')"
 					v-model="password"
 					type="password"
 					:has-error="triedSubmit && !!errorLogin && !!password"

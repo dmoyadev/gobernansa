@@ -1,10 +1,10 @@
+import type { Datable } from '../../../utils/interfaces.ts';
+import { collection, getFirestore, query, where } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
 import { useCollection } from 'vuefire';
-import { collection, getFirestore, query, where } from 'firebase/firestore';
 import useAuth from './useAuth';
-import { Datable } from '../../../utils/interfaces.ts';
 
-export interface Property extends Datable  {
+export interface Property extends Datable {
 	id: string;
 	name: string;
 	type: 'home' | 'parking' | 'storage' | 'other';
@@ -15,22 +15,24 @@ export interface Property extends Datable  {
 const selectedProperty = ref<Property>();
 
 export function useUserProperties() {
-	const {user} = useAuth();
+	const { user } = useAuth();
 	const db = getFirestore();
 
 	const userPropertiesRef = computed(() => {
-		if (!user.value?.communityId) return null;
+		if (!user.value?.communityId) {
+			return null;
+		}
 
 		return query(
 			collection(db, 'properties'),
 			where('communityId', '==', user.value.communityId),
-			where('ownerUid', '==', user.value.id)
+			where('ownerUid', '==', user.value.id),
 		);
 	});
 
 	const userProperties = useCollection<Property>(userPropertiesRef);
 	watch(userProperties, (properties) => {
-		if(!properties.length) {
+		if (!properties.length) {
 			selectedProperty.value = undefined;
 			return;
 		}

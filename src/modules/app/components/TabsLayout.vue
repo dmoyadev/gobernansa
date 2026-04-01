@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { BUTTON_MODES, BUTTON_VARIANTS, LnxButton, LnxIcon } from 'lnxjs-components';
+import { BUTTON_MODES, BUTTON_SHAPES, BUTTON_VARIANTS, LnxButton, LnxIcon } from 'lnxjs-components';
+import IsotypeSVG from './IsotypeSVG.vue';
 
 const tabs = [
 	{
-		icon: 'mdi:view-dashboard',
+		icon: IsotypeSVG,
+		isCustomIcon: true,
 		text: 'Inicio',
 		route: '/',
 	},
@@ -11,6 +13,12 @@ const tabs = [
 		icon: 'mdi:home-warning',
 		text: 'Incidencias',
 		route: '/issues',
+	},
+	{
+		icon: 'mdi:plus',
+		text: 'Añadir Incidencia',
+		route: '/issues/new',
+		isCTA: true,
 	},
 	{
 		icon: 'mdi:account-group',
@@ -33,10 +41,13 @@ const tabs = [
 			v-for="(tab, index) in tabs"
 			:key="index"
 			:to="tab.route"
-			:variant="BUTTON_VARIANTS.GRAYSCALE"
-			:mode="BUTTON_MODES.CLEAR"
+			:variant="tab.isCTA ? BUTTON_VARIANTS.DANGER : BUTTON_VARIANTS.GRAYSCALE"
+			:mode="tab.isCTA ? BUTTON_MODES.SOLID : BUTTON_MODES.CLEAR"
+			:shape="tab.isCTA ? BUTTON_SHAPES.CIRCLE : BUTTON_SHAPES.ICON"
+			:class="{ cta: tab.isCTA }"
 		>
-			<LnxIcon :icon="tab.icon" :size="24" />
+			<LnxIcon v-if="!tab.isCustomIcon" :icon="tab.icon as string" :size="24" />
+			<component :is="tab.icon" v-else heigth="20" width="20" />
 		</LnxButton>
 	</nav>
 </template>
@@ -76,7 +87,13 @@ nav {
 		font-weight: var(--font-weight-regular);
 
 		&.router-link-exact-active {
-			--lnx-button-color: var(--color-primary) !important;
+			--lnx-button-color: var(--color-secondary-accent) !important;
+			color: var(--color-secondary-accent) !important;
+		}
+
+		&.cta {
+			margin-top: -8px;
+			box-shadow: 0 8px 8px -4px rgba(0, 0, 0, 0.2);
 		}
 
 		span {
