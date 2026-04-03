@@ -6,7 +6,7 @@ export const routes: Array<RouteRecordRaw> = [
 	{
 		path: '/login',
 		name: 'Login',
-		component: async () => import('./modules/app/pages/LoginPage.vue'),
+		component: async () => import('./pages/LoginPage.vue'),
 		meta: {
 			title: 'Iniciar sesión',
 			isPublic: true,
@@ -16,7 +16,7 @@ export const routes: Array<RouteRecordRaw> = [
 	{
 		path: '/logout',
 		name: 'Logout',
-		component: async () => import('./modules/app/pages/LoginPage.vue'),
+		component: async () => import('./pages/LoginPage.vue'),
 		meta: {
 			title: 'Cerrar sesión',
 			isPublic: true,
@@ -29,12 +29,12 @@ export const routes: Array<RouteRecordRaw> = [
 	{
 		path: '/',
 		name: 'Tabs',
-		component: async () => import('./modules/app/components/TabsLayout.vue'),
+		component: async () => import('./components/TabsLayout.vue'),
 		children: [
 			{
 				path: '/',
 				name: 'Home',
-				component: async () => import('./modules/app/pages/HomePage.vue'),
+				component: async () => import('./pages/HomePage.vue'),
 				meta: { title: '' },
 			},
 			{
@@ -43,19 +43,19 @@ export const routes: Array<RouteRecordRaw> = [
 					{
 						path: '',
 						name: 'Incidencias',
-						component: async () => import('./modules/app/pages/IssuesPage.vue'),
+						component: async () => import('./pages/IssuesPage.vue'),
 						meta: { title: 'Incidencias' },
 					},
 					{
 						path: 'new',
 						name: 'Nueva incidencia',
-						component: async () => import('./modules/app/pages/IssuesCreatePage.vue'),
+						component: async () => import('./pages/IssuesCreatePage.vue'),
 						meta: { title: 'Nueva incidencia' },
 					},
 					{
 						path: ':id',
 						name: 'Detalle de incidencia',
-						component: async () => import('./modules/app/pages/IssuesDetailPage.vue'),
+						component: async () => import('./pages/IssuesDetailPage.vue'),
 						meta: { title: 'Detalle de incidencia' },
 						props: true,
 					},
@@ -67,13 +67,13 @@ export const routes: Array<RouteRecordRaw> = [
 					{
 						path: '',
 						name: 'Comunidad',
-						component: async () => import('./modules/app/pages/NeighborhoodPage.vue'),
+						component: async () => import('./pages/NeighborhoodPage.vue'),
 						meta: { title: 'Comunidad' },
 					},
 					{
 						path: 'timeline',
 						name: 'Cronograma',
-						component: async () => import('./modules/app/pages/TimelinePage.vue'),
+						component: async () => import('./pages/TimelinePage.vue'),
 						meta: { title: 'Cronograma' },
 					},
 				],
@@ -81,7 +81,7 @@ export const routes: Array<RouteRecordRaw> = [
 			{
 				path: '/profile',
 				name: 'Perfil',
-				component: async () => import('./modules/app/pages/ProfilePage.vue'),
+				component: async () => import('./pages/ProfilePage.vue'),
 				meta: { title: 'Perfil' },
 			},
 		],
@@ -90,7 +90,7 @@ export const routes: Array<RouteRecordRaw> = [
 	{
 		path: '/:pathMatch(.*)*',
 		name: 'NotFound',
-		component: async () => import('./modules/app/pages/NotFoundPage.vue'),
+		component: async () => import('./pages/NotFoundPage.vue'),
 		meta: {
 			title: 'Not Found',
 			isPublic: true,

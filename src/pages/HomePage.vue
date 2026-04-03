@@ -2,7 +2,7 @@
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import EventCard from '../components/EventCard.vue';
 import TheHeader from '../components/TheHeader.vue';
-import useAuth from '../composables/useAuth';
+import useAuth from '../composables/useAuth.ts';
 import { useCommunityEvents } from '../composables/useCommunityEvents.ts';
 import { useUserCommunity } from '../composables/useUserCommunity.ts';
 import { useUserProperties } from '../composables/useUserProperties.ts';

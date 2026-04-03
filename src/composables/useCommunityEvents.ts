@@ -1,4 +1,4 @@
-import type { Datable } from '../../../utils/interfaces.ts';
+import type { Datable } from '../utils/interfaces.ts';
 import {
 	collection,
 	deleteDoc,
@@ -71,7 +71,7 @@ export function useCommunityEvents(pageSize = 15) {
 			return true;
 		}
 
-		return events.value.length !== currentPageSize.value;
+		return events.value.length < currentPageSize.value;
 	});
 
 	function setFilters(newFilters: QueryFilters) {
@@ -80,7 +80,7 @@ export function useCommunityEvents(pageSize = 15) {
 			...newFilters,
 		};
 
-		events.value = [];
+		page.value = 1;
 	}
 
 	function createEvent(data: Partial<Event>) {
@@ -91,7 +91,7 @@ export function useCommunityEvents(pageSize = 15) {
 
 		void setDoc(doc(db, 'events'), {
 			...data,
-			communityId,
+			communityId: communityId.value,
 			createdAt: Timestamp.now(),
 			updatedAt: Timestamp.now(),
 			createdBy: user.value.id,

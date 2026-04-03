@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router';
-import useAuth from './modules/app/composables/useAuth.ts';
-import useWebAppZoom from './modules/app/composables/useWebAppZoom.ts';
+import useAuth from './composables/useAuth.ts';
+import useWebAppZoom from './composables/useWebAppZoom.ts';
 
 useWebAppZoom();
 useAuth();

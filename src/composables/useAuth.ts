@@ -9,7 +9,7 @@ import { doc } from 'firebase/firestore';
 import { ref, watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCurrentUser, useDocument } from 'vuefire';
-import { auth, db } from '../../../utils/firebase';
+import { auth, db } from '../utils/firebase.ts';
 
 export interface User {
 	email: string;

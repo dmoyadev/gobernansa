@@ -1,8 +1,8 @@
-import type { Datable } from '../../../utils/interfaces.ts';
+import type { Datable } from '../utils/interfaces.ts';
 import { doc, getFirestore } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useDocument } from 'vuefire';
-import useAuth from './useAuth';
+import useAuth from './useAuth.ts';
 
 export interface Community extends Datable {
 	name: string;

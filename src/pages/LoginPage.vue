@@ -8,10 +8,10 @@ import {
 import { computed, onBeforeMount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
-import * as pkg from '../../../../package.json';
-import router from '../../../router.ts';
+import * as pkg from '../../package.json';
 import BackgroundImage from '../components/BackgroundImage.vue';
 import useAuth from '../composables/useAuth.ts';
+import router from '../router.ts';
 
 onBeforeMount(async () => {
 	try {

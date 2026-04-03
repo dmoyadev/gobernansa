@@ -1,8 +1,8 @@
-import type { Datable } from '../../../utils/interfaces.ts';
+import type { Datable } from '../utils/interfaces.ts';
 import { collection, getFirestore, query, where } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
 import { useCollection } from 'vuefire';
-import useAuth from './useAuth';
+import useAuth from './useAuth.ts';
 
 export interface Property extends Datable {
 	id: string;
