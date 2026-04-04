@@ -68,3 +68,7 @@ export function hasSlotContent(slot?: Slot, slotProps: any = {}): boolean {
 		return vnode.type !== Comment;
 	});
 }
+
+export function scrollTop() {
+	window.scrollTo({ top: 0, behavior: 'smooth' });
+}

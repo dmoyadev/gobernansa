@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { BUTTON_MODES, BUTTON_SHAPES, BUTTON_VARIANTS, LnxButton, LnxIcon } from 'lnxjs-components';
-import IsotypeSVG from './IsotypeSVG.vue';
+import IsotypeSVG from '../components/IsotypeSVG.vue';
+import { scrollTop } from '../utils/helpers.ts';
 
 const tabs = [
 	{
@@ -45,6 +46,7 @@ const tabs = [
 			:mode="tab.isCTA ? BUTTON_MODES.SOLID : BUTTON_MODES.CLEAR"
 			:shape="tab.isCTA ? BUTTON_SHAPES.CIRCLE : BUTTON_SHAPES.ICON"
 			:class="{ cta: tab.isCTA }"
+			@click="scrollTop()"
 		>
 			<LnxIcon v-if="!tab.isCustomIcon" :icon="tab.icon as string" :size="24" />
 			<component :is="tab.icon" v-else heigth="20" width="20" />

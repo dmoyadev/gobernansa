@@ -7,6 +7,7 @@ import { useCommunityEvents } from '../composables/useCommunityEvents.ts';
 import { useUserCommunity } from '../composables/useUserCommunity.ts';
 import { useUserProperties } from '../composables/useUserProperties.ts';
 import MainLayout from '../layouts/MainLayout.vue';
+import { scrollTop } from '../utils/helpers.ts';
 
 const { user } = useAuth();
 const { selectedProperty } = useUserProperties();
@@ -54,7 +55,14 @@ const { events } = useCommunityEvents(3);
 		<section>
 			<header>
 				<h2>Actividad reciente</h2>
-				<LnxButton class="btn-all" to="/neighborhood/timeline" mode="clear" variant="grayscale" size="small">
+				<LnxButton
+					class="btn-all"
+					to="/neighborhood/timeline"
+					mode="clear"
+					variant="grayscale"
+					size="small"
+					@click="scrollTop()"
+				>
 					Ver todo
 				</LnxButton>
 			</header>

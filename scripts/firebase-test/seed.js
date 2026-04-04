@@ -28,17 +28,12 @@ function shouldRun(collection) {
 async function deleteCollection(collectionName) {
 	const snapshot = await db.collection(collectionName).get();
 	const batch = db.batch();
-
-	snapshot.docs.forEach((doc) => {
-		batch.delete(doc.ref);
-	});
-
+	snapshot.docs.forEach(doc => batch.delete(doc.ref));
 	await batch.commit();
 }
 
 async function resetDatabase() {
 	console.log('🧹 Borrando datos...');
-
 	if (shouldRun('communities')) {
 		await deleteCollection('communities');
 	}
@@ -72,10 +67,9 @@ async function seed() {
 	if (SHOULD_RESET) {
 		await resetDatabase();
 	}
-
 	const batch = db.batch();
 
-	// COMMUNITY
+	// COMMUNITIES
 	if (shouldRun('communities')) {
 		const comm1 = db.collection('communities').doc('comm1');
 		batch.set(comm1, {
@@ -95,7 +89,7 @@ async function seed() {
 			['prop4', 'Piso 2B', 'home', 'user4'],
 			['prop5', 'Garaje 12', 'parking', 'NfQwcVkiExgW9DSp5DykCxxmNK52'],
 			['prop6', 'Trastero 3', 'storage', '9yDJtg9E0kSDa8uVwtHvP8MSox03'],
-			['prop7', 'Solar 1', 'other', 'user 5'],
+			['prop7', 'Solar 1', 'other', 'user5'],
 		];
 
 		properties.forEach(([id, name, type, ownerUid]) => {
@@ -179,8 +173,80 @@ async function seed() {
 		});
 	}
 
+	// ISSUES + COMMENTS + VOTES
+	if (shouldRun('issues')) {
+		const issues = [
+			[
+				'issue_1',
+				'Luz fundida en portal 1',
+				'No funciona desde hace 2 días',
+				'open',
+				'maintenance',
+				null,
+				{ type: 'common_area', reference: 'Portal 1' },
+				[
+					['comment_1', 'NfQwcVkiExgW9DSp5DykCxxmNK52', 'Sigue sin arreglarse'],
+					['comment_2', '9yDJtg9E0kSDa8uVwtHvP8MSox03', 'Confirmo, no hay luz'],
+				],
+				[
+					['NfQwcVkiExgW9DSp5DykCxxmNK52', 1],
+					['9yDJtg9E0kSDa8uVwtHvP8MSox03', 1],
+				],
+			],
+			[
+				'issue_2',
+				'Ruido nocturno constante',
+				'Vecino en 2A hace ruido por la noche',
+				'in_progress',
+				'nuisance',
+				'01FbbUmlfHShICI9dlVs5gsvtPl2',
+				{ type: 'property', propertyId: 'prop3', reference: '2A' },
+				[
+					['comment_3', 'user4', 'Pasa casi todas las noches'],
+				],
+				[
+					['user4', -1],
+				],
+			],
+		];
+
+		for (const [id, title, description, status, category, assignedTo, location, comments, votes] of issues) {
+			const issueRef = db.collection('communities').doc('comm1').collection('issues').doc(id);
+
+			batch.set(issueRef, {
+				title,
+				description,
+				status,
+				category,
+				...(assignedTo ? { assignedTo } : {}),
+				votesScore: votes.reduce((a, [, s]) => a + s, 0),
+				votesCount: votes.length,
+				...(location ? { location } : {}),
+				...getDatableProperties(),
+				deletedAt: null,
+			});
+
+			// comments
+			for (const [commentId, authorId, message] of comments) {
+				const commentRef = issueRef.collection('comments').doc(commentId);
+				batch.set(commentRef, {
+					authorId,
+					message,
+					...getDatableProperties(),
+					deletedAt: null,
+				});
+			}
+
+			// votes
+			for (const [voterId, score] of votes) {
+				const voteRef = issueRef.collection('votes').doc(`${id}_${voterId}`);
+				batch.set(voteRef, { voterId, score });
+			}
+		}
+	}
+
 	await batch.commit();
 	console.log('✅ Seed completado');
 }
 
-seed();
+void seed();

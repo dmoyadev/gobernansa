@@ -5,6 +5,7 @@ import { useDocument } from 'vuefire';
 import useAuth from './useAuth.ts';
 
 export interface Community extends Datable {
+	id: string;
 	name: string;
 	address: string;
 	constructionYear: number;

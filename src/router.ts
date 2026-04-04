@@ -29,7 +29,7 @@ export const routes: Array<RouteRecordRaw> = [
 	{
 		path: '/',
 		name: 'Tabs',
-		component: async () => import('./components/TabsLayout.vue'),
+		component: async () => import('./layouts/TabsLayout.vue'),
 		children: [
 			{
 				path: '/',
