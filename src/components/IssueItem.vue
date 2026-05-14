@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Issue } from '../composables/useIssues.ts';
-import { LnxIcon } from 'lnxjs-components';
+import type { Issue } from '../interfaces/issue';
+import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { issuesCategories, issueStatus } from '../composables/useIssues.ts';
 
 defineProps<{
@@ -9,7 +9,7 @@ defineProps<{
 </script>
 
 <template>
-	<div class="issue">
+	<LnxButton :to="`/issues/${issue.id}`" mode="link" class="issue">
 		<div class="meta">
 			<div
 				class="status-dot"
@@ -55,7 +55,7 @@ defineProps<{
 				{{ issuesCategories.find(category => category.value === issue.category)?.label || 'Sin categoría' }}
 			</span>
 		</div>
-	</div>
+	</LnxButton>
 </template>
 
 <style scoped lang="scss">
@@ -64,10 +64,12 @@ defineProps<{
 	background: var(--color-gray-2);
 	padding: var(--lnx-spacing-3) var(--lnx-spacing-4);
 	display: flex;
+	align-items: flex-start;
 	flex-direction: column;
 	gap: var(--lnx-spacing-2);
 
 	.meta {
+		width: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -97,6 +99,7 @@ defineProps<{
 	}
 
 	.info {
+		width: 100%;
 		display: flex;
 		align-items: center;
 		gap: var(--lnx-spacing-3);
@@ -133,10 +136,12 @@ defineProps<{
 			-webkit-box-orient: vertical;
 			-webkit-line-clamp: 2;
 			overflow: hidden;
+			text-align: left;
 		}
 	}
 
 	.status {
+		width: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;

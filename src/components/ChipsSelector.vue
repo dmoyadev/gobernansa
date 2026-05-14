@@ -1,6 +1,11 @@
-<script setup lang="ts" generic="T extends { label: string; value: unknown}">
+<script setup lang="ts" generic="T extends ChipOption">
 import { LnxIcon } from 'lnxjs-components';
 import { ref, useTemplateRef, watch } from 'vue';
+
+export interface ChipOption<U = unknown> {
+	label: string;
+	value: U;
+}
 
 withDefaults(
 	defineProps<{

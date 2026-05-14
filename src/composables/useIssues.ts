@@ -1,66 +1,10 @@
-import type { DocumentData, QueryConstraint } from 'firebase/firestore';
-import type { Ref } from 'vue';
-import type { Datable, Deletable } from '../utils/interfaces.ts';
-import type { Community } from './useUserCommunity.ts';
-import {
-	collection,
-	getDocs,
-	getFirestore,
-	limit,
-	orderBy,
-	query,
-	startAfter,
-	where,
-} from 'firebase/firestore';
+import type { CollectionReference, DocumentData, QueryConstraint } from 'firebase/firestore';
+import type { ChipOption } from '../components/ChipsSelector.vue';
+import type { Issue, IssueCategory, IssuesFilters, IssueSortingField, IssueStatus } from '../interfaces/issue';
+import { getDocs, getFirestore, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
-
-export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
-export type IssueCategory = 'maintenance' | 'landscaping' | 'cleaning' | 'security' | 'nuisance' | 'other';
-export type IssueSortingField = 'updatedAt' | 'createdAt' | 'votesCount';
-
-export interface Issue extends Datable, Deletable {
-	id: string;
-
-	title: string;
-	description: string;
-
-	status: IssueStatus;
-	category: IssueCategory;
-
-	communityId: string;
-	assignedTo?: string;
-	votesScore: number;
-	votesCount: number;
-
-	assets?: string[];
-
-	location?: {
-		type: 'property' | 'common_area';
-		propertyId?: string; // only if the type is 'property', id of the property where the issue is located
-		reference?: string; // ex: "portal 2", "garaje plaza 14"
-	};
-}
-
-export interface IssueComment extends Datable, Deletable {
-	id: string;
-	issueId: string;
-
-	authorId: string;
-	message: string;
-}
-
-export interface IssueVote {
-	id: string;
-	issueId: string;
-	voterId: string;
-	score: number; // 1 for upvote, -1 for downvote
-}
-
-export interface IssuesFilters {
-	status?: IssueStatus;
-	category?: IssueCategory;
-	assignedTo?: string;
-}
+import { communityCollection, mapFirestoreDoc } from './useFirestoreDocument.ts';
+import { useUserCommunity } from './useUserCommunity.ts';
 
 export const issuesCategories = [
 	{ value: 'maintenance', label: '🛠️ Mantenimiento' },
@@ -69,20 +13,22 @@ export const issuesCategories = [
 	{ value: 'security', label: '🔒 Seguridad' },
 	{ value: 'nuisance', label: '💥 Molestias' },
 	{ value: 'other', label: '⚠️ Otros' },
-] as const as { value: IssueCategory; label: string }[];
+] as const as ChipOption<IssueCategory>[];
 
 export const issueStatus = [
 	{ value: 'open', label: 'Notificada' },
 	{ value: 'in_progress', label: 'Actuando' },
 	{ value: 'resolved', label: 'Solucionada' },
 	{ value: 'closed', label: 'Cerrada' },
-] as const as { value: IssueStatus; label: string }[];
+] as const as ChipOption<IssueStatus>[];
 
 const PAGE_SIZE = 10;
 
-export function useIssues(community: Ref<Community>) {
-	const communityId = computed<string>(() => community.value?.id);
+export function useIssues() {
 	const db = getFirestore();
+
+	const { userCommunity } = useUserCommunity();
+	const communityId = computed(() => userCommunity.value?.id);
 
 	const issues = ref<Issue[]>([]);
 	const sortingField = ref<IssueSortingField>('createdAt');
@@ -90,9 +36,24 @@ export function useIssues(community: Ref<Community>) {
 	const lastDoc = ref<DocumentData>();
 	const hasMore = ref(true);
 
-	const filters = ref<IssuesFilters>({});
+	const issuesCollection = computed<CollectionReference<Issue> | undefined>(() => {
+		if (!communityId.value) {
+			return;
+		}
 
+		return communityCollection<Issue>(
+			db,
+			communityId.value,
+			'issues',
+		);
+	});
+
+	const filters = ref<IssuesFilters>({});
 	function buildQuery() {
+		if (!issuesCollection.value) {
+			return;
+		}
+
 		const constraints: QueryConstraint[] = [
 			where('deletedAt', '==', null),
 			orderBy(sortingField.value, 'desc'),
@@ -113,13 +74,18 @@ export function useIssues(community: Ref<Community>) {
 		}
 
 		return query(
-			collection(db, 'communities', communityId.value, 'issues'),
+			issuesCollection.value,
 			...constraints,
 		);
 	}
 
 	async function fetchIssues(reset = false) {
 		if (loading.value || (!hasMore.value && !reset)) {
+			return;
+		}
+
+		const q = buildQuery();
+		if (!q) {
 			return;
 		}
 
@@ -130,42 +96,33 @@ export function useIssues(community: Ref<Community>) {
 			lastDoc.value = undefined;
 			hasMore.value = true;
 		}
-
-		const q = buildQuery();
 		const snap = await getDocs(q);
-
-		const newIssues = snap.docs.map(doc => ({
-			id: doc.id,
-			...doc.data(),
-		})) as Issue[];
-
+		const newIssues = snap.docs.map(mapFirestoreDoc<Issue>);
 		if (snap.docs.length < PAGE_SIZE) {
 			hasMore.value = false;
 		}
-
-		lastDoc.value = snap.docs.at(-1) || undefined;
-
+		lastDoc.value = snap.docs.at(-1);
 		issues.value.push(...newIssues);
 
 		loading.value = false;
 	}
 
 	watch(communityId, (value) => {
-		if (value) {
-			void fetchIssues();
+		if (!value) {
+			return;
 		}
-	});
-	watch(filters, () => {
-		console.log('fetching issues!');
+
 		void fetchIssues(true);
-	}, { deep: true });
+	});
+
+	watch([filters, sortingField], () => void fetchIssues(true), { deep: true });
 
 	return {
 		issues,
-		loading,
-		hasMore,
 		filters,
 		sortingField,
+		loading,
+		hasMore,
 		fetchIssues,
 	};
 }
