@@ -24,4 +24,33 @@
 	--color-gray-8: #2d3748;
 	--color-gray-9: #1a202c;
 	--color-gray-10: #171923;
+
+	/* Issues categories */
+	--color-issue-cat-maintenance: #fef3c7;
+	--color-issue-cat-maintenance-accent: #d97706;
+
+	--color-issue-cat-landscaping: #dcfce7;
+	--color-issue-cat-landscaping-accent: #15803d;
+
+	--color-issue-cat-cleaning: #cffafe;
+	--color-issue-cat-cleaning-accent: #0891b2;
+
+	--color-issue-cat-security: #fee2e2;
+	--color-issue-cat-security-accent: #dc2626;
+
+	--color-issue-cat-nuisance: #f3e8ff;
+	--color-issue-cat-nuisance-accent: #9333ea;
+
+	--color-issue-cat-other: #f3f4f6;
+	--color-issue-cat-other-accent: #4b5563;
+
+	/* Issues status */
+	--color-issue-status-open: #4fa2dc;
+	--color-issue-status-closed: #931616;
+	--color-issue-status-in_progress: #1aa792;
+	--color-issue-status-resolved: #11ad70;
+
+	/* Issues votes */
+	--color-issue-vote-cold: #4fa2dc;
+	--color-issue-vote-hot: #b3671b;
 }

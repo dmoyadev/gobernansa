@@ -67,7 +67,7 @@ export const routes: Array<RouteRecordRaw> = [
 					{
 						path: '',
 						name: 'Comunidad',
-						component: async () => import('./pages/NeighborhoodPage.vue'),
+						component: async () => import('./pages/CommunityPage.vue'),
 						meta: { title: 'Comunidad' },
 					},
 					{

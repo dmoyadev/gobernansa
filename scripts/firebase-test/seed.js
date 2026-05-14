@@ -192,6 +192,10 @@ async function seed() {
 					['NfQwcVkiExgW9DSp5DykCxxmNK52', 1],
 					['9yDJtg9E0kSDa8uVwtHvP8MSox03', 1],
 				],
+				[
+					'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855624/gobernan%C3%A7a/issues/Resi_ponfe_3_-krLB-U20721300682AMB-1200x840_Leonoticias_r7nbg4.webp',
+					'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855576/gobernan%C3%A7a/issues/filtraciones-agua-residencia_tmvhv0.jpg',
+				],
 			],
 			[
 				'issue_2',
@@ -207,10 +211,33 @@ async function seed() {
 				[
 					['user4', -1],
 				],
+				[
+					'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855576/gobernan%C3%A7a/issues/filtraciones-agua-residencia_tmvhv0.jpg',
+					'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855576/gobernan%C3%A7a/issues/inside-view_ftqxjx.jpg',
+				],
+			],
+			[
+				'issue_3',
+				'La del vídeo y el título súper largo que alguien ha confundido con la descripción así que se va de madre',
+				'Es una prueba de incidencia que tiene un vídeo como evidencia',
+				'closed',
+				'landscaping',
+				'01FbbUmlfHShICI9dlVs5gsvtPl2',
+				{ type: 'common_area', reference: 'Segunda planta' },
+				[],
+				[
+					['NfQwcVkiExgW9DSp5DykCxxmNK52', 1],
+					['9yDJtg9E0kSDa8uVwtHvP8MSox03', 1],
+					['user4', -1],
+					['01FbbUmlfHShICI9dlVs5gsvtPl2', 1],
+				],
+				[
+					'https://res.cloudinary.com/dqd7np8vk/video/upload/v1776855577/gobernan%C3%A7a/issues/bigbuck_bunny_8bit_15000kbps_1080p_60.0fps_h264_tpr6rn.mp4',
+				],
 			],
 		];
 
-		for (const [id, title, description, status, category, assignedTo, location, comments, votes] of issues) {
+		for (const [id, title, description, status, category, assignedTo, location, comments, votes, assets] of issues) {
 			const issueRef = db.collection('communities').doc('comm1').collection('issues').doc(id);
 
 			batch.set(issueRef, {
@@ -218,6 +245,7 @@ async function seed() {
 				description,
 				status,
 				category,
+				assets,
 				...(assignedTo ? { assignedTo } : {}),
 				votesScore: votes.reduce((a, [, s]) => a + s, 0),
 				votesCount: votes.length,

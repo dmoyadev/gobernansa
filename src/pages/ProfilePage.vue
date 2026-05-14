@@ -10,7 +10,9 @@ const { logout } = useAuth();
 	<MainLayout>
 		Profile
 
-		<LnxButton @click="logout()" variant="danger">Cerrar sesión</LnxButton>
+		<LnxButton variant="danger" @click="logout()">
+			Cerrar sesión
+		</LnxButton>
 	</MainLayout>
 </template>
 

@@ -32,7 +32,7 @@ export interface Issue extends Datable, Deletable {
 	votesScore: number;
 	votesCount: number;
 
-	images?: string[];
+	assets?: string[];
 
 	location?: {
 		type: 'property' | 'common_area';
@@ -61,6 +61,22 @@ export interface IssuesFilters {
 	category?: IssueCategory;
 	assignedTo?: string;
 }
+
+export const issuesCategories = [
+	{ value: 'maintenance', label: '🛠️ Mantenimiento' },
+	{ value: 'landscaping', label: '🏡 Jardinería' },
+	{ value: 'cleaning', label: '🧹 Limpieza' },
+	{ value: 'security', label: '🔒 Seguridad' },
+	{ value: 'nuisance', label: '💥 Molestias' },
+	{ value: 'other', label: '⚠️ Otros' },
+] as const as { value: IssueCategory; label: string }[];
+
+export const issueStatus = [
+	{ value: 'open', label: 'Notificada' },
+	{ value: 'in_progress', label: 'Actuando' },
+	{ value: 'resolved', label: 'Solucionada' },
+	{ value: 'closed', label: 'Cerrada' },
+] as const as { value: IssueStatus; label: string }[];
 
 const PAGE_SIZE = 10;
 
@@ -140,8 +156,9 @@ export function useIssues(community: Ref<Community>) {
 		}
 	});
 	watch(filters, () => {
+		console.log('fetching issues!');
 		void fetchIssues(true);
-	});
+	}, { deep: true });
 
 	return {
 		issues,

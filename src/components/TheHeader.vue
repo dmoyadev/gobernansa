@@ -47,5 +47,11 @@ header {
 			margin-right: auto;
 		}
 	}
+
+	:deep(p) {
+		margin-top: calc(-1 * var(--lnx-spacing-2));
+		color: var(--color-gray-68);
+		font-weight: var(--lnx-font-weight-light);
+	}
 }
 </style>
