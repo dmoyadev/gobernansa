@@ -22,7 +22,8 @@ export const routes: Array<RouteRecordRaw> = [
 			isPublic: true,
 		},
 		beforeEnter: (to) => {
-			window.location.href = `/login${to.query?.redirect ? (`?redirect=${String(to.query.redirect)}`) : ''}`;
+			const unauthorized = to.query?.unauthorized;
+			window.location.href = `/login${unauthorized ? `?${new URLSearchParams({ unauthorized: String(unauthorized) }).toString()}` : ''}`;
 		},
 	},
 
@@ -129,7 +130,7 @@ export async function checkAuth(to: RouteLocationNormalized) {
 
 	const user = await getCurrentUser();
 	if (!user) {
-		return `/logout${to.name === 'Login' ? '' : `?unauthorized=${to.fullPath}`}`;
+		return { path: '/logout', query: { unauthorized: to.fullPath } };
 	}
 }
 
