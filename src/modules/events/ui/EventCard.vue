@@ -32,25 +32,25 @@ interface TypeData {
 
 const typesData: Record<Event['type'], TypeData> = {
 	community: {
-		icon: 'mdi:account-group',
+		icon: 'lucide:users',
 		label: 'Comunidad',
 		bgColor: '#eef4ff',
 		color: '#335fa5',
 	},
 	maintenance: {
-		icon: 'mdi:tools',
+		icon: 'lucide:wrench',
 		label: 'Mantenimiento',
 		bgColor: '#fae5d9',
 		color: '#af6228',
 	},
 	improvements: {
-		icon: 'mdi:lightbulb-on',
+		icon: 'lucide:lightbulb',
 		label: 'Mejoras',
 		bgColor: '#def1dc',
 		color: '#3c8924',
 	},
 	other: {
-		icon: 'mdi:information',
+		icon: 'lucide:info',
 		label: 'Otro',
 		bgColor: '#e7e7e7',
 		color: '#393939',

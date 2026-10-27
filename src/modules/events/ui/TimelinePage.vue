@@ -27,7 +27,7 @@ const { userCommunity } = useUserCommunity();
 		</LnxButton>
 
 		<div v-else class="load-more">
-			<LnxIcon class="icon" icon="roentgen:building-construction" :size="20" />
+			<LnxIcon class="icon" icon="lucide:building-2" :size="20" />
 
 			<div class="info">
 				<div class="metadata">

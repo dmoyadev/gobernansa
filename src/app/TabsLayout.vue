@@ -11,23 +11,23 @@ const tabs = [
 		route: '/',
 	},
 	{
-		icon: 'mdi:home-warning',
+		icon: 'lucide:message-square-warning',
 		text: 'Incidencias',
 		route: '/issues',
 	},
 	{
-		icon: 'mdi:plus',
+		icon: 'lucide:plus',
 		text: 'Añadir Incidencia',
 		route: '/issues/new',
 		isCTA: true,
 	},
 	{
-		icon: 'mdi:account-group',
+		icon: 'lucide:users',
 		text: 'Comunidad',
 		route: '/neighborhood',
 	},
 	{
-		icon: 'mdi:user',
+		icon: 'lucide:user',
 		text: 'Perfil',
 		route: '/profile',
 	},

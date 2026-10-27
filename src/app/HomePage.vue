@@ -38,7 +38,7 @@ const { events } = useCommunityEvents(3);
 				Avisa de cualquier problema para que empecemos a trabajar en ello cuanto antes.
 			</p>
 			<LnxButton variant="danger" to="/issues/new" is-block>
-				<LnxIcon icon="mdi:alert-circle-outline" />
+				<LnxIcon icon="lucide:circle-alert" />
 				Dar aviso
 			</LnxButton>
 		</div>

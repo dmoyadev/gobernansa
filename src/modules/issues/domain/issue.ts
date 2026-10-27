@@ -50,13 +50,13 @@ export interface IssuesFilters {
 	assignedTo?: string;
 }
 
-export const issuesCategories: { value: IssueCategory; label: string }[] = [
-	{ value: 'maintenance', label: '🛠️ Mantenimiento' },
-	{ value: 'landscaping', label: '🏡 Jardinería' },
-	{ value: 'cleaning', label: '🧹 Limpieza' },
-	{ value: 'security', label: '🔒 Seguridad' },
-	{ value: 'nuisance', label: '💥 Molestias' },
-	{ value: 'other', label: '⚠️ Otros' },
+export const issuesCategories: { value: IssueCategory; label: string; icon: string }[] = [
+	{ value: 'maintenance', label: 'Mantenimiento', icon: 'lucide:wrench' },
+	{ value: 'landscaping', label: 'Jardinería', icon: 'lucide:sprout' },
+	{ value: 'cleaning', label: 'Limpieza', icon: 'lucide:brush-cleaning' },
+	{ value: 'security', label: 'Seguridad', icon: 'lucide:lock' },
+	{ value: 'nuisance', label: 'Molestias', icon: 'lucide:volume-2' },
+	{ value: 'other', label: 'Otros', icon: 'lucide:triangle-alert' },
 ];
 
 export const issueStatus: { value: IssueStatus; label: string }[] = [

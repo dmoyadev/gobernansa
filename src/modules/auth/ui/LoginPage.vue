@@ -139,19 +139,19 @@ async function doSignIn() {
 					:disabled="!isEmailValid || loadingLogin || (emailSent && !password)"
 				>
 					<template v-if="(triedSubmit && errorLogin && !password)">
-						<LnxIcon icon="mdi:close" />
+						<LnxIcon icon="lucide:x" />
 						Error
 					</template>
 					<template v-else-if="emailSent && !password">
-						<LnxIcon icon="mdi:check" />
+						<LnxIcon icon="lucide:check" />
 						¡Enviado!
 					</template>
 					<template v-else-if="emailSent">
-						<LnxIcon icon="mdi:check" />
+						<LnxIcon icon="lucide:check" />
 						Entrando...
 					</template>
 					<template v-else>
-						<LnxIcon icon="mdi:arrow-right-thick" />
+						<LnxIcon icon="lucide:arrow-right" />
 						Entrar
 					</template>
 				</LnxButton>

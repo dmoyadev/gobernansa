@@ -1,13 +1,14 @@
 <script setup lang="ts" generic="T extends ChipOption">
 import { LnxIcon } from 'lnxjs-components';
-import { ref, useTemplateRef, watch } from 'vue';
+import { computed, ref, useTemplateRef, watch } from 'vue';
 
 export interface ChipOption<U = unknown> {
 	label: string;
 	value: U;
+	icon?: string;
 }
 
-withDefaults(
+const props = withDefaults(
 	defineProps<{
 		options?: T[];
 		cssPrefix?: string;
@@ -19,6 +20,8 @@ withDefaults(
 );
 
 const modelValue = defineModel<T['value']>();
+
+const selected = computed(() => props.options.find(option => option.value === modelValue.value));
 
 const $chips = useTemplateRef('$chips');
 const maxScrollPercentage = ref(0);
@@ -64,8 +67,9 @@ watch(modelValue, () => {
 				}"
 				@click="modelValue = undefined"
 			>
-				<LnxIcon icon="mdi:times" />
-				{{ options?.find(option => option.value === modelValue)?.label }}
+				<LnxIcon icon="lucide:x" />
+				<LnxIcon v-if="selected?.icon" :icon="selected.icon" />
+				{{ selected?.label }}
 			</span>
 			<span
 				class="chip"
@@ -89,6 +93,7 @@ watch(modelValue, () => {
 						'--chip-color-bg': `var(--color-${cssPrefix}-${option.value})`,
 					}"
 				/>
+				<LnxIcon v-if="option.icon" :icon="option.icon" />
 				{{ option.label }}
 			</span>
 		</span>

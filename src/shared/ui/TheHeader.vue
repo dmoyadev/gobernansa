@@ -16,7 +16,7 @@ const { user } = useAuth();
 				mode="clear"
 				shape="circle"
 			>
-				<LnxIcon icon="mdi:bell-outline" />
+				<LnxIcon icon="lucide:bell" />
 			</LnxButton>
 		</div>
 

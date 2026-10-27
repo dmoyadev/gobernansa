@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type { Issue } from '../domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { computed } from 'vue';
 import { issuesCategories, issueStatus } from '../domain/issue.ts';
 
-defineProps<{
+const props = defineProps<{
 	issue: Issue;
 }>();
+
+const category = computed(() => issuesCategories.find(category => category.value === props.issue.category));
 </script>
 
 <template>
@@ -39,7 +42,7 @@ defineProps<{
 		<div class="status">
 			<div class="votes">
 				<LnxIcon
-					:icon="`mdi:${issue.votesScore > 0 ? 'flame' : 'snowflake'}`"
+					:icon="`lucide:${issue.votesScore > 0 ? 'flame' : 'snowflake'}`"
 					:style="{ color: issue.votesScore > 1 ? 'var(--color-issue-vote-hot)' : 'var(--color-issue-vote-cold)' }"
 				/>
 				{{ issue.votesScore }} votos
@@ -52,7 +55,8 @@ defineProps<{
 					'--badge-color-bg': `var(--color-issue-cat-${issue.category})`,
 				}"
 			>
-				{{ issuesCategories.find(category => category.value === issue.category)?.label || 'Sin categoría' }}
+				<LnxIcon v-if="category" :icon="category.icon" />
+				{{ category?.label || 'Sin categoría' }}
 			</span>
 		</div>
 	</LnxButton>
@@ -96,6 +100,9 @@ defineProps<{
 		font-size: var(--lnx-font-size-small);
 		color: var(--badge-color, var(--color-gray-6));
 		background: var(--badge-color-bg, var(--color-gray-4));
+		display: flex;
+		align-items: center;
+		gap: 4px;
 	}
 
 	.info {
