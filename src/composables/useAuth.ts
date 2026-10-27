@@ -6,9 +6,9 @@ import {
 	signOut,
 } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { ref, watchEffect } from 'vue';
-import { useRouter } from 'vue-router';
+import { effectScope, ref, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
+import router from '../router.ts';
 import { auth, db } from '../utils/firebase.ts';
 
 export interface User {
@@ -18,7 +18,15 @@ export interface User {
 	name: string;
 }
 
+// Shared by every caller so the user document is listened to only once
+let shared: ReturnType<typeof createAuth> | undefined;
+
 export default function useAuth() {
+	shared ??= effectScope(true).run(createAuth)!;
+	return shared;
+}
+
+function createAuth() {
 	const user = useCurrentUser();
 	const userRef = ref<DocumentReference>();
 	const userData = useDocument<User>(userRef);
@@ -59,7 +67,6 @@ export default function useAuth() {
 		}
 	});
 
-	const router = useRouter();
 	async function logout() {
 		await signOut(auth);
 		userRef.value = undefined;

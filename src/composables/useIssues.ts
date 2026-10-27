@@ -126,7 +126,7 @@ export function useIssues() {
 		}
 
 		void fetchIssues(true);
-	});
+	}, { immediate: true });
 
 	watch([filters, sortingField], () => void fetchIssues(true), { deep: true });
 
