@@ -8,7 +8,7 @@ import {
 import { computed, onBeforeMount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
-import * as pkg from '../../package.json';
+import { version } from '../../package.json';
 import BackgroundImage from '../components/BackgroundImage.vue';
 import useAuth from '../composables/useAuth.ts';
 import router from '../router.ts';
@@ -156,7 +156,7 @@ async function doSignIn() {
 		</form>
 
 		<small>
-			v.{{ pkg.version }}
+			v.{{ version }}
 			<br>
 			Continuando, indicas que aceptas nuestros
 			<a href="#">Términos y condiciones</a> y la <a href="#">Política de privacidad</a>
