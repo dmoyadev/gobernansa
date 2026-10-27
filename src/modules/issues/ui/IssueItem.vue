@@ -18,13 +18,24 @@ const step = computed(() => props.issue.status === 'closed'
 	? lifecycle.length
 	: lifecycle.findIndex(status => status.value === props.issue.status) + 1);
 
-const relativeTime = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
 const date = computed(() => {
-	const createdAt = props.issue.createdAt.toDate();
-	const days = Math.round((createdAt.getTime() - Date.now()) / 86_400_000);
-	return days > -7
-		? relativeTime.format(days, 'day')
-		: createdAt.toLocaleDateString([], { day: 'numeric', month: 'long' });
+	const days = Math.floor((Date.now() - props.issue.createdAt.toMillis()) / 86_400_000);
+	if (days < 1) {
+		return 'Hoy';
+	}
+	if (days < 2) {
+		return 'Hace 1 día';
+	}
+	if (days < 30) {
+		return `Hace ${days} días`;
+	}
+	if (days < 365) {
+		return 'Hace más de un mes';
+	}
+	if (days < 730) {
+		return 'Hace más de un año';
+	}
+	return `Hace ${Math.floor(days / 365)} años`;
 });
 </script>
 
