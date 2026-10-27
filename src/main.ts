@@ -3,12 +3,12 @@ import type { Component } from 'vue';
 import { createApp } from 'vue';
 
 /* App core dependencies */
-import App from './App.vue';
-import router from './router';
+import App from './app/App.vue';
+import router from './app/router.ts';
 
 /* Firebase */
 import { VueFire, VueFireAuth } from 'vuefire';
-import { firebaseApp } from './utils/firebase.ts';
+import { firebaseApp } from './shared/infrastructure/firebase.ts';
 
 /* Icons */
 import 'iconify-icon';

@@ -1,0 +1,137 @@
+import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
+import { getCurrentUser } from 'vuefire';
+
+export const routes: Array<RouteRecordRaw> = [
+	{
+		path: '/login',
+		name: 'Login',
+		component: async () => import('@/modules/auth/ui/LoginPage.vue'),
+		meta: {
+			title: 'Iniciar sesión',
+			isPublic: true,
+		},
+	},
+
+	{
+		path: '/logout',
+		name: 'Logout',
+		component: async () => import('@/modules/auth/ui/LoginPage.vue'),
+		meta: {
+			title: 'Cerrar sesión',
+			isPublic: true,
+		},
+		beforeEnter: (to) => {
+			const unauthorized = to.query?.unauthorized;
+			window.location.href = `/login${unauthorized ? `?${new URLSearchParams({ unauthorized: String(unauthorized) }).toString()}` : ''}`;
+		},
+	},
+
+	{
+		path: '/',
+		name: 'Tabs',
+		component: async () => import('./TabsLayout.vue'),
+		children: [
+			{
+				path: '/',
+				name: 'Home',
+				component: async () => import('./HomePage.vue'),
+				meta: { title: '' },
+			},
+			{
+				path: '/issues',
+				children: [
+					{
+						path: '',
+						name: 'Incidencias',
+						component: async () => import('@/modules/issues/ui/IssuesPage.vue'),
+						meta: { title: 'Incidencias' },
+					},
+					{
+						path: 'new',
+						name: 'Nueva incidencia',
+						component: async () => import('@/modules/issues/ui/IssuesCreatePage.vue'),
+						meta: { title: 'Nueva incidencia' },
+					},
+					{
+						path: ':id',
+						name: 'Detalle de incidencia',
+						component: async () => import('@/modules/issues/ui/IssuesDetailPage.vue'),
+						meta: { title: 'Detalle de incidencia' },
+						props: true,
+					},
+				],
+			},
+			{
+				path: '/neighborhood',
+				children: [
+					{
+						path: '',
+						name: 'Comunidad',
+						component: async () => import('@/modules/community/ui/CommunityPage.vue'),
+						meta: { title: 'Comunidad' },
+					},
+					{
+						path: 'timeline',
+						name: 'Cronograma',
+						component: async () => import('@/modules/events/ui/TimelinePage.vue'),
+						meta: { title: 'Cronograma' },
+					},
+				],
+			},
+			{
+				path: '/profile',
+				name: 'Perfil',
+				component: async () => import('@/modules/auth/ui/ProfilePage.vue'),
+				meta: { title: 'Perfil' },
+			},
+		],
+	},
+
+	{
+		path: '/:pathMatch(.*)*',
+		name: 'NotFound',
+		component: async () => import('./NotFoundPage.vue'),
+		meta: {
+			title: 'Not Found',
+			isPublic: true,
+		},
+	},
+];
+
+const router = createRouter({
+	history: createWebHistory(import.meta.env.BASE_URL),
+	routes,
+});
+
+router.beforeEach(async (to) => {
+	setDocumentTitle(to);
+	const redirection = await checkAuth(to);
+	return redirection || true;
+});
+
+/**
+ * Set the document title with the app title as suffix and
+ * adding the id to the title if it's a dynamic route.
+ *
+ * @param {RouteLocationNormalized} to - The route to which we are navigating
+ */
+function setDocumentTitle(to: RouteLocationNormalized) {
+	const titleSuffix = import.meta.env.MODE !== 'production'
+		? (` ${((import.meta.env.VITE_ENV_NAME as string | undefined) || import.meta.env.MODE).toUpperCase()}`)
+		: '';
+	document.title = `${to.meta?.title ? (`${String(to.meta.title)} | `) : ''}gobernança${titleSuffix}`;
+}
+
+export async function checkAuth(to: RouteLocationNormalized) {
+	if (to.meta?.isPublic) {
+		return;
+	}
+
+	const user = await getCurrentUser();
+	if (!user) {
+		return { path: '/logout', query: { unauthorized: to.fullPath } };
+	}
+}
+
+export default router;

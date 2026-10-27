@@ -10,6 +10,7 @@
 
 		/* Bundler mode */
 		"moduleResolution": "bundler", // Module resolution strategy
+		"paths": { "@/*": ["./src/*"] }, // Same '@' alias as vite.config.ts
 		"resolveJsonModule": true, // Enable JSON module resolution
 		"allowImportingTsExtensions": true, // Allow importing TypeScript extensions
 
