@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { useTemplateRef } from 'vue';
 import useAuth from '@/modules/auth/application/useAuth.ts';
+import TheToolbar from './TheToolbar.vue';
+
+// Shown in the toolbar on scroll, the route title by default
+defineProps<{ title?: string }>();
 
 const { user } = useAuth();
+const $header = useTemplateRef('$header');
 </script>
 
 <template>
-	<header>
-		<div class="top-menu">
-			<img src="/logo.svg" class="logo" alt="Logo" width="120" height="40">
-
+	<header ref="$header">
+		<TheToolbar :title="title || String($route.meta.title || '')" :reveal="$header">
 			<LnxButton
 				v-if="user"
 				to="/profile"
@@ -18,7 +22,7 @@ const { user } = useAuth();
 			>
 				<LnxIcon icon="lucide:bell" />
 			</LnxButton>
-		</div>
+		</TheToolbar>
 
 		<slot />
 	</header>
@@ -26,27 +30,12 @@ const { user } = useAuth();
 
 <style scoped lang="scss">
 header {
-	padding: var(--lnx-spacing-4) var(--lnx-spacing-4) 0;
+	// The fixed toolbar takes the place of the logo row
+	padding: calc(var(--toolbar-height) - var(--lnx-spacing-2)) var(--lnx-spacing-4) 0;
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
 	gap: var(--lnx-spacing-2);
-
-	.top-menu {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--lnx-spacing-2);
-
-		* {
-			flex-shrink: 0;
-		}
-
-		.logo {
-			margin-bottom: -4px;
-			margin-right: auto;
-		}
-	}
 
 	:deep(p) {
 		margin-top: calc(-1 * var(--lnx-spacing-2));

@@ -138,7 +138,7 @@ const typeData = computed<TypeData>(() => typesData[props.event.type || 'other']
 				background: v-bind('typeData.bgColor');
 				color: v-bind('typeData.color');
 				padding: 2px var(--lnx-spacing-1);
-				border-radius: var(--lnx-radius-2);
+				border-radius: var(--lnx-radius-3);
 				font-weight: var(--lnx-font-weight-bold);
 				font-size: .5em;
 			}

@@ -127,7 +127,7 @@ onUnmounted(() => {
 
 	.skeleton {
 		border: 1px solid var(--color-gray-3);
-		border-radius: calc(var(--lnx-radius-3) + var(--lnx-spacing-2));
+		border-radius: var(--lnx-radius-3);
 		background: var(--color-gray-0);
 		padding: var(--lnx-spacing-3);
 		display: flex;

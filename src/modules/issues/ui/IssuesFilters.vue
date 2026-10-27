@@ -118,7 +118,7 @@ const selectedCategory = computed(() => issuesCategories.find(option => option.v
 		&:has(:focus-visible) {
 			outline: 2px solid var(--color-primary-light);
 			outline-offset: -2px;
-			border-radius: var(--lnx-radius-2);
+			border-radius: var(--lnx-radius-3);
 		}
 
 		input {

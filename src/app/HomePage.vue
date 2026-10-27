@@ -14,7 +14,7 @@ const { events } = useCommunityEvents(3);
 </script>
 
 <template>
-	<TheHeader>
+	<TheHeader title="Inicio">
 		<div class="greeting">
 			<h1 v-if="selectedProperty">
 				¡Hola, {{ selectedProperty.name }}!
