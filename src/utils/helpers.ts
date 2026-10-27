@@ -1,6 +1,9 @@
 import type { Slot } from 'vue';
 import { Comment } from 'vue';
 
+const DIACRITICS_REGEX = /[\u0300-\u036F]/g;
+const NON_ALPHANUMERIC_REGEX = /[^a-z0-9 ]/gi;
+
 /**
  * Capitalizes the first letter of a string
  * @param {string} str - The string to capitalize
@@ -39,8 +42,8 @@ export function normalize(str?: string) {
 
 	return String(str)
 		.normalize('NFD') // Normalize to decomposed form
-		.replace(/[\u0300-\u036F]/g, '') // Remove combining diacritical marks
-		.replace(/[^a-z0-9 ]/gi, '') // Remove non-alphanumeric characters but spaces
+		.replace(DIACRITICS_REGEX, '') // Remove combining diacritical marks
+		.replace(NON_ALPHANUMERIC_REGEX, '') // Remove non-alphanumeric characters but spaces
 		.toLowerCase() // Lowercase
 		.trim() // Remove spaces at the beginning and end
 	;

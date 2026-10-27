@@ -17,7 +17,7 @@ export function useStorage<T>(key: string, defaultData?: T): Ref<T> {
 	const refData = ref(defaultData) as Ref<T>;
 
 	// Start by reading the data from local storage
-	const storedData = JSON.parse(localStorage.getItem(key) ?? 'null') ?? undefined;
+	const storedData = JSON.parse(localStorage.getItem(key) ?? 'null') as T | null;
 	if (storedData) {
 		refData.value = storedData;
 	} else {

@@ -16,7 +16,6 @@ import MainLayout from '../layouts/MainLayout.vue';
 const {
 	issues,
 	filters,
-	sortingField,
 	loading,
 	hasMore,
 	fetchIssues,

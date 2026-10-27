@@ -13,6 +13,26 @@ import BackgroundImage from '../components/BackgroundImage.vue';
 import useAuth from '../composables/useAuth.ts';
 import router from '../router.ts';
 
+const EMAIL_REGEX = /.[^\n\r}@\u2028\u2029]*@.+\..+/;
+
+const email = ref<string>('');
+const password = ref<string>('');
+
+// Manage the error state of the form
+const triedSubmit = ref(false);
+watch(email, () => triedSubmit.value = false);
+const isEmailValid = computed<boolean>(() => {
+	return !triedSubmit.value
+		|| (triedSubmit.value
+			&& !!email.value
+			&& EMAIL_REGEX.test(email.value));
+});
+const errorLogin = ref<unknown>();
+const emailSent = ref(false);
+const loadingLogin = ref(false);
+
+const route = useRoute();
+
 onBeforeMount(async () => {
 	try {
 		await useAuth().completeMagicLink();
@@ -31,23 +51,6 @@ onBeforeMount(async () => {
 	}
 });
 
-const email = ref<string>('');
-const password = ref<string>('');
-
-// Manage the error state of the form
-const triedSubmit = ref(false);
-watch(email, () => triedSubmit.value = false);
-const isEmailValid = computed<boolean>(() => {
-	return !triedSubmit.value
-		|| (triedSubmit.value
-			&& !!email.value
-			&& /.[^\n\r}@\u2028\u2029]*@.+\..+/.test(email.value));
-});
-const errorLogin = ref<unknown>();
-const emailSent = ref(false);
-const loadingLogin = ref(false);
-
-const route = useRoute();
 async function doSignIn() {
 	errorLogin.value = undefined;
 	triedSubmit.value = true;
