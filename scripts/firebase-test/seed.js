@@ -117,6 +117,13 @@ async function seed() {
 			['user4', 'lynx9011+user4@gmail.com', 'user'],
 		];
 
+		// Emulator only: real Auth users already exist with these UIDs. Earlier emulator sign-ins are wiped so emails map to the seeded UIDs
+		if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+			const { users: existing } = await admin.auth().listUsers();
+			await admin.auth().deleteUsers(existing.map(user => user.uid));
+			await Promise.all(users.map(async ([uid, email]) => admin.auth().createUser({ uid, email })));
+		}
+
 		users.forEach(([uid, email, role]) => {
 			const ref = db.collection('users').doc(uid);
 			const userDisplayName = email.split('@')[0].substring(email.indexOf('+') + 1);

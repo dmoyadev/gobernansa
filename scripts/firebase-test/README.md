@@ -58,7 +58,7 @@ node seed.js --reset --only=users
 
 - It writes to the project of `serviceAccountKey.local.json`, and every reset or seed counts against the free plan's daily quota. To run it against the local emulator instead:
     ```bash
-    FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node seed.js --reset
+    npm run seed-firebase:emulators
     ```
 - No data validation (it may insert inconsistent data if the script contains errors)
 ```

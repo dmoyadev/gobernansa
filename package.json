@@ -10,7 +10,9 @@
 		"lint": "eslint --fix",
 		"check-typing": "vue-tsc --build --noEmit",
 		"check-deps": "npx taze",
-		"seed-firebase": "node ./scripts/firebase-test/seed.js --reset"
+		"seed-firebase": "node ./scripts/firebase-test/seed.js --reset",
+		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js --reset",
+		"start:firebase:emulators": "firebase emulators:start"
 	},
 	"dependencies": {
 		"firebase": "^12.19.0",
@@ -27,6 +29,7 @@
 		"eslint": "^9.39.5",
 		"eslint-plugin-vue": "^10.12.0",
 		"firebase-admin": "^13.10.0",
+		"firebase-tools": "^15.34.1",
 		"jiti": "^2.7.0",
 		"sass-embedded": "^1.106.1",
 		"typescript": "~5.9.3",
