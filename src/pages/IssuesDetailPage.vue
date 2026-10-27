@@ -8,7 +8,7 @@ const {
 	data,
 	loading,
 	error,
-} = useIssue(props.id);
+} = useIssue(() => props.id);
 </script>
 
 <template>
