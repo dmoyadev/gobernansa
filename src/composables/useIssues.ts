@@ -79,9 +79,17 @@ export function useIssues() {
 		);
 	}
 
+	let lastRequestId = 0;
 	async function fetchIssues(reset = false) {
-		if (loading.value || (!hasMore.value && !reset)) {
+		if (!reset && (loading.value || !hasMore.value)) {
 			return;
+		}
+
+		// Reset before building the query so it doesn't start after the previous page
+		if (reset) {
+			issues.value = [];
+			lastDoc.value = undefined;
+			hasMore.value = true;
 		}
 
 		const q = buildQuery();
@@ -89,22 +97,27 @@ export function useIssues() {
 			return;
 		}
 
+		const requestId = ++lastRequestId;
 		loading.value = true;
 
-		if (reset) {
-			issues.value = [];
-			lastDoc.value = undefined;
-			hasMore.value = true;
-		}
-		const snap = await getDocs(q);
-		const newIssues = snap.docs.map(mapFirestoreDoc<Issue>);
-		if (snap.docs.length < PAGE_SIZE) {
-			hasMore.value = false;
-		}
-		lastDoc.value = snap.docs.at(-1);
-		issues.value.push(...newIssues);
+		try {
+			const snap = await getDocs(q);
+			// A reset started while this request was loading, so its results are stale
+			if (requestId !== lastRequestId) {
+				return;
+			}
 
-		loading.value = false;
+			const newIssues = snap.docs.map(mapFirestoreDoc<Issue>);
+			if (snap.docs.length < PAGE_SIZE) {
+				hasMore.value = false;
+			}
+			lastDoc.value = snap.docs.at(-1);
+			issues.value.push(...newIssues);
+		} finally {
+			if (requestId === lastRequestId) {
+				loading.value = false;
+			}
+		}
 	}
 
 	watch(communityId, (value) => {
