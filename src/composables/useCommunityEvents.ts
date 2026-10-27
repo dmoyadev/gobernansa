@@ -84,12 +84,11 @@ export function useCommunityEvents(pageSize = 15) {
 	}
 
 	function createEvent(data: Partial<Event>) {
-		const { user } = useAuth();
 		if (!user.value) {
 			throw new Error('🔴 User must be authenticated to create an event');
 		}
 
-		void setDoc(doc(db, 'events'), {
+		void setDoc(doc(collection(db, 'events')), {
 			...data,
 			communityId: communityId.value,
 			createdAt: Timestamp.now(),
@@ -100,7 +99,6 @@ export function useCommunityEvents(pageSize = 15) {
 	}
 
 	function updateEvent(eventId: string, data: any) {
-		const { user } = useAuth();
 		if (!user.value) {
 			throw new Error('🔴 User must be authenticated to edit an event');
 		}
