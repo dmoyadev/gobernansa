@@ -23,5 +23,8 @@ export function useIssue(issueId: MaybeRefOrGetter<string | undefined>) {
 		);
 	});
 
-	return useFirestoreDocument<Issue>({ path: issueRef });
+	return useFirestoreDocument<Issue>({
+		path: issueRef,
+		filter: issue => !issue.deletedAt,
+	});
 }

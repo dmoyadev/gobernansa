@@ -2,7 +2,8 @@
 import type { Issue } from '../domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
-import { issuesCategories, issueStatus } from '../domain/issue.ts';
+import { openedIssueId } from '../application/useIssues.ts';
+import { getIssueStep, issueLifecycle, issuesCategories, issueStatus } from '../domain/issue.ts';
 
 const props = defineProps<{
 	issue: Issue;
@@ -12,11 +13,7 @@ const category = computed(() => issuesCategories.find(category => category.value
 const status = computed(() => issueStatus.find(status => status.value === props.issue.status));
 const thumbnail = computed(() => props.issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_128,h_128/').replace('.mp4', '.jpg').replace('.mov', '.jpg'));
 
-// Closed issues leave the lifecycle, so they fill the whole bar with their own color
-const lifecycle = issueStatus.filter(status => status.value !== 'closed');
-const step = computed(() => props.issue.status === 'closed'
-	? lifecycle.length
-	: lifecycle.findIndex(status => status.value === props.issue.status) + 1);
+const step = computed(() => getIssueStep(props.issue.status));
 
 const date = computed(() => {
 	const days = Math.floor((Date.now() - props.issue.createdAt.toMillis()) / 86_400_000);
@@ -49,8 +46,13 @@ const date = computed(() => {
 			'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
 			'--status-color': `var(--color-issue-status-${issue.status})`,
 		}"
+		@click="openedIssueId = issue.id"
 	>
-		<div class="media">
+		<div
+			class="media"
+			:class="{ 'vt-morph': openedIssueId === issue.id }"
+			:style="{ '--vt-name': `issue-media-${issue.id}` }"
+		>
 			<img v-if="thumbnail" :src="thumbnail" alt="" width="64" height="64">
 			<LnxIcon v-else :icon="category?.icon || 'lucide:triangle-alert'" :size="26" />
 			<span
@@ -78,7 +80,7 @@ const date = computed(() => {
 		<div class="progress">
 			<span class="steps" aria-hidden="true">
 				<span
-					v-for="(lifecycleStatus, index) in lifecycle"
+					v-for="(lifecycleStatus, index) in issueLifecycle"
 					:key="lifecycleStatus.value"
 					class="step"
 					:class="{ done: index < step }"
@@ -101,7 +103,7 @@ const date = computed(() => {
 	row-gap: var(--lnx-spacing-3);
 	padding: var(--lnx-spacing-3);
 	border: 1px solid var(--color-gray-3);
-	border-radius: calc(var(--lnx-radius-3) + var(--lnx-spacing-2));
+	border-radius: var(--lnx-radius-3);
 	background: var(--color-gray-0);
 	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
 	text-align: left;

@@ -17,6 +17,7 @@ import 'iconify-icon';
 import './theme/skeleton.scss';
 import './theme/colors.scss';
 import './theme/typography.scss';
+import './theme/view-transitions.scss';
 
 /* Components Library */
 import 'lnxjs-components/dist/base.css';

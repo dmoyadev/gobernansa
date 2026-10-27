@@ -62,6 +62,7 @@ const tabs = [
 
 <style lang="scss" scoped>
 nav {
+	view-transition-name: tab-bar;
 	z-index: 100;
 	position: fixed;
 	bottom: 16px;

@@ -1,4 +1,5 @@
 import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
+import { nextTick } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
 
@@ -99,9 +100,18 @@ export const routes: Array<RouteRecordRaw> = [
 	},
 ];
 
+// Safari animates its own swipe-back gesture, so running ours too would play the page change twice.
+// Registered before the router's own listener, which may run the navigation guards before ours runs
+let browserAnimatedNavigation = false;
+window.addEventListener('popstate', (event) => {
+	browserAnimatedNavigation = event.hasUAVisualTransition;
+});
+
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
 	routes,
+	// Going back restores where the page was, so the issue just closed is in view
+	scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },
 });
 
 router.beforeEach(async (to) => {
@@ -109,6 +119,84 @@ router.beforeEach(async (to) => {
 	const redirection = await checkAuth(to);
 	return redirection || true;
 });
+
+/*
+ * Animate page changes with the View Transitions API. The transition snapshots the old page,
+ * then waits until the navigation has rendered the new one, so it must always be released:
+ * the browser freezes rendering while it waits.
+ */
+let finishViewTransition: (() => void) | undefined;
+
+function releaseViewTransition() {
+	finishViewTransition?.();
+	finishViewTransition = undefined;
+}
+
+router.beforeResolve(async (to, from) => {
+	releaseViewTransition();
+	const skip = browserAnimatedNavigation;
+	browserAnimatedNavigation = false;
+	// Also skips the first load and query-only changes
+	if (skip || !('startViewTransition' in document) || !from.matched.length || to.path === from.path) {
+		return;
+	}
+
+	document.documentElement.dataset.transition = getTransitionDirection(to, from);
+	await new Promise<void>((resolve) => {
+		const transition = document.startViewTransition(async () => new Promise<void>((done) => {
+			finishViewTransition = done;
+			resolve();
+		}));
+		const cleanUp = () => delete document.documentElement.dataset.transition;
+		// A skipped transition (e.g. hidden tab) may never run its update, so it must not block the navigation
+		transition.ready.catch(() => {
+			cleanUp();
+			resolve();
+		});
+		void transition.finished.finally(cleanUp);
+	});
+});
+
+router.afterEach(async () => {
+	await nextTick();
+	releaseViewTransition();
+});
+router.onError(releaseViewTransition);
+
+// The tab bar lists the sections in the same order as these routes
+const tabSections = routes
+	.find(route => route.name === 'Tabs')
+	?.children
+	?.map(route => route.path.split('/')[1]) ?? [];
+
+/**
+ * Switching tabs slides the whole page towards the tab's side, going deeper inside a
+ * section (list → detail) slides forward, coming back slides back, and anything else fades.
+ *
+ * @param {RouteLocationNormalized} to - The route to which we are navigating
+ * @param {RouteLocationNormalized} from - The route we are leaving
+ */
+function getTransitionDirection(to: RouteLocationNormalized, from: RouteLocationNormalized) {
+	const toSection = to.path.split('/')[1];
+	const fromSection = from.path.split('/')[1];
+	if (toSection !== fromSection) {
+		const toTab = tabSections.indexOf(toSection);
+		const fromTab = tabSections.indexOf(fromSection);
+		if (toTab === -1 || fromTab === -1) {
+			return 'fade';
+		}
+
+		return toTab > fromTab ? 'tab-forward' : 'tab-back';
+	}
+
+	const toDepth = to.path.split('/').filter(Boolean).length;
+	const fromDepth = from.path.split('/').filter(Boolean).length;
+	if (toDepth === fromDepth) {
+		return 'fade';
+	}
+
+	return toDepth > fromDepth ? 'forward' : 'back';
+}
 
 /**
  * Set the document title with the app title as suffix and

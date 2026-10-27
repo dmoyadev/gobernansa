@@ -1,0 +1,102 @@
+/* Page transitions, started by the router (see router.ts) */
+
+// Shared elements (an issue's photo) morph only between a list and its detail,
+// so they don't break away from the page while it slides between tabs
+:root:is([data-transition='forward'], [data-transition='back']) .vt-morph {
+	view-transition-name: var(--vt-name);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	::view-transition-group(*) {
+		animation-duration: .3s;
+		animation-timing-function: cubic-bezier(.2, 0, 0, 1);
+	}
+
+	:root[data-transition='forward'] {
+		&::view-transition-old(root) {
+			animation: .3s cubic-bezier(.2, 0, 0, 1) both vt-fade-out, .3s cubic-bezier(.2, 0, 0, 1) both vt-slide-to-start;
+		}
+
+		&::view-transition-new(root) {
+			animation: .3s cubic-bezier(.2, 0, 0, 1) both vt-fade-in, .3s cubic-bezier(.2, 0, 0, 1) both vt-slide-from-end;
+		}
+	}
+
+	:root[data-transition='back'] {
+		&::view-transition-old(root) {
+			animation: .3s cubic-bezier(.2, 0, 0, 1) both vt-fade-out, .3s cubic-bezier(.2, 0, 0, 1) both vt-slide-to-end;
+		}
+
+		&::view-transition-new(root) {
+			animation: .3s cubic-bezier(.2, 0, 0, 1) both vt-fade-in, .3s cubic-bezier(.2, 0, 0, 1) both vt-slide-from-start;
+		}
+	}
+
+	:root[data-transition='tab-forward'] {
+		&::view-transition-old(root) {
+			animation: .35s cubic-bezier(.2, 0, 0, 1) both vt-slide-out-to-start;
+		}
+
+		&::view-transition-new(root) {
+			animation: .35s cubic-bezier(.2, 0, 0, 1) both vt-slide-in-from-end;
+		}
+	}
+
+	:root[data-transition='tab-back'] {
+		&::view-transition-old(root) {
+			animation: .35s cubic-bezier(.2, 0, 0, 1) both vt-slide-out-to-end;
+		}
+
+		&::view-transition-new(root) {
+			animation: .35s cubic-bezier(.2, 0, 0, 1) both vt-slide-in-from-start;
+		}
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
+	}
+}
+
+@keyframes vt-fade-in {
+	from { opacity: 0; }
+}
+
+@keyframes vt-fade-out {
+	to { opacity: 0; }
+}
+
+@keyframes vt-slide-from-end {
+	from { transform: translateX(48px); }
+}
+
+@keyframes vt-slide-to-start {
+	to { transform: translateX(-48px); }
+}
+
+@keyframes vt-slide-from-start {
+	from { transform: translateX(-48px); }
+}
+
+@keyframes vt-slide-to-end {
+	to { transform: translateX(48px); }
+}
+
+@keyframes vt-slide-out-to-start {
+	to { transform: translateX(-100%); }
+}
+
+@keyframes vt-slide-in-from-end {
+	from { transform: translateX(100%); }
+}
+
+@keyframes vt-slide-out-to-end {
+	to { transform: translateX(100%); }
+}
+
+@keyframes vt-slide-in-from-start {
+	from { transform: translateX(-100%); }
+}
