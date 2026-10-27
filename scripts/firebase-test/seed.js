@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import process from 'node:process';
 import admin from 'firebase-admin';
 
 const serviceAccount = JSON.parse(
@@ -25,15 +26,17 @@ function shouldRun(collection) {
 	return ONLY.includes(collection);
 }
 
+// Also deletes subcollections (e.g. issues, comments, votes) and has no 500 documents limit
 async function deleteCollection(collectionName) {
-	const snapshot = await db.collection(collectionName).get();
-	const batch = db.batch();
-	snapshot.docs.forEach(doc => batch.delete(doc.ref));
-	await batch.commit();
+	await db.recursiveDelete(db.collection(collectionName));
 }
 
 async function resetDatabase() {
 	console.log('🧹 Borrando datos...');
+	if (shouldRun('issues')) {
+		const communities = await db.collection('communities').listDocuments();
+		await Promise.all(communities.map(async community => db.recursiveDelete(community.collection('issues'))));
+	}
 	if (shouldRun('communities')) {
 		await deleteCollection('communities');
 	}

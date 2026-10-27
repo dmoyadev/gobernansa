@@ -51,16 +51,14 @@ node seed.js --reset --only=users
 ## 🧠 Behavior
 
 - `set()` overwrites existing documents
-- `--reset` deletes documents before inserting
+- `--reset` deletes documents (and their subcollections) before inserting. Resetting `communities` also deletes their issues
 - `--only` limits which collections are processed
 
 ## ⚠️ Limitations
 
-- Deletion uses batches (max 500 documents)
-  - If you want to reset the entire database:
+- It writes to the project of `serviceAccountKey.local.json`, and every reset or seed counts against the free plan's daily quota. To run it against the local emulator instead:
     ```bash
-    firebase firestore:delete --all-collections
+    FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node seed.js --reset
     ```
-- Does not handle subcollections (if any exist, they will remain orphaned)
 - No data validation (it may insert inconsistent data if the script contains errors)
 ```
