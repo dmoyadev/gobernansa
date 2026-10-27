@@ -22,7 +22,7 @@ export function useUserProperties() {
 		);
 	});
 
-	const userProperties = useCollection<Property>(userPropertiesRef);
+	const userProperties = useCollection<Property>(userPropertiesRef, { ssrKey: 'userProperties' });
 	watch(userProperties, (properties) => {
 		if (!properties.length) {
 			selectedProperty.value = undefined;

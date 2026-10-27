@@ -56,7 +56,7 @@ export function useCommunityEvents(pageSize = 15) {
 
 		return q;
 	});
-	const events = useCollection<Event>(eventsRef);
+	const events = useCollection<Event>(eventsRef, { ssrKey: 'communityEvents' });
 	const allLoaded = computed(() => {
 		if (!events.value) {
 			return true;
