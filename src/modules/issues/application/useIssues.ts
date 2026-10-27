@@ -1,13 +1,66 @@
 import type { CollectionReference, DocumentData, QueryConstraint } from 'firebase/firestore';
 import type { Issue, IssuesFilters, IssueSortingField } from '../domain/issue.ts';
-import { getDocs, getFirestore, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
-import { computed, ref, watch } from 'vue';
+import { addDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where } from 'firebase/firestore';
+import { computed, effectScope, ref, watch } from 'vue';
+import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityCollection, mapFirestoreDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
 
 const PAGE_SIZE = 10;
+// shortcut: other neighbours' changes only show after this long (or a reload), switch to a realtime listener if that's too slow
+const STALE_AFTER_MS = 5 * 60_000;
+
+// Shared so the list, its filters and pages survive leaving the page and coming back:
+// coming back from an issue shows it straight away (no reads) for the photo to morph into
+let shared: ReturnType<typeof createIssues> | undefined;
+let fetchedAt = 0;
+
+// The issue last opened from the list, whose photo morphs into the detail page and back
+export const openedIssueId = ref<string>();
 
 export function useIssues() {
+	if (shared && Date.now() - fetchedAt > STALE_AFTER_MS) {
+		void shared.fetchIssues(true);
+	}
+
+	shared ??= effectScope(true).run(createIssues)!;
+	return shared;
+}
+
+export function useCreateIssue() {
+	const db = getFirestore();
+	const user = useCurrentUser();
+	const { userCommunity } = useUserCommunity();
+
+	async function createIssue(issue: Pick<Issue, 'title' | 'description' | 'category' | 'location'>) {
+		const communityId = userCommunity.value?.id;
+		if (!communityId || !user.value) {
+			throw new Error('The user has no community to report the issue to');
+		}
+
+		const { id } = await addDoc(communityCollection(db, communityId, 'issues'), {
+			...issue,
+			status: 'open',
+			communityId,
+			votesScore: 0,
+			votesCount: 0,
+			createdBy: user.value.uid,
+			updatedBy: user.value.uid,
+			createdAt: serverTimestamp(),
+			updatedAt: serverTimestamp(),
+			// The list only shows issues whose deletedAt is null, a missing field wouldn't match
+			deletedAt: null,
+		});
+
+		// The list fetches again next time it's opened, so the new issue shows up
+		fetchedAt = 0;
+		return id;
+	}
+
+	return { createIssue };
+}
+
+function createIssues() {
 	const db = getFirestore();
 
 	const { userCommunity } = useUserCommunity();
@@ -82,6 +135,9 @@ export function useIssues() {
 
 		const requestId = ++lastRequestId;
 		loading.value = true;
+		if (reset) {
+			fetchedAt = Date.now();
+		}
 
 		try {
 			const snap = await getDocs(q);

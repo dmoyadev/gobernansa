@@ -79,6 +79,7 @@ async function seed() {
 			name: 'Residencial Los Olivos',
 			address: 'Calle Falsa 123, Jaén',
 			constructionYear: 1990,
+			commonAreas: ['Portal', 'Escalera', 'Ascensor', 'Garaje', 'Piscina', 'Jardín'],
 			...getDatableProperties(),
 		});
 	}

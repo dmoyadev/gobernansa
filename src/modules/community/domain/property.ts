@@ -7,3 +7,10 @@ export interface Property extends Datable {
 	communityId: string;
 	ownerUid: string;
 }
+
+export const propertyTypeIcons: Record<Property['type'], string> = {
+	home: 'lucide:house',
+	parking: 'lucide:car',
+	storage: 'lucide:package',
+	other: 'lucide:map-pin',
+};
