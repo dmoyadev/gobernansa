@@ -9,133 +9,146 @@ const props = defineProps<{
 }>();
 
 const category = computed(() => issuesCategories.find(category => category.value === props.issue.category));
+const status = computed(() => issueStatus.find(status => status.value === props.issue.status));
+const thumbnail = computed(() => props.issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_128,h_128/').replace('.mp4', '.jpg').replace('.mov', '.jpg'));
+
+// Closed issues leave the lifecycle, so they fill the whole bar with their own color
+const lifecycle = issueStatus.filter(status => status.value !== 'closed');
+const step = computed(() => props.issue.status === 'closed'
+	? lifecycle.length
+	: lifecycle.findIndex(status => status.value === props.issue.status) + 1);
+
+const relativeTime = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
+const date = computed(() => {
+	const createdAt = props.issue.createdAt.toDate();
+	const days = Math.round((createdAt.getTime() - Date.now()) / 86_400_000);
+	return days > -7
+		? relativeTime.format(days, 'day')
+		: createdAt.toLocaleDateString([], { day: 'numeric', month: 'long' });
+});
 </script>
 
 <template>
-	<LnxButton :to="`/issues/${issue.id}`" mode="link" class="issue">
-		<div class="meta">
-			<div
-				class="status-dot"
-				:style="{ '--badge-color': `var(--color-issue-status-${issue.status})` }"
-			>
-				<span class="dot" />
-				{{ issueStatus.find(status => status.value === issue.status)?.label || 'Sin categoría' }}
-			</div>
-			<small>
-				{{ issue.createdAt.toDate().toLocaleDateString([], { day: 'numeric', month: 'long' }) }}
-			</small>
-		</div>
-
-		<div class="info">
-			<div class="assets">
-				<img :src="issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_50,h_50/').replace('.mp4', '.jpg').replace('.mov', '.jpg')" :alt="issue.title">
-				<div
-					v-if="(issue.assets?.length || 0) > 1"
-					class="assets-count"
-				/>
-			</div>
-			<h3>
-				{{ issue.title }}
-			</h3>
-		</div>
-
-		<div class="status">
-			<div class="votes">
-				<LnxIcon
-					:icon="`lucide:${issue.votesScore > 0 ? 'flame' : 'snowflake'}`"
-					:style="{ color: issue.votesScore > 1 ? 'var(--color-issue-vote-hot)' : 'var(--color-issue-vote-cold)' }"
-				/>
-				{{ issue.votesScore }} votos
-			</div>
-
+	<LnxButton
+		:to="`/issues/${issue.id}`"
+		mode="link"
+		class="issue"
+		:style="{
+			'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
+			'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
+			'--status-color': `var(--color-issue-status-${issue.status})`,
+		}"
+	>
+		<div class="media">
+			<img v-if="thumbnail" :src="thumbnail" alt="" width="64" height="64">
+			<LnxIcon v-else :icon="category?.icon || 'lucide:triangle-alert'" :size="26" />
 			<span
-				class="badge"
-				:style="{
-					'--badge-color': `var(--color-issue-cat-${issue.category}-accent)`,
-					'--badge-color-bg': `var(--color-issue-cat-${issue.category})`,
-				}"
+				v-if="(issue.assets?.length || 0) > 1"
+				class="assets-count"
 			>
-				<LnxIcon v-if="category" :icon="category.icon" />
+				+{{ issue.assets!.length - 1 }}
+			</span>
+		</div>
+
+		<div class="body">
+			<span class="category">
+				<LnxIcon v-if="category" :icon="category.icon" :size="12" />
 				{{ category?.label || 'Sin categoría' }}
 			</span>
+			<h3>{{ issue.title }}</h3>
+			<small class="date">{{ date }}</small>
+		</div>
+
+		<div class="votes" :class="{ hot: issue.votesScore > 0 }">
+			<strong>{{ issue.votesScore }}</strong>
+			<small>{{ Math.abs(issue.votesScore) === 1 ? 'voto' : 'votos' }}</small>
+		</div>
+
+		<div class="progress">
+			<span class="steps" aria-hidden="true">
+				<span
+					v-for="(lifecycleStatus, index) in lifecycle"
+					:key="lifecycleStatus.value"
+					class="step"
+					:class="{ done: index < step }"
+				/>
+			</span>
+			<span class="status">{{ status?.label || 'Sin estado' }}</span>
 		</div>
 	</LnxButton>
 </template>
 
 <style scoped lang="scss">
 .issue {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	grid-template-areas:
+		'media body votes'
+		'progress progress progress';
+	align-items: center;
+	column-gap: var(--lnx-spacing-3);
+	row-gap: var(--lnx-spacing-3);
+	padding: var(--lnx-spacing-3);
+	border: 1px solid var(--color-gray-3);
 	border-radius: calc(var(--lnx-radius-3) + var(--lnx-spacing-2));
-	background: var(--color-gray-2);
-	padding: var(--lnx-spacing-3) var(--lnx-spacing-4);
-	display: flex;
-	align-items: flex-start;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
+	background: var(--color-gray-0);
+	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
+	text-align: left;
+	transition: transform .15s;
 
-	.meta {
-		width: 100%;
+	&:active {
+		transform: scale(.98);
+	}
+
+	.media {
+		grid-area: media;
+		position: relative;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--lnx-spacing-2);
+		justify-content: center;
+		align-self: start;
+		width: 64px;
+		height: 64px;
+		border-radius: var(--lnx-radius-3);
+		color: var(--cat-color);
+		background: var(--cat-color-bg);
 
-		.status-dot {
-			display: flex;
-			align-items: center;
-			gap: var(--lnx-spacing-1);
-			color: var(--badge-color, var(--color-primary));
+		img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			border-radius: inherit;
+		}
 
-			.dot {
-				background: var(--badge-color, var(--color-primary));
-				width: 10px;
-				height: 10px;
-				border-radius: var(--lnx-radius-circle);
-			}
+		.assets-count {
+			position: absolute;
+			right: calc(-1 * var(--lnx-spacing-1));
+			bottom: calc(-1 * var(--lnx-spacing-1));
+			padding: 0 var(--lnx-spacing-1);
+			border: 2px solid var(--color-gray-0);
+			border-radius: var(--lnx-radius-4);
+			background: var(--color-gray-8);
+			color: var(--color-gray-0);
+			font-size: var(--lnx-font-size-small);
+			line-height: 1.4;
 		}
 	}
 
-	.badge {
-		padding: 2px var(--lnx-spacing-3);
-		border-radius: var(--lnx-radius-4);
-		font-size: var(--lnx-font-size-small);
-		color: var(--badge-color, var(--color-gray-6));
-		background: var(--badge-color-bg, var(--color-gray-4));
+	.body {
+		grid-area: body;
 		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
+		flex-direction: column;
+		gap: 2px;
 
-	.info {
-		width: 100%;
-		display: flex;
-		align-items: center;
-		gap: var(--lnx-spacing-3);
-
-		.assets {
+		.category {
 			display: flex;
-			position: relative;
-			flex-shrink: 0;
-			max-width: 50px;
-			max-height: 50px;
-
-			img {
-				position: relative;
-				border-radius: var(--lnx-radius-3);
-				z-index: 2;
-			}
-
-			.assets-count {
-				position: absolute;
-				inset: var(--lnx-spacing-1) 0 calc(-1 * var(--lnx-spacing-1)) var(--lnx-spacing-1);
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				padding: 0 var(--lnx-spacing-2) 0 var(--lnx-spacing-4);
-				background-color: var(--color-gray-5);
-				border-radius: var(--lnx-radius-3);
-				width: 50px;
-				height: 50px;
-			}
+			align-items: center;
+			gap: 4px;
+			color: var(--cat-color);
+			font-size: .7rem;
+			font-weight: var(--lnx-font-weight-bold);
+			letter-spacing: .04em;
+			text-transform: uppercase;
 		}
 
 		h3 {
@@ -143,22 +156,72 @@ const category = computed(() => issuesCategories.find(category => category.value
 			-webkit-box-orient: vertical;
 			-webkit-line-clamp: 2;
 			overflow: hidden;
-			text-align: left;
+			color: var(--color-gray-9);
+			font-size: var(--lnx-font-size-body);
+			line-height: 1.3;
+		}
+
+		.date {
+			color: var(--color-gray-6);
 		}
 	}
 
-	.status {
-		width: 100%;
+	.votes {
+		grid-area: votes;
+		align-self: start;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 48px;
+		padding: var(--lnx-spacing-2) var(--lnx-spacing-1);
+		border-radius: var(--lnx-radius-3);
+		background: var(--color-gray-1);
+		color: var(--color-issue-vote-cold);
+		line-height: 1.1;
+
+		&.hot {
+			background: var(--color-issue-vote-hot);
+		}
+
+		strong {
+			color: var(--color-gray-9);
+			font-size: 1.1rem;
+		}
+
+		small {
+			color: var(--color-gray-6);
+			font-size: .65rem;
+		}
+	}
+
+	.progress {
+		grid-area: progress;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--lnx-spacing-2);
+		gap: var(--lnx-spacing-3);
 
-		.votes {
+		.steps {
+			flex: 1;
 			display: flex;
-			align-items: center;
-			gap: var(--lnx-spacing-1);
-			color: var(--color-gray-6);
+			gap: 4px;
+		}
+
+		.step {
+			flex: 1;
+			height: 4px;
+			border-radius: 4px;
+			background: var(--color-gray-3);
+
+			&.done {
+				background: var(--status-color);
+			}
+		}
+
+		.status {
+			color: var(--status-color);
+			font-size: var(--lnx-font-size-small);
+			font-weight: var(--lnx-font-weight-bold);
+			white-space: nowrap;
 		}
 	}
 }

@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, useTemplateRef } from 'vue';
+import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { computed, onMounted, onUnmounted, useTemplateRef } from 'vue';
 
-import ChipsSelector from '@/shared/ui/ChipsSelector.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 
 import { useIssues } from '../application/useIssues.ts';
-import { issuesCategories, issueStatus } from '../domain/issue.ts';
-
 import IssueItem from './IssueItem.vue';
+import IssuesFilters from './IssuesFilters.vue';
 
 const {
 	issues,
@@ -17,6 +16,8 @@ const {
 	hasMore,
 	fetchIssues,
 } = useIssues();
+
+const hasFilters = computed(() => !!(filters.value.status || filters.value.category));
 
 const $loadMoreTrigger = useTemplateRef('$loadMoreTrigger');
 
@@ -47,18 +48,9 @@ onUnmounted(() => {
 	</TheHeader>
 
 	<MainLayout>
-		<ChipsSelector
-			v-model="filters.status"
-			:options="issueStatus"
-			css-prefix="issue-status"
-			name="status"
-		/>
-
-		<ChipsSelector
-			v-model="filters.category"
-			:options="issuesCategories"
-			css-prefix="issue-cat"
-			name="category"
+		<IssuesFilters
+			v-model:status="filters.status"
+			v-model:category="filters.category"
 		/>
 
 		<ul class="issues">
@@ -74,15 +66,44 @@ onUnmounted(() => {
 				v-if="!issues.length && !loading"
 				class="empty"
 			>
-				No hay incidencias que mostrar.
+				<LnxIcon :icon="hasFilters ? 'lucide:search-x' : 'lucide:party-popper'" :size="32" />
+				<h3>{{ hasFilters ? 'Nada por aquí' : 'Todo en orden' }}</h3>
+				<p>
+					{{ hasFilters
+						? 'No hay incidencias con estos filtros.'
+						: 'No hay incidencias en tu comunidad. Si ves algo que no va bien, avísanos.' }}
+				</p>
+				<LnxButton
+					v-if="hasFilters"
+					mode="clear"
+					@click="filters = {}"
+				>
+					Quitar filtros
+				</LnxButton>
+				<LnxButton
+					v-else
+					variant="danger"
+					to="/issues/new"
+				>
+					<LnxIcon icon="lucide:circle-alert" />
+					Dar aviso
+				</LnxButton>
 			</li>
 
-			<li
-				v-if="loading"
-				class="loading"
-			>
-				Cargando...
-			</li>
+			<template v-if="loading">
+				<li
+					v-for="n in (issues.length ? 1 : 3)"
+					:key="`skeleton-${n}`"
+					class="skeleton"
+					aria-hidden="true"
+				>
+					<span class="row">
+						<span class="skeleton-item thumb" />
+						<span class="skeleton-item skeleton-item--title" />
+					</span>
+					<span class="skeleton-item skeleton-item--small" />
+				</li>
+			</template>
 
 			<li
 				v-if="hasMore"
@@ -104,10 +125,41 @@ onUnmounted(() => {
 		height: 1px;
 	}
 
-	.loading,
+	.skeleton {
+		border: 1px solid var(--color-gray-3);
+		border-radius: calc(var(--lnx-radius-3) + var(--lnx-spacing-2));
+		background: var(--color-gray-0);
+		padding: var(--lnx-spacing-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--lnx-spacing-3);
+
+		.row {
+			display: flex;
+			align-items: center;
+			gap: var(--lnx-spacing-3);
+		}
+
+		.thumb {
+			width: 64px;
+			height: 64px;
+			flex-shrink: 0;
+			border-radius: var(--lnx-radius-3);
+		}
+	}
+
 	.empty {
-		padding: 1rem;
+		padding: var(--lnx-spacing-8) var(--lnx-spacing-4);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
 		text-align: center;
+		color: var(--color-gray-6);
+
+		h3 {
+			color: var(--color-gray-8);
+		}
 	}
 }
 </style>
