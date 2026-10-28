@@ -1,5 +1,4 @@
-// Suggested security rules for what the app reads and writes. Not deployed from here
-// (firebase.json doesn't point to it): compare with the live rules and paste them in the console.
+// Security rules for what the app reads and writes. Deployed by CI on every push to main
 rules_version = '2';
 
 service cloud.firestore {

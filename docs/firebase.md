@@ -1,18 +1,14 @@
 # Firebase and Cloudinary setup
 
-What the live project needs for every feature to work. Nothing here is deployed by `firebase deploy` or CI.
+What the live project needs for every feature to work. Only the security rules are deployed by CI, the rest is set by hand.
 
 ## 1. Security rules
 
-[`firestore.rules`](./firestore.rules) covers everything the app reads and writes. It was tested against the local emulator with every flow (as a neighbour and as a manager), and it blocks a neighbour from changing an issue's status, inflating votes, removing other people's issues, posting as someone else or as the administration, and reading other users' data.
+[`firestore.rules`](../firestore.rules) covers everything the app reads and writes. It was tested against the local emulator with every flow (as a neighbour and as a manager), and it blocks a neighbour from changing an issue's status, inflating votes, removing other people's issues, posting as someone else or as the administration, and reading other users' data.
 
-Compare it with the live rules and paste it in **Firebase console → Firestore → Rules**. Each rule that checks the user's community or role reads their profile once per request, which counts as one extra read.
+Each push to `main` deploys it before the app, so change the rules here and not in the console: a console edit is overwritten by the next push. If a deploy breaks something, revert the commit, or roll back in **Firebase console → Firestore → Rules** (it keeps the history) and then fix the file. A file that doesn't compile fails the workflow and leaves both the live rules and the app as they were.
 
-To try it locally, point `firebase.json` to it **only while testing** (it would also deploy it):
-
-```text
-"firestore": { "rules": "docs/firestore.rules" }
-```
+The local emulator enforces it too. Each rule that checks the user's community or role reads their profile once per request, which counts as one extra read.
 
 ## 2. Indexes
 
@@ -44,6 +40,8 @@ The workflows now pass these, add them in **GitHub → Settings → Secrets and 
 | `VITE_CLOUDINARY_CLOUD_NAME` | `dqd7np8vk` |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | `gobernanca_issues` |
 | `VITE_FIREBASE_VAPID_KEY` | Firebase console → Project settings → Cloud Messaging → Web Push certificates |
+
+The rules deploy uses the same service account as the hosting deploy (`FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA`). In **Google Cloud console → IAM**, give that account (`github-action-…@dmoyadev-gobernansa.iam.gserviceaccount.com`) the roles **Firebase Rules Admin** and **Service Usage Consumer**, or the rules step fails with a permission error.
 
 ## Community data
 
