@@ -20,6 +20,11 @@ service cloud.firestore {
       return me().role in ['admin', 'manager'];
     }
 
+    // The admin platform's users, who manage every community
+    function isAdmin() {
+      return signedIn() && me().role == 'admin';
+    }
+
     function changedOnly(fields) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
     }
@@ -51,8 +56,9 @@ service cloud.firestore {
     }
 
     match /communities/{communityId} {
-      allow read: if inCommunity(communityId);
-      // Its data (fiscal, contacts, documents) is set from the console
+      allow read: if inCommunity(communityId) || isAdmin();
+      // From the admin platform. Removing one is left to the console, it also needs its issues, users and properties removed
+      allow create, update: if isAdmin();
 
       match /issues/{issueId} {
         allow read: if inCommunity(communityId);

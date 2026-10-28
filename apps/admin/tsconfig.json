@@ -1,0 +1,17 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"paths": { "@/*": ["./src/*"] } // Same '@' alias as vite.config.ts
+	},
+
+	"include": [
+		"**/*.ts", // Include TypeScript source files
+		"**/*.d.ts", // Include TypeScript declaration files
+		"**/*.vue" // Include Vue.js source files
+	],
+
+	"exclude": [
+		"dist", // Exclude the 'dist' directory
+		"node_modules" // Exclude the 'node_modules' directory
+	]
+}

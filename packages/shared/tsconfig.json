@@ -1,0 +1,9 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"types": ["vite/client"] // import.meta.env and asset imports, the apps that use it are built with Vite
+	},
+
+	"include": ["**/*.ts"],
+	"exclude": ["node_modules"]
+}

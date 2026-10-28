@@ -45,7 +45,7 @@ The rules deploy uses the same service account as the hosting deploy (`FIREBASE_
 
 ## Community data
 
-Set from the console on `communities/{communityId}`, the app only reads it:
+Edited from the admin platform (`apps/admin`) by users whose profile has `role: 'admin'`, who can see and change every community; the webapp only reads it. Removing a community is still done from the console, along with its issues, users and properties. Stored on `communities/{communityId}`:
 
 ```text
 cif, iban, bank

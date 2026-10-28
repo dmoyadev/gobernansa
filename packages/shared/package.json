@@ -1,0 +1,7 @@
+{
+	"name": "@gobernansa/shared",
+	"type": "module",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Design system, Firebase and domain shared by the webapp and the admin. Imported as source, the apps build it"
+}

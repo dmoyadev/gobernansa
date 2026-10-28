@@ -1,15 +1,19 @@
 {
 	"name": "gobernansa",
 	"type": "module",
-	"version": "0.1.0",
 	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
 	"scripts": {
-		"dev": "vite --mode localhost --host --port 5400",
-		"build": "rm -rf dist && npm run check-typing && vite build",
-		"preview": "vite preview --host --port 4400",
+		"dev": "npm run dev -w apps/webapp",
+		"dev:admin": "npm run dev -w apps/admin",
+		"build": "npm run build -w apps/webapp -w apps/admin",
 		"lint": "eslint --fix",
-		"check-typing": "vue-tsc --build --noEmit",
-		"check-deps": "npx taze",
+		"test": "node --test 'apps/**/*.test.ts'",
+		"check-typing": "npm run check-typing -w apps/webapp -w apps/admin",
+		"check-deps": "npx taze -r",
 		"seed-firebase": "node ./scripts/firebase-test/seed.js --reset",
 		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js --reset",
 		"start:firebase:emulators": "firebase emulators:start"

@@ -1,0 +1,15 @@
+{
+	"name": "@gobernansa/webapp",
+	"type": "module",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "vite --mode localhost --host --port 5400",
+		"build": "rm -rf dist && npm run check-typing && vite build",
+		"preview": "vite preview --host --port 4400",
+		"check-typing": "vue-tsc --build --noEmit"
+	},
+	"dependencies": {
+		"@gobernansa/shared": "*"
+	}
+}
