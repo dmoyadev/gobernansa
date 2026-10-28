@@ -10,13 +10,14 @@ import TheHeader from '@/shared/ui/TheHeader.vue';
 import TiltCard from '@/shared/ui/TiltCard.vue';
 import { scrollTop } from '@/shared/utils/helpers.ts';
 import { useUserCommunity } from '../application/useUserCommunity.ts';
-import { contactTypes, formatIban, getPhoneLink, getWhatsappLink } from '../domain/community.ts';
+import { contactTypes, formatIban, formatSchedule, getPhoneLink, getWhatsappLink, isWithinSchedule } from '../domain/community.ts';
 
 const SPACES_REGEX = /\s/g;
 
 const DOCUMENT_TYPES: Record<CommunityDocument['type'], { label: string; icon: string }> = {
 	statutes: { label: 'Estatutos', icon: 'lucide:scroll-text' },
 	regulations: { label: 'Normas de régimen interno', icon: 'lucide:book-open-check' },
+	insurance: { label: 'Seguro de la comunidad', icon: 'lucide:shield-check' },
 	minutes: { label: 'Acta', icon: 'lucide:file-text' },
 };
 
@@ -62,8 +63,8 @@ async function share() {
 
 const documents = computed(() => [...(userCommunity.value?.documents ?? [])]
 	.sort((a, b) => b.date.toMillis() - a.date.toMillis()));
-// Statutes go before the regulations, which develop them
-const rules = computed(() => (['statutes', 'regulations'] as const)
+// Statutes go before the regulations, which develop them, and the insurance policy after
+const rules = computed(() => (['statutes', 'regulations', 'insurance'] as const)
 	.flatMap(type => documents.value.filter(document => document.type === type)));
 const minutesByYear = computed(() => {
 	const years = new Map<number, CommunityDocument[]>();
@@ -144,6 +145,12 @@ function formatDate(document: CommunityDocument) {
 					<span class="body">
 						<small>{{ contactTypes[contact.type]?.label || 'Contacto' }}</small>
 						<strong>{{ contact.name }}</strong>
+						<small v-if="contact.schedule?.length" class="schedule">
+							<span class="availability" :class="{ available: isWithinSchedule(contact.schedule) }">
+								{{ isWithinSchedule(contact.schedule) ? 'Disponible ahora' : 'Fuera de horario' }}
+							</span>
+							{{ contact.schedule.map(formatSchedule).join(' · ') }}
+						</small>
 					</span>
 					<span class="actions">
 						<LnxButton
@@ -428,6 +435,37 @@ section {
 			font-weight: var(--lnx-font-weight-regular);
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		}
+	}
+
+	.schedule {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0 var(--lnx-spacing-2);
+	}
+
+	.availability {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		color: var(--color-gray-6);
+		font-weight: var(--lnx-font-weight-bold);
+
+		&::before {
+			content: '';
+			width: 8px;
+			height: 8px;
+			border-radius: var(--lnx-radius-circle);
+			background: var(--color-gray-4);
+		}
+
+		&.available {
+			color: var(--color-issue-status-resolved);
+
+			&::before {
+				background: var(--color-issue-status-resolved);
+			}
 		}
 	}
 

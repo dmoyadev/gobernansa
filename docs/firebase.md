@@ -45,6 +45,20 @@ The workflows now pass these, add them in **GitHub → Settings → Secrets and 
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | `gobernanca_issues` |
 | `VITE_FIREBASE_VAPID_KEY` | Firebase console → Project settings → Cloud Messaging → Web Push certificates |
 
+## Community data
+
+Set from the console on `communities/{communityId}`, the app only reads it:
+
+```text
+cif, iban, bank
+contacts[]     { type: admin | president | janitor | insurance | elevator | cleaning | gardening | other,
+                 name, phone?, whatsapp?, email?,
+                 schedule?: [{ days: [1..7], from: 'HH:MM', to: 'HH:MM' }] }
+documents[]    { type: statutes | regulations | insurance | minutes, title, url, date }
+```
+
+`schedule` works for any contact (e.g. the janitor's shifts): days are ISO weekdays (1 is Monday, 7 is Sunday) and times are 24 hour and zero padded. Add one entry per shift, e.g. `{ days: [1, 2, 3, 4, 5], from: '08:00', to: '15:00' }` and `{ days: [6], from: '09:00', to: '13:00' }`. The contact then shows its hours and whether it's available now.
+
 ## Data the app writes
 
 ```text

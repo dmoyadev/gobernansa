@@ -87,7 +87,17 @@ async function seed() {
 			contacts: [
 				{ type: 'admin', name: 'Fincas Olivares S.L.', phone: '953 000 101', whatsapp: '600 000 101', email: 'administracion@example.com' },
 				{ type: 'president', name: 'Carmen Ruiz', whatsapp: '600 000 102' },
-				{ type: 'janitor', name: 'Antonio García', phone: '600 000 103', whatsapp: '600 000 103' },
+				{
+					type: 'janitor',
+					name: 'Antonio García',
+					phone: '600 000 103',
+					whatsapp: '600 000 103',
+					// ISO weekdays (1 is Monday) and 24 hour times
+					schedule: [
+						{ days: [1, 2, 3, 4, 5], from: '08:00', to: '15:00' },
+						{ days: [6], from: '09:00', to: '13:00' },
+					],
+				},
 				{ type: 'insurance', name: 'Seguros La Previsora · Póliza 123456', phone: '900 000 104' },
 				{ type: 'elevator', name: 'Ascensores del Sur', phone: '900 000 105' },
 				{ type: 'cleaning', name: 'Limpiezas Jaén', phone: '953 000 106', email: 'limpiezas@example.com' },
@@ -95,6 +105,7 @@ async function seed() {
 			documents: [
 				{ type: 'statutes', title: 'Estatutos de la comunidad', url: 'https://example.com/estatutos.pdf', date: new Date(1990, 5, 1) },
 				{ type: 'regulations', title: 'Normas de uso de la piscina y zonas comunes', url: 'https://example.com/normas.pdf', date: new Date(2019, 3, 10) },
+				{ type: 'insurance', title: 'Póliza multirriesgo · Seguros La Previsora', url: 'https://example.com/poliza-seguro.pdf', date: new Date(2026, 0, 1) },
 				{ type: 'minutes', title: 'Junta general ordinaria', url: 'https://example.com/actas/2026-03.pdf', date: new Date(2026, 2, 14) },
 				{ type: 'minutes', title: 'Junta extraordinaria: cámaras de seguridad', url: 'https://example.com/actas/2025-10.pdf', date: new Date(2025, 9, 20) },
 				{ type: 'minutes', title: 'Junta general ordinaria', url: 'https://example.com/actas/2025-03.pdf', date: new Date(2025, 2, 15) },
