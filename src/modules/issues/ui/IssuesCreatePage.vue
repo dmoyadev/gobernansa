@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { Issue } from '../domain/issue.ts';
 import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
 import { getCommonAreaIcon } from '@/modules/community/domain/community.ts';
 import { propertyTypeIcons } from '@/modules/community/domain/property.ts';
+import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia } from '@/shared/infrastructure/cloudinary.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { scrollTop } from '@/shared/utils/helpers.ts';
@@ -17,6 +18,7 @@ type Category = (typeof issuesCategories)[number];
 type Place = NonNullable<Issue['location']> & { reference: string };
 
 const STEPS = ['¿Qué ha pasado?', '¿Dónde ha pasado?', '¿Quieres añadir algo?'];
+const MAX_MEDIA = 6;
 
 const router = useRouter();
 const { createIssue } = useCreateIssue();
@@ -80,8 +82,43 @@ const defaultTitle = computed(() => {
 	return `${category.value.defaultTitle} en ${reference.charAt(0).toLowerCase()}${reference.slice(1)}`;
 });
 
+// Photos and videos picked, previewed from the device until they're uploaded on sending
+const media = ref<{ file: File; preview: string; isVideo: boolean }[]>([]);
+const mediaError = ref<string>();
+
+function addMedia(event: Event) {
+	const input = event.target as HTMLInputElement;
+	const files = [...(input.files ?? [])];
+	input.value = '';
+	mediaError.value = undefined;
+
+	for (const file of files) {
+		if (media.value.length >= MAX_MEDIA) {
+			mediaError.value = `Puedes añadir hasta ${MAX_MEDIA} fotos o vídeos.`;
+			break;
+		}
+
+		const isVideo = file.type.startsWith('video/');
+		if (isVideo && file.size > MAX_VIDEO_SIZE) {
+			mediaError.value = `«${file.name}» ocupa más de 100 MB, prueba con un vídeo más corto.`;
+			continue;
+		}
+
+		media.value.push({ file, isVideo, preview: URL.createObjectURL(file) });
+	}
+}
+
+function removeMedia(index: number) {
+	const [removed] = media.value.splice(index, 1);
+	URL.revokeObjectURL(removed!.preview);
+}
+
+onUnmounted(() => media.value.forEach(item => URL.revokeObjectURL(item.preview)));
+
 const saving = ref(false);
 const error = ref(false);
+// From 0 to 1 while the photos and videos upload
+const uploadProgress = ref<number>();
 
 async function submit() {
 	if (!category.value || !place.value) {
@@ -92,18 +129,30 @@ async function submit() {
 	error.value = false;
 
 	try {
+		const assets: string[] = [];
+		for (const [index, item] of media.value.entries()) {
+			assets.push(await uploadMedia(item.file, 'gobernança/issues', (fraction) => {
+				uploadProgress.value = (index + fraction) / media.value.length;
+			}));
+		}
+		uploadProgress.value = undefined;
+
 		const id = await createIssue({
 			title: title.value.trim() || defaultTitle.value,
 			description: description.value.trim(),
 			category: category.value.value,
 			location: place.value,
+			assets,
 		});
 		// Replaced so going back from the new issue doesn't land on the form again
 		await router.replace(`/issues/${id}`);
-	} catch {
+	} catch (e) {
+		// eslint-disable-next-line no-console
+		console.error(e);
 		error.value = true;
 	} finally {
 		saving.value = false;
+		uploadProgress.value = undefined;
 	}
 }
 </script>
@@ -290,6 +339,55 @@ async function submit() {
 					/>
 				</label>
 
+				<div v-if="canUploadMedia" class="media">
+					<span id="media-label">Fotos o vídeos (opcional)</span>
+					<ul class="media-grid" aria-labelledby="media-label">
+						<li v-for="(item, index) in media" :key="item.preview">
+							<!-- #t skips to the first frame, iOS shows nothing otherwise -->
+							<video
+								v-if="item.isVideo"
+								:src="`${item.preview}#t=0.1`"
+								muted
+								playsinline
+								preload="metadata"
+							/>
+							<img v-else :src="item.preview" :alt="item.file.name">
+							<LnxIcon
+								v-if="item.isVideo"
+								class="video-badge"
+								icon="lucide:play"
+								:size="14"
+							/>
+							<button
+								type="button"
+								class="remove"
+								:aria-label="`Quitar ${item.file.name}`"
+								:disabled="saving"
+								@click="removeMedia(index)"
+							>
+								<LnxIcon icon="lucide:x" :size="14" />
+							</button>
+						</li>
+						<li v-if="media.length < MAX_MEDIA">
+							<label class="add-media" :class="{ disabled: saving }">
+								<input
+									class="sr-only"
+									type="file"
+									accept="image/*,video/*"
+									multiple
+									:disabled="saving"
+									@change="addMedia"
+								>
+								<LnxIcon icon="lucide:camera" :size="24" />
+								Añadir
+							</label>
+						</li>
+					</ul>
+					<p v-if="mediaError" class="media-error" role="alert">
+						{{ mediaError }}
+					</p>
+				</div>
+
 				<LnxInput
 					v-model="title"
 					:placeholder="defaultTitle"
@@ -317,7 +415,12 @@ async function submit() {
 						<template #prefix>
 							<LnxIcon icon="lucide:send" />
 						</template>
-						Enviar aviso
+						<template v-if="uploadProgress !== undefined">
+							Subiendo… {{ Math.round(uploadProgress * 100) }}%
+						</template>
+						<template v-else>
+							Enviar aviso
+						</template>
 					</LnxButton>
 					<small>Toda la comunidad podrá verlo.</small>
 				</div>
@@ -529,6 +632,84 @@ header {
 			color: var(--lnx-color-gray-3);
 		}
 	}
+}
+
+.media {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: var(--lnx-font-size-small);
+}
+
+.media-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: var(--lnx-spacing-2);
+
+	li {
+		position: relative;
+		aspect-ratio: 1;
+		border-radius: var(--lnx-radius-3);
+		background: var(--color-gray-2);
+	}
+
+	img,
+	video {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: inherit;
+	}
+
+	.video-badge {
+		position: absolute;
+		left: var(--lnx-spacing-1);
+		bottom: var(--lnx-spacing-1);
+		padding: 4px;
+		border-radius: var(--lnx-radius-circle);
+		background: #00000099;
+		color: var(--color-gray-0);
+	}
+
+	.remove {
+		position: absolute;
+		top: var(--lnx-spacing-1);
+		right: var(--lnx-spacing-1);
+		display: flex;
+		padding: 4px;
+		border-radius: var(--lnx-radius-circle);
+		background: #00000099;
+		color: var(--color-gray-0);
+		cursor: pointer;
+	}
+}
+
+.add-media {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--lnx-spacing-1);
+	border: 1px dashed var(--color-gray-5);
+	border-radius: inherit;
+	color: var(--color-gray-7);
+	font-weight: var(--lnx-font-weight-bold);
+	cursor: pointer;
+
+	&.disabled {
+		opacity: .5;
+		cursor: not-allowed;
+	}
+
+	&:has(:focus-visible) {
+		outline: 2px solid var(--color-primary-light);
+		outline-offset: 2px;
+	}
+}
+
+.media-error {
+	color: var(--lnx-color-danger);
 }
 
 .error {

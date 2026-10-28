@@ -238,6 +238,8 @@ async function seed() {
 				{ type: 'property', propertyId: 'prop3', reference: '2A' },
 				[
 					['comment_3', 'user4', 'Pasa casi todas las noches'],
+					['comment_4', '01FbbUmlfHShICI9dlVs5gsvtPl2', 'in_progress', 'status'],
+					['comment_5', '01FbbUmlfHShICI9dlVs5gsvtPl2', 'Hemos hablado con el vecino, os mantenemos informados'],
 				],
 				[
 					['user4', -1],
@@ -268,6 +270,14 @@ async function seed() {
 			],
 		];
 
+		// Comments keep the author's name and role, as the app writes them
+		const authors = {
+			'NfQwcVkiExgW9DSp5DykCxxmNK52': { authorName: 'User1' },
+			'9yDJtg9E0kSDa8uVwtHvP8MSox03': { authorName: 'User2' },
+			'user4': { authorName: 'User4' },
+			'01FbbUmlfHShICI9dlVs5gsvtPl2': { authorName: 'Manager1', authorRole: 'manager' },
+		};
+
 		for (const [id, title, description, status, category, assignedTo, location, comments, votes, assets] of issues) {
 			const issueRef = db.collection('communities').doc('comm1').collection('issues').doc(id);
 
@@ -280,17 +290,21 @@ async function seed() {
 				...(assignedTo ? { assignedTo } : {}),
 				votesScore: votes.reduce((a, [, s]) => a + s, 0),
 				votesCount: votes.length,
+				commentsCount: comments.filter(([, , , type]) => type !== 'status').length,
 				...(location ? { location } : {}),
 				...getDatableProperties(),
 				deletedAt: null,
 			});
 
 			// comments
-			for (const [commentId, authorId, message] of comments) {
+			// Status changes are listed as comments too, with the new status in place of the message
+			for (const [commentId, authorId, message, type = 'message'] of comments) {
 				const commentRef = issueRef.collection('comments').doc(commentId);
 				batch.set(commentRef, {
+					type,
+					...(type === 'status' ? { status: message, message: '' } : { message }),
 					authorId,
-					message,
+					...authors[authorId],
 					...getDatableProperties(),
 					deletedAt: null,
 				});

@@ -1,0 +1,119 @@
+// Suggested security rules for what the app reads and writes. Not deployed from here
+// (firebase.json doesn't point to it): compare with the live rules and paste them in the console.
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The signed in user's profile. Each rule that uses it costs one extra read, once per request
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function inCommunity(communityId) {
+      return signedIn() && me().communityId == communityId;
+    }
+
+    function isManager() {
+      return me().role in ['admin', 'manager'];
+    }
+
+    function changedOnly(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // Counters move one vote or comment at a time (a vote can go from +1 to -1)
+    function changesAtMost(field, max) {
+      return math.abs(request.resource.data.get(field, 0) - resource.data.get(field, 0)) <= max;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      // Name, role and community are set from the console
+
+      // Property documents (listed and their files) and devices for push notifications
+      match /{collection}/{id} {
+        allow read, write: if signedIn() && request.auth.uid == uid
+          && collection in ['documents', 'documentFiles', 'devices'];
+      }
+    }
+
+    match /properties/{propertyId} {
+      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /events/{eventId} {
+      allow read: if inCommunity(resource.data.communityId);
+      allow create, update: if inCommunity(request.resource.data.communityId) && isManager();
+      allow delete: if inCommunity(resource.data.communityId) && isManager();
+    }
+
+    match /communities/{communityId} {
+      allow read: if inCommunity(communityId);
+      // Its data (fiscal, contacts, documents) is set from the console
+
+      match /issues/{issueId} {
+        allow read: if inCommunity(communityId);
+
+        allow create: if inCommunity(communityId)
+          && request.resource.data.communityId == communityId
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'open'
+          && request.resource.data.votesScore == 0
+          && request.resource.data.votesCount == 0
+          && request.resource.data.deletedAt == null;
+
+        allow update: if inCommunity(communityId) && (
+          // Counters, written along with each vote and comment
+          (changedOnly(['votesScore', 'votesCount', 'commentsCount'])
+            && changesAtMost('votesScore', 2)
+            && changesAtMost('votesCount', 1)
+            && changesAtMost('commentsCount', 1))
+          // Status, by the administration
+          || (isManager()
+            && changedOnly(['status', 'updatedAt', 'updatedBy'])
+            && request.resource.data.status in ['open', 'in_progress', 'resolved', 'closed']
+            && request.resource.data.updatedBy == request.auth.uid)
+          // Removal, by whoever reported it or the administration
+          || ((resource.data.createdBy == request.auth.uid || isManager())
+            && changedOnly(['deletedAt', 'deletedBy'])
+            && request.resource.data.deletedBy == request.auth.uid)
+        );
+
+        // One per neighbour and issue, with the id `${issueId}_${uid}`
+        match /votes/{voteId} {
+          allow read: if inCommunity(communityId);
+          allow create, update: if inCommunity(communityId)
+            && voteId == issueId + '_' + request.auth.uid
+            && request.resource.data.voterId == request.auth.uid
+            && request.resource.data.score in [1, -1];
+          allow delete: if inCommunity(communityId) && resource.data.voterId == request.auth.uid;
+        }
+
+        // Messages, and status changes by the administration
+        match /comments/{commentId} {
+          allow read: if inCommunity(communityId);
+          allow create: if inCommunity(communityId)
+            && request.resource.data.authorId == request.auth.uid
+            && request.resource.data.createdBy == request.auth.uid
+            && request.resource.data.get('authorName', '') == me().name
+            && request.resource.data.deletedAt == null
+            && (request.resource.data.get('type', 'message') == 'message' || isManager())
+            && (!('authorRole' in request.resource.data) || isManager());
+          // Only removing their own
+          allow update: if inCommunity(communityId)
+            && resource.data.authorId == request.auth.uid
+            && changedOnly(['deletedAt', 'deletedBy']);
+        }
+      }
+    }
+
+    // The votes each user has given, counted across all issues for their stats on the home page
+    match /{path=**}/votes/{voteId} {
+      allow read: if signedIn() && resource.data.voterId == request.auth.uid;
+    }
+  }
+}

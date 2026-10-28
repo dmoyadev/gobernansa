@@ -30,12 +30,27 @@ export function useIssues() {
 	return shared;
 }
 
+// Keeps the list in step with what changes from the issue page (null removes it), without fetching it again
+export function updateListedIssue(id: string, changes: Partial<Issue> | null) {
+	const issues = shared?.issues.value ?? [];
+	const index = issues.findIndex(issue => issue.id === id);
+	if (index === -1) {
+		return;
+	}
+
+	if (changes) {
+		Object.assign(issues[index], changes);
+	} else {
+		issues.splice(index, 1);
+	}
+}
+
 export function useCreateIssue() {
 	const db = getFirestore();
 	const user = useCurrentUser();
 	const { userCommunity } = useUserCommunity();
 
-	async function createIssue(issue: Pick<Issue, 'title' | 'description' | 'category' | 'location'>) {
+	async function createIssue(issue: Pick<Issue, 'title' | 'description' | 'category' | 'location' | 'assets'>) {
 		const communityId = userCommunity.value?.id;
 		if (!communityId || !user.value) {
 			throw new Error('The user has no community to report the issue to');
@@ -47,6 +62,7 @@ export function useCreateIssue() {
 			communityId,
 			votesScore: 0,
 			votesCount: 0,
+			commentsCount: 0,
 			createdBy: user.value.uid,
 			updatedBy: user.value.uid,
 			createdAt: serverTimestamp(),

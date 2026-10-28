@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import type { IssueStatus, IssueVote } from '../domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
+import { useRouter } from 'vue-router';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useIssue } from '../application/useIssue.ts';
+import { useIssueActions } from '../application/useIssueActions.ts';
 import { getIssueStep, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '../domain/issue.ts';
+import IssueComments from './IssueComments.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -32,7 +36,7 @@ const assets = computed(() => (issue.value?.assets || []).map(url => VIDEO_EXTEN
 		}
 	: {
 			type: 'image',
-			url: url.replace('/upload/', '/upload/c_auto,g_auto,w_800,h_600/'),
+			url: url.replace('/upload/', '/upload/c_auto,g_auto,w_800,h_600,f_auto,q_auto/'),
 			original: url,
 		}));
 const currentAsset = ref(0);
@@ -45,6 +49,61 @@ function onGalleryScroll(event: Event) {
 function formatDate(date: Date) {
 	return date.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' });
 }
+
+const router = useRouter();
+const { isManager, isAuthor, myVote, voting, vote, changeStatus, deleteIssue } = useIssueActions(issue);
+const actionError = ref<string>();
+const changingStatus = ref<IssueStatus>();
+
+// Each action shows its own error, and logs it to know why it failed (e.g. the security rules)
+async function run(action: () => Promise<unknown>, errorMessage: string) {
+	actionError.value = undefined;
+	try {
+		await action();
+	} catch (e) {
+		// eslint-disable-next-line no-console
+		console.error(e);
+		actionError.value = errorMessage;
+	}
+}
+
+function onVote(score: IssueVote['score']) {
+	void run(async () => vote(score), 'No se ha podido votar. Revisa tu conexión e inténtalo de nuevo.');
+}
+
+async function onChangeStatus(status: IssueStatus) {
+	changingStatus.value = status;
+	await run(async () => changeStatus(status), 'No se ha podido cambiar el estado. Inténtalo de nuevo.');
+	changingStatus.value = undefined;
+}
+
+async function onDelete() {
+	// eslint-disable-next-line no-alert
+	if (!window.confirm('¿Eliminar esta incidencia? Dejará de verse en la comunidad.')) {
+		return;
+	}
+
+	await run(async () => {
+		await deleteIssue();
+		await router.replace('/issues');
+	}, 'No se ha podido eliminar. Inténtalo de nuevo.');
+}
+
+// Sends the link through any app, or copies it where sharing isn't available
+const linkCopied = ref(false);
+async function share() {
+	const url = window.location.href;
+	if ('share' in navigator) {
+		await navigator.share({ title: issue.value?.title, url }).catch(() => {});
+		return;
+	}
+
+	await run(async () => {
+		await navigator.clipboard.writeText(url);
+		linkCopied.value = true;
+		setTimeout(() => linkCopied.value = false, 2000);
+	}, 'No se ha podido copiar el enlace.');
+}
 </script>
 
 <template>
@@ -56,7 +115,18 @@ function formatDate(date: Date) {
 			'--status-color': `var(--color-issue-status-${issue.status})`,
 		}"
 	>
-		<TheToolbar :title="issue?.title" back="/issues" :reveal="$titleTop" />
+		<TheToolbar :title="issue?.title" back="/issues" :reveal="$titleTop">
+			<LnxButton
+				v-if="issue"
+				class="share"
+				shape="circle"
+				:aria-label="linkCopied ? 'Enlace copiado' : 'Compartir incidencia'"
+				style="--lnx-button-border: none"
+				@click="share()"
+			>
+				<LnxIcon :icon="linkCopied ? 'lucide:check' : 'lucide:share-2'" />
+			</LnxButton>
+		</TheToolbar>
 
 		<div
 			v-if="issue || loading"
@@ -129,6 +199,64 @@ function formatDate(date: Date) {
 					</ol>
 				</section>
 
+				<section class="panel votes-panel">
+					<div class="panel-header">
+						<h2>¿Te afecta a ti también?</h2>
+						<span class="voters">
+							{{ issue.votesCount }} {{ issue.votesCount === 1 ? 'voto' : 'votos' }}
+						</span>
+					</div>
+					<div class="vote-buttons">
+						<button
+							type="button"
+							class="vote up"
+							:class="{ active: myVote === 1 }"
+							:aria-pressed="myVote === 1"
+							:disabled="voting"
+							@click="onVote(1)"
+						>
+							<LnxIcon icon="lucide:thumbs-up" :size="18" />
+							Me afecta
+						</button>
+						<button
+							type="button"
+							class="vote down"
+							:class="{ active: myVote === -1 }"
+							:aria-pressed="myVote === -1"
+							:disabled="voting"
+							@click="onVote(-1)"
+						>
+							<LnxIcon icon="lucide:thumbs-down" :size="18" />
+							No es un problema
+						</button>
+					</div>
+					<small class="hint">Las incidencias que afectan a más vecinos se atienden antes. Vuelve a pulsar para quitar tu voto.</small>
+				</section>
+
+				<section v-if="isManager" class="panel manage">
+					<h2>Cambiar estado</h2>
+					<div class="status-buttons">
+						<LnxButton
+							v-for="option in issueStatus.filter(({ value }) => value !== issue!.status)"
+							:key="option.value"
+							mode="outline"
+							size="small"
+							:style="{ '--lnx-button-color': `var(--color-issue-status-${option.value})` }"
+							:is-loading="changingStatus === option.value"
+							:disabled="!!changingStatus"
+							@click="onChangeStatus(option.value)"
+						>
+							{{ option.label }}
+						</LnxButton>
+					</div>
+					<small class="hint">El cambio queda en los comentarios para que toda la comunidad lo vea.</small>
+				</section>
+
+				<p v-if="actionError" class="action-error" role="alert">
+					<LnxIcon icon="lucide:circle-alert" :size="16" />
+					{{ actionError }}
+				</p>
+
 				<section v-if="issue.description" class="description">
 					<h2>Descripción</h2>
 					<p>{{ issue.description }}</p>
@@ -150,7 +278,7 @@ function formatDate(date: Date) {
 								<LnxIcon icon="lucide:calendar" :size="16" />
 								Aviso
 							</dt>
-							<dd>{{ formatDate(issue.createdAt.toDate()) }}</dd>
+							<dd>{{ formatDate(issue.createdAt.toDate()) }}{{ isAuthor ? ' · por ti' : '' }}</dd>
 						</div>
 						<div v-if="issue.updatedAt">
 							<dt>
@@ -161,6 +289,20 @@ function formatDate(date: Date) {
 						</div>
 					</dl>
 				</section>
+
+				<IssueComments :issue />
+
+				<LnxButton
+					v-if="isAuthor || isManager"
+					class="delete-issue"
+					variant="danger"
+					mode="clear"
+					is-block
+					@click="onDelete()"
+				>
+					<LnxIcon icon="lucide:trash-2" />
+					Eliminar incidencia
+				</LnxButton>
 			</template>
 
 			<template v-else-if="loading">
@@ -386,6 +528,99 @@ h2 {
 			background: var(--color-gray-0);
 		}
 	}
+}
+
+.share {
+	background: var(--color-gray-0);
+	color: var(--color-gray-9);
+	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000014;
+}
+
+.votes-panel,
+.manage {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
+
+	.panel-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--lnx-spacing-2);
+	}
+
+	.voters {
+		flex-shrink: 0;
+		color: var(--color-gray-7);
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+	}
+
+	.hint {
+		color: var(--color-gray-6);
+	}
+}
+
+.vote-buttons {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--lnx-spacing-2);
+}
+
+.vote {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--lnx-spacing-2);
+	min-height: 48px;
+	padding: var(--lnx-spacing-2);
+	border: 1px solid var(--color-gray-3);
+	border-radius: var(--lnx-radius-3);
+	background: var(--color-gray-1);
+	color: var(--color-gray-8);
+	font-weight: var(--lnx-font-weight-bold);
+	line-height: 1.2;
+	cursor: pointer;
+	transition: transform .15s, background .15s, color .15s, border-color .15s;
+
+	&:active {
+		transform: scale(.97);
+	}
+
+	&:disabled {
+		cursor: progress;
+		opacity: .7;
+	}
+
+	&.up.active {
+		border-color: var(--color-issue-cat-maintenance-accent);
+		background: var(--color-issue-vote-hot);
+		color: var(--color-issue-cat-maintenance-accent);
+	}
+
+	&.down.active {
+		border-color: var(--color-gray-6);
+		background: var(--color-gray-2);
+		color: var(--color-gray-9);
+	}
+}
+
+.status-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-2);
+}
+
+.action-error {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
+	color: var(--lnx-color-danger);
+	font-size: var(--lnx-font-size-small);
+}
+
+.delete-issue {
+	margin-top: var(--lnx-spacing-4);
 }
 
 .description {

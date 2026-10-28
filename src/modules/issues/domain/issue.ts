@@ -1,3 +1,4 @@
+import type { User } from '@/modules/auth/domain/user.ts';
 import type { Datable, Deletable } from '@/shared/domain/audit.ts';
 
 export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
@@ -18,6 +19,8 @@ export interface Issue extends Datable, Deletable {
 
 	votesScore: number;
 	votesCount: number;
+	// Only messages, not status changes. Missing on issues reported before comments existed
+	commentsCount?: number;
 
 	assets?: string[];
 
@@ -30,18 +33,24 @@ export interface Issue extends Datable, Deletable {
 
 export interface IssueComment extends Datable, Deletable {
 	id: string;
-	issueId: string;
 
 	authorId: string;
+	// Kept with the comment, so showing it doesn't need to read every author
+	authorName?: string;
+	// Only for the administration, to tell their answers apart
+	authorRole?: Exclude<User['role'], 'user'>;
+	// A status change is listed with the messages, as the issue's history
+	type?: 'message' | 'status';
+	status?: IssueStatus;
 	message: string;
 }
 
+// Stored as `${issueId}_${voterId}`, so each neighbour has one vote per issue
 export interface IssueVote {
 	id: string;
-	issueId: string;
 
 	voterId: string;
-	score: number;
+	score: 1 | -1;
 }
 
 export interface IssuesFilters {

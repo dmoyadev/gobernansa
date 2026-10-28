@@ -12,7 +12,7 @@ import {
 	doc,
 	getDoc,
 } from 'firebase/firestore';
-import { ref, watchEffect } from 'vue';
+import { ref, watch } from 'vue';
 
 /* -------------------------------------------------------------------------- */
 /*                              Mapping utilities                             */
@@ -108,9 +108,8 @@ export function useFirestoreDocument<T>({
 	}
 
 	if (immediate) {
-		watchEffect(() => {
-			void fetch();
-		});
+		// Only the path: watchEffect would also track the SDK internals getDoc touches, and its own fetch changes them
+		watch(() => path.value?.path, () => void fetch(), { immediate: true });
 	}
 
 	return {

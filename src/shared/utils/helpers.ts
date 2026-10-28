@@ -75,3 +75,25 @@ export function hasSlotContent(slot?: Slot, slotProps: any = {}): boolean {
 export function scrollTop() {
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+const TIME_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+	['year', 365 * 86_400_000],
+	['month', 30 * 86_400_000],
+	['week', 7 * 86_400_000],
+	['day', 86_400_000],
+	['hour', 3_600_000],
+	['minute', 60_000],
+];
+const relativeTimeFormat = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
+
+/**
+ * How long ago a date was, in the biggest unit that fits
+ * @param {Date} date - The date in the past
+ *
+ * @returns {string} e.g. "ahora", "hace 5 minutos" or "ayer"
+ */
+export function timeAgo(date: Date): string {
+	const elapsed = date.getTime() - Date.now();
+	const unit = TIME_UNITS.find(([, ms]) => Math.abs(elapsed) >= ms);
+	return unit ? relativeTimeFormat.format(Math.round(elapsed / unit[1]), unit[0]) : 'ahora';
+}

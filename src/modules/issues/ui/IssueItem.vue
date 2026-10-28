@@ -11,7 +11,7 @@ const props = defineProps<{
 
 const category = computed(() => issuesCategories.find(category => category.value === props.issue.category));
 const status = computed(() => issueStatus.find(status => status.value === props.issue.status));
-const thumbnail = computed(() => props.issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_128,h_128/').replace('.mp4', '.jpg').replace('.mov', '.jpg'));
+const thumbnail = computed(() => props.issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_128,h_128,f_auto,q_auto/').replace('.mp4', '.jpg').replace('.mov', '.jpg'));
 
 const step = computed(() => getIssueStep(props.issue.status));
 
@@ -69,7 +69,14 @@ const date = computed(() => {
 				{{ category?.label || 'Sin categoría' }}
 			</span>
 			<h3>{{ issue.title }}</h3>
-			<small class="date">{{ date }}</small>
+			<small class="date">
+				{{ date }}
+				<span v-if="issue.commentsCount" class="comments-count">
+					· <LnxIcon icon="lucide:message-circle" :size="12" />
+					{{ issue.commentsCount }}
+					<span class="sr-only">{{ issue.commentsCount === 1 ? 'comentario' : 'comentarios' }}</span>
+				</span>
+			</small>
 		</div>
 
 		<div class="votes" :class="{ hot: issue.votesScore > 0 }">
@@ -175,7 +182,16 @@ const date = computed(() => {
 		}
 
 		.date {
+			display: flex;
+			align-items: center;
+			gap: 4px;
 			color: var(--color-gray-6);
+		}
+
+		.comments-count {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
 		}
 	}
 
