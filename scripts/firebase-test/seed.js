@@ -80,6 +80,7 @@ async function seed() {
 			address: 'Calle Falsa 123, Jaén',
 			constructionYear: 1990,
 			commonAreas: ['Portal', 'Escalera', 'Ascensor', 'Garaje', 'Piscina', 'Jardín'],
+			monthlyVotes: 5,
 			// Made-up data: the IBAN is the usual example one
 			cif: 'H23123456',
 			iban: 'ES9121000418450200051332',
@@ -324,7 +325,8 @@ async function seed() {
 			// votes
 			for (const [voterId, score] of votes) {
 				const voteRef = issueRef.collection('votes').doc(`${id}_${voterId}`);
-				batch.set(voteRef, { voterId, score });
+				// Cast this month, so they use some of the voters' monthly votes
+				batch.set(voteRef, { voterId, score, votedAt: new Date() });
 			}
 		}
 	}

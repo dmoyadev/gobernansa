@@ -5,8 +5,9 @@ import { computed, ref, watch } from 'vue';
 import useAuth from '@/modules/auth/application/useAuth.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
+import { getVotingMonth } from '../domain/issue.ts';
 import { updateListedIssue } from './useIssues.ts';
-import { invalidateUserActivity } from './useUserActivity.ts';
+import { invalidateUserActivity, useUserActivity } from './useUserActivity.ts';
 
 /**
  * What the user can do on an issue: vote it and, depending on who they are, change its status or remove it.
@@ -37,31 +38,48 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 		return doc(issueRef, 'votes', `${issueRef.id}_${uid}`);
 	}
 
-	/* Votes */
+	/* Votes, a few each month */
+	const { votesLeft, monthlyVotes, addVotesUsed } = useUserActivity();
 	const myVote = ref<IssueVote['score'] | 0>(0);
+	// Cast this month, so switching or taking it back doesn't use another of this month's votes
+	const myVoteThisMonth = ref(false);
 	const voting = ref(false);
+
+	function isFromThisMonth(vote?: IssueVote) {
+		return !!vote?.votedAt && vote.votedAt.toMillis() >= getVotingMonth().start.getTime();
+	}
 
 	watch(() => !!issue.value && !!user.value && !!userCommunity.value, async (ready) => {
 		if (ready) {
-			const snap = await getDoc(getVoteRef());
-			myVote.value = (snap.data()?.score as IssueVote['score'] | undefined) ?? 0;
+			const vote = (await getDoc(getVoteRef())).data() as IssueVote | undefined;
+			myVote.value = vote?.score ?? 0;
+			myVoteThisMonth.value = isFromThisMonth(vote);
 		}
 	}, { immediate: true });
 
-	// Voting the same again takes the vote back
+	// A new vote, or switching one from a past month, uses one of this month's votes
+	function canVote(score: IssueVote['score']) {
+		return score === myVote.value || myVoteThisMonth.value || votesLeft.value !== 0;
+	}
+
+	// Voting the same again takes the vote back, and gives this month's vote back if it was cast this month
 	async function vote(score: IssueVote['score']) {
 		const { issueRef, uid } = getIssueRef();
 		const voteRef = getVoteRef();
 		voting.value = true;
 
 		try {
-			const { previous, next } = await runTransaction(db, async (transaction) => {
-				const snap = await transaction.get(voteRef);
-				const previous = (snap.data()?.score as IssueVote['score'] | undefined) ?? 0;
+			const { previous, next, used } = await runTransaction(db, async (transaction) => {
+				const previousVote = (await transaction.get(voteRef)).data() as IssueVote | undefined;
+				const previous = previousVote?.score ?? 0;
 				const next = previous === score ? 0 : score;
+				const used = Number(!!next) - Number(isFromThisMonth(previousVote));
+				if (used > 0 && votesLeft.value === 0) {
+					throw new Error('No votes left this month');
+				}
 
 				if (next) {
-					transaction.set(voteRef, { voterId: uid, score: next });
+					transaction.set(voteRef, { voterId: uid, score: next, votedAt: serverTimestamp() });
 				} else {
 					transaction.delete(voteRef);
 				}
@@ -70,17 +88,18 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 					votesCount: increment(Number(!!next) - Number(!!previous)),
 				});
 
-				return { previous, next } as const;
+				return { previous, next, used } as const;
 			});
 
 			myVote.value = next;
+			myVoteThisMonth.value = !!next;
+			addVotesUsed(used);
 			const changes = {
 				votesScore: issue.value!.votesScore + next - previous,
 				votesCount: issue.value!.votesCount + Number(!!next) - Number(!!previous),
 			};
 			Object.assign(issue.value!, changes);
 			updateListedIssue(issue.value!.id, changes);
-			invalidateUserActivity();
 		} finally {
 			voting.value = false;
 		}
@@ -130,6 +149,9 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 		isAuthor,
 		myVote,
 		voting,
+		votesLeft,
+		monthlyVotes,
+		canVote,
 		vote,
 		changeStatus,
 		deleteIssue,

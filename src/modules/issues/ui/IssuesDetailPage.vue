@@ -7,7 +7,7 @@ import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useIssue } from '../application/useIssue.ts';
 import { useIssueActions } from '../application/useIssueActions.ts';
-import { getIssueStep, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '../domain/issue.ts';
+import { getIssueStep, getVotingMonth, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '../domain/issue.ts';
 import IssueComments from './IssueComments.vue';
 
 const props = defineProps<{ id: string }>();
@@ -51,7 +51,8 @@ function formatDate(date: Date) {
 }
 
 const router = useRouter();
-const { isManager, isAuthor, myVote, voting, vote, changeStatus, deleteIssue } = useIssueActions(issue);
+const { isManager, isAuthor, myVote, voting, votesLeft, monthlyVotes, canVote, vote, changeStatus, deleteIssue } = useIssueActions(issue);
+const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
 const actionError = ref<string>();
 const changingStatus = ref<IssueStatus>();
 
@@ -212,7 +213,7 @@ async function share() {
 							class="vote up"
 							:class="{ active: myVote === 1 }"
 							:aria-pressed="myVote === 1"
-							:disabled="voting"
+							:disabled="voting || !canVote(1)"
 							@click="onVote(1)"
 						>
 							<LnxIcon icon="lucide:thumbs-up" :size="18" />
@@ -223,14 +224,24 @@ async function share() {
 							class="vote down"
 							:class="{ active: myVote === -1 }"
 							:aria-pressed="myVote === -1"
-							:disabled="voting"
+							:disabled="voting || !canVote(-1)"
 							@click="onVote(-1)"
 						>
 							<LnxIcon icon="lucide:thumbs-down" :size="18" />
 							No es un problema
 						</button>
 					</div>
-					<small class="hint">Las incidencias que afectan a más vecinos se atienden antes. Vuelve a pulsar para quitar tu voto.</small>
+					<small v-if="votesLeft === 0" class="hint">
+						Ya has usado tus {{ monthlyVotes }} votos de este mes, vuelves a tener {{ monthlyVotes }} el {{ votesRenewOn }}.
+						Si quitas un voto que hayas dado este mes, lo recuperas.
+					</small>
+					<small v-else class="hint">
+						<template v-if="votesLeft !== undefined">
+							{{ votesLeft === 1 ? 'Te queda 1 voto' : `Te quedan ${votesLeft} votos` }} de {{ monthlyVotes }} este mes,
+							{{ votesLeft === 1 ? 'úsalo' : 'úsalos' }} en lo que más te importe.
+						</template>
+						Pulsa otra vez para quitar tu voto.
+					</small>
 				</section>
 
 				<section v-if="isManager" class="panel manage">
@@ -588,8 +599,8 @@ h2 {
 	}
 
 	&:disabled {
-		cursor: progress;
-		opacity: .7;
+		cursor: not-allowed;
+		opacity: .5;
 	}
 
 	&.up.active {

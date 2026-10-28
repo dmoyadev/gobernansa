@@ -20,7 +20,7 @@ The first time each of these queries runs, Firestore logs an error in the browse
 
 | Feature | Index |
 | --- | --- |
-| Votes given, on the home page | Single field `voterId` on the `votes` **collection group** (Firestore → Indexes → Single field → Add exemption, scope "Collection group") |
+| Votes left this month, on the home and issue pages | Composite on the `votes` **collection group**: `voterId` ascending, `votedAt` ascending (Firestore → Indexes → Composite, query scope "Collection group") |
 | "Mis incidencias" filter in the issues list | Composite on `issues`: `createdBy` ascending, `createdAt` descending |
 
 Comments are ordered by date only, so they need no index.
@@ -55,16 +55,23 @@ contacts[]     { type: admin | president | janitor | insurance | elevator | clea
                  name, phone?, whatsapp?, email?,
                  schedule?: [{ days: [1..7], from: 'HH:MM', to: 'HH:MM' }] }
 documents[]    { type: statutes | regulations | insurance | minutes, title, url, date }
+monthlyVotes   votes each neighbour gets every month, 5 when missing
 ```
 
 `schedule` works for any contact (e.g. the janitor's shifts): days are ISO weekdays (1 is Monday, 7 is Sunday) and times are 24 hour and zero padded. Add one entry per shift, e.g. `{ days: [1, 2, 3, 4, 5], from: '08:00', to: '15:00' }` and `{ days: [6], from: '09:00', to: '13:00' }`. The contact then shows its hours and whether it's available now.
+
+### Monthly votes
+
+Each neighbour gets `monthlyVotes` votes every month (5 by default) to spend on the issues that matter most to them. A vote uses one of the month it's cast in; taking it back that same month gives it back, and votes from past months stay on their issues without using this month's. Until the index above exists, the remaining votes can't be counted: they show as "—" and voting isn't limited.
+
+The limit is checked by the app. Rules can't count documents, so someone calling the API directly could vote past it; enforcing it on the server would need a Cloud Function (paid plan).
 
 ## Data the app writes
 
 ```text
 communities/{communityId}/issues/{issueId}
   votesScore, votesCount, commentsCount   counters, written along with each vote or comment
-  votes/{issueId}_{uid}                   { voterId, score: 1 | -1 }
+  votes/{issueId}_{uid}                   { voterId, score: 1 | -1, votedAt }
   comments/{commentId}                    { type: message | status, message, status?, authorId, authorName, authorRole? }
 users/{uid}/documents/{id}                property documents (listing)
 users/{uid}/documentFiles/{id}            their content, up to 1 MB each

@@ -9,6 +9,7 @@ import { useCommunityEvents } from '@/modules/events/application/useCommunityEve
 import EventCard from '@/modules/events/ui/EventCard.vue';
 import { issuesFilters } from '@/modules/issues/application/useIssues.ts';
 import { useUserActivity } from '@/modules/issues/application/useUserActivity.ts';
+import { getVotingMonth } from '@/modules/issues/domain/issue.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 import { scrollTop } from '@/shared/utils/helpers.ts';
@@ -17,7 +18,8 @@ const user = useCurrentUser();
 const { selectedProperty } = useUserProperties();
 const { userCommunity } = useUserCommunity();
 const { events } = useCommunityEvents(3);
-const { issues, votes } = useUserActivity();
+const { issues, votesLeft, monthlyVotes } = useUserActivity();
+const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
 
 // The ones to call when something happens, in the order the community has them
 const quickContacts = computed(() => (userCommunity.value?.contacts ?? []).filter(contact => contact.phone || contact.whatsapp));
@@ -82,13 +84,13 @@ function showMyIssues() {
 					<span class="stat-icon">
 						<LnxIcon icon="lucide:vote" :size="18" />
 					</span>
-					<strong>{{ votes?.total ?? '—' }}</strong>
-					<span>{{ votes?.total === 1 ? 'Voto emitido' : 'Votos emitidos' }}</span>
-					<small v-if="votes?.total">
-						<LnxIcon icon="lucide:thumbs-up" :size="12" /> {{ votes.up }} a favor ·
-						<LnxIcon icon="lucide:thumbs-down" :size="12" /> {{ votes.down }} en contra
-					</small>
-					<small v-else>Vota las incidencias que te afecten</small>
+					<strong>
+						{{ votesLeft ?? '—' }}<span class="of">/{{ monthlyVotes }}</span>
+					</strong>
+					<span v-if="votesLeft === 0">Ya has usado tus votos de este mes</span>
+					<span v-else>{{ votesLeft === 1 ? 'Voto disponible' : 'Votos disponibles' }} este mes</span>
+					<!-- Not "new ones": unused votes don't carry over -->
+					<small>Vuelves a tener {{ monthlyVotes }} el {{ votesRenewOn }}</small>
 				</div>
 			</div>
 		</section>
@@ -245,6 +247,11 @@ section {
 			color: var(--color-gray-9);
 			font-size: 1.6rem;
 			line-height: 1.1;
+
+			.of {
+				color: var(--color-gray-5);
+				font-weight: var(--lnx-font-weight-regular);
+			}
 		}
 
 		span {

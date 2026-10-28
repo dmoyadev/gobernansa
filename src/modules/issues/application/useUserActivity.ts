@@ -1,8 +1,9 @@
-import { collectionGroup, count, getAggregateFromServer, getCountFromServer, getFirestore, query, sum, where } from 'firebase/firestore';
-import { effectScope, ref, watch } from 'vue';
+import { collectionGroup, getCountFromServer, getFirestore, query, where } from 'firebase/firestore';
+import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityCollection } from '@/shared/infrastructure/useFirestoreDocument.ts';
+import { DEFAULT_MONTHLY_VOTES, getVotingMonth } from '../domain/issue.ts';
 
 // Counted again after this long, coming back home in between costs no reads
 const STALE_AFTER_MS = 5 * 60_000;
@@ -11,7 +12,7 @@ let shared: ReturnType<typeof createUserActivity> | undefined;
 let fetchedAt = 0;
 
 /**
- * What the user has done in the community: issues reported and votes given.
+ * What the user has done in the community: issues reported, and votes used and left this month.
  * Only counts (one read each, whatever the number of documents), never the documents themselves.
  */
 export function useUserActivity() {
@@ -34,7 +35,11 @@ function createUserActivity() {
 	const { userCommunity } = useUserCommunity();
 
 	const issues = ref<{ total: number; active: number }>();
-	const votes = ref<{ total: number; up: number; down: number }>();
+
+	const votesUsed = ref<number>();
+	const monthlyVotes = computed(() => userCommunity.value?.monthlyVotes ?? DEFAULT_MONTHLY_VOTES);
+	// Unknown (undefined) while loading or if counting fails, voting isn't blocked then
+	const votesLeft = computed(() => votesUsed.value === undefined ? undefined : Math.max(0, monthlyVotes.value - votesUsed.value));
 
 	// Only equality filters, so Firestore merges the single-field indexes it already has
 	async function fetchIssues(uid: string, communityId: string) {
@@ -54,15 +59,21 @@ function createUserActivity() {
 		};
 	}
 
-	// Votes live under each issue, so they are counted across all of them (needs a collection group index on voterId)
+	// Votes live under each issue, so they are counted across all of them (needs a collection group index on voterId and votedAt)
 	async function fetchVotes(uid: string) {
-		const snap = await getAggregateFromServer(
-			query(collectionGroup(db, 'votes'), where('voterId', '==', uid)),
-			{ total: count(), score: sum('score') },
-		);
-		const { total, score } = snap.data();
-		// Each vote scores +1 or -1
-		votes.value = { total, up: (total + score) / 2, down: (total - score) / 2 };
+		const snap = await getCountFromServer(query(
+			collectionGroup(db, 'votes'),
+			where('voterId', '==', uid),
+			where('votedAt', '>=', getVotingMonth().start),
+		));
+		votesUsed.value = snap.data().count;
+	}
+
+	// After voting, without counting again
+	function addVotesUsed(change: number) {
+		if (votesUsed.value !== undefined) {
+			votesUsed.value = Math.max(0, votesUsed.value + change);
+		}
 	}
 
 	async function fetch() {
@@ -83,7 +94,10 @@ function createUserActivity() {
 
 	return {
 		issues,
-		votes,
+		votesUsed,
+		monthlyVotes,
+		votesLeft,
+		addVotesUsed,
 		fetch,
 	};
 }

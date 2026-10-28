@@ -1,3 +1,4 @@
+import type { Timestamp } from 'firebase/firestore';
 import type { User } from '@/modules/auth/domain/user.ts';
 import type { Datable, Deletable } from '@/shared/domain/audit.ts';
 
@@ -51,6 +52,19 @@ export interface IssueVote {
 
 	voterId: string;
 	score: 1 | -1;
+	// When it was last cast, it uses one of that month's votes. Missing on votes from before the monthly limit
+	votedAt?: Timestamp;
+}
+
+// Votes each neighbour gets every month to spend on what matters most to them. A community can change it (monthlyVotes)
+export const DEFAULT_MONTHLY_VOTES = 5;
+
+// shortcut: months follow the device's time zone, fine while neighbours live where the community is
+export function getVotingMonth(now = new Date()) {
+	return {
+		start: new Date(now.getFullYear(), now.getMonth(), 1),
+		renewsOn: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+	};
 }
 
 export interface IssuesFilters {

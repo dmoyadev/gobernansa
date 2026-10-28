@@ -24,6 +24,9 @@ export interface Community extends Datable {
 
 	contacts?: CommunityContact[];
 	documents?: CommunityDocument[];
+
+	// Votes each neighbour gets every month, DEFAULT_MONTHLY_VOTES when missing
+	monthlyVotes?: number;
 }
 
 export type ContactType = 'admin' | 'president' | 'janitor' | 'insurance' | 'elevator' | 'cleaning' | 'gardening' | 'other';
