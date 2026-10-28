@@ -8,6 +8,13 @@ export interface Property extends Datable {
 	ownerUid: string;
 }
 
+export const propertyTypeLabels: Record<Property['type'], string> = {
+	home: 'Vivienda',
+	parking: 'Plaza de garaje',
+	storage: 'Trastero',
+	other: 'Otro',
+};
+
 export const propertyTypeIcons: Record<Property['type'], string> = {
 	home: 'lucide:house',
 	parking: 'lucide:car',

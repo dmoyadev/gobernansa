@@ -2,10 +2,14 @@
 import type { IssueCategory, IssueStatus } from '../domain/issue.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
+import { useCurrentUser } from 'vuefire';
 import { issuesCategories, issueStatus } from '../domain/issue.ts';
 
 const status = defineModel<IssueStatus>('status');
 const category = defineModel<IssueCategory>('category');
+const createdBy = defineModel<string>('createdBy');
+
+const user = useCurrentUser();
 
 const selectedCategory = computed(() => issuesCategories.find(option => option.value === category.value));
 </script>
@@ -39,10 +43,23 @@ const selectedCategory = computed(() => issuesCategories.find(option => option.v
 			role="group"
 			aria-labelledby="category-filter-label"
 		>
-			<p id="category-filter-label" class="categories-label">
-				Categoría
-				<strong>{{ selectedCategory?.label || 'Todas' }}</strong>
-			</p>
+			<div class="categories-header">
+				<p id="category-filter-label" class="categories-label">
+					Categoría
+					<strong>{{ selectedCategory?.label || 'Todas' }}</strong>
+				</p>
+
+				<button
+					type="button"
+					class="mine"
+					:class="{ active: !!createdBy }"
+					:aria-pressed="!!createdBy"
+					@click="createdBy = createdBy ? undefined : user?.uid"
+				>
+					<LnxIcon icon="lucide:user" :size="14" />
+					Mis incidencias
+				</button>
+			</div>
 
 			<div class="tiles">
 				<button
@@ -133,6 +150,32 @@ const selectedCategory = computed(() => issuesCategories.find(option => option.v
 	display: flex;
 	flex-direction: column;
 	gap: var(--lnx-spacing-2);
+
+	.categories-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--lnx-spacing-2);
+	}
+
+	.mine {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px var(--lnx-spacing-2);
+		border: 1px solid var(--color-gray-3);
+		border-radius: var(--lnx-radius-4);
+		color: var(--color-gray-7);
+		font-size: var(--lnx-font-size-small);
+		cursor: pointer;
+		transition: background .15s, color .15s, border-color .15s;
+
+		&.active {
+			border-color: var(--color-primary);
+			background: var(--color-primary);
+			color: var(--color-primary-accent);
+		}
+	}
 
 	.categories-label {
 		font-size: var(--lnx-font-size-small);

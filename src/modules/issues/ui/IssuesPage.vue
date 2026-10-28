@@ -14,10 +14,11 @@ const {
 	filters,
 	loading,
 	hasMore,
+	error,
 	fetchIssues,
 } = useIssues();
 
-const hasFilters = computed(() => !!(filters.value.status || filters.value.category));
+const hasFilters = computed(() => !!(filters.value.status || filters.value.category || filters.value.createdBy));
 
 const $loadMoreTrigger = useTemplateRef('$loadMoreTrigger');
 
@@ -51,6 +52,7 @@ onUnmounted(() => {
 		<IssuesFilters
 			v-model:status="filters.status"
 			v-model:category="filters.category"
+			v-model:created-by="filters.createdBy"
 		/>
 
 		<ul class="issues">
@@ -63,7 +65,19 @@ onUnmounted(() => {
 			</li>
 
 			<li
-				v-if="!issues.length && !loading"
+				v-if="error && !loading"
+				class="empty"
+			>
+				<LnxIcon icon="lucide:wifi-off" :size="32" />
+				<h3>No se han podido cargar</h3>
+				<p>Revisa tu conexión e inténtalo de nuevo.</p>
+				<LnxButton mode="clear" @click="fetchIssues(true)">
+					Reintentar
+				</LnxButton>
+			</li>
+
+			<li
+				v-else-if="!issues.length && !loading"
 				class="empty"
 			>
 				<LnxIcon :icon="hasFilters ? 'lucide:search-x' : 'lucide:party-popper'" :size="32" />

@@ -28,6 +28,8 @@ const isEmailValid = computed<boolean>(() => {
 			&& EMAIL_REGEX.test(email.value));
 });
 const errorLogin = ref<unknown>();
+// Once the daily quota of sign-in emails runs out, users who set a password can still sign in with it
+const askPassword = ref(false);
 const emailSent = ref(false);
 const loadingLogin = ref(false);
 
@@ -62,11 +64,18 @@ async function doSignIn() {
 	loadingLogin.value = true;
 
 	try {
+		if (password.value) {
+			await useAuth().signInWithPassword(email.value, password.value);
+			await router.replace((route.query?.unauthorized as string) || '/');
+			return;
+		}
+
 		await useAuth().sendMagicLink(email.value);
 
 		emailSent.value = true;
 	} catch (e) {
 		errorLogin.value = e as Error;
+		askPassword.value ||= (e as Error).message.includes('QUOTA_EXCEEDED');
 	} finally {
 		loadingLogin.value = false;
 	}
@@ -118,7 +127,7 @@ async function doSignIn() {
 				</LnxInput>
 
 				<LnxInput
-					v-if="(errorLogin as Error)?.message.includes('QUOTA_EXCEEDED')"
+					v-if="askPassword"
 					v-model="password"
 					type="password"
 					:has-error="triedSubmit && !!errorLogin && !!password"
@@ -162,7 +171,7 @@ async function doSignIn() {
 			v.{{ version }}
 			<br>
 			Continuando, indicas que aceptas nuestros
-			<a href="#">Términos y condiciones</a> y la <a href="#">Política de privacidad</a>
+			<RouterLink to="/legal#terms">Términos y condiciones</RouterLink> y la <RouterLink to="/legal#privacy">Política de privacidad</RouterLink>
 		</small>
 	</main>
 </template>

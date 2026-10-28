@@ -48,6 +48,7 @@ export interface IssuesFilters {
 	status?: IssueStatus;
 	category?: IssueCategory;
 	assignedTo?: string;
+	createdBy?: string;
 }
 
 // examples help to pick the right category, defaultTitle names an issue reported without a title

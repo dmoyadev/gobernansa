@@ -5,6 +5,7 @@ import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityCollection, mapFirestoreDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
+import { invalidateUserActivity } from './useUserActivity.ts';
 
 const PAGE_SIZE = 10;
 // shortcut: other neighbours' changes only show after this long (or a reload), switch to a realtime listener if that's too slow
@@ -17,6 +18,8 @@ let fetchedAt = 0;
 
 // The issue last opened from the list, whose photo morphs into the detail page and back
 export const openedIssueId = ref<string>();
+// Outside the list so other pages can open it filtered (e.g. by the user's issues) without loading it unfiltered first
+export const issuesFilters = ref<IssuesFilters>({});
 
 export function useIssues() {
 	if (shared && Date.now() - fetchedAt > STALE_AFTER_MS) {
@@ -52,8 +55,9 @@ export function useCreateIssue() {
 			deletedAt: null,
 		});
 
-		// The list fetches again next time it's opened, so the new issue shows up
+		// The list and the user's stats fetch again next time they're shown, so the new issue shows up
 		fetchedAt = 0;
+		invalidateUserActivity();
 		return id;
 	}
 
@@ -71,6 +75,7 @@ function createIssues() {
 	const loading = ref(false);
 	const lastDoc = ref<DocumentData>();
 	const hasMore = ref(true);
+	const error = ref<unknown>();
 
 	const issuesCollection = computed<CollectionReference<Issue> | undefined>(() => {
 		if (!communityId.value) {
@@ -84,7 +89,7 @@ function createIssues() {
 		);
 	});
 
-	const filters = ref<IssuesFilters>({});
+	const filters = issuesFilters;
 	function buildQuery() {
 		if (!issuesCollection.value) {
 			return;
@@ -104,6 +109,9 @@ function createIssues() {
 		}
 		if (filters.value.assignedTo) {
 			constraints.push(where('assignedTo', '==', filters.value.assignedTo));
+		}
+		if (filters.value.createdBy) {
+			constraints.push(where('createdBy', '==', filters.value.createdBy));
 		}
 		if (lastDoc.value) {
 			constraints.push(startAfter(lastDoc.value));
@@ -135,6 +143,7 @@ function createIssues() {
 
 		const requestId = ++lastRequestId;
 		loading.value = true;
+		error.value = undefined;
 		if (reset) {
 			fetchedAt = Date.now();
 		}
@@ -152,6 +161,14 @@ function createIssues() {
 			}
 			lastDoc.value = snap.docs.at(-1);
 			issues.value.push(...newIssues);
+		} catch (e) {
+			// e.g. a filter whose index is missing, Firestore logs the link to create it
+			// eslint-disable-next-line no-console
+			console.error(e);
+			if (requestId === lastRequestId) {
+				error.value = e;
+				hasMore.value = false;
+			}
 		} finally {
 			if (requestId === lastRequestId) {
 				loading.value = false;
@@ -175,6 +192,7 @@ function createIssues() {
 		sortingField,
 		loading,
 		hasMore,
+		error,
 		fetchIssues,
 	};
 }

@@ -80,6 +80,26 @@ async function seed() {
 			address: 'Calle Falsa 123, Jaén',
 			constructionYear: 1990,
 			commonAreas: ['Portal', 'Escalera', 'Ascensor', 'Garaje', 'Piscina', 'Jardín'],
+			// Made-up data: the IBAN is the usual example one
+			cif: 'H23123456',
+			iban: 'ES9121000418450200051332',
+			bank: 'Banco Ejemplo',
+			contacts: [
+				{ type: 'admin', name: 'Fincas Olivares S.L.', phone: '953 000 101', whatsapp: '600 000 101', email: 'administracion@example.com' },
+				{ type: 'president', name: 'Carmen Ruiz', whatsapp: '600 000 102' },
+				{ type: 'janitor', name: 'Antonio García', phone: '600 000 103', whatsapp: '600 000 103' },
+				{ type: 'insurance', name: 'Seguros La Previsora · Póliza 123456', phone: '900 000 104' },
+				{ type: 'elevator', name: 'Ascensores del Sur', phone: '900 000 105' },
+				{ type: 'cleaning', name: 'Limpiezas Jaén', phone: '953 000 106', email: 'limpiezas@example.com' },
+			],
+			documents: [
+				{ type: 'statutes', title: 'Estatutos de la comunidad', url: 'https://example.com/estatutos.pdf', date: new Date(1990, 5, 1) },
+				{ type: 'regulations', title: 'Normas de uso de la piscina y zonas comunes', url: 'https://example.com/normas.pdf', date: new Date(2019, 3, 10) },
+				{ type: 'minutes', title: 'Junta general ordinaria', url: 'https://example.com/actas/2026-03.pdf', date: new Date(2026, 2, 14) },
+				{ type: 'minutes', title: 'Junta extraordinaria: cámaras de seguridad', url: 'https://example.com/actas/2025-10.pdf', date: new Date(2025, 9, 20) },
+				{ type: 'minutes', title: 'Junta general ordinaria', url: 'https://example.com/actas/2025-03.pdf', date: new Date(2025, 2, 15) },
+				{ type: 'minutes', title: 'Junta general ordinaria', url: 'https://example.com/actas/2024-03.pdf', date: new Date(2024, 2, 16) },
+			],
 			...getDatableProperties(),
 		});
 	}

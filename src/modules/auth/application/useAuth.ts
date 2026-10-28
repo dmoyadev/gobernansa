@@ -3,8 +3,10 @@ import type { User } from '../domain/user.ts';
 import {
 	isSignInWithEmailLink,
 	sendSignInLinkToEmail,
+	signInWithEmailAndPassword,
 	signInWithEmailLink,
 	signOut,
+	updatePassword,
 } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { effectScope, ref, watchEffect } from 'vue';
@@ -61,6 +63,20 @@ function createAuth() {
 		}
 	});
 
+	// Fallback for when the daily quota of sign-in emails runs out
+	async function signInWithPassword(email: string, password: string) {
+		await signInWithEmailAndPassword(auth, email, password);
+	}
+
+	// Firebase asks to have signed in recently (auth/requires-recent-login) to change it
+	async function changePassword(password: string) {
+		if (!auth.currentUser) {
+			throw new Error('The user must be signed in to change the password');
+		}
+
+		await updatePassword(auth.currentUser, password);
+	}
+
 	async function logout() {
 		await signOut(auth);
 		userRef.value = undefined;
@@ -71,6 +87,8 @@ function createAuth() {
 		user: userData,
 		sendMagicLink,
 		completeMagicLink,
+		signInWithPassword,
+		changePassword,
 		logout,
 	};
 }

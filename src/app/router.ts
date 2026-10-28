@@ -29,6 +29,16 @@ export const routes: Array<RouteRecordRaw> = [
 	},
 
 	{
+		path: '/legal',
+		name: 'Legal',
+		component: async () => import('./LegalPage.vue'),
+		meta: {
+			title: 'Información legal',
+			isPublic: true,
+		},
+	},
+
+	{
 		path: '/',
 		name: 'Tabs',
 		component: async () => import('./TabsLayout.vue'),
@@ -110,8 +120,9 @@ window.addEventListener('popstate', (event) => {
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
 	routes,
-	// Going back restores where the page was, so the issue just closed is in view
-	scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },
+	// Going back restores where the page was, so the issue just closed is in view.
+	// Sections linked by their #id land below the fixed toolbar
+	scrollBehavior: (to, _from, savedPosition) => savedPosition ?? (to.hash ? { el: to.hash, top: 80 } : { top: 0 }),
 });
 
 router.beforeEach(async (to) => {
