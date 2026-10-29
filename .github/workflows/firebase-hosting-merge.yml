@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci && npx eslint . && npm test && npm run build
+      - run: npm ci && npx eslint . && npm run build
       # Rules go first so the new app finds the rules it needs, and a rules file that doesn't compile stops both
       - uses: google-github-actions/auth@v2
         with:

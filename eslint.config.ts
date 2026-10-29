@@ -7,7 +7,6 @@ export default antfu({
 		overrides: {
 			'curly': ['error', 'all'],
 			'style/brace-style': ['error', '1tbs'],
-			'test/prefer-lowercase-title': ['error', { ignore: ['describe'] }],
 			'ts/strict-boolean-expressions': 'off',
 		},
 	},
@@ -20,12 +19,5 @@ export default antfu({
 
 	typescript: {
 		tsconfigPath: 'tsconfig.json',
-	},
-}, {
-	// Tests run with Node's own runner (`npm test`), which awaits each test itself
-	files: ['**/*.test.{ts,js}'],
-	rules: {
-		'test/no-import-node-test': 'off',
-		'ts/no-floating-promises': 'off',
 	},
 });

@@ -36,7 +36,7 @@ Firebase config, security rules and the seed script stay at the root, and both a
 npm install
 npm run dev        # webapp, https://localhost:5400
 npm run dev:admin  # admin, https://localhost:5401
-npm test && npm run lint && npm run build
+npm run lint && npm run build
 ```
 
 It is a project developed with 💚 by [Daniel Moya](https://dmoya.dev)

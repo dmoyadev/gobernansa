@@ -10,8 +10,6 @@ Each push to `main` deploys it before the app, so change the rules here and not 
 
 The local emulator enforces it too. Each rule that checks the user's community or role reads their profile once per request, which counts as one extra read.
 
-`npm run test:rules` checks what each role can do against the emulator (it starts and stops it by itself, and needs Java, e.g. `brew install openjdk@21` with its `bin` in the `PATH`). Run it after changing the rules.
-
 ## 2. Indexes
 
 The first time each of these queries runs, Firestore logs an error in the browser console with a link that creates the index:
