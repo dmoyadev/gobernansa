@@ -14,6 +14,8 @@ const password = ref('');
 const loading = ref(false);
 const emailSent = ref(false);
 const error = ref<string>();
+// Once the daily quota of sign-in emails runs out, users who set a password can still sign in with it
+const askPassword = ref(false);
 
 async function goToApp() {
 	await router.replace((route.query.redirect as string | undefined) || '/');
@@ -30,7 +32,7 @@ onBeforeMount(async () => {
 	}
 });
 
-// With a password it signs in right away, without it a sign-in link is emailed (they have a daily quota)
+// A sign-in link is emailed first; with a password (only asked once the email quota runs out) it signs in right away
 async function signIn() {
 	error.value = undefined;
 	loading.value = true;
@@ -44,7 +46,12 @@ async function signIn() {
 		await sendMagicLink(email.value);
 		emailSent.value = true;
 	} catch (e) {
-		error.value = (e as Error).message;
+		const message = (e as Error).message;
+		if (message.includes('QUOTA_EXCEEDED') && !askPassword.value) {
+			askPassword.value = true;
+			return;
+		}
+		error.value = message;
 	} finally {
 		loading.value = false;
 	}
@@ -72,14 +79,17 @@ async function signIn() {
 			</LnxInput>
 
 			<LnxInput
+				v-if="askPassword"
 				v-model="password"
 				type="password"
 				autocomplete="current-password"
 				:disabled="loading"
+				required
+				autofocus
 			>
 				Contraseña
 				<template #helper>
-					Déjala vacía para recibir un enlace de acceso en tu email.
+					Ahora mismo no podemos enviarte un enlace de acceso. Entra con tu contraseña.
 				</template>
 			</LnxInput>
 
@@ -90,9 +100,9 @@ async function signIn() {
 				No se ha podido iniciar sesión: {{ error }}
 			</p>
 
-			<LnxButton type="submit" :is-loading="loading" is-block>
-				<LnxIcon icon="lucide:arrow-right" />
-				{{ password ? 'Entrar' : 'Enviar enlace' }}
+			<LnxButton type="submit" :is-loading="loading" :disabled="emailSent" is-block>
+				<LnxIcon :icon="emailSent ? 'lucide:check' : 'lucide:arrow-right'" />
+				{{ emailSent ? '¡Enviado!' : 'Entrar' }}
 			</LnxButton>
 		</form>
 	</main>
