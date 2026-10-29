@@ -4,6 +4,9 @@ import { deleteField, Timestamp } from 'firebase/firestore';
 
 const SPACES_REGEX = /\s/g;
 
+// Each one edited on its own page, opened from the community's page
+export type CommunitySection = 'info' | 'contacts' | 'documents' | 'locations' | 'finances';
+
 // What the inputs edit: text as typed, and dates as the 'YYYY-MM-DD' of date inputs
 export interface CommunityForm {
 	name: string;

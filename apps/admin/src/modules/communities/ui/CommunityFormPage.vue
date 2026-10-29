@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CommunityContact, CommunityDocument, ContactType } from '@gobernansa/shared/domain/community.ts';
-import type { CommunityForm } from '../domain/communityForm.ts';
+import type { CommunityForm, CommunitySection } from '../domain/communityForm.ts';
 import { contactTypes, documentTypes, WEEKDAYS } from '@gobernansa/shared/domain/community.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { onMounted, ref } from 'vue';
@@ -8,8 +8,9 @@ import { useRouter } from 'vue-router';
 import { loadCommunity, saveCommunity } from '../application/useCommunities.ts';
 import { findFormError, toCommunityForm, toInputDate } from '../domain/communityForm.ts';
 
-// Without it, a new community is created
-const props = defineProps<{ id?: string }>();
+// Without an id, a new community is created from its general info
+const props = withDefaults(defineProps<{ id?: string; section?: CommunitySection }>(), { section: 'info' });
+const backTo = props.id ? `/communities/${props.id}` : '/';
 
 const contactTypeOptions = Object.entries(contactTypes).map(([value, { label }]) => ({ value: value as ContactType, label }));
 const documentTypeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({ value: value as CommunityDocument['type'], label }));
@@ -60,8 +61,8 @@ async function save() {
 
 	saving.value = true;
 	try {
-		await saveCommunity(props.id, form.value);
-		await router.push('/');
+		const id = await saveCommunity(props.id, form.value);
+		await router.push(`/communities/${id}`);
 	} catch (e) {
 		// The form keeps what was typed, so it can be saved again
 		error.value = `No se ha podido guardar: ${(e as Error).message}`;
@@ -74,7 +75,7 @@ async function save() {
 <template>
 	<form @submit.prevent="save()">
 		<header class="page-header">
-			<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver a comunidades">
+			<LnxButton :to="backTo" mode="clear" shape="circle" :aria-label="id ? 'Volver a la comunidad' : 'Volver a comunidades'">
 				<LnxIcon icon="lucide:arrow-left" />
 			</LnxButton>
 			<h1>{{ id ? (form.name || 'Editar comunidad') : 'Nueva comunidad' }}</h1>
@@ -99,7 +100,7 @@ async function save() {
 		</section>
 
 		<template v-else>
-			<section class="card">
+			<section v-if="section === 'info'" class="card">
 				<h2>Datos generales</h2>
 				<div class="fields">
 					<LnxInput v-model="form.name" class="wide" required>
@@ -117,6 +118,12 @@ async function save() {
 							Si se deja vacío, 5.
 						</template>
 					</LnxInput>
+				</div>
+			</section>
+
+			<section v-if="section === 'locations'" class="card">
+				<h2>Zonas comunes</h2>
+				<div class="fields">
 					<LnxInput v-model="form.commonAreas" class="wide" placeholder="Portal, Escalera, Garaje, Piscina">
 						Zonas comunes
 						<template #helper>
@@ -126,7 +133,7 @@ async function save() {
 				</div>
 			</section>
 
-			<section class="card">
+			<section v-if="section === 'finances'" class="card">
 				<h2>Datos fiscales</h2>
 				<p class="hint">
 					Los vecinos los ven y copian en la tarjeta de su comunidad, para pagar cuotas o facturar.
@@ -144,7 +151,7 @@ async function save() {
 				</div>
 			</section>
 
-			<section class="card">
+			<section v-if="section === 'contacts'" class="card">
 				<header>
 					<h2>Contactos</h2>
 					<LnxButton type="button" mode="outline" size="small" @click="addContact()">
@@ -227,7 +234,7 @@ async function save() {
 				</fieldset>
 			</section>
 
-			<section class="card">
+			<section v-if="section === 'documents'" class="card">
 				<header>
 					<h2>Documentación oficial</h2>
 					<LnxButton type="button" mode="outline" size="small" @click="addDocument()">
@@ -281,7 +288,7 @@ async function save() {
 				<p v-if="error" class="error" role="alert">
 					{{ error }}
 				</p>
-				<LnxButton to="/" mode="clear">
+				<LnxButton :to="backTo" mode="clear">
 					Cancelar
 				</LnxButton>
 				<LnxButton type="submit" :is-loading="saving">

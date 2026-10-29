@@ -33,6 +33,13 @@ const router = createRouter({
 				},
 				{
 					path: 'communities/:id',
+					name: 'Comunidad',
+					component: async () => import('@/modules/communities/ui/CommunityPage.vue'),
+					meta: { title: 'Comunidad' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/:section(info|contacts|documents|locations|finances)',
 					name: 'Editar comunidad',
 					component: async () => import('@/modules/communities/ui/CommunityFormPage.vue'),
 					meta: { title: 'Editar comunidad' },
