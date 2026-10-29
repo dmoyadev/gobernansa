@@ -68,7 +68,7 @@ Each profile in `users/{uid}` has a `role`. The rules enforce it, and `packages/
 | `manager` | Who runs the community, e.g. its president | Their `communityId` | Edit it and invite or remove its neighbours. In the webapp, change the status of issues and manage events |
 | `user` | A neighbour | Their `communityId` | Use the webapp |
 
-All but neighbours can use the admin platform. Nobody can change their own role: administrators give the manager and neighbour roles in their communities, and managers only the neighbour one in theirs. `communityId` is where someone lives (`''` for administrators who don't live in one); in the webapp, managing their own community also needs to live in it.
+In the admin platform each one only opens what they manage: the team everything, administrators their communities and managers their own, while **Nueva comunidad** and **Administradores** are the team's. Neighbours get a screen with the managers and administrators of their community to ask for access, so the rules let them read those profiles (and only those). Nobody can change their own role: administrators give the manager and neighbour roles in their communities, and managers only the neighbour one in theirs. `communityId` is where someone lives (`''` for administrators who don't live in one); in the webapp, managing their own community also needs to live in it.
 
 ### Invitations
 
@@ -84,7 +84,7 @@ Until now `admin` meant every community. After the push that deploys these rules
 2. Any other `admin`: add `communityIds` (an array of strings) with the ids of the communities they manage. Leave their `communityId` if they live in one, or set it to `''`.
 3. Managers and neighbours need nothing.
 
-The new queries filter on one field each, so they need no index.
+The new queries only use equality filters, which Firestore serves without composite indexes.
 
 ## Community data
 

@@ -1,20 +1,32 @@
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
+import { useRoute } from 'vue-router';
+import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 
+const route = useRoute();
 const { user, logout } = useAuth();
 
-// The profile is read after signing in. Missing or unreadable, the account can't be an administrator's. Neighbours use the webapp
+// The profile is read after signing in. Missing, unreadable or a neighbour's (they use the webapp), the account can't use the admin.
+// Pages marked `superadmin` are the team's, and each community's are for whoever manages it
 const access = computed(() => {
-	if (user.error.value || user.value === null) {
+	if (user.error.value || user.value === null || user.value?.role === 'user') {
 		return 'denied';
 	}
 	if (!user.value) {
 		return 'loading';
 	}
-	return user.value.role === 'user' ? 'denied' : 'granted';
+	const { id } = route.params;
+	if ((route.meta.superadmin && user.value.role !== 'superadmin') || (typeof id === 'string' && !managesCommunity(user.value, id))) {
+		return 'forbidden';
+	}
+	return 'granted';
 });
+
+// Neighbours are told who can give them access
+const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.value.communityId : undefined);
 </script>
 
 <template>
@@ -24,7 +36,7 @@ const access = computed(() => {
 			<span class="badge">Admin</span>
 		</RouterLink>
 
-		<nav v-if="access === 'granted'">
+		<nav v-if="access === 'granted' || access === 'forbidden'">
 			<RouterLink to="/">
 				<LnxIcon icon="lucide:building-2" :size="18" />
 				Comunidades
@@ -48,10 +60,31 @@ const access = computed(() => {
 			<span class="skeleton-item" />
 		</p>
 
+		<section v-else-if="access === 'forbidden'" class="status">
+			<LnxIcon icon="lucide:shield-x" :size="40" />
+			<h1>Sin acceso</h1>
+			<p>No tienes permisos para ver esta página.</p>
+			<LnxButton to="/" mode="outline">
+				<LnxIcon icon="lucide:arrow-left" />
+				Volver a comunidades
+			</LnxButton>
+		</section>
+
 		<section v-else class="status">
 			<LnxIcon icon="lucide:shield-x" :size="40" />
 			<h1>Sin acceso</h1>
-			<p>Tu cuenta no tiene permisos de administración. Si crees que es un error, pide acceso al equipo de gobernança.</p>
+			<template v-if="managers.length">
+				<p>Tu cuenta no tiene permisos de administración. Si los necesitas, pídeselos a:</p>
+				<ul class="managers">
+					<li v-for="person in managers" :key="person.email">
+						<strong>{{ person.name }}</strong>
+						<a :href="`mailto:${person.email}`">{{ person.email }}</a>
+					</li>
+				</ul>
+			</template>
+			<p v-else>
+				Tu cuenta no tiene permisos de administración. Si crees que es un error, pide acceso al equipo de gobernança.
+			</p>
 			<LnxButton mode="outline" @click="logout()">
 				<LnxIcon icon="lucide:log-out" />
 				Cerrar sesión
@@ -138,6 +171,23 @@ main {
 	gap: var(--lnx-spacing-3);
 	text-align: center;
 	color: var(--color-gray-7);
+}
+
+.managers {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-2);
+
+	li {
+		display: flex;
+		flex-direction: column;
+	}
+
+	a {
+		color: var(--color-primary);
+		font-size: var(--lnx-font-size-small);
+		overflow-wrap: anywhere;
+	}
 }
 
 @media (max-width: 640px) {

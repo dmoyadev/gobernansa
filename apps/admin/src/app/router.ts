@@ -29,7 +29,7 @@ const router = createRouter({
 					path: 'communities/new',
 					name: 'Nueva comunidad',
 					component: async () => import('@/modules/communities/ui/CommunityFormPage.vue'),
-					meta: { title: 'Nueva comunidad' },
+					meta: { title: 'Nueva comunidad', superadmin: true },
 				},
 				{
 					path: 'communities/:id',
@@ -56,7 +56,7 @@ const router = createRouter({
 					path: 'admins',
 					name: 'Administradores',
 					component: async () => import('@/modules/people/ui/PeoplePage.vue'),
-					meta: { title: 'Administradores' },
+					meta: { title: 'Administradores', superadmin: true },
 				},
 			],
 		},
@@ -81,7 +81,7 @@ function setDocumentTitle(to: RouteLocationNormalized) {
 	document.title = `${to.meta?.title ? (`${String(to.meta.title)} | `) : ''}gobernança admin${titleSuffix}`;
 }
 
-// Only checks there's a session: whether it's an administrator's is checked by the layout, and enforced by the security rules
+// Only checks there's a session: what its profile may open (`superadmin` pages, each community's) is checked by the layout, and enforced by the security rules
 async function checkAuth(to: RouteLocationNormalized) {
 	if (to.meta?.isPublic) {
 		return;

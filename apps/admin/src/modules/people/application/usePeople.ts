@@ -1,7 +1,8 @@
 import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
+import type { MaybeRefOrGetter } from 'vue';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { arrayRemove, arrayUnion, collection, deleteDoc, doc, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
-import { computed } from 'vue';
+import { computed, toValue } from 'vue';
 import { useCollection } from 'vuefire';
 
 const usersRef = collection(db, 'users');
@@ -20,6 +21,21 @@ export function usePeople(communityId: string) {
 		loading: people.pending,
 		error: computed(() => people.error.value ?? invitations.error.value),
 	};
+}
+
+// Who a neighbour can ask for access: the managers and administrators of their community. Nobody without one
+export function useCommunityManagers(communityId: MaybeRefOrGetter<string | undefined>) {
+	const managers = useCollection<User>(computed(() => {
+		const id = toValue(communityId);
+		return id ? query(usersRef, where('communityId', '==', id), where('role', '==', 'manager')) : null;
+	}));
+	// Only administrators are assigned communities
+	const admins = useCollection<User>(computed(() => {
+		const id = toValue(communityId);
+		return id ? query(usersRef, where('communityIds', 'array-contains', id)) : null;
+	}));
+
+	return computed(() => [...managers.value, ...admins.value.filter(person => person.role === 'admin')]);
 }
 
 // Its id is the email in lowercase, as sign-in tokens have it. Fails when that email already has one

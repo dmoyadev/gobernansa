@@ -68,8 +68,13 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      // Themselves, and whoever manages their community
-      allow read: if signedIn() && (request.auth.uid == uid || manages(resource.data.communityId));
+      // Themselves, whoever manages their community and, for neighbours, the managers and administrators of theirs, to know who to ask for access
+      allow read: if signedIn() && (
+        request.auth.uid == uid
+        || manages(resource.data.communityId)
+        || (resource.data.role == 'manager' && inCommunity(resource.data.communityId))
+        || me().communityId in resource.data.get('communityIds', [])
+      );
       allow create: if signedIn() && request.auth.uid == uid && matchesInvitation(request.resource.data);
       // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves
       allow update: if signedIn() && request.auth.uid != uid
