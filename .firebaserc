@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "dmoyadev-gobernansa"
+  },
+  "targets": {
+    "dmoyadev-gobernansa": {
+      "hosting": {
+        "webapp": [
+          "dmoyadev-gobernansa"
+        ],
+        "admin": [
+          "gobernansa-admin"
+        ]
+      }
+    }
   }
 }

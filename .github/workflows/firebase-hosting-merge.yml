@@ -39,3 +39,12 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA }}
           channelId: live
           projectId: dmoyadev-gobernansa
+          target: webapp
+      # The admin goes last and on its own, so a failure there (e.g. its Hosting site missing) leaves the webapp deployed
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA }}
+          channelId: live
+          projectId: dmoyadev-gobernansa
+          target: admin

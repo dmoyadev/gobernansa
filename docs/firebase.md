@@ -43,6 +43,20 @@ The workflows now pass these, add them in **GitHub → Settings → Secrets and 
 
 The rules deploy uses the same service account as the hosting deploy (`FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA`). In **Google Cloud console → IAM**, give that account (`github-action-…@dmoyadev-gobernansa.iam.gserviceaccount.com`) the roles **Firebase Rules Admin** and **Service Usage Consumer**, or the rules step fails with a permission error.
 
+## 5. Admin platform hosting
+
+The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to the webapp's default site `dmoyadev-gobernansa`. Both are deployed on each push to `main` (and to a preview channel on each PR), webapp first: until the admin site exists its step fails and the workflow shows red, but the webapp is already deployed. Extra sites and custom domains are part of the free plan.
+
+1. Create the site, either in **Firebase console → Hosting → Add another site** with the id `gobernansa-admin`, or with:
+   ```bash
+   npx firebase hosting:sites:create gobernansa-admin --project dmoyadev-gobernansa
+   ```
+2. Check the webapp's site id with `npx firebase hosting:sites:list --project dmoyadev-gobernansa`. `.firebaserc` maps the `webapp` target to `dmoyadev-gobernansa`; if the default site has another id, change it there.
+3. **Hosting → gobernansa-admin → Add custom domain**: `admin.gobernansa.dmoya.dev`, then add the DNS records the wizard shows at the DNS provider of `dmoya.dev`. The certificate can take a few hours.
+4. **Authentication → Settings → Authorized domains → Add domain**: `admin.gobernansa.dmoya.dev` and `gobernansa-admin.web.app`. Without them the email sign-in links aren't sent from the admin. PR preview URLs aren't authorized (the list takes no wildcards), so signing in doesn't work there.
+
+To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
+
 ## Community data
 
 Edited from the admin platform (`apps/admin`) by users whose profile has `role: 'admin'`, who can see and change every community; the webapp only reads it. Removing a community is still done from the console, along with its issues, users and properties. Stored on `communities/{communityId}`:
