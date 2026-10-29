@@ -1,4 +1,4 @@
-import type { Event } from '../domain/event.ts';
+import type { Event } from '@gobernansa/shared/domain/event.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import {
 	collection,

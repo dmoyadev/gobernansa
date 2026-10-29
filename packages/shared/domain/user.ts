@@ -13,6 +13,8 @@ export interface User {
 	// Administrators only, the communities they manage
 	communityIds?: string[];
 	name: string;
+	// By whoever manages their community: they can still read, but not report, comment, vote or book
+	blocked?: boolean;
 }
 
 // Sent from the admin platform, and turned into the profile of whoever it's for on their first sign-in

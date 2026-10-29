@@ -1,5 +1,5 @@
+import type { Issue, IssuesFilters, IssueSortingField } from '@gobernansa/shared/domain/issue.ts';
 import type { CollectionReference, DocumentData, QueryConstraint } from 'firebase/firestore';
-import type { Issue, IssuesFilters, IssueSortingField } from '../domain/issue.ts';
 import { addDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where } from 'firebase/firestore';
 import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';

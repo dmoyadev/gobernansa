@@ -1,6 +1,6 @@
-import type { Datable, Deletable } from '@gobernansa/shared/domain/audit.ts';
-import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { Timestamp } from 'firebase/firestore';
+import type { Datable, Deletable } from './audit.ts';
+import type { User } from './user.ts';
 
 export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type IssueCategory = 'maintenance' | 'landscaping' | 'cleaning' | 'services' | 'nuisance' | 'other';
@@ -17,6 +17,13 @@ export interface Issue extends Datable, Deletable {
 
 	communityId: string;
 	assignedTo?: string;
+	// Who the administration sent, and when they expect it to be done. Neighbours see both
+	provider?: { id: string; name: string };
+	expectedAt?: Timestamp;
+	// When it was last marked as resolved, to know how long issues take
+	resolvedAt?: Timestamp;
+	// Only that there's a claim, its details are in IssuePrivate
+	insuranceClaim?: boolean;
 
 	votesScore: number;
 	votesCount: number;
@@ -44,7 +51,39 @@ export interface IssueComment extends Datable, Deletable {
 	type?: 'message' | 'status';
 	status?: IssueStatus;
 	message: string;
+	// Hidden by the administration, it stays for them but neighbours don't see it
+	hiddenAt?: Timestamp | null;
+	hiddenBy?: string;
 }
+
+// What only the administration sees of an issue, at communities/{communityId}/issues/{issueId}/private/admin
+export interface IssuePrivate {
+	note?: string;
+	claim?: InsuranceClaim;
+	updatedAt?: Timestamp;
+	updatedBy?: string;
+}
+
+export type ClaimStatus = 'opened' | 'expert' | 'accepted' | 'rejected' | 'paid' | 'closed';
+
+export interface InsuranceClaim {
+	insurer: string;
+	// Número de siniestro, given by the insurer
+	number: string;
+	status: ClaimStatus;
+	openedAt: Timestamp;
+	// Each status change with what happened, oldest first
+	history: { at: Timestamp; status: ClaimStatus; note?: string }[];
+}
+
+export const claimStatus: Record<ClaimStatus, { label: string; icon: string }> = {
+	opened: { label: 'Parte abierto', icon: 'lucide:file-plus' },
+	expert: { label: 'Visita del perito', icon: 'lucide:clipboard-list' },
+	accepted: { label: 'Aceptado', icon: 'lucide:circle-check' },
+	rejected: { label: 'Rechazado', icon: 'lucide:circle-x' },
+	paid: { label: 'Indemnizado', icon: 'lucide:banknote' },
+	closed: { label: 'Cerrado', icon: 'lucide:archive' },
+};
 
 // Stored as `${issueId}_${voterId}`, so each neighbour has one vote per issue
 export interface IssueVote {

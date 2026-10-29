@@ -6,6 +6,7 @@ import { assignableRoles, roles } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
+import { setBlocked } from '../application/useModeration.ts';
 import { cancelInvitation, invite, removePerson, setCommunityAssigned, setRole, usePeople } from '../application/usePeople.ts';
 
 // A community's neighbours and managers or, without one, the administrators
@@ -73,7 +74,19 @@ async function remove(person: User & { id: string }) {
 		return;
 	}
 
-	await run(async () => removePerson(person.id), 'No se ha podido quitar');
+	await run(async () => removePerson(person.id, communityId, person.name), 'No se ha podido quitar');
+}
+
+async function toggleBlocked(person: User & { id: string }) {
+	const question = person.blocked
+		? `¿Desbloquear a ${person.name}? Podrá volver a reportar, comentar, votar y reservar.`
+		: `¿Bloquear a ${person.name}? Podrá seguir leyendo, pero no reportar, comentar, votar ni reservar.`;
+	// eslint-disable-next-line no-alert
+	if (!window.confirm(question)) {
+		return;
+	}
+
+	await run(async () => setBlocked(person.id, communityId, !person.blocked, person.name), 'No se ha podido cambiar el bloqueo');
 }
 </script>
 
@@ -154,19 +167,35 @@ async function remove(person: User & { id: string }) {
 					<strong>{{ person.name }}<template v-if="person.id === me?.id"> (tú)</template></strong>
 					<small>{{ person.email }}</small>
 				</div>
-				<span class="badge">{{ roles[person.role]?.label }}</span>
+				<span class="badges">
+					<span v-if="person.blocked" class="badge blocked">Bloqueado</span>
+					<span class="badge">{{ roles[person.role]?.label }}</span>
+				</span>
 
-				<div v-if="canEdit(person)" class="person-actions">
+				<div v-if="communityId || canEdit(person)" class="person-actions">
+					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" size="small">
+						<LnxIcon icon="lucide:file-text" />
+						Documentos
+					</LnxButton>
 					<LnxButton
-						v-if="communityId && roleOptions.includes('manager')"
+						v-if="communityId && person.role === 'user' && canEdit(person)"
 						mode="clear"
 						size="small"
-						@click="run(async () => setRole(person.id, person.role === 'manager' ? 'user' : 'manager'), 'No se ha podido cambiar el rol')"
+						@click="toggleBlocked(person)"
+					>
+						<LnxIcon :icon="person.blocked ? 'lucide:shield-check' : 'lucide:shield-ban'" />
+						{{ person.blocked ? 'Desbloquear' : 'Bloquear' }}
+					</LnxButton>
+					<LnxButton
+						v-if="canEdit(person) && communityId && roleOptions.includes('manager')"
+						mode="clear"
+						size="small"
+						@click="run(async () => setRole(person.id, person.role === 'manager' ? 'user' : 'manager', communityId, person.name), 'No se ha podido cambiar el rol')"
 					>
 						<LnxIcon :icon="person.role === 'manager' ? 'lucide:user-minus' : 'lucide:user-check'" />
 						{{ person.role === 'manager' ? 'Quitar gestión' : 'Hacer gestor' }}
 					</LnxButton>
-					<LnxButton mode="clear" size="small" variant="danger" @click="remove(person)">
+					<LnxButton v-if="canEdit(person)" mode="clear" size="small" variant="danger" @click="remove(person)">
 						<LnxIcon icon="lucide:trash-2" />
 						{{ communityId ? 'Quitar de la comunidad' : 'Quitar acceso' }}
 					</LnxButton>
@@ -182,7 +211,7 @@ async function remove(person: User & { id: string }) {
 							type="checkbox"
 							class="sr-only"
 							:checked="person.communityIds?.includes(community.id)"
-							@change="run(async () => setCommunityAssigned(person.id, community.id, ($event.target as HTMLInputElement).checked), 'No se ha podido asignar')"
+							@change="run(async () => setCommunityAssigned(person.id, community.id, ($event.target as HTMLInputElement).checked, person.name), 'No se ha podido asignar')"
 						>
 						<span>{{ community.name || 'Sin nombre' }}</span>
 					</label>
@@ -208,7 +237,7 @@ async function remove(person: User & { id: string }) {
 						mode="clear"
 						size="small"
 						variant="danger"
-						@click="run(async () => cancelInvitation(invitation.id), 'No se ha podido cancelar')"
+						@click="run(async () => cancelInvitation(invitation.id, invitation.communityId, invitation.name), 'No se ha podido cancelar')"
 					>
 						<LnxIcon icon="lucide:x" />
 						Cancelar
@@ -318,6 +347,16 @@ async function remove(person: User & { id: string }) {
 	font-size: var(--lnx-font-size-legal);
 	font-weight: var(--lnx-font-weight-bold);
 	white-space: nowrap;
+}
+
+.badges {
+	display: flex;
+	gap: var(--lnx-spacing-1);
+}
+
+.blocked {
+	background: var(--color-secondary-accent);
+	color: var(--color-gray-0);
 }
 
 .person-actions {

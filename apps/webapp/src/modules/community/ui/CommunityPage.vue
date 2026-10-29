@@ -6,6 +6,7 @@ import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useCommunityEvents } from '@/modules/events/application/useCommunityEvents.ts';
 import EventCard from '@/modules/events/ui/EventCard.vue';
+import { formatMeetingDate, useMeetings } from '@/modules/meetings/application/useMeetings.ts';
 import IsotypeSVG from '@/shared/ui/IsotypeSVG.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
@@ -16,6 +17,7 @@ const SPACES_REGEX = /\s/g;
 
 const { userCommunity } = useUserCommunity();
 const { events } = useCommunityEvents(3);
+const { nextMeeting } = useMeetings();
 
 const fiscalData = computed(() => [
 	{ label: 'CIF', value: userCommunity.value?.cif },
@@ -242,6 +244,36 @@ function formatDate(document: CommunityDocument) {
 			<p v-else class="empty">
 				Tu administración aún no ha subido documentos.
 			</p>
+		</section>
+
+		<section>
+			<h2>Participa</h2>
+			<ul class="list">
+				<li>
+					<RouterLink class="row" to="/neighborhood/meetings">
+						<span class="icon">
+							<LnxIcon icon="lucide:gavel" :size="20" />
+						</span>
+						<span class="body">
+							<small>{{ nextMeeting ? `Próxima: ${formatMeetingDate(nextMeeting.date)}` : 'Convocatorias, asistencia y votaciones' }}</small>
+							<strong>{{ nextMeeting?.title || 'Juntas' }}</strong>
+						</span>
+						<LnxIcon class="chevron" icon="lucide:chevron-right" :size="16" />
+					</RouterLink>
+				</li>
+				<li v-if="userCommunity?.bookableAreas?.length">
+					<RouterLink class="row" to="/neighborhood/bookings">
+						<span class="icon">
+							<LnxIcon icon="lucide:calendar-check" :size="20" />
+						</span>
+						<span class="body">
+							<small>{{ userCommunity.bookableAreas.map(area => area.name).join(' · ') }}</small>
+							<strong>Reservas</strong>
+						</span>
+						<LnxIcon class="chevron" icon="lucide:chevron-right" :size="16" />
+					</RouterLink>
+				</li>
+			</ul>
 		</section>
 
 		<section>

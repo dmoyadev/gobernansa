@@ -1,19 +1,52 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { CommunitySection } from '../domain/communityForm.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { contactTypes, formatIban } from '@gobernansa/shared/domain/community.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { duplicateCommunity } from '../application/duplicateCommunity.ts';
 import { loadCommunity } from '../application/useCommunities.ts';
 
 const props = defineProps<{ id: string }>();
 
-// Not managed from the admin platform yet
-const upcomingTiles = [
-	{ title: 'Avisos', icon: 'lucide:message-square-warning' },
-	{ title: 'Eventos', icon: 'lucide:calendar' },
-	{ title: 'Propiedades', icon: 'lucide:house' },
+// Pages of their own, with what's managed there
+const pageTiles = [
+	{ path: 'people', title: 'Vecinos y gestores', icon: 'lucide:users', description: 'Cuentas, roles e invitaciones' },
+	{ path: 'issues', title: 'Incidencias', icon: 'lucide:message-square-warning', description: 'Estado y respuestas a los vecinos' },
+	{ path: 'notifications', title: 'Notificaciones', icon: 'lucide:bell', description: 'Avisos y eventos de la comunidad' },
+	{ path: 'properties', title: 'Propiedades', icon: 'lucide:house', description: 'Censo con coeficientes, propietarios e inquilinos' },
+	{ path: 'meetings', title: 'Juntas', icon: 'lucide:gavel', description: 'Convocatorias, asistencia y votaciones' },
+	{ path: 'charges', title: 'Recibos y morosidad', icon: 'lucide:receipt-text', description: 'Cuotas, derramas y certificados' },
+	{ path: 'budget', title: 'Presupuesto', icon: 'lucide:chart-pie', description: 'Partidas, gastos y reparto' },
+	{ path: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…' },
+	{ path: 'bookings', title: 'Reservas', icon: 'lucide:calendar-clock', description: 'Zonas comunes, franjas y normas' },
+	{ path: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué' },
 ];
+
+const router = useRouter();
+const { user } = useAuth();
+
+// The webapp as its neighbours see it, to give them support. The admin signs in there with the same account
+const webappUrl = `${(import.meta.env.VITE_WEBAPP_URL as string | undefined) || 'https://gobernansa.dmoya.dev'}/?viewAs=${props.id}`;
+
+// Only the team creates communities
+const duplicating = ref(false);
+const duplicateError = ref<string>();
+
+async function duplicate() {
+	duplicating.value = true;
+	duplicateError.value = undefined;
+	try {
+		const newId = await duplicateCommunity(props.id);
+		await router.push(`/communities/${newId}/info`);
+	} catch (e) {
+		duplicateError.value = (e as Error).message;
+	} finally {
+		duplicating.value = false;
+	}
+}
 
 const community = ref<Community>();
 const loading = ref(true);
@@ -84,7 +117,25 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 				{{ community?.name || 'Comunidad' }}
 			</template>
 		</h1>
+		<LnxButton :href="webappUrl" target="_blank" rel="noopener" mode="outline">
+			<LnxIcon icon="lucide:eye" />
+			Ver como vecino
+		</LnxButton>
+		<LnxButton
+			v-if="user?.role === 'superadmin'"
+			mode="outline"
+			:is-loading="duplicating"
+			title="Crea otra comunidad con sus zonas, proveedores y configuración"
+			@click="duplicate()"
+		>
+			<LnxIcon icon="lucide:copy" />
+			Duplicar
+		</LnxButton>
 	</header>
+
+	<p v-if="duplicateError" class="error" role="alert">
+		No se ha podido duplicar: {{ duplicateError }}
+	</p>
 
 	<section v-if="loadError || (!loading && !community)" class="status">
 		<p v-if="loadError" class="error" role="alert">
@@ -122,27 +173,17 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 			</RouterLink>
 		</li>
 
-		<li class="people">
-			<RouterLink class="tile" :to="`/communities/${id}/people`">
+		<li v-for="tile in pageTiles" :key="tile.path" class="page">
+			<RouterLink class="tile" :to="`/communities/${id}/${tile.path}`">
 				<span class="icon">
-					<LnxIcon icon="lucide:users" :size="20" />
+					<LnxIcon :icon="tile.icon" :size="20" />
 				</span>
 				<LnxIcon class="arrow" icon="lucide:arrow-up-right" :size="18" />
-				<h2>Vecinos y gestores</h2>
+				<h2>{{ tile.title }}</h2>
 				<p class="empty">
-					Cuentas, roles e invitaciones
+					{{ tile.description }}
 				</p>
 			</RouterLink>
-		</li>
-
-		<li v-for="tile in upcomingTiles" :key="tile.title" class="tile upcoming">
-			<span class="icon">
-				<LnxIcon :icon="tile.icon" :size="20" />
-			</span>
-			<h2>{{ tile.title }}</h2>
-			<p class="empty">
-				Próximamente
-			</p>
 		</li>
 	</ul>
 </template>
@@ -175,7 +216,7 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 	color: var(--color-secondary-accent);
 }
 
-// Sections that can be edited take two columns, the general info two rows, and people with the upcoming ones fill the last row
+// Sections that can be edited take two columns, the general info two rows, and the pages fill the last row
 .bento {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -191,7 +232,7 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 		grid-row: span 2;
 	}
 
-	> :is(.people, .upcoming) {
+	> .page {
 		grid-column: span 1;
 	}
 }
@@ -303,21 +344,6 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 		li {
 			white-space: normal;
 		}
-	}
-}
-
-.upcoming {
-	border-style: dashed;
-	border-color: var(--color-gray-4);
-	background: transparent;
-	box-shadow: none;
-
-	.icon {
-		color: var(--color-gray-5);
-	}
-
-	h2 {
-		color: var(--color-gray-6);
 	}
 }
 

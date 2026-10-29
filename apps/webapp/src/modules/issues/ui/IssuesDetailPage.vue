@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import type { IssueStatus, IssueVote } from '../domain/issue.ts';
+import type { IssueStatus, IssueVote } from '@gobernansa/shared/domain/issue.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { getIssueStep, getVotingMonth, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
@@ -7,7 +9,6 @@ import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useIssue } from '../application/useIssue.ts';
 import { useIssueActions } from '../application/useIssueActions.ts';
-import { getIssueStep, getVotingMonth, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '../domain/issue.ts';
 import IssueComments from './IssueComments.vue';
 
 const props = defineProps<{ id: string }>();
@@ -51,6 +52,7 @@ function formatDate(date: Date) {
 }
 
 const router = useRouter();
+const { user } = useAuth();
 const { isManager, isAuthor, myVote, voting, votesLeft, monthlyVotes, canVote, vote, changeStatus, deleteIssue } = useIssueActions(issue);
 const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
 const actionError = ref<string>();
@@ -213,7 +215,7 @@ async function share() {
 							class="vote up"
 							:class="{ active: myVote === 1 }"
 							:aria-pressed="myVote === 1"
-							:disabled="voting || !canVote(1)"
+							:disabled="voting || !canVote(1) || !!user?.blocked"
 							@click="onVote(1)"
 						>
 							<LnxIcon icon="lucide:thumbs-up" :size="18" />
@@ -224,14 +226,17 @@ async function share() {
 							class="vote down"
 							:class="{ active: myVote === -1 }"
 							:aria-pressed="myVote === -1"
-							:disabled="voting || !canVote(-1)"
+							:disabled="voting || !canVote(-1) || !!user?.blocked"
 							@click="onVote(-1)"
 						>
 							<LnxIcon icon="lucide:thumbs-down" :size="18" />
 							No es un problema
 						</button>
 					</div>
-					<small v-if="votesLeft === 0" class="hint">
+					<small v-if="user?.blocked" class="hint">
+						Tu cuenta no puede votar ahora mismo.
+					</small>
+					<small v-else-if="votesLeft === 0" class="hint">
 						Ya has usado tus {{ monthlyVotes }} votos de este mes, vuelves a tener {{ monthlyVotes }} el {{ votesRenewOn }}.
 						Si quitas un voto que hayas dado este mes, lo recuperas.
 					</small>
@@ -290,6 +295,20 @@ async function share() {
 								Aviso
 							</dt>
 							<dd>{{ formatDate(issue.createdAt.toDate()) }}{{ isAuthor ? ' · por ti' : '' }}</dd>
+						</div>
+						<div v-if="issue.provider">
+							<dt>
+								<LnxIcon icon="lucide:hard-hat" :size="16" />
+								Proveedor
+							</dt>
+							<dd>{{ issue.provider.name }}</dd>
+						</div>
+						<div v-if="issue.expectedAt && !['resolved', 'closed'].includes(issue.status)">
+							<dt>
+								<LnxIcon icon="lucide:calendar-clock" :size="16" />
+								Fecha prevista
+							</dt>
+							<dd>{{ formatDate(issue.expectedAt.toDate()) }}</dd>
 						</div>
 						<div v-if="issue.updatedAt">
 							<dt>

@@ -1,9 +1,9 @@
+import { DEFAULT_MONTHLY_VOTES, getVotingMonth } from '@gobernansa/shared/domain/issue.ts';
 import { collectionGroup, getCountFromServer, getFirestore, query, where } from 'firebase/firestore';
 import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityCollection } from '@/shared/infrastructure/useFirestoreDocument.ts';
-import { DEFAULT_MONTHLY_VOTES, getVotingMonth } from '../domain/issue.ts';
 
 // Counted again after this long, coming back home in between costs no reads
 const STALE_AFTER_MS = 5 * 60_000;

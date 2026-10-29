@@ -27,6 +27,27 @@ export interface Community extends Datable {
 
 	// Votes each neighbour gets every month, DEFAULT_MONTHLY_VOTES when missing
 	monthlyVotes?: number;
+
+	// Common areas neighbours can book, e.g. the paddle court
+	bookableAreas?: BookableArea[];
+}
+
+export interface BookableArea {
+	// Kept when it's renamed, bookings point to it
+	id: string;
+	name: string;
+	// ISO weekdays it opens, 1 is Monday and 7 is Sunday
+	days: number[];
+	// 24 hour 'HH:MM', zero padded. Slots of slotMinutes are laid from opens until closes
+	opens: string;
+	closes: string;
+	slotMinutes: number;
+	// Per neighbour, checked by the app (rules can't count documents)
+	maxPerWeek?: number;
+	// How many days ahead it can be booked
+	advanceDays?: number;
+	// Shown before booking, e.g. "Máximo 4 personas"
+	rules?: string;
 }
 
 export type ContactType = 'admin' | 'president' | 'janitor' | 'insurance' | 'elevator' | 'cleaning' | 'gardening' | 'other';

@@ -1,5 +1,5 @@
+import type { Issue, IssueComment } from '@gobernansa/shared/domain/issue.ts';
 import type { Ref } from 'vue';
-import type { Issue, IssueComment } from '../domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { collection, doc, getFirestore, increment, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
@@ -25,7 +25,8 @@ export function useIssueComments(issue: Ref<Issue | undefined>) {
 	// shortcut: ordered by date only (no composite index needed) and removed ones are left out here, paginate if issues get hundreds of comments
 	const commentsRef = computed(() => issueRef.value ? query(collection(issueRef.value, 'comments'), orderBy('createdAt')) : null);
 	const allComments = useCollection<IssueComment>(commentsRef, { ssrKey: 'issueComments' });
-	const comments = computed(() => allComments.value.filter(comment => !comment.deletedAt));
+	// Hidden ones are moderated from the admin platform, nobody sees them here
+	const comments = computed(() => allComments.value.filter(comment => !comment.deletedAt && !comment.hiddenAt));
 	// The listener fails silently otherwise, e.g. when the security rules don't allow it
 	// eslint-disable-next-line no-console
 	watch(allComments.error, error => error && console.error(error));

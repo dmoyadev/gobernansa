@@ -31,6 +31,11 @@ service cloud.firestore {
       );
     }
 
+    // Neighbours and whoever manages it, from the admin platform
+    function inOrManages(communityId) {
+      return inCommunity(communityId) || manages(communityId);
+    }
+
     // Who can give a role in a community: administrators make managers and neighbours in theirs, managers only neighbours.
     // Mirrored by assignableRoles() in packages/shared/domain/user.ts
     function canAssign(role, communityId) {
@@ -58,6 +63,46 @@ service cloud.firestore {
         && profile.get('communityIds', []) == invitation.get('communityIds', []);
     }
 
+    // Blocked by whoever manages their community: they can read, but not report, comment, vote, book or answer meetings
+    function notBlocked() {
+      return me().get('blocked', false) != true;
+    }
+
+    // Administrators and managers share providers between the communities they manage
+    function sharesWith(communityIds) {
+      return signedIn() && (
+        me().role == 'superadmin'
+        || (me().role == 'admin' && communityIds.hasAny(me().get('communityIds', [])))
+        || (me().role == 'manager' && me().communityId in communityIds)
+      );
+    }
+
+    // The communities someone can add a provider to or take it from: all for the team, theirs for administrators, their own for managers
+    function canShareWith(communityIds) {
+      return signedIn() && (
+        me().role == 'superadmin'
+        || (me().role == 'admin' && communityIds.hasOnly(me().get('communityIds', [])))
+        || (me().role == 'manager' && communityIds.hasOnly([me().communityId]))
+      );
+    }
+
+    // The property is theirs, in the community it's voted in, with the coefficient it has
+    function ownsWithCoefficient(communityId, propertyId, coefficient) {
+      let property = get(/databases/$(database)/documents/properties/$(propertyId)).data;
+      return property.communityId == communityId && property.ownerUid == request.auth.uid && property.get('coefficient', 0) == coefficient;
+    }
+
+    // The score the user had given the provider before this request, 0 if none
+    function previousScore(providerId) {
+      let path = /databases/$(database)/documents/providers/$(providerId)/ratings/$(request.auth.uid);
+      return exists(path) ? get(path).data.score : 0;
+    }
+
+    // Names are kept with what people write, so showing them doesn't read every profile. They must be their own
+    function isMyName(name) {
+      return name == me().get('name', '');
+    }
+
     function changedOnly(fields) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
     }
@@ -77,22 +122,72 @@ service cloud.firestore {
       );
       allow create: if signedIn() && request.auth.uid == uid && matchesInvitation(request.resource.data);
       // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves
-      allow update: if signedIn() && request.auth.uid != uid
-        && (changedOnly(['role', 'communityId']) || (isSuperadmin() && changedOnly(['role', 'communityId', 'communityIds'])))
-        && canAssign(resource.data.role, resource.data.communityId)
-        && canAssign(request.resource.data.role, request.resource.data.communityId);
+      allow update: if signedIn() && request.auth.uid != uid && (
+        ((changedOnly(['role', 'communityId']) || (isSuperadmin() && changedOnly(['role', 'communityId', 'communityIds'])))
+          && canAssign(resource.data.role, resource.data.communityId)
+          && canAssign(request.resource.data.role, request.resource.data.communityId))
+        // Blocking a neighbour, by whoever manages their community
+        || (changedOnly(['blocked'])
+          && resource.data.role == 'user'
+          && request.resource.data.blocked is bool
+          && manages(resource.data.communityId))
+      );
       // Out of the community. Their sign-in account stays, and a new invitation gives them a profile again
       allow delete: if signedIn() && request.auth.uid != uid && canAssign(resource.data.role, resource.data.communityId);
 
-      // Property documents (listed and their files) and devices for push notifications
+      // Property documents (listed and their files) and devices for push notifications.
+      // Whoever manages their community can also send them documents (e.g. a certificate), and see and remove those
       match /{collection}/{id} {
         allow read, write: if signedIn() && request.auth.uid == uid
           && collection in ['documents', 'documentFiles', 'devices'];
+        allow read, write: if collection in ['documents', 'documentFiles']
+          && manages(get(/databases/$(database)/documents/users/$(uid)).data.communityId);
       }
     }
 
+    // Their owners see them, and whoever manages the community keeps them, kept in the community they're in
     match /properties/{propertyId} {
-      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || manages(resource.data.communityId));
+      allow create: if manages(request.resource.data.communityId)
+        && request.resource.data.get('coefficient', 0) is number;
+      allow update: if manages(resource.data.communityId) && request.resource.data.communityId == resource.data.communityId
+        && request.resource.data.get('coefficient', 0) is number;
+      allow delete: if manages(resource.data.communityId);
+    }
+
+    // Shared by the communities in communityIds. Whoever shares it can edit it and add or take away only their communities
+    match /providers/{providerId} {
+      allow read: if sharesWith(resource.data.communityIds);
+      allow create: if canShareWith(request.resource.data.communityIds)
+        && request.resource.data.communityIds.size() > 0
+        && request.resource.data.ratingSum == 0
+        && request.resource.data.ratingCount == 0
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if sharesWith(resource.data.communityIds) && (
+        // Counters, written along with the user's rating: they move exactly as their rating does
+        (changedOnly(['ratingSum', 'ratingCount'])
+          && request.resource.data.ratingSum - resource.data.ratingSum
+            == getAfter(/databases/$(database)/documents/providers/$(providerId)/ratings/$(request.auth.uid)).data.score - previousScore(providerId)
+          && request.resource.data.ratingCount - resource.data.ratingCount
+            == (exists(/databases/$(database)/documents/providers/$(providerId)/ratings/$(request.auth.uid)) ? 0 : 1))
+        || (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['ratingSum', 'ratingCount', 'createdBy', 'createdAt'])
+          && request.resource.data.communityIds.size() > 0
+          && canShareWith(request.resource.data.communityIds.removeAll(resource.data.communityIds))
+          && canShareWith(resource.data.communityIds.removeAll(request.resource.data.communityIds)))
+      );
+      allow delete: if isSuperadmin() || (sharesWith(resource.data.communityIds) && resource.data.createdBy == request.auth.uid);
+
+      // One per person, with their uid as id
+      match /ratings/{uid} {
+        allow read: if sharesWith(get(/databases/$(database)/documents/providers/$(providerId)).data.communityIds);
+        allow create, update: if request.auth.uid == uid
+          && sharesWith(get(/databases/$(database)/documents/providers/$(providerId)).data.communityIds)
+          && request.resource.data.authorId == uid
+          && request.resource.data.score in [1, 2, 3, 4, 5];
+        // Along with the provider, by whoever can remove it. Not one by one, the counters would be left wrong
+        allow delete: if isSuperadmin()
+          || get(/databases/$(database)/documents/providers/$(providerId)).data.createdBy == request.auth.uid;
+      }
     }
 
     // Sent by whoever can give that role in that community, and accepted by whoever it's for on their first sign-in.
@@ -110,13 +205,14 @@ service cloud.firestore {
       allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId);
     }
 
+    // Notifications of the community, sent by whoever manages it
     match /events/{eventId} {
-      allow read: if inCommunity(resource.data.communityId);
-      allow create: if inCommunity(request.resource.data.communityId) && manages(request.resource.data.communityId);
+      allow read: if inOrManages(resource.data.communityId);
+      allow create: if manages(request.resource.data.communityId);
       // Checked against the community it's in, and kept there, so nobody moves another community's event into theirs
-      allow update: if inCommunity(resource.data.communityId) && manages(resource.data.communityId)
+      allow update: if manages(resource.data.communityId)
         && request.resource.data.communityId == resource.data.communityId;
-      allow delete: if inCommunity(resource.data.communityId) && manages(resource.data.communityId);
+      allow delete: if manages(resource.data.communityId);
     }
 
     match /communities/{communityId} {
@@ -126,25 +222,27 @@ service cloud.firestore {
       allow update: if manages(communityId);
 
       match /issues/{issueId} {
-        allow read: if inCommunity(communityId);
+        allow read: if inOrManages(communityId);
 
         allow create: if inCommunity(communityId)
+          && notBlocked()
           && request.resource.data.communityId == communityId
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.status == 'open'
           && request.resource.data.votesScore == 0
           && request.resource.data.votesCount == 0
-          && request.resource.data.deletedAt == null;
+          && request.resource.data.deletedAt == null
+          && !request.resource.data.keys().hasAny(['provider', 'expectedAt', 'resolvedAt', 'insuranceClaim']);
 
-        allow update: if inCommunity(communityId) && (
+        allow update: if inOrManages(communityId) && (
           // Counters, written along with each vote and comment
           (changedOnly(['votesScore', 'votesCount', 'commentsCount'])
             && changesAtMost('votesScore', 2)
             && changesAtMost('votesCount', 1)
             && changesAtMost('commentsCount', 1))
-          // Status, by the administration
+          // Status, provider, expected date and whether there's an insurance claim, by the administration
           || (manages(communityId)
-            && changedOnly(['status', 'updatedAt', 'updatedBy'])
+            && changedOnly(['status', 'updatedAt', 'updatedBy', 'resolvedAt', 'provider', 'expectedAt', 'insuranceClaim'])
             && request.resource.data.status in ['open', 'in_progress', 'resolved', 'closed']
             && request.resource.data.updatedBy == request.auth.uid)
           // Removal, by whoever reported it or the administration
@@ -159,6 +257,7 @@ service cloud.firestore {
         match /votes/{voteId} {
           allow read: if inCommunity(communityId);
           allow create, update: if inCommunity(communityId)
+            && notBlocked()
             && voteId == issueId + '_' + request.auth.uid
             && request.resource.data.voterId == request.auth.uid
             && request.resource.data.score in [1, -1]
@@ -168,19 +267,104 @@ service cloud.firestore {
 
         // Messages, and status changes by the administration
         match /comments/{commentId} {
-          allow read: if inCommunity(communityId);
-          allow create: if inCommunity(communityId)
+          allow read: if inOrManages(communityId);
+          allow create: if inOrManages(communityId)
+            && notBlocked()
             && request.resource.data.authorId == request.auth.uid
             && request.resource.data.createdBy == request.auth.uid
-            && request.resource.data.get('authorName', '') == me().name
+            && request.resource.data.get('authorName', '') == me().get('name', '')
             && request.resource.data.deletedAt == null
             && (request.resource.data.get('type', 'message') == 'message' || manages(communityId))
             && (!('authorRole' in request.resource.data) || manages(communityId));
-          // Only removing their own
-          allow update: if inCommunity(communityId)
-            && resource.data.authorId == request.auth.uid
-            && changedOnly(['deletedAt', 'deletedBy']);
+          // Removing their own, or hiding and showing it again by the administration
+          allow update: if (inOrManages(communityId)
+              && resource.data.authorId == request.auth.uid
+              && changedOnly(['deletedAt', 'deletedBy']))
+            || (manages(communityId)
+              && changedOnly(['hiddenAt', 'hiddenBy'])
+              && request.resource.data.hiddenBy == request.auth.uid);
         }
+
+        // The internal note and the insurance claim, neighbours never see them
+        match /private/{docId} {
+          allow read, write: if manages(communityId);
+        }
+      }
+
+      // Who changed what. Signed by whoever makes the change, dated by the server and never edited
+      match /activity/{activityId} {
+        allow read: if manages(communityId);
+        allow create: if manages(communityId)
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.byName in [me().get('name', ''), request.auth.token.get('email', ''), '']
+          && request.resource.data.at == request.time;
+      }
+
+      // Juntas. Neighbours see them once convened
+      match /meetings/{meetingId} {
+        allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.status != 'draft');
+        allow write: if manages(communityId) && request.resource.data.communityId == communityId;
+        allow delete: if manages(communityId);
+
+        // Each neighbour answers for themselves, with their uid as id
+        match /attendance/{uid} {
+          allow read: if inOrManages(communityId);
+          allow create, update: if manages(communityId)
+            || (inCommunity(communityId) && notBlocked()
+              && uid == request.auth.uid
+              && request.resource.data.uid == uid
+              && isMyName(request.resource.data.get('name', ''))
+              && request.resource.data.status in ['attending', 'absent', 'delegated']);
+          allow delete: if manages(communityId) || (inCommunity(communityId) && uid == request.auth.uid);
+        }
+
+        // One per agenda item and property, as `${itemId}_${propertyId}`, weighted with the property's coefficient.
+        // Owners vote theirs while voting is open, the administration records any (e.g. delegated ones).
+        // Not named votes, so the collection group query of issue votes doesn't count them
+        match /ballots/{voteId} {
+          allow read: if inOrManages(communityId);
+          allow write: if manages(communityId);
+          allow create, update: if inCommunity(communityId) && notBlocked()
+            && get(/databases/$(database)/documents/communities/$(communityId)/meetings/$(meetingId)).data.get('votingOpen', false) == true
+            && voteId == request.resource.data.itemId + '_' + request.resource.data.propertyId
+            && request.resource.data.voterId == request.auth.uid
+            && request.resource.data.choice in ['yes', 'no', 'abstain']
+            && request.resource.data.votedAt == request.time
+            && ownsWithCoefficient(communityId, request.resource.data.propertyId, request.resource.data.coefficient)
+            && isMyName(request.resource.data.get('voterName', ''));
+        }
+      }
+
+      // Recibos and derramas. Owners see theirs
+      match /charges/{chargeId} {
+        allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
+        allow create, update: if manages(communityId) && request.resource.data.communityId == communityId;
+        allow delete: if manages(communityId);
+      }
+
+      // The budget and its expenses, open to every neighbour
+      match /budgets/{year} {
+        allow read: if inOrManages(communityId);
+        allow write: if manages(communityId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read: if inOrManages(communityId);
+        allow write: if manages(communityId);
+      }
+
+      // Inspections, revisions and renewals
+      match /obligations/{obligationId} {
+        allow read, write: if manages(communityId);
+      }
+
+      // Common areas. The id is `${areaId}_${date}_${from}`, so creating a booked slot again is an update, which nobody can do
+      match /bookings/{bookingId} {
+        allow read: if inOrManages(communityId);
+        allow create: if (manages(communityId) || (inCommunity(communityId) && notBlocked() && request.resource.data.uid == request.auth.uid && isMyName(request.resource.data.get('name', ''))))
+          && request.resource.data.communityId == communityId
+          && bookingId == request.resource.data.areaId + '_' + request.resource.data.date + '_' + request.resource.data.from;
+        allow delete: if manages(communityId) || (inCommunity(communityId) && resource.data.uid == request.auth.uid);
       }
     }
 

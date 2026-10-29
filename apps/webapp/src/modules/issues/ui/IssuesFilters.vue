@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { IssueCategory, IssueStatus } from '../domain/issue.ts';
+import type { IssueCategory, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
 import { useCurrentUser } from 'vuefire';
-import { issuesCategories, issueStatus } from '../domain/issue.ts';
 
 const status = defineModel<IssueStatus>('status');
 const category = defineModel<IssueCategory>('category');

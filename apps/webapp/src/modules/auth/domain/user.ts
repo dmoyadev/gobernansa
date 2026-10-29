@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-// Papers of the user's properties, only the user can see them
+// Papers of the user's properties, only the user and whoever manages their community can see them
 export interface UserDocument {
 	id: string;
 	name: string;
@@ -9,6 +9,8 @@ export interface UserDocument {
 	size: number;
 	category: 'deed' | 'permit' | 'receipt' | 'other';
 	propertyId?: string;
+	// Name of whoever manages the community, when they sent it to the neighbour
+	uploadedBy?: string;
 	createdAt: Timestamp;
 }
 

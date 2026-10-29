@@ -120,3 +120,37 @@ users/{uid}/documents/{id}                property documents (listing)
 users/{uid}/documentFiles/{id}            their content, up to 1 MB each
 users/{uid}/devices/{token}               devices with push notifications on
 ```
+
+## Community management
+
+Everything below runs in the browser and is enforced by [`firestore.rules`](../firestore.rules), so it stays on the free plan: no Cloud Functions, no Cloud Storage and no scheduled jobs. The types are in `packages/shared/domain`.
+
+```text
+properties/{id}                                 census: name, type, coefficient (%), ownerUid ('' without account), ownerName, ownerEmail, tenantName, tenantEmail
+providers/{id}                                  directory shared by communityIds, with ratingSum / ratingCount
+  ratings/{uid}                                 { score 1–5, comment, communityId, authorId, authorName }
+events/{id}                                     notices too: the copies of one sent to several communities share broadcastId
+communities/{c}/issues/{i}                      + provider, expectedAt, resolvedAt, insuranceClaim
+  private/admin                                 internal note and insurance claim, never readable by neighbours
+  comments/{id}                                 + hiddenAt, hiddenBy (hidden by the administration)
+communities/{c}/meetings/{m}                    juntas: agenda, place / link, status draft | convened | held | cancelled, votingOpen
+  attendance/{uid}                              attending | absent | delegated (+ delegateName)
+  ballots/{itemId}_{propertyId}                 one vote per property, weighted by its coefficient
+communities/{c}/charges/{id}                    receipts and levies (cents), owners read theirs
+communities/{c}/budgets/{year}, expenses/{id}   budget items and expenses (cents), open to neighbours
+communities/{c}/obligations/{id}                IEE, elevator, extinguishers, legionella, insurance… with dueAt and everyMonths
+communities/{c}/bookings/{areaId}_{date}_{from} a slot can only be booked once, its id makes a second booking an update the rules deny
+communities/{c}/activity/{id}                   who changed what, written with each change from the admin, never edited
+users/{uid}.blocked                             a blocked neighbour can read but not report, comment, vote, book or answer meetings
+```
+
+What the free plan leaves out, and how it's covered:
+
+- **Due date warnings** (obligations): there's no server to send emails, so they show in the admin (the obligations page and the portfolio dashboard), and each obligation can be added to the admin's own calendar as an `.ics` with its reminder.
+- **PDF certificates and minutes**: printed from the browser ("Guardar como PDF"), the admin hides its frame when printing.
+- **Limits the rules can't count** (bookings per week, monthly issue votes): checked by the app.
+- **Documents sent to a neighbour**: stored in Firestore like their own (up to 1 MB each).
+
+Counts on the portfolio dashboard use aggregation queries, which cost one read per 1000 documents counted.
+
+"Ver como vecino" opens the webapp with `?viewAs=<communityId>`: whoever manages that community sees it read-only as a neighbour would. The admin needs `VITE_WEBAPP_URL` (the webapp's address, `https://gobernansa.dmoya.dev` when missing) and has to sign in to the webapp with the same account.

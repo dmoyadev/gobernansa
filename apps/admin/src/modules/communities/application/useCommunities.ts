@@ -1,8 +1,9 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm } from '../domain/communityForm.ts';
+import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
 import { useCollection } from 'vuefire';
 import { fromCommunityForm } from '../domain/communityForm.ts';
@@ -64,12 +65,19 @@ export async function saveCommunity(id: string | undefined, form: CommunityForm)
 
 	const communityRef = id ? doc(communitiesRef, id) : doc(communitiesRef);
 	const now = serverTimestamp();
-	await setDoc(communityRef, {
+	const batch = writeBatch(db);
+	batch.set(communityRef, {
 		...fromCommunityForm(form),
 		updatedAt: now,
 		updatedBy: uid,
 		...(id ? {} : { createdAt: now, createdBy: uid }),
 	}, { merge: true });
+	logActivity(batch, communityRef.id, {
+		area: 'community',
+		summary: id ? `Editó los datos de la comunidad` : `Creó la comunidad «${form.name.trim()}»`,
+		link: `/communities/${communityRef.id}`,
+	});
+	await batch.commit();
 
 	return communityRef.id;
 }

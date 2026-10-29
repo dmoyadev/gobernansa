@@ -10,9 +10,12 @@ import {
 	updatePassword,
 } from 'firebase/auth';
 import { doc, getDoc, writeBatch } from 'firebase/firestore';
-import { effectScope, ref, watch, watchEffect } from 'vue';
+import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
+import { managesCommunity } from '../domain/user.ts';
 import { auth, db } from '../infrastructure/firebase.ts';
+
+const VIEW_AS_KEY = 'viewAs';
 
 // Shared by every caller so the user document is listened to only once
 let shared: ReturnType<typeof createAuth> | undefined;
@@ -23,9 +26,44 @@ export default function useAuth() {
 }
 
 function createAuth() {
-	const user = useCurrentUser();
+	const authUser = useCurrentUser();
 	const userRef = ref<DocumentReference>();
 	const userData = useDocument<User>(userRef);
+
+	/*
+	 * "Ver como vecino": the admin platform opens the webapp with ?viewAs=<communityId> for support. Whoever manages that
+	 * community then sees it as a neighbour, read-only: the profile is overlaid with that community, the neighbour role and
+	 * blocked, so every screen uses it and nothing can be reported, commented, voted or booked. Kept for the browser tab
+	 */
+	const viewAsParam = new URLSearchParams(window.location.search).get(VIEW_AS_KEY);
+	if (viewAsParam) {
+		sessionStorage.setItem(VIEW_AS_KEY, viewAsParam);
+	}
+	const viewAs = ref(sessionStorage.getItem(VIEW_AS_KEY) || undefined);
+	const viewingAs = computed(() => managesCommunity(userData.value, viewAs.value) ? viewAs.value : undefined);
+	// Only once the profile is loaded, so it isn't cleared while signing in
+	watch(() => !!userData.value && !viewingAs.value && !!viewAs.value, (notAllowed) => {
+		if (notAllowed) {
+			exitViewAs(false);
+		}
+	});
+
+	function exitViewAs(reload = true) {
+		sessionStorage.removeItem(VIEW_AS_KEY);
+		viewAs.value = undefined;
+		// A full reload, so nothing loaded for that community stays in memory
+		if (reload) {
+			window.location.assign('/');
+		}
+	}
+
+	// Same ref as the profile (with its pending and error), with the overlay applied
+	const user = Object.assign(
+		computed(() => userData.value && viewingAs.value
+			? { ...userData.value, id: userData.value.id, communityId: viewingAs.value, role: 'user' as const, blocked: true }
+			: userData.value),
+		{ data: userData.data, error: userData.error, pending: userData.pending, promise: userData.promise, stop: userData.stop },
+	) as unknown as typeof userData;
 
 	async function sendMagicLink(email: string) {
 		const actionCodeSettings = {
@@ -56,8 +94,8 @@ function createAuth() {
 	}
 
 	watchEffect(() => {
-		if (user.value?.uid) {
-			userRef.value = doc(db, 'users', user.value.uid);
+		if (authUser.value?.uid) {
+			userRef.value = doc(db, 'users', authUser.value.uid);
 		} else {
 			userRef.value = undefined;
 		}
@@ -65,9 +103,9 @@ function createAuth() {
 
 	// Without a profile, it's their first sign-in: the profile is created from the invitation sent to their email, if there's one
 	watch(() => !!userRef.value && !userData.pending.value && userData.value === null, async (withoutProfile) => {
-		if (withoutProfile && user.value) {
+		if (withoutProfile && authUser.value) {
 			// eslint-disable-next-line no-console
-			await acceptInvitation(user.value).catch(console.error);
+			await acceptInvitation(authUser.value).catch(console.error);
 		}
 	});
 
@@ -113,7 +151,9 @@ function createAuth() {
 	}
 
 	return {
-		user: userData,
+		user,
+		viewingAs,
+		exitViewAs,
 		sendMagicLink,
 		completeMagicLink,
 		signInWithPassword,

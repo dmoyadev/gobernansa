@@ -88,6 +88,25 @@ export const routes: Array<RouteRecordRaw> = [
 						component: async () => import('@/modules/events/ui/TimelinePage.vue'),
 						meta: { title: 'Cronograma' },
 					},
+					{
+						path: 'meetings',
+						name: 'Juntas',
+						component: async () => import('@/modules/meetings/ui/MeetingsPage.vue'),
+						meta: { title: 'Juntas' },
+					},
+					{
+						path: 'meetings/:id',
+						name: 'Junta',
+						component: async () => import('@/modules/meetings/ui/MeetingPage.vue'),
+						meta: { title: 'Junta' },
+						props: true,
+					},
+					{
+						path: 'bookings',
+						name: 'Reservas',
+						component: async () => import('@/modules/bookings/ui/BookingsPage.vue'),
+						meta: { title: 'Reservas' },
+					},
 				],
 			},
 			{

@@ -1,4 +1,4 @@
-import type { Property } from '../domain/property.ts';
+import type { Property } from '@gobernansa/shared/domain/property.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { collection, getFirestore, query, where } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';

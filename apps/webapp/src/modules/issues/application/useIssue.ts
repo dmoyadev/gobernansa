@@ -1,5 +1,5 @@
+import type { Issue } from '@gobernansa/shared/domain/issue.ts';
 import type { MaybeRefOrGetter } from 'vue';
-import type { Issue } from '../domain/issue.ts';
 import { getFirestore } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';

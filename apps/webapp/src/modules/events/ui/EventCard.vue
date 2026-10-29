@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { Event } from '../domain/event.ts';
+import type { Event } from '@gobernansa/shared/domain/event.ts';
+import { eventTypes } from '@gobernansa/shared/domain/event.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
 
@@ -23,41 +24,16 @@ const MONTHS = [
 	'Dic',
 ];
 
-interface TypeData {
-	icon: string;
-	label: string;
-	color: string;
-	bgColor: string;
-}
-
-const typesData: Record<Event['type'], TypeData> = {
-	community: {
-		icon: 'lucide:users',
-		label: 'Comunidad',
-		bgColor: '#eef4ff',
-		color: '#335fa5',
-	},
-	maintenance: {
-		icon: 'lucide:wrench',
-		label: 'Mantenimiento',
-		bgColor: '#fae5d9',
-		color: '#af6228',
-	},
-	improvements: {
-		icon: 'lucide:lightbulb',
-		label: 'Mejoras',
-		bgColor: '#def1dc',
-		color: '#3c8924',
-	},
-	other: {
-		icon: 'lucide:info',
-		label: 'Otro',
-		bgColor: '#e7e7e7',
-		color: '#393939',
-	},
+// Colours of each type, its label and icon are shared with the admin
+const typeColors: Record<Event['type'], { color: string; bgColor: string }> = {
+	community: { bgColor: '#eef4ff', color: '#335fa5' },
+	maintenance: { bgColor: '#fae5d9', color: '#af6228' },
+	improvements: { bgColor: '#def1dc', color: '#3c8924' },
+	notice: { bgColor: '#fde8e8', color: '#b42318' },
+	other: { bgColor: '#e7e7e7', color: '#393939' },
 };
 
-const typeData = computed<TypeData>(() => typesData[props.event.type || 'other']);
+const typeData = computed(() => ({ ...eventTypes[props.event.type || 'other'], ...typeColors[props.event.type || 'other'] }));
 </script>
 
 <template>

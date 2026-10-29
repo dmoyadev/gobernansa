@@ -1,12 +1,12 @@
+import type { Issue, IssueStatus, IssueVote } from '@gobernansa/shared/domain/issue.ts';
 import type { Ref } from 'vue';
-import type { Issue, IssueStatus, IssueVote } from '../domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { getVotingMonth } from '@gobernansa/shared/domain/issue.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { collection, doc, getDoc, getFirestore, increment, runTransaction, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
-import { getVotingMonth } from '../domain/issue.ts';
 import { updateListedIssue } from './useIssues.ts';
 import { invalidateUserActivity, useUserActivity } from './useUserActivity.ts';
 
@@ -16,7 +16,7 @@ import { invalidateUserActivity, useUserActivity } from './useUserActivity.ts';
  */
 export function useIssueActions(issue: Ref<Issue | undefined>) {
 	const db = getFirestore();
-	const { user } = useAuth();
+	const { user, viewingAs } = useAuth();
 	const { userCommunity } = useUserCommunity();
 
 	const isManager = computed(() => managesCommunity(user.value, user.value?.communityId));
@@ -50,7 +50,8 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 		return !!vote?.votedAt && vote.votedAt.toMillis() >= getVotingMonth().start.getTime();
 	}
 
-	watch(() => !!issue.value && !!user.value && !!userCommunity.value, async (ready) => {
+	// Whoever views the community as a neighbour has no vote there, and the rules don't let them read votes
+	watch(() => !!issue.value && !!user.value && !!userCommunity.value && !viewingAs.value, async (ready) => {
 		if (ready) {
 			const vote = (await getDoc(getVoteRef())).data() as IssueVote | undefined;
 			myVote.value = vote?.score ?? 0;
@@ -112,6 +113,8 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 		const batch = writeBatch(db);
 		batch.update(issueRef, {
 			status,
+			// For the average resolution time of the admin platform
+			...(status === 'resolved' ? { resolvedAt: serverTimestamp() } : {}),
 			updatedAt: serverTimestamp(),
 			updatedBy: uid,
 		});

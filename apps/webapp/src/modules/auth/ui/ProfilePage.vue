@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { UserDocument } from '../domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { propertyTypeIcons, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
-import { propertyTypeIcons, propertyTypeLabels } from '@/modules/community/domain/property.ts';
 import IsotypeSVG from '@/shared/ui/IsotypeSVG.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
@@ -87,6 +87,7 @@ function describe(document: UserDocument) {
 		userDocumentCategories.find(({ value }) => value === document.category)?.label,
 		property && property.name,
 		`${Math.max(1, Math.round(document.size / 1000))} KB`,
+		document.uploadedBy && `Enviado por ${document.uploadedBy}`,
 	].filter(Boolean).join(' · ');
 }
 
@@ -236,7 +237,7 @@ async function savePassword() {
 				</li>
 			</ul>
 			<p v-else-if="!adding" class="hint">
-				Guarda aquí las escrituras, permisos o recibos de las cuotas de tu propiedad. Solo tú puedes verlos.
+				Guarda aquí las escrituras, permisos o recibos de las cuotas de tu propiedad. Solo tú y tu administración podéis verlos.
 			</p>
 
 			<form v-if="adding" class="upload" @submit.prevent>

@@ -37,11 +37,27 @@ const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.v
 		</RouterLink>
 
 		<nav v-if="access === 'granted' || access === 'forbidden'">
-			<RouterLink to="/">
+			<RouterLink to="/" title="Comunidades">
 				<LnxIcon icon="lucide:building-2" :size="18" />
 				Comunidades
 			</RouterLink>
-			<RouterLink v-if="user?.role === 'superadmin'" to="/admins">
+			<RouterLink to="/dashboard" title="Panel">
+				<LnxIcon icon="lucide:chart-no-axes-column" :size="18" />
+				Panel
+			</RouterLink>
+			<RouterLink to="/issues" title="Incidencias">
+				<LnxIcon icon="lucide:inbox" :size="18" />
+				Incidencias
+			</RouterLink>
+			<RouterLink to="/announcements" title="Comunicados">
+				<LnxIcon icon="lucide:megaphone" :size="18" />
+				Comunicados
+			</RouterLink>
+			<RouterLink to="/providers" title="Proveedores">
+				<LnxIcon icon="lucide:hard-hat" :size="18" />
+				Proveedores
+			</RouterLink>
+			<RouterLink v-if="user?.role === 'superadmin'" to="/admins" title="Administradores">
 				<LnxIcon icon="lucide:shield-user" :size="18" />
 				Administradores
 			</RouterLink>
@@ -140,7 +156,8 @@ nav {
 		font-weight: var(--lnx-font-weight-bold);
 		text-decoration: none;
 
-		&.router-link-active {
+		&.router-link-exact-active,
+		&.router-link-active:not([href="/"]) {
 			background: var(--color-gray-2);
 			color: var(--color-primary);
 		}
@@ -187,6 +204,26 @@ main {
 		color: var(--color-primary);
 		font-size: var(--lnx-font-size-small);
 		overflow-wrap: anywhere;
+	}
+}
+
+// Seven sections don't fit with their names below desktop widths: icons only, the name stays for screen readers
+@media (max-width: 1240px) {
+	nav a {
+		padding: var(--lnx-spacing-2);
+		font-size: 0;
+	}
+}
+
+// Certificates and minutes are printed (or saved as PDF) from their page, without the admin's frame
+@media print {
+	.topbar {
+		display: none;
+	}
+
+	main {
+		max-width: none;
+		padding: 0;
 	}
 }
 

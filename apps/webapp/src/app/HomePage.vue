@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { contactTypes, getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
+import { getVotingMonth } from '@gobernansa/shared/domain/issue.ts';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
@@ -10,7 +11,6 @@ import { useCommunityEvents } from '@/modules/events/application/useCommunityEve
 import EventCard from '@/modules/events/ui/EventCard.vue';
 import { issuesFilters } from '@/modules/issues/application/useIssues.ts';
 import { useUserActivity } from '@/modules/issues/application/useUserActivity.ts';
-import { getVotingMonth } from '@/modules/issues/domain/issue.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 

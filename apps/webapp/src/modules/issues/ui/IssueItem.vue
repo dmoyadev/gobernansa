@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { Issue } from '../domain/issue.ts';
+import type { Issue } from '@gobernansa/shared/domain/issue.ts';
+import { getIssueStep, issueLifecycle, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
 import { openedIssueId } from '../application/useIssues.ts';
-import { getIssueStep, issueLifecycle, issuesCategories, issueStatus } from '../domain/issue.ts';
 
 const props = defineProps<{
 	issue: Issue;

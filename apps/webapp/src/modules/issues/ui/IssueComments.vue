@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { Issue, IssueComment } from '../domain/issue.ts';
+import type { Issue, IssueComment } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, toRef } from 'vue';
 import { useIssueComments } from '../application/useIssueComments.ts';
-import { issueStatus } from '../domain/issue.ts';
 
 const props = defineProps<{ issue: Issue }>();
 
@@ -115,11 +115,12 @@ function authorName(comment: IssueComment) {
 			</template>
 
 			<li v-if="!comments.length" class="empty">
-				Aún no hay comentarios. ¿Sabes algo más? Cuéntalo aquí.
+				Aún no hay comentarios.{{ user?.blocked ? '' : ' ¿Sabes algo más? Cuéntalo aquí.' }}
 			</li>
 		</ol>
 
-		<form @submit.prevent="send()">
+		<!-- Blocked neighbours, and whoever is viewing the community as a neighbour, can't comment (the rules reject it too) -->
+		<form v-if="!user?.blocked" @submit.prevent="send()">
 			<textarea
 				v-model="message"
 				rows="2"
@@ -145,7 +146,7 @@ function authorName(comment: IssueComment) {
 			<LnxIcon icon="lucide:circle-alert" :size="16" />
 			{{ error }}
 		</p>
-		<small class="hint">Toda la comunidad podrá verlo.</small>
+		<small v-if="!user?.blocked" class="hint">Toda la comunidad podrá verlo.</small>
 	</section>
 </template>
 

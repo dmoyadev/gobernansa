@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import type { Issue } from '../domain/issue.ts';
+import type { Issue } from '@gobernansa/shared/domain/issue.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreaIcon } from '@gobernansa/shared/domain/community.ts';
+import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
+import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
-import { propertyTypeIcons } from '@/modules/community/domain/property.ts';
 import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia } from '@/shared/infrastructure/cloudinary.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useCreateIssue } from '../application/useIssues.ts';
-import { issuesCategories } from '../domain/issue.ts';
 
 type Category = (typeof issuesCategories)[number];
 type Place = NonNullable<Issue['location']> & { reference: string };
@@ -22,6 +23,8 @@ const MAX_MEDIA = 6;
 
 const router = useRouter();
 const { createIssue } = useCreateIssue();
+// Blocked neighbours, and whoever is viewing the community as a neighbour, can't report (the rules reject it too)
+const { user } = useAuth();
 const { userCommunity } = useUserCommunity();
 const { userProperties } = useUserProperties();
 
@@ -410,7 +413,7 @@ async function submit() {
 						size="large"
 						is-block
 						:is-loading="saving"
-						:disabled="saving"
+						:disabled="saving || !!user?.blocked"
 					>
 						<template #prefix>
 							<LnxIcon icon="lucide:send" />
@@ -422,7 +425,7 @@ async function submit() {
 							Enviar aviso
 						</template>
 					</LnxButton>
-					<small>Toda la comunidad podrá verlo.</small>
+					<small>{{ user?.blocked ? 'Tu cuenta no puede enviar avisos ahora mismo.' : 'Toda la comunidad podrá verlo.' }}</small>
 				</div>
 			</form>
 		</Transition>
