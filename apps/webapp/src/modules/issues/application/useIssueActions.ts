@@ -1,6 +1,7 @@
 import type { Ref } from 'vue';
 import type { Issue, IssueStatus, IssueVote } from '../domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { collection, doc, getDoc, getFirestore, increment, runTransaction, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -18,7 +19,7 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 	const { user } = useAuth();
 	const { userCommunity } = useUserCommunity();
 
-	const isManager = computed(() => user.value?.role === 'admin' || user.value?.role === 'manager');
+	const isManager = computed(() => managesCommunity(user.value, user.value?.communityId));
 	const isAuthor = computed(() => !!user.value && issue.value?.createdBy === user.value.id);
 
 	function getIssueRef() {

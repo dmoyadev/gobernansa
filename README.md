@@ -27,7 +27,7 @@ An npm workspaces monorepo:
 | Folder | What |
 | --- | --- |
 | `apps/webapp` | The neighbours' webapp, at [gobernansa.dmoya.dev](https://gobernansa.dmoya.dev) |
-| `apps/admin` | The admin platform, to manage communities, at [admin.gobernansa.dmoya.dev](https://admin.gobernansa.dmoya.dev). Only users with `role: 'admin'` can use it |
+| `apps/admin` | The admin platform, to manage communities and who uses them, at [admin.gobernansa.dmoya.dev](https://admin.gobernansa.dmoya.dev). For everyone but neighbours, each sees the communities they manage (see [roles](docs/firebase.md#roles)) |
 | `packages/shared` | Design system (theme, logo), Firebase setup, sign-in and the community domain, used by both apps |
 
 Firebase config, security rules and the seed script stay at the root, and both apps read the `.env` files there. Each push to `main` deploys both apps to their own Firebase Hosting site, see [docs/firebase.md](docs/firebase.md#5-admin-platform-hosting) for the admin's setup.

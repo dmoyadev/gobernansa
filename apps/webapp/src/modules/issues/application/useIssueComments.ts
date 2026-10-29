@@ -1,6 +1,7 @@
 import type { Ref } from 'vue';
 import type { Issue, IssueComment } from '../domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { collection, doc, getFirestore, increment, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed, watch } from 'vue';
 import { useCollection } from 'vuefire';
@@ -46,7 +47,7 @@ export function useIssueComments(issue: Ref<Issue | undefined>) {
 			message,
 			authorId: user.value.id,
 			authorName: user.value.name || '',
-			...(user.value.role === 'admin' || user.value.role === 'manager' ? { authorRole: user.value.role } : {}),
+			...(managesCommunity(user.value, user.value.communityId) ? { authorRole: user.value.role } : {}),
 			createdAt: serverTimestamp(),
 			updatedAt: serverTimestamp(),
 			createdBy: user.value.id,

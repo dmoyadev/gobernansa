@@ -16,13 +16,46 @@ service cloud.firestore {
       return signedIn() && me().communityId == communityId;
     }
 
-    function isManager() {
-      return me().role in ['admin', 'manager'];
+    // gobernança's team, who manage every community and the administrators
+    function isSuperadmin() {
+      return signedIn() && me().role == 'superadmin';
     }
 
-    // The admin platform's users, who manage every community
-    function isAdmin() {
-      return signedIn() && me().role == 'admin';
+    // Administrators manage the communities assigned to them, and managers the one they live in.
+    // Mirrored by managesCommunity() in packages/shared/domain/user.ts
+    function manages(communityId) {
+      return signedIn() && (
+        me().role == 'superadmin'
+        || (me().role == 'admin' && communityId in me().get('communityIds', []))
+        || (me().role == 'manager' && communityId == me().communityId)
+      );
+    }
+
+    // Who can give a role in a community: administrators make managers and neighbours in theirs, managers only neighbours.
+    // Mirrored by assignableRoles() in packages/shared/domain/user.ts
+    function canAssign(role, communityId) {
+      return signedIn() && role in ['superadmin', 'admin', 'manager', 'user'] && (
+        me().role == 'superadmin'
+        || (me().role == 'admin' && role in ['manager', 'user'] && communityId in me().get('communityIds', []))
+        || (me().role == 'manager' && role == 'user' && communityId == me().communityId)
+      );
+    }
+
+    // Email sign-in links verify it. Anyone can create a password account with any email, so an unverified one could claim someone else's invitation
+    function isInvitee(email) {
+      return signedIn() && request.auth.token.email == email && request.auth.token.email_verified == true;
+    }
+
+    // The profile created on the first sign-in, exactly as the invitation sent to their email says
+    function matchesInvitation(profile) {
+      let invitation = get(/databases/$(database)/documents/invitations/$(request.auth.token.email)).data;
+      return isInvitee(request.auth.token.email)
+        && profile.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds'])
+        && profile.email == request.auth.token.email
+        && profile.name == invitation.name
+        && profile.role == invitation.role
+        && profile.communityId == invitation.communityId
+        && profile.get('communityIds', []) == invitation.get('communityIds', []);
     }
 
     function changedOnly(fields) {
@@ -35,8 +68,16 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      // Name, role and community are set from the console
+      // Themselves, and whoever manages their community
+      allow read: if signedIn() && (request.auth.uid == uid || manages(resource.data.communityId));
+      allow create: if signedIn() && request.auth.uid == uid && matchesInvitation(request.resource.data);
+      // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves
+      allow update: if signedIn() && request.auth.uid != uid
+        && (changedOnly(['role', 'communityId']) || (isSuperadmin() && changedOnly(['role', 'communityId', 'communityIds'])))
+        && canAssign(resource.data.role, resource.data.communityId)
+        && canAssign(request.resource.data.role, request.resource.data.communityId);
+      // Out of the community. Their sign-in account stays, and a new invitation gives them a profile again
+      allow delete: if signedIn() && request.auth.uid != uid && canAssign(resource.data.role, resource.data.communityId);
 
       // Property documents (listed and their files) and devices for push notifications
       match /{collection}/{id} {
@@ -49,16 +90,35 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
+    // Sent by whoever can give that role in that community, and accepted by whoever it's for on their first sign-in.
+    // The id is the email in lowercase, as sign-in tokens have it
+    match /invitations/{email} {
+      allow read: if isInvitee(email) || manages(resource.data.communityId);
+      allow create: if canAssign(request.resource.data.role, request.resource.data.communityId)
+        && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'invitedBy', 'invitedAt'])
+        && request.resource.data.email == email
+        // Comments are signed with it, so it can't be missing
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.invitedBy == request.auth.uid
+        && request.resource.data.invitedAt == request.time
+        && (!('communityIds' in request.resource.data) || isSuperadmin());
+      allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId);
+    }
+
     match /events/{eventId} {
       allow read: if inCommunity(resource.data.communityId);
-      allow create, update: if inCommunity(request.resource.data.communityId) && isManager();
-      allow delete: if inCommunity(resource.data.communityId) && isManager();
+      allow create: if inCommunity(request.resource.data.communityId) && manages(request.resource.data.communityId);
+      // Checked against the community it's in, and kept there, so nobody moves another community's event into theirs
+      allow update: if inCommunity(resource.data.communityId) && manages(resource.data.communityId)
+        && request.resource.data.communityId == resource.data.communityId;
+      allow delete: if inCommunity(resource.data.communityId) && manages(resource.data.communityId);
     }
 
     match /communities/{communityId} {
-      allow read: if inCommunity(communityId) || isAdmin();
-      // From the admin platform. Removing one is left to the console, it also needs its issues, users and properties removed
-      allow create, update: if isAdmin();
+      allow read: if inCommunity(communityId) || manages(communityId);
+      // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed
+      allow create: if isSuperadmin();
+      allow update: if manages(communityId);
 
       match /issues/{issueId} {
         allow read: if inCommunity(communityId);
@@ -78,12 +138,12 @@ service cloud.firestore {
             && changesAtMost('votesCount', 1)
             && changesAtMost('commentsCount', 1))
           // Status, by the administration
-          || (isManager()
+          || (manages(communityId)
             && changedOnly(['status', 'updatedAt', 'updatedBy'])
             && request.resource.data.status in ['open', 'in_progress', 'resolved', 'closed']
             && request.resource.data.updatedBy == request.auth.uid)
           // Removal, by whoever reported it or the administration
-          || ((resource.data.createdBy == request.auth.uid || isManager())
+          || ((resource.data.createdBy == request.auth.uid || manages(communityId))
             && changedOnly(['deletedAt', 'deletedBy'])
             && request.resource.data.deletedBy == request.auth.uid)
         );
@@ -109,8 +169,8 @@ service cloud.firestore {
             && request.resource.data.createdBy == request.auth.uid
             && request.resource.data.get('authorName', '') == me().name
             && request.resource.data.deletedAt == null
-            && (request.resource.data.get('type', 'message') == 'message' || isManager())
-            && (!('authorRole' in request.resource.data) || isManager());
+            && (request.resource.data.get('type', 'message') == 'message' || manages(communityId))
+            && (!('authorRole' in request.resource.data) || manages(communityId));
           // Only removing their own
           allow update: if inCommunity(communityId)
             && resource.data.authorId == request.auth.uid

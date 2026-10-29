@@ -1,23 +1,51 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm } from '../domain/communityForm.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useCollection } from 'vuefire';
 import { fromCommunityForm } from '../domain/communityForm.ts';
 
 const communitiesRef = collection(db, 'communities');
 
-// Live, so a community saved in another tab shows up. Reads each community once per visit, then only the changes
+// The ones the user manages. Reads each community once per visit
 export function useCommunities() {
-	const communities = useCollection<Community>(communitiesRef);
+	const { user } = useAuth();
+	// Rules aren't filters: only gobernança's team can query the whole collection, live so one saved in another tab shows up
+	const all = useCollection<Community>(computed(() => user.value?.role === 'superadmin' ? communitiesRef : null));
+	// The rest load theirs by id, again whenever their assigned ones change
+	const managed = ref<Community[]>([]);
+	const managedLoading = ref(true);
+	const managedError = ref<Error>();
+	watch(user, async (profile) => {
+		if (!profile || profile.role === 'superadmin') {
+			return;
+		}
+
+		const ids = profile.role === 'admin' ? profile.communityIds ?? [] : [profile.communityId];
+		try {
+			const communities = await Promise.all(ids.filter(Boolean).map(async (id) => {
+				const community = await loadCommunity(id);
+				return community && { ...community, id };
+			}));
+			// Removed ones may still be assigned
+			managed.value = communities.filter((community): community is Community => !!community);
+		} catch (e) {
+			managedError.value = e as Error;
+		} finally {
+			managedLoading.value = false;
+		}
+	}, { immediate: true });
+
+	const isSuperadmin = computed(() => user.value?.role === 'superadmin');
 	// Sorted here and not by the query, which would leave out the ones without a name
-	const sortedCommunities = computed(() => [...communities.value].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'es')));
+	const sortedCommunities = computed(() => [...(isSuperadmin.value ? all.value : managed.value)].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'es')));
 
 	return {
 		communities: sortedCommunities,
-		loading: communities.pending,
-		error: communities.error,
+		loading: computed(() => isSuperadmin.value ? all.pending.value : managedLoading.value),
+		error: computed(() => isSuperadmin.value ? all.error.value : managedError.value),
 	};
 }
 

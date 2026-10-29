@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { useCommunities } from '../application/useCommunities.ts';
 
+const { user } = useAuth();
 const { communities, loading, error } = useCommunities();
 </script>
 
@@ -14,7 +16,8 @@ const { communities, loading, error } = useCommunities();
 			</p>
 		</div>
 
-		<LnxButton to="/communities/new">
+		<!-- Only gobernança's team creates them, and then assigns them to their administrators -->
+		<LnxButton v-if="user?.role === 'superadmin'" to="/communities/new">
 			<LnxIcon icon="lucide:plus" />
 			Nueva comunidad
 		</LnxButton>
@@ -60,7 +63,12 @@ const { communities, loading, error } = useCommunities();
 
 	<section v-else class="empty">
 		<LnxIcon icon="lucide:building-2" :size="40" />
-		<p>Aún no hay comunidades. Crea la primera para que sus vecinos puedan usar gobernança.</p>
+		<p v-if="user?.role === 'superadmin'">
+			Aún no hay comunidades. Crea la primera para que sus vecinos puedan usar gobernança.
+		</p>
+		<p v-else>
+			Aún no tienes comunidades asignadas. Pide al equipo de gobernança que te asigne las tuyas.
+		</p>
 	</section>
 </template>
 

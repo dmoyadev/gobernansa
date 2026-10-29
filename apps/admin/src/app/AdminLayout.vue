@@ -5,7 +5,7 @@ import { computed } from 'vue';
 
 const { user, logout } = useAuth();
 
-// The profile is read after signing in. Missing or unreadable, the account can't be an administrator's
+// The profile is read after signing in. Missing or unreadable, the account can't be an administrator's. Neighbours use the webapp
 const access = computed(() => {
 	if (user.error.value || user.value === null) {
 		return 'denied';
@@ -13,7 +13,7 @@ const access = computed(() => {
 	if (!user.value) {
 		return 'loading';
 	}
-	return user.value.role === 'admin' ? 'granted' : 'denied';
+	return user.value.role === 'user' ? 'denied' : 'granted';
 });
 </script>
 
@@ -28,6 +28,10 @@ const access = computed(() => {
 			<RouterLink to="/">
 				<LnxIcon icon="lucide:building-2" :size="18" />
 				Comunidades
+			</RouterLink>
+			<RouterLink v-if="user?.role === 'superadmin'" to="/admins">
+				<LnxIcon icon="lucide:shield-user" :size="18" />
+				Administradores
 			</RouterLink>
 		</nav>
 

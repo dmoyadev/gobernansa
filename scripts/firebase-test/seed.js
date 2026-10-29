@@ -142,8 +142,10 @@ async function seed() {
 
 	// USERS
 	if (shouldRun('users')) {
+		// The administrator manages comm1 without living there, so they have no community of their own
 		const users = [
-			['HMyFJhZ3GOQoXRoS7Y8taHpyb7H2', 'lynx9011+admin@gmail.com', 'admin'],
+			['HMyFJhZ3GOQoXRoS7Y8taHpyb7H2', 'lynx9011+admin@gmail.com', 'superadmin'],
+			['fincas1', 'lynx9011+fincas@gmail.com', 'admin', { communityId: '', communityIds: ['comm1'] }],
 			['NfQwcVkiExgW9DSp5DykCxxmNK52', 'lynx9011+user1@gmail.com', 'user'],
 			['9yDJtg9E0kSDa8uVwtHvP8MSox03', 'lynx9011+user2@gmail.com', 'user'],
 			['01FbbUmlfHShICI9dlVs5gsvtPl2', 'lynx9011+manager1@gmail.com', 'manager'],
@@ -157,7 +159,7 @@ async function seed() {
 			await Promise.all(users.map(async ([uid, email]) => admin.auth().createUser({ uid, email })));
 		}
 
-		users.forEach(([uid, email, role]) => {
+		users.forEach(([uid, email, role, extra]) => {
 			const ref = db.collection('users').doc(uid);
 			const userDisplayName = email.split('@')[0].substring(email.indexOf('+') + 1);
 			batch.set(ref, {
@@ -165,6 +167,7 @@ async function seed() {
 				communityId: 'comm1',
 				name: userDisplayName[0].toUpperCase() + userDisplayName.slice(1),
 				role,
+				...extra,
 			});
 		});
 	}

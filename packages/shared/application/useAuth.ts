@@ -1,5 +1,6 @@
+import type { User as AuthUser } from 'firebase/auth';
 import type { DocumentReference } from 'firebase/firestore';
-import type { User } from '../domain/user.ts';
+import type { Invitation, User } from '../domain/user.ts';
 import {
 	isSignInWithEmailLink,
 	sendSignInLinkToEmail,
@@ -8,8 +9,8 @@ import {
 	signOut,
 	updatePassword,
 } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
-import { effectScope, ref, watchEffect } from 'vue';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { auth, db } from '../infrastructure/firebase.ts';
 
@@ -61,6 +62,34 @@ function createAuth() {
 			userRef.value = undefined;
 		}
 	});
+
+	// Without a profile, it's their first sign-in: the profile is created from the invitation sent to their email, if there's one
+	watch(() => !!userRef.value && !userData.pending.value && userData.value === null, async (withoutProfile) => {
+		if (withoutProfile && user.value) {
+			// eslint-disable-next-line no-console
+			await acceptInvitation(user.value).catch(console.error);
+		}
+	});
+
+	async function acceptInvitation({ uid, email, emailVerified }: AuthUser) {
+		// The rules only take verified emails, which sign-in links are
+		if (!email || !emailVerified) {
+			return;
+		}
+
+		const invitationRef = doc(db, 'invitations', email);
+		const invitation = await getDoc(invitationRef);
+		if (!invitation.exists()) {
+			return;
+		}
+
+		const { name, role, communityId, communityIds } = invitation.data() as Invitation;
+		const batch = writeBatch(db);
+		batch.set(doc(db, 'users', uid), { email, name, role, communityId, ...(communityIds ? { communityIds } : {}) });
+		batch.delete(invitationRef);
+		// The profile is listened to, so it shows up by itself
+		await batch.commit();
+	}
 
 	// Fallback for when the daily quota of sign-in emails runs out
 	async function signInWithPassword(email: string, password: string) {

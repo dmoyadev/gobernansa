@@ -10,6 +10,8 @@ Each push to `main` deploys it before the app, so change the rules here and not 
 
 The local emulator enforces it too. Each rule that checks the user's community or role reads their profile once per request, which counts as one extra read.
 
+`npm run test:rules` checks what each role can do against the emulator (it starts and stops it by itself, and needs Java, e.g. `brew install openjdk@21` with its `bin` in the `PATH`). Run it after changing the rules.
+
 ## 2. Indexes
 
 The first time each of these queries runs, Firestore logs an error in the browser console with a link that creates the index:
@@ -57,9 +59,38 @@ The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to t
 
 To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
 
+## Roles
+
+Each profile in `users/{uid}` has a `role`. The rules enforce it, and `packages/shared/domain/user.ts` mirrors them so the apps only offer what's allowed:
+
+| Role | Who | Communities | Can |
+| --- | --- | --- | --- |
+| `superadmin` | gobernança's team | All | Everything: create communities, invite administrators and assign them communities |
+| `admin` | An administrator (administrador de fincas) | The ids in `communityIds` | Edit those communities, invite and remove their managers and neighbours |
+| `manager` | Who runs the community, e.g. its president | Their `communityId` | Edit it and invite or remove its neighbours. In the webapp, change the status of issues and manage events |
+| `user` | A neighbour | Their `communityId` | Use the webapp |
+
+All but neighbours can use the admin platform. Nobody can change their own role: administrators give the manager and neighbour roles in their communities, and managers only the neighbour one in theirs. `communityId` is where someone lives (`''` for administrators who don't live in one); in the webapp, managing their own community also needs to live in it.
+
+### Invitations
+
+Accounts are added from the admin platform (a community's **Vecinos y gestores**, or **Administradores** for the team) by inviting an email, stored as `invitations/{email in lowercase}` with the name, role and community. No email is sent: the person signs in to the app with that email, and on their first sign-in their profile is created from the invitation, which is then removed. Only verified emails can take one, which sign-in links are; password accounts created in the console aren't.
+
+An email that already has a profile doesn't take invitations: change its role from the list instead. Removing someone removes their profile, not their sign-in account, so a new invitation gives them access again.
+
+### Moving to the four roles
+
+Until now `admin` meant every community. After the push that deploys these rules, in **Firebase console → Firestore → users**:
+
+1. Your profile (and anyone else's on gobernança's team): change `role` from `admin` to `superadmin`. Until then the admin platform shows no communities to it.
+2. Any other `admin`: add `communityIds` (an array of strings) with the ids of the communities they manage. Leave their `communityId` if they live in one, or set it to `''`.
+3. Managers and neighbours need nothing.
+
+The new queries filter on one field each, so they need no index.
+
 ## Community data
 
-Edited from the admin platform (`apps/admin`) by users whose profile has `role: 'admin'`, who can see and change every community; the webapp only reads it. Removing a community is still done from the console, along with its issues, users and properties. Stored on `communities/{communityId}`:
+Edited from the admin platform (`apps/admin`) by whoever manages each community (see [Roles](#roles)); only the team creates them. The webapp only reads it. Removing a community is still done from the console, along with its issues, users and properties. Stored on `communities/{communityId}`:
 
 ```text
 cif, iban, bank
@@ -85,6 +116,8 @@ communities/{communityId}/issues/{issueId}
   votesScore, votesCount, commentsCount   counters, written along with each vote or comment
   votes/{issueId}_{uid}                   { voterId, score: 1 | -1, votedAt }
   comments/{commentId}                    { type: message | status, message, status?, authorId, authorName, authorRole? }
+users/{uid}                               profile, created from their invitation on the first sign-in
+invitations/{email}                       { email, name, role, communityId, communityIds?, invitedBy, invitedAt }
 users/{uid}/documents/{id}                property documents (listing)
 users/{uid}/documentFiles/{id}            their content, up to 1 MB each
 users/{uid}/devices/{token}               devices with push notifications on

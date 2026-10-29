@@ -13,7 +13,6 @@ const upcomingTiles = [
 	{ title: 'Avisos', icon: 'lucide:message-square-warning' },
 	{ title: 'Eventos', icon: 'lucide:calendar' },
 	{ title: 'Propiedades', icon: 'lucide:house' },
-	{ title: 'Cuentas de vecinos', icon: 'lucide:users' },
 ];
 
 const community = ref<Community>();
@@ -123,6 +122,19 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 			</RouterLink>
 		</li>
 
+		<li class="people">
+			<RouterLink class="tile" :to="`/communities/${id}/people`">
+				<span class="icon">
+					<LnxIcon icon="lucide:users" :size="20" />
+				</span>
+				<LnxIcon class="arrow" icon="lucide:arrow-up-right" :size="18" />
+				<h2>Vecinos y gestores</h2>
+				<p class="empty">
+					Cuentas, roles e invitaciones
+				</p>
+			</RouterLink>
+		</li>
+
 		<li v-for="tile in upcomingTiles" :key="tile.title" class="tile upcoming">
 			<span class="icon">
 				<LnxIcon :icon="tile.icon" :size="20" />
@@ -163,7 +175,7 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 	color: var(--color-secondary-accent);
 }
 
-// Sections that can be edited take two columns, the general info two rows, and the upcoming ones fill the last row
+// Sections that can be edited take two columns, the general info two rows, and people with the upcoming ones fill the last row
 .bento {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -179,7 +191,7 @@ const tiles = computed<{ section: CommunitySection; title: string; icon: string;
 		grid-row: span 2;
 	}
 
-	> .upcoming {
+	> :is(.people, .upcoming) {
 		grid-column: span 1;
 	}
 }
