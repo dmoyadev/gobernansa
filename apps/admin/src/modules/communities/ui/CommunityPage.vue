@@ -9,6 +9,7 @@ import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.v
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 import { loadCommunity } from '../application/useCommunities.ts';
+import CommunityDashboard from './CommunityDashboard.vue';
 import CommunitySearch from './CommunitySearch.vue';
 
 const props = defineProps<{ id: string }>();
@@ -55,6 +56,7 @@ const sizeLabels: Record<TileSize, string> = { 1: 'pequeña', 2: 'ancha', 4: 'gr
 
 const { user } = useAuth();
 const menuId = useId();
+const dashboard = ref<InstanceType<typeof CommunityDashboard>>();
 
 // The webapp as its neighbours see it, to give them support. The admin signs in there with the same account
 const webappUrl = `${(import.meta.env.VITE_WEBAPP_URL as string | undefined) || 'https://gobernansa.dmoya.dev'}/?viewAs=${props.id}`;
@@ -365,8 +367,14 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 				<LnxIcon icon="lucide:layout-dashboard" />
 				Editar vista
 			</button>
+			<button type="button" role="menuitem" tabindex="-1" @click="closeMenu(); dashboard?.customize()">
+				<LnxIcon icon="lucide:chart-no-axes-combined" />
+				Personalizar dashboard
+			</button>
 		</div>
 	</header>
+
+	<CommunityDashboard ref="dashboard" :community-id="id" />
 
 	<CommunitySearch :community-id="id" :community="community" />
 
@@ -436,10 +444,6 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 						<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" size="small" @click="copy(label, value)">
 							<LnxIcon :icon="copied === label ? 'lucide:check' : 'lucide:copy'" />
 							{{ copied === label ? 'Copiado' : `Copiar ${label}` }}
-						</LnxButton>
-						<LnxButton v-if="!editing" :to="`/communities/${id}/info`" mode="clear" size="small">
-							<LnxIcon icon="lucide:pencil" />
-							Editar
 						</LnxButton>
 						<p v-if="missing.length" class="missing">
 							<LnxIcon icon="lucide:circle-dashed" :size="14" aria-hidden="true" />
@@ -802,7 +806,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 	color: var(--color-gray-7);
 	transition: border-color .15s, box-shadow .15s;
 
-	&:has(.stretched:hover) {
+	&:not(:has(.card-actions)):has(.stretched:hover) {
 		border-color: var(--color-primary-light);
 		box-shadow: 0 2px 4px #0000000F, 0 8px 24px #0000000F;
 

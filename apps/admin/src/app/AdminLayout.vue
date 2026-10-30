@@ -2,9 +2,10 @@
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed } from 'vue';
+import { computed, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
+import { useSearchHighlight } from './useSearchHighlight.ts';
 
 const route = useRoute();
 const { user, logout } = useAuth();
@@ -27,13 +28,15 @@ const access = computed(() => {
 
 // Neighbours are told who can give them access
 const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.value.communityId : undefined);
+
+// Search results open their page with the text they matched highlighted
+useSearchHighlight(useTemplateRef('main'));
 </script>
 
 <template>
 	<header class="topbar">
-		<RouterLink to="/" class="brand">
+		<RouterLink to="/">
 			<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="120" height="40">
-			<span class="badge">Admin</span>
 		</RouterLink>
 
 		<nav v-if="access === 'granted' || access === 'forbidden'">
@@ -64,12 +67,12 @@ const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.v
 		</nav>
 
 		<span v-if="user" class="user">{{ user.name || user.email }}</span>
-		<LnxButton mode="clear" shape="circle" aria-label="Cerrar sesión" @click="logout()">
+		<LnxButton mode="clear" shape="circle" aria-label="Cerrar sesión" title="Cerrar sesión" @click="logout()">
 			<LnxIcon icon="lucide:log-out" />
 		</LnxButton>
 	</header>
 
-	<main>
+	<main ref="main">
 		<RouterView v-if="access === 'granted'" />
 
 		<p v-else-if="access === 'loading'" class="status">
@@ -121,23 +124,6 @@ const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.v
 	gap: var(--lnx-spacing-5);
 	background: var(--color-gray-0);
 	box-shadow: 0 1px 0 var(--color-gray-3);
-}
-
-.brand {
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	.badge {
-		padding: 2px var(--lnx-spacing-2);
-		border-radius: var(--lnx-radius-5);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-		font-size: var(--lnx-font-size-legal);
-		font-weight: var(--lnx-font-weight-bold);
-		letter-spacing: .04em;
-		text-transform: uppercase;
-	}
 }
 
 nav {
@@ -249,5 +235,13 @@ main {
 	main {
 		padding: var(--lnx-spacing-5) var(--lnx-spacing-4) var(--lnx-spacing-7);
 	}
+}
+</style>
+
+<style lang="scss">
+// Not scoped: it styles text of any page, marked by useSearchHighlight
+::highlight(search) {
+	background: #fde68a;
+	color: inherit;
 }
 </style>
