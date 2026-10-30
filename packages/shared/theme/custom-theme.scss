@@ -20,6 +20,10 @@
 	--lnx-color-gray-9: var(--color-gray-9);
 	--lnx-color-gray-10: var(--color-gray-10);
 
+	/* The library defaults to dark popups, unreadable on this light theme */
+	--lnx-select-list-color-bg: var(--color-gray-0);
+	--lnx-date-picker-window-color-bg: var(--color-gray-0);
+
 	/* Typography */
 	--lnx-font-family-heading: var(--font-family-heading);
 	--lnx-font-family-body: var(--font-family-body);

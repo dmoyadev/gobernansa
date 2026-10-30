@@ -3,6 +3,9 @@ import type { Event } from '@gobernansa/shared/domain/event.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
@@ -172,7 +175,7 @@ async function remove(broadcast: Broadcast) {
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver">
+		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver" title="Volver">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Comunicados</h1>
@@ -198,13 +201,12 @@ async function remove(broadcast: Broadcast) {
 					{{ eventTypes[value]?.label }}
 				</template>
 			</LnxSelect>
-			<LnxInput v-model="form.date" type="date" required>
+			<DatePicker v-model="form.date" required>
 				Fecha
-			</LnxInput>
-			<label class="textarea wide">
+			</DatePicker>
+			<LnxTextarea v-model="form.description" rows="3" placeholder="Por ejemplo: el martes de 9:00 a 14:00 no habrá agua por obras en la red." class="wide">
 				Descripción
-				<textarea v-model="form.description" rows="3" placeholder="Por ejemplo: el martes de 9:00 a 14:00 no habrá agua por obras en la red." />
-			</label>
+			</LnxTextarea>
 		</div>
 
 		<fieldset class="communities">
@@ -214,14 +216,12 @@ async function remove(broadcast: Broadcast) {
 			</p>
 			<span v-if="loading" class="skeleton-item" />
 			<template v-else-if="communities.length">
-				<label class="check all">
-					<input v-model="allSelected" type="checkbox">
+				<LnxCheckbox v-model="allSelected" class="check all">
 					Todas
-				</label>
-				<label v-for="community in communities" :key="community.id" class="check">
-					<input v-model="selected" type="checkbox" :value="community.id">
+				</LnxCheckbox>
+				<LnxCheckbox v-for="community in communities" :key="community.id" v-model="selected" class="check" :value="community.id">
 					{{ community.name || 'Sin nombre' }}
-				</label>
+				</LnxCheckbox>
 			</template>
 			<p v-else class="hint">
 				No gestionas ninguna comunidad.
@@ -264,7 +264,7 @@ async function remove(broadcast: Broadcast) {
 						{{ broadcast.copies.map(copy => communityNames.get(copy.communityId) ?? copy.communityId).join(', ') }}
 					</small>
 				</div>
-				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar de todas" @click="remove(broadcast)">
+				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
@@ -318,27 +318,6 @@ async function remove(broadcast: Broadcast) {
 	}
 }
 
-.textarea {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-1);
-	font-size: var(--lnx-font-size-small);
-
-	textarea {
-		padding: var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		font: inherit;
-		font-size: var(--lnx-font-size-body);
-		resize: vertical;
-
-		&:focus-visible {
-			outline: 2px solid var(--color-primary);
-			outline-offset: 1px;
-		}
-	}
-}
-
 .communities {
 	border: 0;
 	display: grid;
@@ -357,17 +336,8 @@ async function remove(broadcast: Broadcast) {
 }
 
 .check {
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
 	min-height: 32px;
-	cursor: pointer;
-
-	input {
-		width: 18px;
-		height: 18px;
-		accent-color: var(--color-primary);
-	}
+	justify-content: center;
 }
 
 .form-actions {

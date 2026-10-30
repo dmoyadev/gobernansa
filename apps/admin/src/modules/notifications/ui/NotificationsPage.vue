@@ -2,10 +2,13 @@
 import type { Event } from '@gobernansa/shared/domain/event.ts';
 import type { NotificationForm } from '../application/useNotifications.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
-import { deleteNotification, saveNotification, useNotifications } from '../application/useNotifications.ts';
+import { deleteNotification, loadNotification, saveNotification, useNotifications } from '../application/useNotifications.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -36,6 +39,24 @@ function edit(notification: Event) {
 	};
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// Opened from the search with ?edit=<id>, it's shown in the form even when it's not on the first page
+const route = useRoute();
+onMounted(async () => {
+	const editId = route.query.edit;
+	if (typeof editId !== 'string') {
+		return;
+	}
+	try {
+		const notification = await loadNotification(editId);
+		// Another community's id in the URL isn't opened here
+		if (notification?.communityId === props.id) {
+			edit(notification);
+		}
+	} catch {
+		// Deleted or unreadable, the page is still usable
+	}
+});
 
 function reset() {
 	editingId.value = undefined;
@@ -77,14 +98,14 @@ async function remove(notification: Event) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
-		<h1>Notificaciones</h1>
+		<h1>Avisos</h1>
 	</header>
 
 	<form class="card" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar notificación' : 'Nueva notificación' }}</h2>
+		<h2>{{ editingId ? 'Editar aviso' : 'Nuevo aviso' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
 				Título
@@ -103,13 +124,12 @@ async function remove(notification: Event) {
 					{{ eventTypes[value]?.label }}
 				</template>
 			</LnxSelect>
-			<LnxInput v-model="form.date" type="date" required>
+			<DatePicker v-model="form.date" required>
 				Fecha
-			</LnxInput>
-			<label class="textarea wide">
+			</DatePicker>
+			<LnxTextarea v-model="form.description" rows="3" class="wide">
 				Descripción
-				<textarea v-model="form.description" rows="3" />
-			</label>
+			</LnxTextarea>
 		</div>
 
 		<footer class="form-actions">
@@ -127,7 +147,7 @@ async function remove(notification: Event) {
 	</form>
 
 	<section class="card">
-		<h2>Publicadas</h2>
+		<h2>Publicados</h2>
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
@@ -149,17 +169,17 @@ async function remove(notification: Event) {
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" @click="edit(notification)">
+					<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" @click="remove(notification)">
+					<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>
 			</li>
 		</ul>
 		<p v-else class="hint">
-			Aún no hay notificaciones.
+			Aún no hay avisos.
 		</p>
 
 		<LnxButton v-if="notifications.length >= max" mode="outline" :is-loading="pending" @click="max += PAGE_SIZE">
@@ -208,27 +228,6 @@ async function remove(notification: Event) {
 
 	.wide {
 		grid-column: 1 / -1;
-	}
-}
-
-.textarea {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-1);
-	font-size: var(--lnx-font-size-small);
-
-	textarea {
-		padding: var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		font: inherit;
-		font-size: var(--lnx-font-size-body);
-		resize: vertical;
-
-		&:focus-visible {
-			outline: 2px solid var(--color-primary);
-			outline-offset: 1px;
-		}
 	}
 }
 

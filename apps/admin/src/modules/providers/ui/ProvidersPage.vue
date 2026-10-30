@@ -4,6 +4,7 @@ import type { ProviderForm } from '../application/providerActions.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { averageRating, providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -171,7 +172,7 @@ async function rate(provider: Provider) {
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver a comunidades">
+		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver a comunidades" title="Volver a comunidades">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Proveedores</h1>
@@ -206,10 +207,9 @@ async function rate(provider: Provider) {
 			<LnxInput v-model="form.cif">
 				CIF
 			</LnxInput>
-			<label class="textarea wide">
+			<LnxTextarea v-model="form.notes" rows="2" class="wide">
 				Notas
-				<textarea v-model="form.notes" rows="2" />
-			</label>
+			</LnxTextarea>
 		</div>
 
 		<fieldset class="chips">
@@ -283,7 +283,7 @@ async function rate(provider: Provider) {
 					:aria-label="`Valoraciones de ${provider.name}`"
 					@click="toggle(provider)"
 				>
-					<span class="stars" :aria-label="`${averageRating(provider)?.toFixed(1) ?? 'Sin'} de 5`">
+					<span class="stars" :aria-label="`${averageRating(provider)?.toFixed(1) ?? 'Sin'} de 5`" :title="`${averageRating(provider)?.toFixed(1) ?? 'Sin'} de 5`">
 						<LnxIcon v-for="n in 5" :key="n" icon="lucide:star" :class="{ filled: n <= stars(averageRating(provider)) }" />
 					</span>
 					<small>({{ provider.ratingCount }})</small>
@@ -315,10 +315,9 @@ async function rate(provider: Provider) {
 								<span>{{ n }} <LnxIcon icon="lucide:star" /></span>
 							</label>
 						</fieldset>
-						<label class="textarea">
+						<LnxTextarea v-model="rating.comment" rows="2">
 							Comentario
-							<textarea v-model="rating.comment" rows="2" />
-						</label>
+						</LnxTextarea>
 						<footer class="form-actions">
 							<p v-if="ratingsError" class="error" role="alert">
 								{{ ratingsError }}
@@ -334,7 +333,7 @@ async function rate(provider: Provider) {
 					<ul v-else-if="ratings.length" class="list">
 						<li v-for="item in ratings" :key="item.id" class="rating-item">
 							<strong>{{ item.authorName }}</strong>
-							<span class="stars" :aria-label="`${item.score} de 5`">
+							<span class="stars" :aria-label="`${item.score} de 5`" :title="`${item.score} de 5`">
 								<LnxIcon v-for="n in 5" :key="n" icon="lucide:star" :class="{ filled: n <= item.score }" />
 							</span>
 							<small class="hint">
@@ -403,27 +402,6 @@ async function rate(provider: Provider) {
 
 	.wide {
 		grid-column: 1 / -1;
-	}
-}
-
-.textarea {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-1);
-	font-size: var(--lnx-font-size-small);
-
-	textarea {
-		padding: var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		font: inherit;
-		font-size: var(--lnx-font-size-body);
-		resize: vertical;
-
-		&:focus-visible {
-			outline: 2px solid var(--color-primary);
-			outline-offset: 1px;
-		}
 	}
 }
 

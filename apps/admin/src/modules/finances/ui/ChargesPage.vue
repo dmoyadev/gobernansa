@@ -4,6 +4,7 @@ import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { deleteCharge, issueCharges, loadPropertyCharges, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
@@ -152,7 +153,7 @@ async function remove(charge: Charge) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Recibos y morosidad</h1>
@@ -196,9 +197,9 @@ async function remove(charge: Charge) {
 			<LnxInput v-model="form.amount" inputmode="decimal" placeholder="1.250,00" required>
 				{{ split === 'fixed' ? 'Importe por propiedad (€)' : 'Importe total (€)' }}
 			</LnxInput>
-			<LnxInput v-model="form.dueDate" type="date" required>
+			<DatePicker v-model="form.dueDate" required>
 				Vencimiento
-			</LnxInput>
+			</DatePicker>
 		</div>
 
 		<p v-if="shares.length" class="hint">
@@ -267,6 +268,7 @@ async function remove(charge: Charge) {
 						size="small"
 						shape="circle"
 						aria-label="Certificado de pagos"
+						title="Certificado de pagos"
 					>
 						<LnxIcon icon="lucide:file-check" />
 					</LnxButton>
@@ -288,7 +290,7 @@ async function remove(charge: Charge) {
 								<LnxButton mode="clear" size="small" :disabled="busy" @click="togglePaid(charge)">
 									{{ charge.paidAt ? 'Marcar pendiente' : 'Marcar pagado' }}
 								</LnxButton>
-								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" :disabled="busy" @click="remove(charge)">
+								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" :disabled="busy" @click="remove(charge)">
 									<LnxIcon icon="lucide:trash-2" />
 								</LnxButton>
 							</div>

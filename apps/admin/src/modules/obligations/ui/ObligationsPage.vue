@@ -3,8 +3,10 @@ import type { Obligation, ObligationType } from '@gobernansa/shared/domain/oblig
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { obligationStatus, obligationStatusLabels, obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { collection, deleteField, doc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useCollection } from 'vuefire';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
@@ -35,6 +37,8 @@ function status(obligation: Obligation) {
 const warnings = computed(() => sorted.value.filter(obligation => status(obligation) !== 'ok'));
 
 const { providers } = useProviders(() => props.id);
+const typeOptions = Object.entries(obligationTypes).map(([value, type]) => ({ value: value as ObligationType, label: type.label }));
+const providerOptions = computed(() => [{ value: '', label: 'Ninguno' }, ...providers.value.map(provider => ({ value: provider.id, label: provider.name }))]);
 
 function daysLeft(obligation: Obligation) {
 	// Rounded, a day across a time change is 23 or 25 hours long
@@ -241,7 +245,7 @@ function downloadIcs(obligation: Obligation) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Obligaciones</h1>
@@ -259,36 +263,48 @@ function downloadIcs(obligation: Obligation) {
 	<form class="card" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar obligación' : 'Nueva obligación' }}</h2>
 		<div class="fields">
-			<label class="native">
+			<LnxSelect
+				v-model.convert="form.type"
+				:options="typeOptions"
+				:convert-fn="option => option.value"
+				search-placeholder-text="Buscar..."
+				@select="onTypeChange()"
+			>
 				Tipo
-				<select v-model="form.type" @change="onTypeChange()">
-					<option v-for="(type, value) in obligationTypes" :key="value" :value="value">
-						{{ type.label }}
-					</option>
-				</select>
-			</label>
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ obligationTypes[value as ObligationType]?.label }}
+				</template>
+			</LnxSelect>
 			<LnxInput v-model="form.title" required>
 				Título
 			</LnxInput>
-			<LnxInput v-model="form.dueAt" type="date" required>
+			<DatePicker v-model="form.dueAt" required>
 				Vence el
-			</LnxInput>
+			</DatePicker>
 			<LnxInput v-model="form.everyMonths" type="number" min="1" step="1">
 				Se repite cada (meses)
 			</LnxInput>
-			<label class="native">
+			<LnxSelect
+				v-model.convert="form.providerId"
+				:options="providerOptions"
+				:convert-fn="option => option.value"
+				search-placeholder-text="Buscar..."
+				placeholder="Ninguno"
+			>
 				Proveedor
-				<select v-model="form.providerId">
-					<option value="">Ninguno</option>
-					<option v-for="provider in providers" :key="provider.id" :value="provider.id">
-						{{ provider.name }}
-					</option>
-				</select>
-			</label>
-			<label class="native wide">
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ providerOptions.find(option => option.value === value)?.label }}
+				</template>
+			</LnxSelect>
+			<LnxTextarea v-model="form.notes" rows="2" class="wide">
 				Notas
-				<textarea v-model="form.notes" rows="2" />
-			</label>
+			</LnxTextarea>
 		</div>
 
 		<footer class="form-actions">
@@ -317,7 +333,7 @@ function downloadIcs(obligation: Obligation) {
 		<span v-if="pending && !sorted.length" class="skeleton-item" />
 		<ul v-else-if="sorted.length" class="list">
 			<li v-for="obligation in sorted" :key="obligation.id" class="item">
-				<LnxIcon class="type" :icon="obligationTypes[obligation.type]?.icon ?? 'lucide:calendar-check'" :size="20" />
+				<LnxIcon class="type" :icon="obligationTypes[obligation.type]?.icon ?? 'lucide:calendar-check'" :size="20" :title="obligationTypes[obligation.type]?.label" />
 				<div class="what">
 					<strong>
 						{{ obligation.title }}
@@ -344,10 +360,10 @@ function downloadIcs(obligation: Obligation) {
 					<LnxButton mode="clear" size="small" shape="circle" aria-label="Añadir al calendario" title="Añadir al calendario" @click="downloadIcs(obligation)">
 						<LnxIcon icon="lucide:calendar-plus" />
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" @click="edit(obligation)">
+					<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="edit(obligation)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" @click="remove(obligation)">
+					<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(obligation)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>
@@ -417,32 +433,6 @@ function downloadIcs(obligation: Obligation) {
 
 	.wide {
 		grid-column: 1 / -1;
-	}
-}
-
-.native {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-1);
-	font-size: var(--lnx-font-size-small);
-
-	:is(select, textarea) {
-		min-height: 40px;
-		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		font: inherit;
-		font-size: var(--lnx-font-size-body);
-
-		&:focus-visible {
-			outline: 2px solid var(--color-primary);
-			outline-offset: 1px;
-		}
-	}
-
-	textarea {
-		resize: vertical;
 	}
 }
 

@@ -2,6 +2,7 @@
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain/property.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
@@ -135,16 +136,25 @@ async function remove(expense: Expense) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Presupuesto</h1>
-		<!-- Native: the components' select leaves room for a label above, which a header has no space for -->
-		<select v-model.number="year" class="year" aria-label="Año">
-			<option v-for="option in yearOptions" :key="option.value" :value="option.value">
+		<LnxSelect
+			v-model.convert="year"
+			class="year"
+			aria-label="Año"
+			:options="yearOptions"
+			:convert-fn="option => option.value"
+			search-placeholder-text="Buscar..."
+		>
+			<template #option="{ option }">
 				{{ option.label }}
-			</option>
-		</select>
+			</template>
+			<template #optionInput="{ value }">
+				{{ value }}
+			</template>
+		</LnxSelect>
 	</header>
 
 	<form class="card" @submit.prevent="save()">
@@ -160,7 +170,7 @@ async function remove(expense: Expense) {
 				<LnxInput v-model="item.amount" inputmode="decimal" placeholder="1.250,00">
 					Importe anual (€)
 				</LnxInput>
-				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar partida" @click="items.splice(index, 1)">
+				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar partida" title="Quitar partida" @click="items.splice(index, 1)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
@@ -258,9 +268,9 @@ async function remove(expense: Expense) {
 			<LnxInput v-model="expenseForm.amount" inputmode="decimal" placeholder="120,50" required>
 				Importe (€)
 			</LnxInput>
-			<LnxInput v-model="expenseForm.date" type="date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
+			<DatePicker v-model="expenseForm.date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
 				Fecha
-			</LnxInput>
+			</DatePicker>
 			<LnxSelect
 				v-model.convert="expenseForm.providerId"
 				:options="providerOptions"
@@ -305,7 +315,7 @@ async function remove(expense: Expense) {
 					</small>
 				</div>
 				<strong>{{ formatCents(expense.amount) }}</strong>
-				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" @click="remove(expense)">
+				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
@@ -366,13 +376,14 @@ async function remove(expense: Expense) {
 	}
 
 	.year {
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-9);
-		cursor: pointer;
+		width: 120px;
+
+		/* The selected value sits below a label, and this one has none */
+		:deep(.input-content) {
+			inset: 0;
+			display: flex;
+			align-items: center;
+		}
 	}
 }
 

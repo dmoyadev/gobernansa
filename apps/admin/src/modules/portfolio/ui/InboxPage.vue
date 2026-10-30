@@ -2,7 +2,7 @@
 import type { IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import type { InboxIssue } from '../application/usePortfolio.ts';
 import { issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { ageInDays, loadInbox } from '../application/usePortfolio.ts';
@@ -49,7 +49,10 @@ function zoneOf(issue: InboxIssue) {
 	return issue.location?.type === PROPERTY_ZONE ? PROPERTY_ZONE : '';
 }
 
+const communityOptions = computed(() => [{ value: '', label: 'Todas' }, ...communities.value.map(community => ({ value: community.id, label: community.name }))]);
+const ageOptions = [{ value: '', label: 'Cualquiera' }, ...AGES];
 const zones = computed(() => [...new Set(issues.value.map(zoneOf).filter(value => value && value !== PROPERTY_ZONE))].sort((a, b) => a.localeCompare(b, 'es')));
+const zoneOptions = computed(() => [{ value: '', label: 'Todas' }, { value: PROPERTY_ZONE, label: 'Propiedades' }, ...zones.value.map(name => ({ value: name, label: name }))]);
 
 const filtered = computed(() => {
 	const range = AGES.find(option => option.value === age.value);
@@ -65,7 +68,7 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver">
+		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver" title="Volver">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Bandeja de incidencias</h1>
@@ -86,28 +89,51 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	</fieldset>
 
 	<div class="filters">
-		<label>
+		<LnxSelect
+			v-model.convert="communityId"
+			:options="communityOptions"
+			:convert-fn="option => option.value"
+			search-placeholder-text="Buscar..."
+			placeholder="Todas"
+		>
 			Comunidad
-			<select v-model="communityId">
-				<option value="">Todas</option>
-				<option v-for="community in communities" :key="community.id" :value="community.id">{{ community.name }}</option>
-			</select>
-		</label>
-		<label>
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ communityOptions.find(option => option.value === value)?.label }}
+			</template>
+		</LnxSelect>
+		<LnxSelect
+			v-model.convert="age"
+			:options="ageOptions"
+			:convert-fn="option => option.value"
+			search-placeholder-text="Buscar..."
+			placeholder="Cualquiera"
+		>
 			Antigüedad
-			<select v-model="age">
-				<option value="">Cualquiera</option>
-				<option v-for="option in AGES" :key="option.value" :value="option.value">{{ option.label }}</option>
-			</select>
-		</label>
-		<label>
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ ageOptions.find(option => option.value === value)?.label }}
+			</template>
+		</LnxSelect>
+		<LnxSelect
+			v-model.convert="zone"
+			:options="zoneOptions"
+			:convert-fn="option => option.value"
+			search-placeholder-text="Buscar..."
+			placeholder="Todas"
+		>
 			Zona
-			<select v-model="zone">
-				<option value="">Todas</option>
-				<option :value="PROPERTY_ZONE">Propiedades</option>
-				<option v-for="name in zones" :key="name" :value="name">{{ name }}</option>
-			</select>
-		</label>
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ zoneOptions.find(option => option.value === value)?.label }}
+			</template>
+		</LnxSelect>
 	</div>
 
 	<section class="card">
@@ -209,20 +235,12 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	flex-wrap: wrap;
 	gap: var(--lnx-spacing-3);
 
-	label {
-		display: flex;
-		flex-direction: column;
-		gap: var(--lnx-spacing-1);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
+	> * {
+		width: 220px;
 	}
 
-	select {
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-2);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
+	/* With no filter the placeholder («Todas») is a real choice, not an empty field */
+	:deep(.select:not(:has(.input-content)) label input::placeholder) {
 		color: var(--color-gray-9);
 	}
 }

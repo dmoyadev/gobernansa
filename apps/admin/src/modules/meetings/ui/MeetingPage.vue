@@ -3,6 +3,9 @@ import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, MeetingVote
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { attendanceStatus, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
 import { totalCoefficient } from '@gobernansa/shared/domain/property.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -183,7 +186,7 @@ function print() {
 
 <template>
 	<header class="page-header screen-only">
-		<LnxButton :to="`/communities/${id}/meetings`" mode="clear" shape="circle" aria-label="Volver a juntas">
+		<LnxButton :to="`/communities/${id}/meetings`" mode="clear" shape="circle" aria-label="Volver a juntas" title="Volver a juntas">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>{{ isNew ? 'Nueva junta' : meeting?.title || 'Junta' }}</h1>
@@ -225,9 +228,9 @@ function print() {
 						{{ meetingTypes[value as Meeting['type']] }}
 					</template>
 				</LnxSelect>
-				<LnxInput v-model="form.date" type="date" required>
+				<DatePicker v-model="form.date" required>
 					Fecha
-				</LnxInput>
+				</DatePicker>
 				<LnxInput v-model="form.time" type="time" required>
 					Hora
 				</LnxInput>
@@ -246,23 +249,21 @@ function print() {
 						<LnxInput v-model="item.title" class="wide" required>
 							{{ index + 1 }}. Punto
 						</LnxInput>
-						<label class="textarea wide">
+						<LnxTextarea v-model="item.description" rows="2" class="wide">
 							Descripción
-							<textarea v-model="item.description" rows="2" />
-						</label>
+						</LnxTextarea>
 					</div>
 					<div class="item-actions">
-						<label class="check">
-							<input v-model="item.votable" type="checkbox">
+						<LnxCheckbox v-model="item.votable" class="check">
 							Se vota
-						</label>
-						<LnxButton type="button" mode="clear" size="small" shape="circle" aria-label="Subir" :disabled="index === 0" @click="moveItem(index, -1)">
+						</LnxCheckbox>
+						<LnxButton type="button" mode="clear" size="small" shape="circle" aria-label="Subir" title="Subir" :disabled="index === 0" @click="moveItem(index, -1)">
 							<LnxIcon icon="lucide:arrow-up" />
 						</LnxButton>
-						<LnxButton type="button" mode="clear" size="small" shape="circle" aria-label="Bajar" :disabled="index === form.agenda.length - 1" @click="moveItem(index, 1)">
+						<LnxButton type="button" mode="clear" size="small" shape="circle" aria-label="Bajar" title="Bajar" :disabled="index === form.agenda.length - 1" @click="moveItem(index, 1)">
 							<LnxIcon icon="lucide:arrow-down" />
 						</LnxButton>
-						<LnxButton type="button" mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar punto" @click="form.agenda.splice(index, 1)">
+						<LnxButton type="button" mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar punto" title="Quitar punto" @click="form.agenda.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 						</LnxButton>
 					</div>
@@ -343,7 +344,7 @@ function print() {
 								· {{ formatPercent(coefficientByOwner[entry.uid] ?? 0) }}
 							</small>
 						</div>
-						<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar" :disabled="busy" @click="run(async () => removeAttendance(meeting!, entry), 'No se ha podido quitar')">
+						<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" :disabled="busy" @click="run(async () => removeAttendance(meeting!, entry), 'No se ha podido quitar')">
 							<LnxIcon icon="lucide:x" />
 						</LnxButton>
 					</li>
@@ -428,6 +429,7 @@ function print() {
 									shape="circle"
 									variant="danger"
 									aria-label="Anular voto"
+									title="Anular voto"
 									:disabled="busy"
 									@click="run(async () => removeBallot(meeting!, item, ballotOf(item, property)!), 'No se ha podido anular')"
 								>
@@ -554,22 +556,6 @@ function print() {
 	}
 }
 
-.textarea {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-1);
-	font-size: var(--lnx-font-size-small);
-
-	textarea {
-		padding: var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		font: inherit;
-		font-size: var(--lnx-font-size-body);
-		resize: vertical;
-	}
-}
-
 .agenda {
 	display: flex;
 	flex-direction: column;
@@ -587,10 +573,6 @@ function print() {
 
 .check {
 	margin-right: auto;
-	display: inline-flex;
-	align-items: center;
-	gap: var(--lnx-spacing-1);
-	font-size: var(--lnx-font-size-small);
 }
 
 .form-actions,
