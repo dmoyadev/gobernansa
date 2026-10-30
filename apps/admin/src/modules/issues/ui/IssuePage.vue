@@ -8,8 +8,13 @@ import { roles } from '@gobernansa/shared/domain/user.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { setBlocked } from '@/modules/people/application/useModeration.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
@@ -21,7 +26,7 @@ const props = defineProps<{ id: string; issueId: string }>();
 
 const router = useRouter();
 const { user: me } = useAuth();
-const { issue, adminData, comments, loading, error, changeStatus, assign, saveClaim, reply, setHidden, remove } = useIssue(props.id, props.issueId);
+const { issue, adminData, comments, loading, error, changeStatus, revertStatus, assign, saveClaim, reply, setHidden, remove, restore } = useIssue(props.id, props.issueId);
 // To name who reported it, issues only keep their id
 const { people } = usePeople(props.id);
 const { providers } = useProviders(props.id);
@@ -42,27 +47,30 @@ function formatDate(date: Date, timeStyle?: 'short') {
 	return date.toLocaleString('es', { dateStyle: 'medium', timeStyle });
 }
 
-const busy = ref(false);
-// Shown in the card where it failed, so it's seen next to what was done
-const actionError = ref<{ section: 'status' | 'assignment' | 'claim' | 'comments'; message: string }>();
+// Photos and videos fade in from a blur once loaded, also those the browser already had
+const loadedAssets = reactive(new Set<string>());
 
-async function run(action: () => Promise<void>, failure: string, section: NonNullable<typeof actionError.value>['section']) {
-	busy.value = true;
-	actionError.value = undefined;
-	try {
-		await action();
-	} catch (e) {
-		actionError.value = { section, message: `${failure}: ${(e as Error).message}` };
-	} finally {
-		busy.value = false;
+function checkLoaded(asset: string, element: unknown) {
+	if ((element instanceof HTMLImageElement && element.complete) || (element instanceof HTMLVideoElement && element.readyState >= 2)) {
+		loadedAssets.add(asset);
 	}
 }
 
-async function setStatus(status: IssueStatus) {
-	if (status !== issue.value?.status) {
-		await run(async () => changeStatus(me.value!, status), 'No se ha podido cambiar el estado', 'status');
+function setStatus(status: IssueStatus) {
+	if (!issue.value || status === issue.value.status) {
+		return;
 	}
+	const previous = { status: issue.value.status, resolvedAt: issue.value.resolvedAt };
+	const commentId = newId();
+	void optimistic(changeStatus(me.value!, status, commentId), {
+		done: `Estado: ${statusLabels[status]}`,
+		failed: 'No se ha podido cambiar el estado',
+		revert: async () => revertStatus(me.value!, previous, commentId),
+	});
 }
+
+// Shown as a card once someone is assigned, the form only to change it
+const editingAssignment = ref(false);
 
 // Filled with what's saved each time it changes, also after saving
 const assignment = ref({ providerId: '', expectedAt: '', note: '' });
@@ -73,7 +81,12 @@ function resetAssignment() {
 		note: adminData.value?.note ?? '',
 	};
 }
-watch(() => [issue.value?.provider?.id, issue.value?.expectedAt?.toMillis(), adminData.value?.note], resetAssignment, { immediate: true });
+// Not while it's being edited, so what's typed stays when a save fails and goes back
+watch(() => [issue.value?.provider?.id, issue.value?.expectedAt?.toMillis(), adminData.value?.note], () => {
+	if (!editingAssignment.value) {
+		resetAssignment();
+	}
+}, { immediate: true });
 
 const providerOptions = computed(() => [{ value: '', label: 'Sin asignar' }, ...providers.value.map(provider => ({ value: provider.id, label: provider.name }))]);
 const selectedProvider = computed(() => providers.value.find(provider => provider.id === assignment.value.providerId));
@@ -90,17 +103,20 @@ const providerMail = computed(() => {
 	return `mailto:${email}?subject=${encodeURIComponent(`Incidencia: ${issue.value.title}`)}&body=${encodeURIComponent(body)}`;
 });
 
-// Shown as a card once someone is assigned, the form only to change it
-const editingAssignment = ref(false);
-
-async function saveAssignment() {
-	const { providerId, expectedAt, note } = assignment.value;
+function saveAssignment() {
+	const values = { ...assignment.value };
+	const { providerId, expectedAt, note } = values;
 	// A provider removed from the directory stays assigned until it's changed
 	const provider = selectedProvider.value ?? (providerId === issue.value?.provider?.id ? issue.value.provider : undefined);
-	await run(async () => {
-		await assign(me.value!, provider, expectedAt ? new Date(`${expectedAt}T00:00`) : undefined, note.trim());
-		editingAssignment.value = false;
-	}, 'No se ha podido guardar la asignación', 'assignment');
+	editingAssignment.value = false;
+	void optimistic(assign(me.value!, provider, expectedAt ? new Date(`${expectedAt}T00:00`) : undefined, note.trim()), {
+		done: provider ? 'Asignada' : 'Proveedor quitado',
+		failed: 'No se ha podido guardar la asignación',
+		onError: () => {
+			editingAssignment.value = true;
+			assignment.value = values;
+		},
+	});
 }
 
 const assignedProvider = computed(() => providers.value.find(provider => provider.id === issue.value?.provider?.id));
@@ -149,16 +165,26 @@ async function openClaimForm() {
 	}
 }
 
-async function submitClaim() {
-	const form = claimForm.value!;
-	await run(async () => {
-		await saveClaim(me.value!, { insurer: form.insurer.trim(), number: form.number.trim(), status: form.status, note: form.note.trim() });
-		claimForm.value = undefined;
-	}, 'No se ha podido guardar el parte', 'claim');
+function submitClaim() {
+	const form = claimForm.value;
+	if (!form) {
+		return;
+	}
+	claimForm.value = undefined;
+	void optimistic(saveClaim(me.value!, { insurer: form.insurer.trim(), number: form.number.trim(), status: form.status, note: form.note.trim() }), {
+		done: 'Parte guardado',
+		failed: 'No se ha podido guardar el parte',
+		onError: () => claimForm.value = form,
+	});
 }
 
-async function toggleHidden(comment: IssueComment) {
-	await run(async () => setHidden(me.value!.id, comment, !comment.hiddenAt), 'No se ha podido cambiar el comentario', 'comments');
+function toggleHidden(comment: IssueComment) {
+	const hidden = !comment.hiddenAt;
+	void optimistic(setHidden(me.value!.id, comment, hidden), {
+		done: hidden ? 'Comentario oculto' : 'Comentario visible',
+		failed: 'No se ha podido cambiar el comentario',
+		revert: async () => setHidden(me.value!.id, comment, !hidden),
+	});
 }
 
 // Neighbours only, the administration's answers carry their role
@@ -173,35 +199,68 @@ async function toggleBlocked(comment: IssueComment) {
 	}
 	// eslint-disable-next-line no-alert
 	if (author.blocked || window.confirm(`¿Bloquear a ${author.name}? No podrá crear incidencias ni comentar.`)) {
-		await run(async () => setBlocked(author.id, props.id, !author.blocked, author.name), 'No se ha podido cambiar el bloqueo', 'comments');
+		const blocked = !author.blocked;
+		void optimistic(setBlocked(author.id, props.id, blocked, author.name), {
+			done: blocked ? 'Vecino bloqueado' : 'Vecino desbloqueado',
+			failed: 'No se ha podido cambiar el bloqueo',
+			revert: async () => setBlocked(author.id, props.id, !blocked, author.name),
+		});
 	}
 }
 
 const message = ref('');
 
-async function sendReply() {
-	await run(async () => {
-		await reply(me.value!, message.value.trim());
-		message.value = '';
-	}, 'No se ha podido enviar', 'comments');
+// No undo: neighbours may have been told already. If it fails, what was written comes back
+function sendReply() {
+	const text = message.value.trim();
+	if (!text) {
+		return;
+	}
+	message.value = '';
+	void optimistic(reply(me.value!, text), {
+		failed: 'No se ha podido enviar',
+		onError: () => message.value ||= text,
+	});
 }
 
-async function deleteIssue() {
+function deleteIssue() {
 	// eslint-disable-next-line no-alert
 	if (window.confirm('¿Borrar esta incidencia? Dejará de verse en la app.')) {
-		await run(async () => {
-			await remove(me.value!.id);
-			await router.push(`/communities/${props.id}/issues`);
-		}, 'No se ha podido borrar', 'status');
+		const uid = me.value!.id;
+		void optimistic(remove(uid), {
+			done: 'Incidencia borrada',
+			failed: 'No se ha podido borrar',
+			revert: async () => restore(uid),
+		});
+		void router.push(`/communities/${props.id}/issues`);
 	}
 }
+
+// Sends the form being written in, or else the reply
+useShortcut('mod+enter', () => {
+	const form = document.activeElement?.closest('form');
+	if (form) {
+		form.requestSubmit();
+	} else {
+		sendReply();
+	}
+}, 'Enviar el formulario o la respuesta');
+useEventListener(window, 'keydown', (event) => {
+	if (event.key !== 'Escape' || event.defaultPrevented) {
+		return;
+	}
+	if (claimForm.value) {
+		claimForm.value = undefined;
+	} else if (editingAssignment.value) {
+		resetAssignment();
+		editingAssignment.value = false;
+	}
+});
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/issues`" mode="clear" shape="circle" aria-label="Volver a incidencias" title="Volver a incidencias">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}/issues`" label="Volver a incidencias" />
 		<span>Incidencias</span>
 	</header>
 
@@ -211,11 +270,38 @@ async function deleteIssue() {
 	<p v-else-if="!loading && (!issue || issue.deletedAt)" class="hint">
 		Esta incidencia no existe o se ha borrado.
 	</p>
-	<span v-else-if="loading" class="skeleton-item skeleton-item--title" />
+	<div v-else-if="loading" aria-busy="true">
+		<section class="hero" aria-hidden="true">
+			<span class="skeleton-item skeleton-item--big-square tile" />
+			<div class="heading skeleton-stack">
+				<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+				<span class="skeleton-item skeleton-item--title" style="width: 58%" />
+				<span class="skeleton-item skeleton-item--small" style="width: 72%" />
+			</div>
+		</section>
+		<div class="facts" aria-hidden="true">
+			<div v-for="width in [70, 55, 62]" :key="width" class="skeleton-stack">
+				<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+				<span class="skeleton-item" :style="{ width: `${width}%` }" />
+			</div>
+		</div>
+		<div class="layout" aria-hidden="true">
+			<section class="card">
+				<span class="skeleton-item skeleton-item--small" style="width: 30%" />
+				<span class="skeleton-item" style="width: 92%" />
+				<span class="skeleton-item" style="width: 78%" />
+				<span class="skeleton-item" style="width: 45%" />
+			</section>
+			<section class="card">
+				<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+				<span class="skeleton-item skeleton-item--big-square" />
+			</section>
+		</div>
+	</div>
 
 	<template v-else-if="issue">
 		<section
-			class="hero"
+			class="hero ux-appear"
 			:style="{
 				'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
 				'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
@@ -227,10 +313,12 @@ async function deleteIssue() {
 			</span>
 			<div class="heading">
 				<span class="category">{{ category?.label ?? 'Sin categoría' }}</span>
-				<h1>{{ issue.title || 'Incidencia' }}</h1>
+				<h1 :style="{ viewTransitionName: `issue-${issue.id}` }">
+					{{ issue.title || 'Incidencia' }}
+				</h1>
 				<p class="tags">
 					<span class="badge">{{ statusLabels[issue.status] }}</span>
-					<span v-if="issue.createdAt">
+					<span v-if="issue.createdAt" class="tabular">
 						<LnxIcon icon="lucide:calendar" :size="14" />
 						Abierta el {{ formatDate(issue.createdAt.toDate()) }}
 						<template v-if="age && age.days > 0"> (hace {{ age.days }} {{ age.days === 1 ? 'día' : 'días' }})</template>
@@ -297,7 +385,7 @@ async function deleteIssue() {
 		</dl>
 
 		<section class="status-card">
-			<fieldset class="statuses" :disabled="busy">
+			<fieldset class="statuses">
 				<legend class="sr-only">
 					Estado
 				</legend>
@@ -309,9 +397,6 @@ async function deleteIssue() {
 					</span>
 				</label>
 			</fieldset>
-			<p v-if="actionError?.section === 'status'" class="error" role="alert">
-				{{ actionError.message }}
-			</p>
 		</section>
 		<div class="layout">
 			<div class="main">
@@ -322,9 +407,23 @@ async function deleteIssue() {
 					</p>
 					<ul v-if="issue.assets?.length" class="assets">
 						<li v-for="asset in issue.assets" :key="asset">
-							<a :href="asset" target="_blank" rel="noopener">
-								<video v-if="VIDEO_REGEX.test(asset)" :src="asset" muted preload="metadata" />
-								<img v-else :src="asset" alt="Foto de la incidencia" loading="lazy">
+							<a :href="asset" target="_blank" rel="noopener" class="ux-lift" :class="{ loaded: loadedAssets.has(asset) }">
+								<video
+									v-if="VIDEO_REGEX.test(asset)"
+									:ref="element => checkLoaded(asset, element)"
+									:src="asset"
+									muted
+									preload="metadata"
+									@loadeddata="loadedAssets.add(asset)"
+								/>
+								<img
+									v-else
+									:ref="element => checkLoaded(asset, element)"
+									:src="asset"
+									alt="Foto de la incidencia"
+									loading="lazy"
+									@load="loadedAssets.add(asset)"
+								>
 							</a>
 						</li>
 					</ul>
@@ -332,7 +431,7 @@ async function deleteIssue() {
 
 				<section class="card">
 					<h2>Historial y mensajes</h2>
-					<ol v-if="comments.length" class="history">
+					<TransitionGroup v-if="comments.length" tag="ol" name="comment" class="history">
 						<li
 							v-for="comment in comments"
 							:key="comment.id"
@@ -359,30 +458,28 @@ async function deleteIssue() {
 									{{ comment.message }}
 								</p>
 								<div class="moderation">
-									<LnxButton mode="clear" size="small" :disabled="busy" @click="toggleHidden(comment)">
+									<LnxButton mode="clear" size="small" @click="toggleHidden(comment)">
 										<LnxIcon :icon="comment.hiddenAt ? 'lucide:eye' : 'lucide:eye-off'" />
 										{{ comment.hiddenAt ? 'Mostrar' : 'Ocultar' }}
 									</LnxButton>
-									<LnxButton v-if="authorOf(comment)" mode="clear" size="small" :disabled="busy" @click="toggleBlocked(comment)">
+									<LnxButton v-if="authorOf(comment)" mode="clear" size="small" @click="toggleBlocked(comment)">
 										<LnxIcon :icon="authorOf(comment)?.blocked ? 'lucide:user-check' : 'lucide:user-x'" />
 										{{ authorOf(comment)?.blocked ? 'Desbloquear vecino' : 'Bloquear vecino' }}
 									</LnxButton>
 								</div>
 							</template>
 						</li>
-					</ol>
+					</TransitionGroup>
 					<p v-else class="hint">
 						Aún no hay comentarios.
 					</p>
 
-					<p v-if="actionError?.section === 'comments'" class="error" role="alert">
-						{{ actionError.message }}
-					</p>
 					<form class="reply" @submit.prevent="sendReply()">
 						<LnxTextarea v-model="message" rows="3" placeholder="Responder a los vecinos…" aria-label="Responder" required />
-						<LnxButton type="submit" :is-loading="busy" :disabled="!message.trim()">
+						<LnxButton type="submit" :disabled="!message.trim()">
 							<LnxIcon icon="lucide:send" />
 							Responder
+							<Kbd combo="mod+enter" />
 						</LnxButton>
 					</form>
 				</section>
@@ -470,16 +567,14 @@ async function deleteIssue() {
 						<LnxTextarea v-model="assignment.note" rows="3" placeholder="Llaves, presupuesto aprobado, contacto…">
 							Nota interna (los vecinos no la ven)
 						</LnxTextarea>
-						<p v-if="actionError?.section === 'assignment'" class="error" role="alert">
-							{{ actionError.message }}
-						</p>
 						<footer class="form-actions">
 							<LnxButton v-if="issue.provider" mode="clear" @click="resetAssignment(); editingAssignment = false">
 								Cancelar
 							</LnxButton>
-							<LnxButton type="submit" :is-loading="busy">
+							<LnxButton type="submit">
 								<LnxIcon icon="lucide:check" />
 								{{ issue.provider ? 'Guardar' : 'Asignar' }}
+								<Kbd combo="mod+enter" />
 							</LnxButton>
 						</footer>
 					</form>
@@ -549,7 +644,7 @@ async function deleteIssue() {
 						</LnxButton>
 					</div>
 
-					<form v-if="claimForm" class="claim" @submit.prevent="submitClaim()">
+					<form v-if="claimForm" class="claim ux-appear" @submit.prevent="submitClaim()">
 						<LnxInput v-model="claimForm.insurer" required>
 							Aseguradora
 						</LnxInput>
@@ -566,22 +661,20 @@ async function deleteIssue() {
 						<LnxTextarea v-model="claimForm.note" rows="2" placeholder="Visita del perito el martes, piden presupuesto…">
 							Qué ha pasado
 						</LnxTextarea>
-						<p v-if="actionError?.section === 'claim'" class="error" role="alert">
-							{{ actionError.message }}
-						</p>
 						<footer class="form-actions">
 							<LnxButton mode="clear" @click="claimForm = undefined">
 								Cancelar
 							</LnxButton>
-							<LnxButton type="submit" :is-loading="busy">
+							<LnxButton type="submit">
 								<LnxIcon icon="lucide:check" />
 								{{ adminData?.claim ? 'Guardar' : 'Abrir parte' }}
+								<Kbd combo="mod+enter" />
 							</LnxButton>
 						</footer>
 					</form>
 				</section>
 
-				<LnxButton mode="clear" variant="danger" :disabled="busy" @click="deleteIssue()">
+				<LnxButton mode="clear" variant="danger" @click="deleteIssue()">
 					<LnxIcon icon="lucide:trash-2" />
 					Borrar incidencia
 				</LnxButton>
@@ -719,6 +812,7 @@ async function deleteIssue() {
 		gap: var(--lnx-spacing-1);
 		font-size: var(--lnx-font-size-small);
 		font-weight: var(--lnx-font-weight-bold);
+		font-variant-numeric: tabular-nums;
 
 		&.missing {
 			color: #dc2626;
@@ -771,6 +865,12 @@ async function deleteIssue() {
 	}
 }
 
+.skeleton-stack {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-2);
+}
+
 .description {
 	font-size: 1.05rem;
 	line-height: 1.5;
@@ -782,12 +882,50 @@ async function deleteIssue() {
 	flex-wrap: wrap;
 	gap: var(--lnx-spacing-2);
 
+	// A soft shimmer until the photo arrives, then it sharpens out of a blur
+	a {
+		display: block;
+		overflow: hidden;
+		border-radius: var(--lnx-radius-2);
+		background: linear-gradient(100deg, var(--color-gray-1) 30%, var(--color-gray-2) 50%, var(--color-gray-1) 70%) 0 0 / 300% 100%;
+		animation: asset-shimmer 1.4s linear infinite;
+
+		&.loaded {
+			animation: none;
+		}
+	}
+
 	:is(img, video) {
 		display: block;
 		width: 120px;
 		height: 90px;
-		border-radius: var(--lnx-radius-2);
 		object-fit: cover;
+		opacity: 0;
+		filter: blur(12px);
+		scale: 1.04;
+		transition: opacity .3s var(--ease-out), filter .5s var(--ease-out), scale .5s var(--ease-out);
+	}
+
+	.loaded :is(img, video) {
+		opacity: 1;
+		filter: none;
+		scale: 1;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		a {
+			animation: none;
+		}
+
+		:is(img, video) {
+			scale: none;
+		}
+	}
+}
+
+@keyframes asset-shimmer {
+	to {
+		background-position: -150% 0;
 	}
 }
 
@@ -818,10 +956,16 @@ async function deleteIssue() {
 		font-weight: var(--lnx-font-weight-bold);
 		white-space: nowrap;
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
 
 		&:hover {
 			border-color: var(--status-color);
+			background: color-mix(in srgb, var(--status-color) 6%, var(--color-gray-0));
 		}
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	i {
@@ -841,11 +985,6 @@ async function deleteIssue() {
 	input:focus-visible + span {
 		outline: 2px solid var(--color-primary);
 		outline-offset: 2px;
-	}
-
-	&:disabled span {
-		cursor: default;
-		opacity: .6;
 	}
 }
 
@@ -875,11 +1014,23 @@ async function deleteIssue() {
 
 	small {
 		color: var(--color-gray-6);
+		font-variant-numeric: tabular-nums;
 	}
 
 	p {
 		white-space: pre-line;
 	}
+}
+
+// Comments coming in, hidden or shown fade into place
+.history li {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out), background-color var(--duration) var(--ease-out);
+}
+
+.comment-enter-from,
+.comment-leave-to {
+	opacity: 0;
+	translate: 0 4px;
 }
 
 .status-change {
@@ -966,6 +1117,7 @@ async function deleteIssue() {
 	strong {
 		font-size: 1.05rem;
 		line-height: 1.2;
+		text-wrap: balance;
 	}
 
 	small {
@@ -1001,6 +1153,7 @@ async function deleteIssue() {
 	background: #e8f6f1;
 	color: #0f7a52;
 	font-size: var(--lnx-font-size-small);
+	font-variant-numeric: tabular-nums;
 
 	&.late {
 		background: #fee2e2;
@@ -1068,6 +1221,10 @@ async function deleteIssue() {
 		&:hover {
 			border-color: var(--color-primary);
 			color: var(--color-primary);
+		}
+
+		&:active {
+			scale: var(--press-scale);
 		}
 	}
 }
@@ -1153,6 +1310,7 @@ async function deleteIssue() {
 	small {
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-legal);
+		font-variant-numeric: tabular-nums;
 	}
 
 	p {
@@ -1202,6 +1360,15 @@ async function deleteIssue() {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-legal);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover input:not(:checked) + span {
+		background: var(--color-gray-1);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {

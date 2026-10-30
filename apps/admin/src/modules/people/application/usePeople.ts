@@ -52,9 +52,9 @@ async function commit(communityId: string | undefined, summary: string, change: 
 }
 
 // Its id is the email in lowercase, as sign-in tokens have it. Fails when that email already has one
-export async function invite({ email, name, role, communityId, communityIds }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds'>) {
+export async function invite({ email, name, role, communityId, communityIds }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds'>, summary?: string) {
 	const id = email.trim().toLowerCase();
-	await commit(communityId, `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}`, batch => batch.set(doc(invitationsRef, id), {
+	await commit(communityId, summary ?? `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}`, batch => batch.set(doc(invitationsRef, id), {
 		email: id,
 		name: name.trim(),
 		role,
@@ -67,6 +67,11 @@ export async function invite({ email, name, role, communityId, communityIds }: P
 
 export async function cancelInvitation(email: string, communityId?: string, name = email) {
 	await commit(communityId, `Canceló la invitación de ${name}`, batch => batch.delete(doc(invitationsRef, email)));
+}
+
+// Undoes cancelInvitation with what the page had of it. The rules only let it be sent again, so it's signed and dated anew
+export async function restoreInvitation(invitation: Invitation) {
+	await invite(invitation, `Restauró la invitación de ${invitation.name}`);
 }
 
 export async function setRole(uid: string, role: Role, communityId?: string, name = '') {

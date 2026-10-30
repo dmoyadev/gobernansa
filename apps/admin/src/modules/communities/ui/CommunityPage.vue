@@ -7,7 +7,12 @@ import { contactTypes, documentTypes, getCommonAreas, isWithinSchedule } from '@
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
+import { computed, nextTick, onActivated, onDeactivated, onMounted, ref, useId, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '../application/useCommunities.ts';
 import CommunityDashboard from './CommunityDashboard.vue';
 import CommunitySearch from './CommunitySearch.vue';
@@ -53,6 +58,9 @@ const tilesByKey = new Map(allTiles.map(tile => [tile.key, tile]));
 // The tiles showing the community's data, skeletons until it's loaded
 const dataKeys = ['info', 'contacts', 'documents', 'locations', 'settings'];
 const sizeLabels: Record<TileSize, string> = { 1: 'pequeña', 2: 'ancha', 4: 'grande' };
+// Placeholder lines while the community loads, as many as the tile shows and as wide as real ones tend to be
+const SKELETON_WIDTHS = [72, 54, 80, 46, 64, 58];
+const skeletonLines = (size: TileSize) => SKELETON_WIDTHS.slice(0, size === 1 ? 1 : size === 2 ? 3 : 6);
 
 const { user } = useAuth();
 const menuId = useId();
@@ -65,15 +73,24 @@ const community = ref<Community>();
 const loading = ref(true);
 const loadError = ref<string>();
 
-onMounted(async () => {
+// Read again each time the page comes back, showing the last one meanwhile. A failed reread keeps it
+async function load() {
 	try {
 		community.value = await loadCommunity(props.id);
+		loadError.value = undefined;
 	} catch (e) {
-		loadError.value = (e as Error).message;
+		if (!community.value) {
+			loadError.value = (e as Error).message;
+		}
 	} finally {
 		loading.value = false;
 	}
-});
+}
+onMounted(load);
+onRevalidate(load);
+
+const router = useRouter();
+useShortcut('e', () => void router.push(`/communities/${props.id}/info`), 'Editar los datos de la comunidad');
 
 // What the tiles show, from the community already loaded: no reads of their own
 const contacts = computed(() => community.value?.contacts ?? []);
@@ -129,21 +146,27 @@ const menuOpen = ref(false);
 const menuPosition = ref<{ top: string; right: string }>();
 
 function closeMenu() {
-	menu.value?.hidePopover();
+	if (menuOpen.value) {
+		menu.value?.hidePopover();
+	}
 }
 
 // A native popover: it closes when clicking outside or with Escape, and gives the focus back to its button.
 // Placed once when it opens, so it closes on scroll or resize instead of drifting away from its button
+useEventListener(document, 'scroll', closeMenu, { capture: true, passive: true });
+useEventListener(window, 'resize', closeMenu);
+// Leaving the page takes the popover out of the document without a toggle event
+onDeactivated(() => {
+	menuOpen.value = false;
+	closeGo();
+});
+
 function onMenuToggle(event: Event) {
 	menuOpen.value = (event as ToggleEvent).newState === 'open';
 	if (!menuOpen.value) {
-		document.removeEventListener('scroll', closeMenu, { capture: true });
-		window.removeEventListener('resize', closeMenu);
+		closeGo();
 		return;
 	}
-
-	document.addEventListener('scroll', closeMenu, { capture: true, passive: true });
-	window.addEventListener('resize', closeMenu);
 
 	const rect = (menuButton.value!.$el as HTMLElement).getBoundingClientRect();
 	menuPosition.value = { top: `${rect.bottom + 4}px`, right: `${window.innerWidth - rect.right}px` };
@@ -156,7 +179,12 @@ function onMenuKeydown(event: KeyboardEvent) {
 		return;
 	}
 
-	const items = [...menu.value!.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+	// Its own items, not the submenu's
+	focusSibling(event, [...menu.value!.querySelectorAll<HTMLElement>(':scope > [role="menuitem"], :scope > .go > [role="menuitem"]')], () => closeGo());
+}
+
+// Arrows, Home and End move the focus between the items of a menu
+function focusSibling(event: KeyboardEvent, items: HTMLElement[], onMove?: () => void) {
 	const index = items.indexOf(document.activeElement as HTMLElement);
 	// With none focused, ArrowUp goes to the last one
 	const next = { ArrowDown: index + 1, ArrowUp: (index < 0 ? 0 : index) - 1, Home: 0, End: items.length - 1 }[event.key];
@@ -165,7 +193,116 @@ function onMenuKeydown(event: KeyboardEvent) {
 	}
 
 	event.preventDefault();
+	onMove?.();
 	items[(next + items.length) % items.length]?.focus();
+}
+
+/* "Ir a…" submenu */
+const goSections = computed(() => [
+	{ key: 'issues', label: 'Incidencias', icon: 'lucide:message-square-warning' },
+	{ key: 'people', label: 'Vecinos y gestores', icon: 'lucide:users' },
+	{ key: 'properties', label: 'Propiedades', icon: 'lucide:house' },
+	{ key: 'meetings', label: 'Juntas', icon: 'lucide:gavel' },
+	{ key: 'charges', label: 'Recibos y morosidad', icon: 'lucide:receipt-text' },
+	{ key: 'budget', label: 'Presupuesto', icon: 'lucide:chart-pie' },
+	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
+	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
+	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },
+	{ key: 'activity', label: 'Registro de actividad', icon: 'lucide:history' },
+	{ key: 'info', label: 'Datos de la comunidad', icon: 'lucide:building-2' },
+].map(section => ({ ...section, to: `/communities/${props.id}/${section.key}` })));
+
+const GO_CLOSE_MS = 300;
+const VIEWPORT_MARGIN = 8;
+const goTrigger = ref<HTMLElement>();
+const submenu = ref<HTMLElement>();
+const goOpen = ref(false);
+// To the left when there's no room on the right, and moved up when it would go past the bottom
+const goPlacement = ref({ left: false, top: 0 });
+// The safe triangle, from the pointer to the submenu's near corners
+const safeArea = ref<Record<string, string>>();
+let closeTimer: ReturnType<typeof setTimeout> | undefined;
+let restTimer: ReturnType<typeof setTimeout> | undefined;
+
+function openGo(focusFirst = false) {
+	clearTimeout(closeTimer);
+	if (!goOpen.value) {
+		const trigger = goTrigger.value!.getBoundingClientRect();
+		const { offsetWidth: width, offsetHeight: height } = submenu.value!;
+		goPlacement.value = {
+			left: trigger.right + width + VIEWPORT_MARGIN > window.innerWidth && trigger.left - width > VIEWPORT_MARGIN,
+			top: Math.min(0, window.innerHeight - VIEWPORT_MARGIN - trigger.top - height),
+		};
+		goOpen.value = true;
+	}
+	if (focusFirst) {
+		submenu.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+	}
+}
+
+function closeGo() {
+	clearTimeout(closeTimer);
+	clearTimeout(restTimer);
+	goOpen.value = false;
+	safeArea.value = undefined;
+}
+
+// Unless the pointer comes back to the trigger or reaches the submenu meanwhile
+function scheduleCloseGo() {
+	clearTimeout(closeTimer);
+	closeTimer = setTimeout(closeGo, GO_CLOSE_MS);
+}
+
+// While the pointer heads from "Ir a…" to the submenu it crosses the items below or above it. A triangle from the
+// pointer to the submenu's near edge covers them, so they're neither hovered nor close it: the Amazon safe triangle.
+// If the pointer rests a moment, the triangle goes and those items can be pointed at again
+function onTriggerPointermove(event: PointerEvent) {
+	if (event.pointerType === 'touch' || !goOpen.value) {
+		return;
+	}
+	clearTimeout(closeTimer);
+	const trigger = goTrigger.value!.getBoundingClientRect();
+	const target = submenu.value!.getBoundingClientRect();
+	const x = event.clientX - trigger.left;
+	const y = event.clientY - trigger.top;
+	const edge = (goPlacement.value.left ? target.right : target.left) - trigger.left;
+	const top = Math.min(y, target.top - trigger.top);
+	const bottom = Math.max(y, target.bottom - trigger.top);
+	const left = Math.min(x, edge);
+	const width = Math.max(1, Math.abs(edge - x));
+	const point = (px: number, py: number) => `${px - left}px ${py - top}px`;
+	safeArea.value = {
+		left: `${left}px`,
+		top: `${top}px`,
+		width: `${width}px`,
+		height: `${bottom - top}px`,
+		clipPath: `polygon(${point(x, y)}, ${point(edge, target.top - trigger.top)}, ${point(edge, target.bottom - trigger.top)})`,
+	};
+	clearTimeout(restTimer);
+	restTimer = setTimeout(() => safeArea.value = undefined, GO_CLOSE_MS);
+}
+
+function onTriggerKeydown(event: KeyboardEvent) {
+	if (['ArrowRight', 'Enter', ' '].includes(event.key)) {
+		event.preventDefault();
+		event.stopPropagation();
+		openGo(true);
+	}
+}
+
+function onSubmenuKeydown(event: KeyboardEvent) {
+	if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+		// Back to its item, without closing the whole menu
+		event.preventDefault();
+		event.stopPropagation();
+		closeGo();
+		goTrigger.value?.focus();
+		return;
+	}
+	if (event.key !== 'Tab') {
+		event.stopPropagation();
+		focusSibling(event, [...submenu.value!.querySelectorAll<HTMLElement>('[role="menuitem"]')]);
+	}
 }
 
 /* Layout */
@@ -201,6 +338,12 @@ watch(layout, (value) => {
 const tiles = computed(() => layout.value.map(({ key, size }) => ({ ...tilesByKey.get(key)!, size })));
 
 const editing = ref(false);
+// Shared by every community, so another kept page may have changed it meanwhile
+onActivated(() => {
+	if (!editing.value) {
+		layout.value = loadLayout();
+	}
+});
 const doneButton = ref<ComponentPublicInstance>();
 
 async function startEditing() {
@@ -217,8 +360,10 @@ async function stopEditing() {
 }
 
 function resetLayout() {
+	const previous = layout.value;
 	layout.value = structuredClone(defaultLayout);
 	announcement.value = 'Vista restablecida';
+	toast('Vista restablecida', { undo: async () => layout.value = previous });
 }
 
 // Escape leaves the edit mode, unless it was for the search or the menu
@@ -227,13 +372,7 @@ function onKeydown(event: KeyboardEvent) {
 		stopEditing();
 	}
 }
-
-onMounted(() => window.addEventListener('keydown', onKeydown));
-onUnmounted(() => {
-	window.removeEventListener('keydown', onKeydown);
-	document.removeEventListener('scroll', closeMenu, { capture: true });
-	window.removeEventListener('resize', closeMenu);
-});
+useEventListener(window, 'keydown', onKeydown);
 
 function move(from: number, to: number) {
 	const [item] = layout.value.splice(from, 1);
@@ -310,17 +449,14 @@ function onDragEnd() {
 function disarm() {
 	armedKey.value = undefined;
 }
-onMounted(() => window.addEventListener('pointerup', disarm));
-onUnmounted(() => window.removeEventListener('pointerup', disarm));
+useEventListener(window, 'pointerup', disarm);
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver a comunidades" title="Volver a comunidades">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
-		<h1>
-			<span v-if="loading" class="skeleton-item skeleton-item--title" />
+		<BackButton to="/" label="Volver a comunidades" />
+		<h1 :style="{ viewTransitionName: `community-${id}` }">
+			<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40%" />
 			<template v-else>
 				{{ community?.name || 'Comunidad' }}
 			</template>
@@ -363,6 +499,41 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 				<LnxIcon icon="lucide:copy" />
 				Duplicar esta comunidad
 			</RouterLink>
+			<div class="go" @pointerenter="openGo()" @pointerleave="scheduleCloseGo()">
+				<button
+					ref="goTrigger"
+					type="button"
+					role="menuitem"
+					tabindex="-1"
+					aria-haspopup="menu"
+					:aria-expanded="goOpen"
+					:aria-controls="`${menuId}-go`"
+					:class="{ open: goOpen }"
+					@click="openGo()"
+					@pointermove="onTriggerPointermove"
+					@keydown="onTriggerKeydown"
+				>
+					<LnxIcon icon="lucide:compass" />
+					Ir a…
+					<LnxIcon class="chevron" icon="lucide:chevron-right" />
+					<span v-if="safeArea" class="safe-area" :style="safeArea" aria-hidden="true" />
+				</button>
+				<div
+					:id="`${menuId}-go`"
+					ref="submenu"
+					class="submenu"
+					:class="{ open: goOpen, left: goPlacement.left }"
+					:style="{ '--offset': `${goPlacement.top}px` }"
+					role="menu"
+					aria-label="Ir a"
+					@keydown="onSubmenuKeydown"
+				>
+					<RouterLink v-for="section in goSections" :key="section.key" role="menuitem" tabindex="-1" :to="section.to" @click="closeMenu()">
+						<LnxIcon :icon="section.icon" />
+						{{ section.label }}
+					</RouterLink>
+				</div>
+			</div>
 			<button v-if="community" type="button" role="menuitem" tabindex="-1" @click="startEditing()">
 				<LnxIcon icon="lucide:layout-dashboard" />
 				Editar vista
@@ -408,7 +579,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 			{{ announcement }}
 		</p>
 
-		<ul class="bento" :class="{ editing }" :aria-busy="loading">
+		<TransitionGroup tag="ul" name="tile" class="bento" :class="{ editing }" :aria-busy="loading">
 			<li
 				v-for="(tile, index) in tiles"
 				:key="tile.key"
@@ -468,20 +639,22 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 						<LnxIcon v-if="!editing" class="arrow" icon="lucide:arrow-up-right" :size="18" aria-hidden="true" />
 					</header>
 
-					<span v-if="loading && dataKeys.includes(tile.key)" class="skeleton-item" />
+					<div v-if="loading && dataKeys.includes(tile.key)" class="body" aria-hidden="true">
+						<span v-for="width in skeletonLines(tile.size)" :key="width" class="skeleton-item skeleton-item--small" :style="{ width: `${width}%` }" />
+					</div>
 
 					<div v-else-if="tile.key === 'contacts'" class="body">
 						<p v-if="!contacts.length" class="empty">
 							Aún no hay contactos
 						</p>
 						<p v-else-if="tile.size === 1">
-							{{ count(contacts.length, 'contacto', 'contactos') }}
+							<span class="tabular">{{ count(contacts.length, 'contacto', 'contactos') }}</span>
 						</p>
 						<ul v-else class="lines">
 							<li v-for="contact in contacts.slice(0, tile.size === 4 ? 6 : 3)" :key="contact.name" :class="{ row: tile.size === 4 }">
 								<span class="text">{{ contact.name }} · {{ contactTypes[contact.type]?.label }}</span>
 								<template v-if="tile.size === 4">
-									<span v-if="contact.phone" class="secondary">{{ contact.phone }}</span>
+									<span v-if="contact.phone" class="secondary tabular">{{ contact.phone }}</span>
 									<span v-if="contact.schedule?.length" class="availability" :class="{ available: isWithinSchedule(contact.schedule) }">
 										{{ isWithinSchedule(contact.schedule) ? 'Disponible ahora' : 'Fuera de horario' }}
 									</span>
@@ -498,12 +671,12 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 							Aún no hay documentos
 						</p>
 						<p v-else-if="tile.size === 1">
-							{{ count(documents.length, 'documento', 'documentos') }}
+							<span class="tabular">{{ count(documents.length, 'documento', 'documentos') }}</span>
 						</p>
 						<ul v-else class="lines">
 							<li v-for="document in documents.slice(0, tile.size === 4 ? 6 : 3)" :key="document.url" :class="{ row: tile.size === 4 }">
 								<span class="text">{{ document.title }}</span>
-								<span v-if="tile.size === 4" class="secondary">{{ documentTypes[document.type]?.label }} · {{ formatDate(document.date) }}</span>
+								<span v-if="tile.size === 4" class="secondary tabular">{{ documentTypes[document.type]?.label }} · {{ formatDate(document.date) }}</span>
 							</li>
 							<li v-if="documents.length > (tile.size === 4 ? 6 : 3)" class="more">
 								y {{ documents.length - (tile.size === 4 ? 6 : 3) }} más
@@ -516,7 +689,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 							Aún no hay zonas comunes
 						</p>
 						<p v-else-if="tile.size === 1">
-							{{ count(commonAreas.length, 'zona común', 'zonas comunes') }}
+							<span class="tabular">{{ count(commonAreas.length, 'zona común', 'zonas comunes') }}</span>
 						</p>
 						<template v-else>
 							<ul class="chips">
@@ -533,7 +706,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 								<ul v-if="bookableAreas.length" class="lines">
 									<li v-for="area in bookableAreas" :key="area.id" class="row">
 										<span class="text">{{ area.name }}</span>
-										<span class="secondary">{{ area.booking!.opens }}–{{ area.booking!.closes }}</span>
+										<span class="secondary tabular">{{ area.booking!.opens }}–{{ area.booking!.closes }}</span>
 									</li>
 								</ul>
 								<p v-else class="empty">
@@ -544,7 +717,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 					</div>
 
 					<div v-else-if="tile.key === 'settings' && tile.size > 1" class="body">
-						<p class="lead">
+						<p class="lead tabular">
 							{{ community?.monthlyVotes ?? DEFAULT_MONTHLY_VOTES }} votos al mes por vecino
 						</p>
 						<p class="secondary">
@@ -589,7 +762,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 					</LnxButton>
 				</div>
 			</li>
-		</ul>
+		</TransitionGroup>
 	</template>
 </template>
 
@@ -617,14 +790,34 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 	margin: 0;
 	min-width: 220px;
 	padding: var(--lnx-spacing-1);
+	// The submenu sticks out of it
+	overflow: visible;
 	border: 1px solid var(--color-gray-3);
 	border-radius: var(--lnx-radius-3);
 	background: var(--color-gray-0);
 	box-shadow: 0 2px 4px #0000000F, 0 8px 24px #0000001A;
+	opacity: 0;
+	scale: .96;
+	transform-origin: top right;
+	// Transitions, so closing while it opens turns back from where it is
+	transition:
+		opacity var(--duration) var(--ease-out),
+		scale var(--duration) var(--ease-out),
+		overlay var(--duration) allow-discrete,
+		display var(--duration) allow-discrete;
+
+	// The layout stays while it fades out, only display goes
+	flex-direction: column;
 
 	&:popover-open {
 		display: flex;
-		flex-direction: column;
+		opacity: 1;
+		scale: 1;
+
+		@starting-style {
+			opacity: 0;
+			scale: .96;
+		}
 	}
 
 	[role='menuitem'] {
@@ -639,10 +832,77 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 		cursor: pointer;
 
 		&:hover,
-		&:focus-visible {
+		&:focus-visible,
+		&.open {
 			outline: none;
 			background: var(--color-gray-2);
 		}
+
+		&:active {
+			scale: var(--press-scale);
+		}
+	}
+
+	.chevron {
+		margin-left: auto;
+		color: var(--color-gray-6);
+		transition: translate var(--duration) var(--ease-spring);
+	}
+
+	.open .chevron {
+		translate: 2px 0;
+	}
+}
+
+.go {
+	position: relative;
+
+	> [role='menuitem'] {
+		position: relative;
+		width: 100%;
+	}
+}
+
+// Over the items it crosses, invisible, so they aren't hovered on the way to the submenu
+.safe-area {
+	position: absolute;
+	z-index: 3;
+}
+
+// Beside its item, on the right or on the left when there's no room
+.submenu {
+	position: absolute;
+	top: calc(var(--offset, 0px) - var(--lnx-spacing-1) - 1px);
+	left: calc(100% + var(--lnx-spacing-1) + 1px);
+	z-index: 4;
+	min-width: 220px;
+	padding: var(--lnx-spacing-1);
+	border: 1px solid var(--color-gray-3);
+	border-radius: var(--lnx-radius-3);
+	display: flex;
+	flex-direction: column;
+	background: var(--color-gray-0);
+	box-shadow: 0 2px 4px #0000000F, 0 8px 24px #0000001A;
+	visibility: hidden;
+	opacity: 0;
+	translate: -4px 0;
+	pointer-events: none;
+	transition:
+		opacity var(--duration) var(--ease-out),
+		translate var(--duration) var(--ease-out),
+		visibility var(--duration);
+
+	&.left {
+		left: auto;
+		right: calc(100% + var(--lnx-spacing-1) + 1px);
+		translate: 4px 0;
+	}
+
+	&.open {
+		visibility: visible;
+		opacity: 1;
+		translate: 0;
+		pointer-events: auto;
 	}
 }
 
@@ -732,6 +992,7 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 // Like the apps of a phone being arranged, each tile a bit out of step with the next
 .editing > li {
 	--wiggle: 1deg;
+	// rotate and not transform, which the reordering slides with
 	animation: wiggle .28s ease-in-out infinite alternate;
 	animation-delay: calc(var(--index) * -.09s);
 
@@ -755,12 +1016,17 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 
 @keyframes wiggle {
 	from {
-		transform: rotate(calc(var(--wiggle) * -1));
+		rotate: calc(var(--wiggle) * -1);
 	}
 
 	to {
-		transform: rotate(var(--wiggle));
+		rotate: var(--wiggle);
 	}
+}
+
+// Moving, resizing or resetting the tiles slides them into their new place
+.tile-move {
+	transition: transform .3s var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -769,6 +1035,15 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 		outline: 2px dashed var(--color-gray-5);
 		outline-offset: 2px;
 		animation: none;
+	}
+
+	// Only fading, without sliding or scaling
+	.menu,
+	.submenu,
+	.tile-move {
+		translate: none !important;
+		scale: none !important;
+		transition-property: opacity, visibility, overlay, display;
 	}
 }
 
@@ -804,15 +1079,22 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 	flex-direction: column;
 	gap: var(--lnx-spacing-2);
 	color: var(--color-gray-7);
-	transition: border-color .15s, box-shadow .15s;
+	transition: border-color var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out), translate var(--duration) var(--ease-spring), scale var(--duration-fast) var(--ease-out);
 
 	&:not(:has(.card-actions)):has(.stretched:hover) {
 		border-color: var(--color-primary-light);
 		box-shadow: 0 2px 4px #0000000F, 0 8px 24px #0000000F;
+		translate: 0 -2px;
 
 		.arrow {
 			color: inherit;
+			translate: 2px -2px;
 		}
+	}
+
+	&:not(:has(.card-actions)):has(.stretched:active) {
+		translate: 0;
+		scale: .99;
 	}
 
 	header {
@@ -837,12 +1119,13 @@ onUnmounted(() => window.removeEventListener('pointerup', disarm));
 		flex-shrink: 0;
 		align-self: flex-start;
 		color: var(--color-gray-5);
-		transition: color .15s;
+		transition: color var(--duration) var(--ease-out), translate var(--duration) var(--ease-spring);
 	}
 
 	h2 {
 		flex: 1;
 		min-width: 0;
+		text-wrap: balance;
 		display: -webkit-box;
 		overflow: hidden;
 		-webkit-box-orient: vertical;

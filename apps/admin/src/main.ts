@@ -5,6 +5,7 @@ import { createApp } from 'vue';
 /* App core dependencies */
 import App from './app/App.vue';
 import router from './app/router.ts';
+import { installPrefetch, installViewTransitions } from './app/ux/navigation.ts';
 
 /* Firebase */
 import { VueFire, VueFireAuth } from 'vuefire';
@@ -21,9 +22,12 @@ import '@gobernansa/shared/theme/typography.scss';
 /* Components Library */
 import 'lnxjs-components/dist/base.css';
 import '@gobernansa/shared/theme/custom-theme.scss';
+import './app/ux/interactions.scss';
 
 const app = createApp(App as Component);
 app.use(router);
+installViewTransitions(router);
+installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers']);
 
 app.use(VueFire, {
 	firebaseApp,

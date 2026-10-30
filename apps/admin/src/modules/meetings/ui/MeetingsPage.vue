@@ -2,6 +2,10 @@
 import { meetingStatus, meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { useMeetings } from '../application/useMeetings.ts';
 
 const props = defineProps<{ id: string }>();
@@ -11,33 +15,44 @@ const { data: meetings, pending, error } = useMeetings(props.id);
 const sortedMeetings = computed(() => [...meetings.value].sort((a, b) => (b.date?.toMillis() ?? 0) - (a.date?.toMillis() ?? 0)));
 
 const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+
+const router = useRouter();
+useShortcut('n', () => router.push(`/communities/${props.id}/meetings/new`), 'Nueva junta');
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Juntas</h1>
 		<LnxButton :to="`/communities/${id}/meetings/new`">
 			<LnxIcon icon="lucide:plus" />
 			Nueva junta
+			<Kbd combo="n" />
 		</LnxButton>
 	</header>
 
-	<section class="card">
+	<section class="card" :aria-busy="pending && !meetings.length">
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
 
-		<span v-if="pending" class="skeleton-item" />
-		<ul v-else-if="sortedMeetings.length" class="list">
+		<ul v-if="pending && !meetings.length" class="list">
+			<li v-for="width in ['55%', '40%', '65%', '45%']" :key="width" class="item">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width }" />
+					<span class="skeleton-item skeleton-item--small" style="width: 35%" />
+				</div>
+				<span class="skeleton-item skeleton-item--small" style="width: 80px" />
+			</li>
+		</ul>
+		<ul v-else-if="sortedMeetings.length" class="list ux-appear">
 			<li v-for="meeting in sortedMeetings" :key="meeting.id">
-				<RouterLink :to="`/communities/${id}/meetings/${meeting.id}`" class="item">
+				<RouterLink :to="`/communities/${id}/meetings/${meeting.id}`" class="item ux-row">
 					<LnxIcon class="icon" icon="lucide:gavel" :size="20" />
 					<div class="what">
-						<strong>{{ meeting.title }}</strong>
-						<small>
+						<strong :style="{ viewTransitionName: `meeting-${meeting.id}` }">{{ meeting.title }}</strong>
+						<small class="tabular">
 							{{ meetingTypes[meeting.type] }} · {{ meeting.date ? dateFormat.format(meeting.date.toDate()) : '' }}
 						</small>
 					</div>
@@ -83,7 +98,9 @@ const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeSty
 }
 
 .item {
-	padding: var(--lnx-spacing-3) 0;
+	margin: 0 calc(-1 * var(--lnx-spacing-2));
+	padding: var(--lnx-spacing-3) var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-2);
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: center;
@@ -93,6 +110,11 @@ const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeSty
 
 	.icon {
 		color: var(--color-primary);
+	}
+
+	strong {
+		text-wrap: balance;
+		transition: color var(--duration) var(--ease-out);
 	}
 
 	&:hover strong {

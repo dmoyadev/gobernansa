@@ -30,12 +30,12 @@ export function toPropertyForm(property?: Property): PropertyForm {
 }
 
 /**
- * Creates it when there's no id. ownerUid '' is an owner without an account, kept by name and email for the census.
- * Merged, so the fields left empty are removed
+ * Creates it with newId when there's no id, so sending it twice writes the same one. ownerUid '' is an owner without an
+ * account, kept by name and email for the census. Merged, so the fields left empty are removed
  */
-export async function saveProperty(communityId: string, id: string | undefined, form: PropertyForm) {
+export async function saveProperty(communityId: string, id: string | undefined, form: PropertyForm, newId?: string) {
 	const uid = auth.currentUser!.uid;
-	const propertyRef = id ? doc(propertiesRef, id) : doc(propertiesRef);
+	const propertyRef = doc(propertiesRef, id ?? newId ?? doc(propertiesRef).id);
 	const now = serverTimestamp();
 	const name = form.name.trim();
 	const text = (value: string) => value.trim() || deleteField();
@@ -73,6 +73,18 @@ export async function deleteProperty(property: Property) {
 	logActivity(batch, property.communityId, {
 		area: 'property',
 		summary: `Borró la propiedad «${property.name}»`,
+		link: `/communities/${property.communityId}/properties`,
+	});
+	await batch.commit();
+}
+
+// Undoes deleteProperty with what the page still had of it, under the same id so whatever pointed to it finds it again
+export async function restoreProperty(property: Property) {
+	const batch = writeBatch(db);
+	batch.set(doc(propertiesRef, property.id), { ...property });
+	logActivity(batch, property.communityId, {
+		area: 'property',
+		summary: `Restauró la propiedad «${property.name}»`,
 		link: `/communities/${property.communityId}/properties`,
 	});
 	await batch.commit();

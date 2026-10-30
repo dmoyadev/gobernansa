@@ -5,24 +5,34 @@ import { contactTypes, documentTypes, WEEKDAYS } from '@gobernansa/shared/domain
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { duplicateCommunity } from '../application/duplicateCommunity.ts';
 import { loadCommunity, saveCommunity } from '../application/useCommunities.ts';
 import { findFormError, toCommunityForm, toInputDate } from '../domain/communityForm.ts';
 
 // Without an id, a new community is created from its general info and settings, prefilled from another one with ?from=<id>
 const props = withDefaults(defineProps<{ id?: string; section?: CommunitySection }>(), { section: 'info' });
-const fromId = props.id ? undefined : useRoute().query.from as string | undefined;
-const backTo = props.id || fromId ? `/communities/${props.id || fromId}` : '/';
+const route = useRoute();
+// Read again each time the page comes back, as the kept page is reused for any ?from=
+const queryFrom = () => props.id ? undefined : route.query.from as string | undefined;
+const fromId = ref(queryFrom());
+const backTo = computed(() => props.id || fromId.value ? `/communities/${props.id || fromId.value}` : '/');
+const backLabel = computed(() => props.id || fromId.value ? 'Volver a la comunidad' : 'Volver a comunidades');
 
 const contactTypeOptions = Object.entries(contactTypes).map(([value, { label }]) => ({ value: value as ContactType, label }));
 const documentTypeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({ value: value as CommunityDocument['type'], label }));
 const currentYear = new Date().getFullYear();
 
 const router = useRouter();
+const formElement = useTemplateRef<HTMLFormElement>('formElement');
 const form = ref<CommunityForm>(toCommunityForm());
-const loading = ref(!!(props.id || fromId));
+const loading = ref(!!(props.id || fromId.value));
 // The community being duplicated, kept so duplicating doesn't read it again
 const source = ref<Community>();
 const notFound = ref(false);
@@ -30,26 +40,63 @@ const notFound = ref(false);
 const loadError = ref<string>();
 const saving = ref(false);
 const error = ref<string>();
+// The new community's id, made when its form opens so sending it twice creates it once
+let createId = newId();
+// The form as loaded, to tell whether the admin has changed it
+let pristine = '';
+const isPristine = () => JSON.stringify(form.value) === pristine;
 
-onMounted(async () => {
-	const id = props.id || fromId;
+function setForm(next: CommunityForm) {
+	form.value = next;
+	pristine = JSON.stringify(next);
+}
+
+// A copy of the source: the address, fiscal data and documents belong to the building, they're left for the admin to fill in
+function prefill(community: Community) {
+	return { ...toCommunityForm(community), name: `${community.name} (copia)`, address: '', cif: '', iban: '', bank: '', documents: [] };
+}
+
+// `replace` loads it whatever is in the form; otherwise only while the admin hasn't changed it, nor does meanwhile
+async function load(replace: boolean) {
+	const id = props.id || fromId.value;
 	if (!id) {
+		setForm(toCommunityForm());
 		return;
 	}
 
+	const before = pristine;
 	try {
 		const community = await loadCommunity(id);
-		notFound.value = !community;
-		form.value = toCommunityForm(community);
-		if (fromId && community) {
-			source.value = community;
-			// The address, fiscal data and documents belong to the building, they're left for the admin to fill in
-			Object.assign(form.value, { name: `${community.name} (copia)`, address: '', cif: '', iban: '', bank: '', documents: [] });
+		if (!replace && JSON.stringify(form.value) !== before) {
+			return;
 		}
+		notFound.value = !community;
+		source.value = fromId.value ? community : undefined;
+		setForm(fromId.value && community ? prefill(community) : toCommunityForm(community));
+		loadError.value = undefined;
 	} catch (e) {
-		loadError.value = (e as Error).message;
+		// A failed reread keeps the form
+		if (replace) {
+			loadError.value = (e as Error).message;
+		}
 	} finally {
 		loading.value = false;
+	}
+}
+
+onMounted(() => load(true));
+onRevalidate(() => {
+	const from = queryFrom();
+	if (from !== fromId.value) {
+		fromId.value = from;
+		createId = newId();
+		error.value = undefined;
+		loadError.value = undefined;
+		notFound.value = false;
+		loading.value = !!from;
+		void load(true);
+	} else if (isPristine()) {
+		void load(false);
 	}
 });
 
@@ -67,36 +114,76 @@ function addDocument() {
 
 async function save() {
 	error.value = findFormError(form.value);
-	if (error.value) {
+	if (error.value || saving.value) {
 		return;
 	}
 
-	saving.value = true;
-	try {
-		const id = fromId ? await duplicateCommunity(fromId, form.value, source.value) : await saveCommunity(props.id, form.value);
-		await router.push(`/communities/${id}`);
-	} catch (e) {
-		// The form keeps what was typed, so it can be saved again
-		error.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
+	const id = props.id ?? createId;
+	// Duplicating reads the source's obligations and providers first, so it waits for it
+	if (fromId.value) {
+		saving.value = true;
+		try {
+			await duplicateCommunity(fromId.value, id, form.value, source.value);
+			// Coming back to duplicate it again starts from a fresh copy
+			createId = newId();
+			setForm(prefill(source.value!));
+			void router.push(`/communities/${id}`);
+		} catch (e) {
+			// The form keeps what was typed, so it can be saved again
+			error.value = `No se ha podido guardar: ${(e as Error).message}`;
+		} finally {
+			saving.value = false;
+		}
+		return;
 	}
+
+	// The rest doesn't wait: the community is in the local cache at once, and the form is left clean for next time
+	const typed = JSON.parse(JSON.stringify(form.value)) as CommunityForm;
+	const previous = pristine;
+	const formPath = route.fullPath;
+	const action = saveCommunity(id, form.value, !props.id);
+	if (props.id) {
+		pristine = JSON.stringify(form.value);
+	} else {
+		createId = newId();
+		setForm(toCommunityForm());
+	}
+	void router.push(props.id ? backTo.value : `/communities/${id}`);
+	void optimistic(action, {
+		done: props.id ? 'Guardado' : 'Comunidad creada',
+		failed: 'No se ha podido guardar',
+		// Back to the form with what was typed, to send it again
+		onError: (e) => {
+			form.value = typed;
+			pristine = previous;
+			if (!props.id) {
+				createId = id;
+			}
+			error.value = `No se ha podido guardar: ${e.message}`;
+			void router.push(formPath);
+		},
+	});
 }
+
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'Guardar cambios' : 'Crear comunidad');
 </script>
 
 <template>
-	<form @submit.prevent="save()">
+	<form ref="formElement" @submit.prevent="save()">
 		<header class="page-header">
-			<LnxButton :to="backTo" mode="clear" shape="circle" :aria-label="id || fromId ? 'Volver a la comunidad' : 'Volver a comunidades'" :title="id || fromId ? 'Volver a la comunidad' : 'Volver a comunidades'">
-				<LnxIcon icon="lucide:arrow-left" />
-			</LnxButton>
+			<BackButton :to="backTo" :label="backLabel" />
 			<h1>{{ id ? (form.name || 'Editar comunidad') : 'Nueva comunidad' }}</h1>
 		</header>
 
+		<!-- Shaped like the first card: its title and fields -->
 		<section v-if="loading" class="card" aria-busy="true">
-			<span class="skeleton-item skeleton-item--title" />
-			<span class="skeleton-item" />
-			<span class="skeleton-item" />
+			<span class="skeleton-item skeleton-item--small" style="width: 22%" />
+			<div class="fields">
+				<span v-for="width in [92, 88, 46]" :key="width" class="skeleton-field">
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width / 3}%` }" />
+					<span class="skeleton-item skeleton-item--big-square" :style="{ width: `${width}%` }" />
+				</span>
+			</div>
 		</section>
 
 		<section v-else-if="notFound || loadError" class="card">
@@ -112,7 +199,7 @@ async function save() {
 		</section>
 
 		<template v-else>
-			<p v-if="source" class="hint duplicate">
+			<p v-if="source" class="hint duplicate ux-appear">
 				<LnxIcon icon="lucide:copy" aria-hidden="true" />
 				Se copiarán las zonas comunes, contactos, zonas reservables, obligaciones y proveedores de «{{ source.name }}».
 			</p>
@@ -305,6 +392,7 @@ async function save() {
 				<LnxButton type="submit" :is-loading="saving">
 					<LnxIcon icon="lucide:save" />
 					{{ id ? 'Guardar cambios' : 'Crear comunidad' }}
+					<Kbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</template>
@@ -382,6 +470,17 @@ form {
 	}
 }
 
+.skeleton-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-1);
+
+	.skeleton-item--big-square {
+		height: 40px;
+		border-radius: var(--lnx-radius-2);
+	}
+}
+
 .item {
 	padding: var(--lnx-spacing-4);
 	border: 1px solid var(--color-gray-3);
@@ -435,6 +534,15 @@ form {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+
+		&:hover {
+			background: var(--color-gray-1);
+		}
+
+		&:active {
+			scale: var(--press-scale);
+		}
 	}
 
 	input:checked + span {

@@ -27,9 +27,10 @@ export function useIssues(communityId: string, status: MaybeRefOrGetter<IssueSta
 	}));
 }
 
-// Reported by the administration, e.g. after a call. The same fields as the webapp's, so neighbours see it as any other
-export async function createIssue(communityId: string, uid: string, fields: Pick<Issue, 'title' | 'description' | 'category' | 'location'>) {
-	const issueRef = doc(issuesRef(communityId));
+// Reported by the administration, e.g. after a call. The same fields as the webapp's, so neighbours see it as any other.
+// The id comes from the form (newId), so sending it twice writes the same issue
+export async function createIssue(communityId: string, uid: string, issueId: string, fields: Pick<Issue, 'title' | 'description' | 'category' | 'location'>) {
+	const issueRef = doc(issuesRef(communityId), issueId);
 	const batch = writeBatch(db);
 	batch.set(issueRef, {
 		...fields,
@@ -46,7 +47,6 @@ export async function createIssue(communityId: string, uid: string, fields: Pick
 	});
 	logActivity(batch, communityId, { area: 'issue', summary: `Abrió la incidencia «${fields.title}»`, link: `/communities/${communityId}/issues/${issueRef.id}` });
 	await batch.commit();
-	return issueRef.id;
 }
 
 export function useIssue(communityId: string, issueId: string) {
@@ -78,7 +78,7 @@ export function useIssue(communityId: string, issueId: string) {
 
 	// Listed with the comments, so neighbours see when and who changed it. resolvedAt is kept when it's reopened.
 	// Other fields go in the same update, a batch with two updates to one document is checked against each separately
-	function addStatusChange(batch: ReturnType<typeof writeBatch>, author: User & { id: string }, status: IssueStatus, fields: object = {}) {
+	function addStatusChange(batch: ReturnType<typeof writeBatch>, author: User & { id: string }, status: IssueStatus, fields: object = {}, commentRef = doc(collection(issueRef, 'comments'))) {
 		batch.update(issueRef, {
 			...fields,
 			status,
@@ -86,14 +86,31 @@ export function useIssue(communityId: string, issueId: string) {
 			updatedBy: author.id,
 			...(status === 'resolved' ? { resolvedAt: serverTimestamp() } : {}),
 		});
-		batch.set(doc(collection(issueRef, 'comments')), newComment(author, { type: 'status', status, message: '' }));
+		batch.set(commentRef, newComment(author, { type: 'status', status, message: '' }));
 	}
 
-	async function changeStatus(author: User & { id: string }, status: IssueStatus) {
+	// commentId: the status comment's, known beforehand so the change can be undone
+	async function changeStatus(author: User & { id: string }, status: IssueStatus, commentId: string) {
 		const batch = writeBatch(db);
-		addStatusChange(batch, author, status);
+		addStatusChange(batch, author, status, {}, doc(issueRef, 'comments', commentId));
 		const label = issueStatus.find(option => option.value === status)?.label;
 		logActivity(batch, communityId, { area: 'issue', summary: `Cambió el estado de «${title()}» a ${label}`, link });
+		await batch.commit();
+	}
+
+	// Undoes changeStatus: the previous status and solved date, and its comment removed so neighbours don't see a change
+	// that didn't stay
+	async function revertStatus(author: User & { id: string }, previous: Pick<Issue, 'status' | 'resolvedAt'>, commentId: string) {
+		const batch = writeBatch(db);
+		batch.update(issueRef, {
+			status: previous.status,
+			resolvedAt: previous.resolvedAt ?? deleteField(),
+			updatedAt: serverTimestamp(),
+			updatedBy: author.id,
+		});
+		batch.update(doc(issueRef, 'comments', commentId), { deletedAt: serverTimestamp(), deletedBy: author.id });
+		const label = issueStatus.find(option => option.value === previous.status)?.label;
+		logActivity(batch, communityId, { area: 'issue', summary: `Devolvió «${title()}» a ${label}`, link });
 		await batch.commit();
 	}
 
@@ -175,6 +192,14 @@ export function useIssue(communityId: string, issueId: string) {
 		await batch.commit();
 	}
 
+	// Undoes remove. The rules ask deletedBy to be whoever writes it, so it stays with them
+	async function restore(uid: string) {
+		const batch = writeBatch(db);
+		batch.update(issueRef, { deletedAt: null, deletedBy: uid });
+		logActivity(batch, communityId, { area: 'issue', summary: `Restauró la incidencia «${title()}»`, link });
+		await batch.commit();
+	}
+
 	return {
 		issue,
 		adminData,
@@ -182,10 +207,12 @@ export function useIssue(communityId: string, issueId: string) {
 		loading: issue.pending,
 		error: computed(() => issue.error.value ?? allComments.error.value ?? adminData.error.value),
 		changeStatus,
+		revertStatus,
 		assign,
 		saveClaim,
 		reply,
 		setHidden,
 		remove,
+		restore,
 	};
 }

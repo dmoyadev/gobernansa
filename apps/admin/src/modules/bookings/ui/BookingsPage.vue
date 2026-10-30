@@ -6,8 +6,13 @@ import { getCommonAreas, WEEKDAYS } from '@gobernansa/shared/domain/community.ts
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { cancelBooking, saveCommonAreas, useBookingsOf } from '../application/useBookings.ts';
+import { cancelBooking, restoreBooking, saveCommonAreas, useBookingsOf } from '../application/useBookings.ts';
 
 const props = defineProps<{ id: string; areaId: string }>();
 
@@ -47,38 +52,46 @@ const areas = ref<CommonArea[]>([]);
 const area = computed(() => areas.value.find(({ id }) => id === props.areaId));
 const form = ref<BookingForm>();
 
-loadCommunity(props.id)
-	.then((community) => {
-		areas.value = getCommonAreas(community);
-		form.value = area.value?.booking && toForm(area.value.booking);
-	})
-	.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
-	.finally(() => loading.value = false);
+// Read again when the page comes back, the last one shown meanwhile. The form follows only if it wasn't being changed
+function load() {
+	return loadCommunity(props.id)
+		.then((community) => {
+			const untouched = !form.value || JSON.stringify(form.value) === JSON.stringify(area.value?.booking && toForm(area.value.booking));
+			areas.value = getCommonAreas(community);
+			if (untouched) {
+				form.value = area.value?.booking && toForm(area.value.booking);
+			}
+			loadError.value = undefined;
+		})
+		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
+		.finally(() => loading.value = false);
+}
 
-const saving = ref(false);
+void load();
+onRevalidate(load);
+
+const formElement = ref<HTMLFormElement>();
 const formError = ref<string>();
-const saved = ref(false);
 
-async function save() {
+// Shown as saved at once; if the server rejects it, the agenda goes back and the form keeps what was written
+function save() {
 	if (!form.value!.days.length || form.value!.opens >= form.value!.closes) {
 		formError.value = 'Necesita al menos un día y abrir antes de cerrar.';
 		return;
 	}
 
-	saving.value = true;
 	formError.value = undefined;
-	saved.value = false;
-	try {
-		const next = areas.value.map(other => other.id === props.areaId ? { ...other, booking: fromForm(form.value!) } : other);
-		await saveCommonAreas(props.id, next, `Actualizó las reservas de ${area.value!.name}`);
-		areas.value = next;
-		saved.value = true;
-	} catch (e) {
-		formError.value = `No se han podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
-	}
+	const previous = areas.value;
+	const next = areas.value.map(other => other.id === props.areaId ? { ...other, booking: fromForm(form.value!) } : other);
+	areas.value = next;
+	void optimistic(saveCommonAreas(props.id, next, `Actualizó las reservas de ${area.value!.name}`), {
+		done: 'Reservas guardadas',
+		failed: 'No se han podido guardar',
+		onError: () => areas.value = previous,
+	});
 }
+
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la configuración');
 
 /* Weekly agenda */
 const today = toDateString(new Date());
@@ -128,43 +141,51 @@ const agenda = computed(() => {
 
 const bookedCount = computed(() => agenda.value.days.reduce((total, day) => total + day.bookings.filter(Boolean).length, 0) + agenda.value.others.length);
 
-const actionError = ref<string>();
-
-async function cancel(booking: Booking) {
+function cancel(booking: Booking) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Anular la reserva de ${booking.name} el ${formatDay(booking.date, { weekday: 'long', day: 'numeric', month: 'long' })} a las ${booking.from}?`)) {
 		return;
 	}
 
-	actionError.value = undefined;
-	try {
-		await cancelBooking(props.id, booking, area.value?.name ?? 'la zona');
-	} catch (e) {
-		actionError.value = `No se ha podido anular: ${(e as Error).message}`;
-	}
+	const areaName = area.value?.name ?? 'la zona';
+	void optimistic(cancelBooking(props.id, booking, areaName), {
+		done: 'Reserva anulada',
+		failed: 'No se ha podido anular',
+		revert: () => restoreBooking(props.id, booking, areaName),
+	});
 }
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/locations`" mode="clear" shape="circle" aria-label="Volver a las zonas comunes" title="Volver a las zonas comunes">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}/locations`" label="Volver a las zonas comunes" />
 		<span v-if="area" class="icon">
 			<LnxIcon :icon="area.icon" :size="20" />
 		</span>
-		<h1>
-			<span v-if="loading" class="skeleton-item skeleton-item--title" />
+		<span v-else-if="loading" class="skeleton-item skeleton-item--icon icon" />
+		<h1 :style="{ viewTransitionName: `area-${areaId}` }">
+			<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 12em" />
 			<template v-else>
 				Reservas{{ area ? ` · ${area.name}` : '' }}
 			</template>
 		</h1>
 	</header>
 
-	<p v-if="loadError" class="error" role="alert">
+	<template v-if="loading">
+		<section class="card" aria-busy="true">
+			<span class="skeleton-item skeleton-item--small" style="width: 8em" />
+			<span v-for="row in 6" :key="row" class="skeleton-item" style="height: 32px; border-radius: var(--lnx-radius-2)" />
+		</section>
+		<section class="card" aria-busy="true">
+			<span class="skeleton-item skeleton-item--small" style="width: 7em" />
+			<span class="skeleton-item" style="width: 60%; height: 40px; border-radius: var(--lnx-radius-2)" />
+			<span class="skeleton-item" style="width: 45%; height: 40px; border-radius: var(--lnx-radius-2)" />
+		</section>
+	</template>
+	<p v-else-if="loadError && !area" class="error" role="alert">
 		{{ loadError }}
 	</p>
-	<section v-else-if="!loading && !area?.booking" class="card">
+	<section v-else-if="!area?.booking" class="card">
 		<p>{{ area ? 'Esta zona no es reservable. Márcala como reservable desde la lista de zonas comunes.' : 'Esta zona no existe o se ha quitado.' }}</p>
 		<LnxButton :to="`/communities/${id}/locations`" mode="outline">
 			Ver las zonas comunes
@@ -191,80 +212,75 @@ async function cancel(booking: Booking) {
 			<p v-if="error" class="error" role="alert">
 				No se han podido cargar: {{ error.message }}
 			</p>
-			<p v-if="actionError" class="error" role="alert">
-				{{ actionError }}
+			<!-- The slots come from the settings, so the table is there at once and only its bookings arrive -->
+			<p class="hint">
+				<span v-if="pending" class="skeleton-item skeleton-item--small" style="width: 9em" />
+				<span v-else class="tabular">{{ bookedCount === 1 ? '1 reserva' : `${bookedCount} reservas` }} esta semana.</span>
+				<span class="legend free">Libre</span>
+				<span class="legend booked">Reservado</span>
+				<span class="legend closed">Cerrado</span>
 			</p>
 
-			<span v-if="pending" class="skeleton-item" />
-			<template v-else>
-				<p class="hint">
-					{{ bookedCount === 1 ? '1 reserva' : `${bookedCount} reservas` }} esta semana.
-					<span class="legend free">Libre</span>
-					<span class="legend booked">Reservado</span>
-					<span class="legend closed">Cerrado</span>
-				</p>
+			<div class="agenda-scroll" :aria-busy="pending">
+				<table class="agenda">
+					<thead>
+						<tr>
+							<th scope="col">
+								<span class="sr-only">Hora</span>
+							</th>
+							<th v-for="day in agenda.days" :key="day.date" scope="col" :class="{ today: day.date === today }">
+								<small>{{ formatDay(day.date, { weekday: 'short' }) }}</small>
+								<strong>{{ formatDay(day.date, { day: 'numeric' }) }}</strong>
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="(slot, slotIndex) in agenda.slots" :key="slot.from">
+							<th scope="row">
+								{{ slot.from }}
+							</th>
+							<td v-for="day in agenda.days" :key="day.date" :class="{ closed: !day.open, past: day.past }">
+								<div v-if="day.bookings[slotIndex]" class="booked" :title="`${day.bookings[slotIndex]!.name} · ${slot.from}–${slot.to}`">
+									<span class="who">{{ day.bookings[slotIndex]!.name }}</span>
+									<button
+										v-if="!day.past"
+										type="button"
+										:aria-label="`Anular la reserva de ${day.bookings[slotIndex]!.name} el ${formatDay(day.date, { weekday: 'long', day: 'numeric' })} a las ${slot.from}`"
+										title="Anular"
+										@click="cancel(day.bookings[slotIndex]!)"
+									>
+										<LnxIcon icon="lucide:x" :size="14" />
+									</button>
+								</div>
+								<span v-else class="sr-only">{{ day.open ? 'Libre' : 'Cerrado' }}</span>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 
-				<div class="agenda-scroll">
-					<table class="agenda">
-						<thead>
-							<tr>
-								<th scope="col">
-									<span class="sr-only">Hora</span>
-								</th>
-								<th v-for="day in agenda.days" :key="day.date" scope="col" :class="{ today: day.date === today }">
-									<small>{{ formatDay(day.date, { weekday: 'short' }) }}</small>
-									<strong>{{ formatDay(day.date, { day: 'numeric' }) }}</strong>
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr v-for="(slot, slotIndex) in agenda.slots" :key="slot.from">
-								<th scope="row">
-									{{ slot.from }}
-								</th>
-								<td v-for="day in agenda.days" :key="day.date" :class="{ closed: !day.open, past: day.past }">
-									<div v-if="day.bookings[slotIndex]" class="booked" :title="`${day.bookings[slotIndex]!.name} · ${slot.from}–${slot.to}`">
-										<span class="who">{{ day.bookings[slotIndex]!.name }}</span>
-										<button
-											v-if="!day.past"
-											type="button"
-											:aria-label="`Anular la reserva de ${day.bookings[slotIndex]!.name} el ${formatDay(day.date, { weekday: 'long', day: 'numeric' })} a las ${slot.from}`"
-											title="Anular"
-											@click="cancel(day.bookings[slotIndex]!)"
-										>
-											<LnxIcon icon="lucide:x" :size="14" />
-										</button>
-									</div>
-									<span v-else class="sr-only">{{ day.open ? 'Libre' : 'Cerrado' }}</span>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
-
-				<div v-if="agenda.others.length" class="others">
-					<h3>Fuera de las franjas actuales</h3>
-					<ul>
-						<li v-for="booking in agenda.others" :key="booking.id">
-							<span>{{ formatDay(booking.date, { weekday: 'short', day: 'numeric' }) }} · {{ booking.from }}–{{ booking.to }} · {{ booking.name }}</span>
-							<LnxButton
-								mode="clear"
-								size="small"
-								shape="circle"
-								variant="danger"
-								:aria-label="`Anular la reserva de ${booking.name}`"
-								:title="`Anular la reserva de ${booking.name}`"
-								@click="cancel(booking)"
-							>
-								<LnxIcon icon="lucide:x" />
-							</LnxButton>
-						</li>
-					</ul>
-				</div>
-			</template>
+			<div v-if="agenda.others.length" class="others">
+				<h3>Fuera de las franjas actuales</h3>
+				<ul>
+					<li v-for="booking in agenda.others" :key="booking.id">
+						<span class="tabular">{{ formatDay(booking.date, { weekday: 'short', day: 'numeric' }) }} · {{ booking.from }}–{{ booking.to }} · {{ booking.name }}</span>
+						<LnxButton
+							mode="clear"
+							size="small"
+							shape="circle"
+							variant="danger"
+							:aria-label="`Anular la reserva de ${booking.name}`"
+							:title="`Anular la reserva de ${booking.name}`"
+							@click="cancel(booking)"
+						>
+							<LnxIcon icon="lucide:x" />
+						</LnxButton>
+					</li>
+				</ul>
+			</div>
 		</section>
 
-		<form class="card" @submit.prevent="save()">
+		<form ref="formElement" class="card" @submit.prevent="save()">
 			<h2>Configuración</h2>
 			<div class="fields">
 				<fieldset class="days wide">
@@ -298,12 +314,10 @@ async function cancel(booking: Booking) {
 				<p v-if="formError" class="error" role="alert">
 					{{ formError }}
 				</p>
-				<p v-else-if="saved" class="hint" role="status">
-					Guardado.
-				</p>
-				<LnxButton type="submit" :is-loading="saving">
+				<LnxButton type="submit">
 					<LnxIcon icon="lucide:save" />
 					Guardar
+					<Kbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</form>
@@ -395,7 +409,7 @@ async function cancel(booking: Booking) {
 		width: 12px;
 		height: 12px;
 		border: 1px solid var(--color-gray-3);
-		border-radius: 3px;
+		border-radius: var(--lnx-radius-1);
 	}
 
 	&.booked::before {
@@ -528,6 +542,10 @@ td .booked {
 			outline: none;
 			background: var(--color-gray-0-alpha);
 		}
+
+		&:active {
+			scale: .9;
+		}
 	}
 }
 
@@ -583,6 +601,15 @@ td .booked {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+
+		&:hover {
+			background: var(--color-gray-1);
+		}
+
+		&:active {
+			scale: var(--press-scale);
+		}
 	}
 
 	input:checked + span {

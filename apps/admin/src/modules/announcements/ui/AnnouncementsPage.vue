@@ -10,6 +10,11 @@ import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Times
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 
@@ -38,53 +43,6 @@ const allSelected = computed({
 	},
 });
 
-const sending = ref(false);
-const formError = ref<string>();
-
-async function send() {
-	if (!selected.value.length) {
-		formError.value = 'Elige al menos una comunidad.';
-		return;
-	}
-
-	sending.value = true;
-	formError.value = undefined;
-	try {
-		const uid = auth.currentUser!.uid;
-		const { date, description, ...rest } = form.value;
-		const now = serverTimestamp();
-		// The copies share it so they can be listed and removed together
-		const broadcastId = doc(eventsRef).id;
-		const batch = writeBatch(db);
-		for (const communityId of selected.value) {
-			batch.set(doc(eventsRef), {
-				...rest,
-				title: rest.title.trim(),
-				description: description.trim(),
-				date: Timestamp.fromDate(new Date(`${date}T00:00`)),
-				communityId,
-				broadcastId,
-				createdAt: now,
-				createdBy: uid,
-				updatedAt: now,
-				updatedBy: uid,
-			});
-			logActivity(batch, communityId, {
-				area: 'event',
-				summary: `Envió el comunicado «${rest.title.trim()}»`,
-				link: `/communities/${communityId}/notifications`,
-			});
-		}
-		await batch.commit();
-		form.value = emptyForm();
-		await loadRecent();
-	} catch (e) {
-		formError.value = `No se ha podido enviar: ${(e as Error).message}`;
-	} finally {
-		sending.value = false;
-	}
-}
-
 interface Broadcast {
 	id: string;
 	title: string;
@@ -97,6 +55,70 @@ interface Broadcast {
 const recent = ref<Broadcast[]>([]);
 const recentLoading = ref(false);
 const recentError = ref<string>();
+
+function recentSince() {
+	return Date.now() - RECENT_DAYS * 86_400_000;
+}
+
+function sortBroadcasts(broadcasts: Broadcast[]) {
+	return broadcasts.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+}
+
+const formError = ref<string>();
+const formElement = ref<HTMLFormElement>();
+// The copies share it so they can be listed and removed together. Made when the form opens, with each copy's id
+// derived from it, so sending twice writes them once
+const broadcastId = ref(newId());
+
+function send() {
+	if (!selected.value.length) {
+		formError.value = 'Elige al menos una comunidad.';
+		return;
+	}
+
+	formError.value = undefined;
+	const uid = auth.currentUser!.uid;
+	const sent = { form: form.value, broadcastId: broadcastId.value, communityIds: [...selected.value] };
+	const { date, description, ...rest } = sent.form;
+	const data = {
+		...rest,
+		title: rest.title.trim(),
+		description: description.trim(),
+		date: Timestamp.fromDate(new Date(`${date}T00:00`)),
+		broadcastId: sent.broadcastId,
+	};
+	const now = serverTimestamp();
+	const batch = writeBatch(db);
+	for (const communityId of sent.communityIds) {
+		batch.set(doc(eventsRef, `${sent.broadcastId}-${communityId}`), { ...data, communityId, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
+		logActivity(batch, communityId, {
+			area: 'event',
+			summary: `Envió el comunicado «${data.title}»`,
+			link: `/communities/${communityId}/notifications`,
+		});
+	}
+
+	// Listed at once instead of reading them all again, when it falls in what the list reads
+	const previous = recent.value;
+	if (data.date.toMillis() >= recentSince()) {
+		const at = Timestamp.now();
+		const copies = sent.communityIds.map(communityId => ({ ...data, id: `${sent.broadcastId}-${communityId}`, communityId, createdAt: at, createdBy: uid, updatedAt: at, updatedBy: uid }) as Event);
+		recent.value = sortBroadcasts([...previous, { id: sent.broadcastId, title: data.title, type: data.type, date: data.date, description: data.description, copies }]);
+	}
+	form.value = emptyForm();
+	broadcastId.value = newId();
+	// No undo: neighbours are already told of it
+	void optimistic(batch.commit(), {
+		done: 'Comunicado enviado',
+		failed: 'No se ha podido enviar',
+		onError: () => {
+			recent.value = previous;
+			form.value = sent.form;
+			broadcastId.value = sent.broadcastId;
+		},
+	});
+}
+
 // Ticking several communities quickly starts several reads, only the last one is shown
 let latestLoad = 0;
 
@@ -117,7 +139,7 @@ async function loadRecent() {
 			eventsRef,
 			where('communityId', '==', communityId),
 			// Same index as the timeline's: communityId and date
-			where('date', '>=', Timestamp.fromMillis(Date.now() - RECENT_DAYS * 86_400_000)),
+			where('date', '>=', Timestamp.fromMillis(recentSince())),
 			orderBy('date', 'desc'),
 			limit(RECENT_PER_COMMUNITY),
 		))));
@@ -134,7 +156,7 @@ async function loadRecent() {
 			group.copies.push(event);
 			groups.set(event.broadcastId, group);
 		}
-		recent.value = [...groups.values()].sort((a, b) => b.date.toMillis() - a.date.toMillis());
+		recent.value = sortBroadcasts([...groups.values()]);
 	} catch (e) {
 		if (load !== latestLoad) {
 			return;
@@ -148,40 +170,69 @@ async function loadRecent() {
 }
 
 watch(selected, loadRecent, { immediate: true });
-
-const actionError = ref<string>();
+// Kept alive: coming back from a community's page picks that one, whatever was ticked before (its watch reads them),
+// else the same are read again
+onRevalidate(() => {
+	const community = route.query.community;
+	if (typeof community === 'string' && (selected.value.length !== 1 || selected.value[0] !== community)) {
+		selected.value = [community];
+	} else {
+		void loadRecent();
+	}
+});
 
 // Only the copies in the selected communities, the rules don't let a query reach the rest
-async function remove(broadcast: Broadcast) {
+function remove(broadcast: Broadcast) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar «${broadcast.title}» de ${broadcast.copies.length} comunidad(es)?`)) {
 		return;
 	}
 
-	actionError.value = undefined;
-	try {
-		const batch = writeBatch(db);
-		for (const copy of broadcast.copies) {
-			batch.delete(doc(eventsRef, copy.id));
-			logActivity(batch, copy.communityId, { area: 'event', summary: `Borró el comunicado «${copy.title}»` });
-		}
-		await batch.commit();
-		recent.value = recent.value.filter(item => item.id !== broadcast.id);
-	} catch (e) {
-		actionError.value = `No se ha podido borrar: ${(e as Error).message}`;
+	const batch = writeBatch(db);
+	for (const copy of broadcast.copies) {
+		batch.delete(doc(eventsRef, copy.id));
+		logActivity(batch, copy.communityId, { area: 'event', summary: `Borró el comunicado «${copy.title}»` });
 	}
+	const putBack = () => {
+		recent.value = sortBroadcasts([...recent.value.filter(item => item.id !== broadcast.id), broadcast]);
+	};
+	recent.value = recent.value.filter(item => item.id !== broadcast.id);
+	void optimistic(batch.commit(), {
+		done: 'Comunicado borrado',
+		failed: 'No se ha podido borrar',
+		revert: async () => {
+			await restoreBroadcast(broadcast);
+			putBack();
+		},
+		onError: putBack,
+	});
 }
+
+// Undoes remove: every copy back with its id and what it had, from the list in memory
+async function restoreBroadcast(broadcast: Broadcast) {
+	const batch = writeBatch(db);
+	for (const { id, ...copy } of broadcast.copies) {
+		batch.set(doc(eventsRef, id), copy);
+		logActivity(batch, copy.communityId, {
+			area: 'event',
+			summary: `Restauró el comunicado «${copy.title}»`,
+			link: `/communities/${copy.communityId}/notifications`,
+		});
+	}
+	await batch.commit();
+}
+
+useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Nuevo comunicado');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el comunicado');
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver" title="Volver">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton to="/" label="Volver" />
 		<h1>Comunicados</h1>
 	</header>
 
-	<form class="card" @submit.prevent="send()">
+	<form ref="formElement" class="card" @submit.prevent="send()">
 		<h2>Nuevo comunicado</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
@@ -209,12 +260,17 @@ async function remove(broadcast: Broadcast) {
 			</LnxTextarea>
 		</div>
 
-		<fieldset class="communities">
+		<fieldset class="communities" :aria-busy="loading && !communities.length">
 			<legend>Comunidades</legend>
 			<p v-if="error" class="error" role="alert">
 				No se han podido cargar: {{ error.message }}
 			</p>
-			<span v-if="loading" class="skeleton-item" />
+			<template v-if="loading && !communities.length">
+				<span v-for="width in [20, 60, 45, 70, 50]" :key="width" class="skeleton-row" :class="{ all: width === 20 }" aria-hidden="true">
+					<span class="skeleton-item skeleton-item--icon" />
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+				</span>
+			</template>
 			<template v-else-if="communities.length">
 				<LnxCheckbox v-model="allSelected" class="check all">
 					Todas
@@ -232,9 +288,10 @@ async function remove(broadcast: Broadcast) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="submit" :is-loading="sending" :disabled="!selected.length">
+			<LnxButton type="submit" :disabled="!selected.length">
 				<LnxIcon icon="lucide:send" />
-				Enviar a {{ selected.length }} comunidad{{ selected.length === 1 ? '' : 'es' }}
+				Enviar a <span class="tabular">{{ selected.length }}</span> comunidad{{ selected.length === 1 ? '' : 'es' }}
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -244,17 +301,23 @@ async function remove(broadcast: Broadcast) {
 		<p v-if="recentError" class="error" role="alert">
 			{{ recentError }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
 
-		<span v-if="recentLoading && !recent.length" class="skeleton-item" />
-		<ul v-else-if="recent.length" class="list">
+		<ul v-if="recentLoading && !recent.length" class="list" aria-busy="true" aria-label="Cargando comunicados">
+			<li v-for="width in [50, 35, 62]" :key="width" class="item">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" style="width: 140px" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 25}%` }" />
+				</div>
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="recent.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="broadcast in recent" :key="broadcast.id" class="item">
 				<LnxIcon class="type" :icon="eventTypes[broadcast.type]?.icon ?? 'lucide:info'" :size="20" />
 				<div class="what">
 					<strong>{{ broadcast.title }}</strong>
-					<small>
+					<small class="tabular">
 						{{ eventTypes[broadcast.type]?.label }} · {{ broadcast.date.toDate().toLocaleDateString('es') }}
 					</small>
 					<p v-if="broadcast.description">
@@ -268,7 +331,7 @@ async function remove(broadcast: Broadcast) {
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			{{ selected.length ? 'Aún no hay comunicados enviados a varias comunidades.' : 'Elige comunidades para ver lo que se les ha enviado.' }}
 		</p>
@@ -340,6 +403,13 @@ async function remove(broadcast: Broadcast) {
 	justify-content: center;
 }
 
+.skeleton-row {
+	min-height: 32px;
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+}
+
 .form-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -353,8 +423,27 @@ async function remove(broadcast: Broadcast) {
 }
 
 .list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
+}
+
+// Sent and removed ones slide in and out; transitions, so a quick undo turns them back halfway
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+.row-leave-active {
+	position: absolute;
+	width: 100%;
 }
 
 .item {
@@ -378,6 +467,10 @@ async function remove(broadcast: Broadcast) {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
+
+	strong {
+		text-wrap: balance;
+	}
 
 	small {
 		color: var(--color-gray-6);

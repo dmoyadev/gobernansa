@@ -4,6 +4,8 @@ import type { InboxIssue } from '../application/usePortfolio.ts';
 import { issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { ageInDays, loadInbox } from '../application/usePortfolio.ts';
 
@@ -24,6 +26,7 @@ const zone = ref('');
 const issues = ref<InboxIssue[]>([]);
 const loading = ref(false);
 const error = ref<Error>();
+const now = ref(Date.now());
 
 // Status is filtered by the query, the rest on what's loaded
 async function load() {
@@ -34,6 +37,7 @@ async function load() {
 	error.value = undefined;
 	try {
 		issues.value = await loadInbox(communities.value, statuses.value);
+		now.value = Date.now();
 	} catch (e) {
 		error.value = e as Error;
 	} finally {
@@ -41,6 +45,9 @@ async function load() {
 	}
 }
 watch([communitiesLoading, statuses], load, { immediate: true });
+// Coming back shows the last list while it's read again
+onRevalidate(load);
+const ROW_WIDTHS = [65, 45, 75, 55];
 
 function zoneOf(issue: InboxIssue) {
 	if (issue.location?.type === 'common_area') {
@@ -61,16 +68,13 @@ const filtered = computed(() => {
 		&& (!range || (ageInDays(issue) >= range.min && ageInDays(issue) < range.max)));
 });
 
-const now = Date.now();
 const categories = Object.fromEntries(issuesCategories.map(category => [category.value, category]));
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver" title="Volver">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton to="/" label="Volver" />
 		<h1>Bandeja de incidencias</h1>
 		<LnxButton class="reload" mode="outline" :is-loading="loading" @click="load">
 			<LnxIcon icon="lucide:refresh-cw" />
@@ -136,23 +140,32 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 		</LnxSelect>
 	</div>
 
-	<section class="card">
+	<section class="card" :aria-busy="(loading || communitiesLoading) && !issues.length">
 		<p v-if="error || communitiesError" class="error" role="alert">
 			No se han podido cargar: {{ (error ?? communitiesError)?.message }}
 		</p>
 
-		<span v-if="(loading || communitiesLoading) && !issues.length" class="skeleton-item" />
-		<ul v-else-if="filtered.length" class="list">
+		<ul v-if="(loading || communitiesLoading) && !issues.length" class="list">
+			<li v-for="width in ROW_WIDTHS" :key="width" class="issue">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+				</div>
+				<span class="skeleton-item skeleton-item--small" style="width: 64px" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="filtered.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="issue in filtered" :key="`${issue.communityId}/${issue.id}`">
-				<RouterLink class="issue" :to="`/communities/${issue.communityId}/issues/${issue.id}`">
+				<RouterLink class="issue ux-row" :to="`/communities/${issue.communityId}/issues/${issue.id}`">
 					<LnxIcon class="category" :icon="categories[issue.category]?.icon ?? 'lucide:triangle-alert'" :size="20" />
 					<div class="what">
-						<strong>{{ issue.title }}</strong>
-						<small>
+						<strong :style="{ viewTransitionName: `issue-${issue.id}` }">{{ issue.title }}</strong>
+						<small class="tabular">
 							{{ issue.communityName }} · {{ categories[issue.category]?.label }} · hace {{ ageInDays(issue, now) }} días
 							<template v-if="zoneOf(issue)"> · {{ zoneOf(issue) === PROPERTY_ZONE ? 'Propiedad' : zoneOf(issue) }}</template>
 						</small>
-						<small v-if="issue.provider || issue.expectedAt">
+						<small v-if="issue.provider || issue.expectedAt" class="tabular">
 							<template v-if="issue.provider">{{ issue.provider.name }}</template>
 							<template v-if="issue.provider && issue.expectedAt"> · </template>
 							<span v-if="issue.expectedAt" :class="{ late: issue.expectedAt.toMillis() < now }">
@@ -163,7 +176,7 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 					<span class="badge" :style="{ '--status-color': `var(--color-issue-status-${issue.status})` }">{{ statusLabels[issue.status] }}</span>
 				</RouterLink>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			No hay incidencias con estos filtros.
 		</p>
@@ -215,6 +228,15 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover span {
+		background: var(--color-gray-1);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {
@@ -246,6 +268,7 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 }
 
 .list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 
@@ -254,8 +277,28 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	}
 }
 
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 4px;
+}
+
+// Out of the flow while it leaves, so the rest move up at once
+.row-leave-active {
+	position: absolute;
+	width: 100%;
+}
+
 .issue {
-	padding: var(--lnx-spacing-3) 0;
+	margin: 0 calc(-1 * var(--lnx-spacing-2));
+	padding: var(--lnx-spacing-3) var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-2);
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: center;

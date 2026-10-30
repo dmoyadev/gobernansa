@@ -1,11 +1,14 @@
 <script lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, useTemplateRef, watch } from 'vue';
 </script>
 
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { useRouter } from 'vue-router';
+import Kbd from '@/app/ux/Kbd.vue';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { loadNeighbourCount, useCommunities } from '../application/useCommunities.ts';
 
 // Neighbours per community, null while loading and undefined when it failed
@@ -26,6 +29,18 @@ const filtered = computed(() => {
 		: communities.value;
 });
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+// Placeholder rows as wide as real names and addresses tend to be
+const SKELETON_ROWS = [[48, 72], [36, 58], [54, 80], [42, 64]];
+
+const router = useRouter();
+const searchField = useTemplateRef<{ $el: HTMLElement }>('searchField');
+useShortcut('n', () => {
+	if (user.value?.role === 'superadmin') {
+		void router.push('/communities/new');
+	}
+}, 'Nueva comunidad');
+useShortcut('/', () => searchField.value?.$el.querySelector('input')?.focus(), 'Buscar comunidades');
 
 // One aggregation per community, only for the ones not counted yet: the live list changes on every edit, not just on new ones.
 // The counts live in the module (above), so coming back to the list doesn't count them again
@@ -64,6 +79,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 		<LnxButton v-if="user?.role === 'superadmin'" to="/communities/new">
 			<LnxIcon icon="lucide:plus" />
 			Nueva comunidad
+			<Kbd combo="n" />
 		</LnxButton>
 	</header>
 
@@ -72,31 +88,37 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 	</p>
 
 	<ul v-else-if="loading" class="list" aria-busy="true">
-		<li v-for="index in 3" :key="index" class="row">
-			<span class="skeleton-item skeleton-item--icon" />
-			<span class="skeleton-item" />
+		<li v-for="([title, address], index) in SKELETON_ROWS" :key="index" class="row">
+			<span class="icon">
+				<span class="skeleton-item skeleton-item--icon" />
+			</span>
+			<span class="body">
+				<span class="skeleton-item" :style="{ width: `${title}%` }" />
+				<span class="skeleton-item skeleton-item--small" :style="{ width: `${address}%` }" />
+			</span>
+			<span class="skeleton-item skeleton-item--small meta-skeleton" />
 		</li>
 	</ul>
 
 	<template v-else-if="communities.length">
-		<LnxInput v-model="search" class="search" type="search" placeholder="Buscar por nombre o dirección">
+		<LnxInput ref="searchField" v-model="search" class="search" type="search" placeholder="Buscar por nombre o dirección">
 			<span class="sr-only">Buscar comunidades</span>
 			<template #icon>
 				<LnxIcon icon="lucide:search" />
 			</template>
 		</LnxInput>
 
-		<ul v-if="filtered.length" class="list">
+		<TransitionGroup v-if="filtered.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="community in filtered" :key="community.id">
-				<RouterLink class="row" :to="`/communities/${community.id}`">
+				<RouterLink class="row ux-row" :to="`/communities/${community.id}`">
 					<span class="icon">
 						<LnxIcon icon="lucide:building-2" :size="20" />
 					</span>
 					<span class="body">
-						<strong>{{ community.name || 'Sin nombre' }}</strong>
+						<strong :style="{ viewTransitionName: `community-${community.id}` }">{{ community.name || 'Sin nombre' }}</strong>
 						<small>{{ community.address }}</small>
 					</span>
-					<span class="meta">
+					<span class="meta tabular">
 						<span :title="neighbours[community.id] == null ? 'Vecinos' : plural(neighbours[community.id]!, 'vecino', 'vecinos')">
 							<LnxIcon icon="lucide:users" :size="14" />
 							<span v-if="neighbours[community.id] === null" class="skeleton-item skeleton-item--count" aria-hidden="true" />
@@ -117,7 +139,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 					<LnxIcon class="chevron" icon="lucide:chevron-right" :size="18" />
 				</RouterLink>
 			</li>
-		</ul>
+		</TransitionGroup>
 
 		<section v-else class="empty" role="status">
 			<LnxIcon icon="lucide:search-x" :size="40" />
@@ -170,6 +192,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 }
 
 .list {
+	position: relative;
 	border: 1px solid var(--color-gray-3);
 	border-radius: var(--lnx-radius-3);
 	background: var(--color-gray-0);
@@ -187,10 +210,6 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 	padding: var(--lnx-spacing-3) var(--lnx-spacing-4);
 	color: inherit;
 	text-decoration: none;
-
-	&:is(a):hover {
-		background: var(--color-gray-1);
-	}
 
 	.icon {
 		flex-shrink: 0;
@@ -212,6 +231,11 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 
 		strong {
 			color: var(--color-gray-9);
+			text-wrap: balance;
+		}
+
+		.skeleton-item + .skeleton-item {
+			margin-top: 6px;
 		}
 
 		small {
@@ -238,7 +262,35 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 
 	.chevron {
 		color: var(--color-gray-5);
+		transition: translate var(--duration) var(--ease-spring), color var(--duration) var(--ease-out);
 	}
+
+	&:hover .chevron {
+		translate: 2px 0;
+		color: var(--color-gray-7);
+	}
+
+	.meta-skeleton {
+		width: 72px;
+	}
+}
+
+// Filtering: the ones left slide into place, the rest fade out of it
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+.row-leave-active {
+	position: absolute;
+	width: 100%;
 }
 
 .empty {

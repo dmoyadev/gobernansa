@@ -3,7 +3,12 @@ import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/comm
 import { commonAreaIcons, formatSchedule, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { nextTick, onUnmounted, ref, toRaw, useId } from 'vue';
+import { nextTick, ref, toRaw, useId } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { saveCommonAreas } from '../application/useBookings.ts';
 
@@ -17,18 +22,26 @@ const loading = ref(true);
 const loadError = ref<string>();
 const areas = ref<CommonArea[]>([]);
 
-loadCommunity(props.id)
-	.then(community => areas.value = getCommonAreas(community))
-	.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
-	.finally(() => loading.value = false);
-
 // The one being edited, a copy so cancelling leaves it as it was. Its booking settings are kept while it's
 // unticked, so ticking it again in the same edit brings them back
 interface Draft extends CommonArea { bookable: boolean; isNew?: boolean }
 const draft = ref<Draft>();
-const saving = ref(false);
 const error = ref<string>();
-const status = ref('');
+
+// Read again when the page comes back, the last one shown meanwhile. The draft is its own copy, so the list is
+// always the latest: saving it mustn't write back what the bookings page changed meanwhile
+function load() {
+	return loadCommunity(props.id)
+		.then((community) => {
+			areas.value = getCommonAreas(community);
+			loadError.value = undefined;
+		})
+		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
+		.finally(() => loading.value = false);
+}
+
+void load();
+onRevalidate(load);
 
 async function edit(area: CommonArea) {
 	draft.value = { ...structuredClone(toRaw(area)), bookable: !!area.booking };
@@ -38,6 +51,10 @@ async function edit(area: CommonArea) {
 }
 
 async function create() {
+	if (draft.value?.isNew) {
+		document.querySelector<HTMLInputElement>('.editing input')?.focus();
+		return;
+	}
 	const area = { id: crypto.randomUUID(), name: '', icon: 'lucide:building-2' };
 	await edit(area);
 	draft.value!.isNew = true;
@@ -48,7 +65,14 @@ function cancel() {
 	error.value = undefined;
 }
 
-async function save() {
+// Esc inside the icon list only closes the list
+function onEscape(event: KeyboardEvent) {
+	if (!(event.target as Element).closest('[popover]')) {
+		cancel();
+	}
+}
+
+function save() {
 	const { bookable, isNew, booking, ...area } = draft.value!;
 	area.name = area.name.trim();
 	// Issues point to the area by its name, so two can't share one
@@ -59,31 +83,52 @@ async function save() {
 
 	const saved: CommonArea = bookable ? { ...area, booking: booking ?? structuredClone(DEFAULT_BOOKING) } : area;
 	const next = isNew ? [saved, ...areas.value] : areas.value.map(other => other.id === saved.id ? saved : other);
-	await persist(next, `${isNew ? 'Añadió' : 'Actualizó'} la zona común ${saved.name}`, isNew ? 'Zona creada' : 'Zona guardada');
+	persist(next, `${isNew ? 'Añadió' : 'Actualizó'} la zona común ${saved.name}`, isNew ? 'Zona creada' : 'Zona guardada');
 }
 
-async function remove(area: CommonArea) {
+function remove(area: CommonArea) {
 	const bookingsNote = area.booking ? ' Sus reservas ya hechas se mantienen hasta que las anules.' : '';
 	// eslint-disable-next-line no-alert
-	if (window.confirm(`¿Quitar «${area.name}»?${bookingsNote}`)) {
-		await persist(areas.value.filter(other => other.id !== area.id), `Quitó la zona común ${area.name}`, 'Zona quitada');
+	if (!window.confirm(`¿Quitar «${area.name}»?${bookingsNote}`)) {
+		return;
 	}
+
+	const index = areas.value.findIndex(other => other.id === area.id);
+	// Back where it was, among the areas as they are by then
+	persist(areas.value.filter(other => other.id !== area.id), `Quitó la zona común ${area.name}`, 'Zona quitada', async () => {
+		const previous = areas.value;
+		const restored = previous.filter(other => other.id !== area.id);
+		restored.splice(index, 0, area);
+		areas.value = restored;
+		try {
+			await saveCommonAreas(props.id, restored, `Restauró la zona común ${area.name}`);
+		} catch (e) {
+			areas.value = previous;
+			throw e;
+		}
+	});
 }
 
-async function persist(next: CommonArea[], summary: string, done: string) {
-	saving.value = true;
+// The list changes at once; if the server rejects it, it goes back and what was being edited is open again
+function persist(next: CommonArea[], summary: string, done: string, revert?: () => Promise<unknown>) {
+	const previous = areas.value;
+	const editing = draft.value;
+	areas.value = next;
+	draft.value = undefined;
 	error.value = undefined;
-	try {
-		await saveCommonAreas(props.id, next, summary);
-		areas.value = next;
-		draft.value = undefined;
-		status.value = done;
-	} catch (e) {
-		error.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
-	}
+	void optimistic(saveCommonAreas(props.id, next, summary), {
+		done,
+		failed: 'No se ha podido guardar',
+		revert,
+		onError: () => {
+			areas.value = previous;
+			draft.value ??= editing;
+		},
+	});
 }
+
+useShortcut('n', () => void create(), 'Crear una zona común');
+useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.editing')?.requestSubmit(), 'Guardar la zona');
 
 /* Icon picker */
 const iconsPosition = ref<{ top: string; left: string }>();
@@ -100,13 +145,9 @@ function iconsPopover() {
 // A native popover, placed once under its button when it opens and closed on scroll or resize
 function onIconsToggle(event: Event) {
 	if ((event as ToggleEvent).newState !== 'open') {
-		document.removeEventListener('scroll', closeIcons, { capture: true });
-		window.removeEventListener('resize', closeIcons);
 		return;
 	}
 
-	document.addEventListener('scroll', closeIcons, { capture: true, passive: true });
-	window.addEventListener('resize', closeIcons);
 	const rect = document.querySelector(`[popovertarget="${iconsId}"]`)!.getBoundingClientRect();
 	iconsPosition.value = { top: `${rect.bottom + 4}px`, left: `${rect.left}px` };
 	iconsPopover()?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
@@ -117,49 +158,46 @@ function pickIcon(icon: string) {
 	closeIcons();
 }
 
-onUnmounted(() => {
-	document.removeEventListener('scroll', closeIcons, { capture: true });
-	window.removeEventListener('resize', closeIcons);
-});
+// Hiding a closed popover does nothing, so these can listen all along while the page is shown
+useEventListener(document, 'scroll', closeIcons, { capture: true, passive: true });
+useEventListener(window, 'resize', closeIcons);
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Zonas comunes</h1>
-		<LnxButton :disabled="loading || !!loadError || !!draft?.isNew" @click="create()">
+		<LnxButton :disabled="loading || (!!loadError && !areas.length) || !!draft?.isNew" @click="create()">
 			<LnxIcon icon="lucide:plus" />
 			Crear
+			<Kbd combo="n" />
 		</LnxButton>
 	</header>
 
 	<p class="hint">
 		Los vecinos las eligen como lugar al dar un aviso, y reservan las que son reservables.
 	</p>
-	<p v-if="loadError" class="error" role="alert">
+	<p v-if="loadError && !areas.length" class="error" role="alert">
 		{{ loadError }}
 	</p>
-	<p v-else-if="error && !draft" class="error" role="alert">
-		{{ error }}
-	</p>
-	<p class="sr-only" role="status">
-		{{ status }}
-	</p>
 
-	<section v-if="loading" class="card" aria-busy="true">
-		<span class="skeleton-item" />
-		<span class="skeleton-item" />
-	</section>
+	<ul v-if="loading" class="card list" aria-busy="true">
+		<li v-for="width in [30, 45, 25, 38]" :key="width" class="row">
+			<span class="skeleton-item skeleton-item--icon icon" />
+			<span class="name">
+				<span class="skeleton-item" :style="{ width: `${width}%` }" />
+				<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 20}%`, marginTop: '4px' }" />
+			</span>
+		</li>
+	</ul>
 
-	<ul v-else-if="!loadError" class="card list">
-		<li v-if="!areas.length && !draft" class="empty">
+	<TransitionGroup v-else-if="!loadError || areas.length" tag="ul" name="row" class="card list ux-appear">
+		<li v-if="!areas.length && !draft" key="empty" class="empty">
 			Aún no hay zonas comunes: portal, garaje, piscina…
 		</li>
 
 		<li v-for="area in draft?.isNew ? [draft, ...areas] : areas" :key="area.id">
-			<form v-if="draft?.id === area.id" class="row editing" @submit.prevent="save()" @keydown.esc="cancel()">
+			<form v-if="draft?.id === area.id" class="row editing" @submit.prevent="save()" @keydown.esc="onEscape">
 				<button
 					type="button"
 					class="icon"
@@ -206,7 +244,6 @@ onUnmounted(() => {
 						variant="danger"
 						:aria-label="`Quitar ${area.name}`"
 						:title="`Quitar ${area.name}`"
-						:disabled="saving"
 						@click="remove(area)"
 					>
 						<LnxIcon icon="lucide:trash-2" />
@@ -214,9 +251,10 @@ onUnmounted(() => {
 					<LnxButton type="button" mode="clear" size="small" @click="cancel()">
 						Cancelar
 					</LnxButton>
-					<LnxButton type="submit" size="small" :is-loading="saving">
+					<LnxButton type="submit" size="small">
 						<LnxIcon icon="lucide:check" />
 						Guardar
+						<Kbd combo="mod+enter" />
 					</LnxButton>
 				</div>
 				<p v-if="error" class="error wide" role="alert">
@@ -229,7 +267,7 @@ onUnmounted(() => {
 					<LnxIcon :icon="area.icon" :size="20" />
 				</span>
 				<span class="name">
-					<strong>{{ area.name }}</strong>
+					<strong :style="{ viewTransitionName: `area-${area.id}` }">{{ area.name }}</strong>
 					<small v-if="area.booking">
 						Reservable · {{ formatSchedule({ days: area.booking.days, from: area.booking.opens, to: area.booking.closes }) }}
 					</small>
@@ -252,7 +290,7 @@ onUnmounted(() => {
 				</div>
 			</div>
 		</li>
-	</ul>
+	</TransitionGroup>
 </template>
 
 <style lang="scss" scoped>
@@ -353,6 +391,7 @@ button.icon {
 
 	strong {
 		color: var(--color-gray-9);
+		text-wrap: balance;
 	}
 
 	small {
@@ -372,6 +411,19 @@ button.icon {
 	flex-basis: 100%;
 }
 
+// Created or removed, the others make room
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
 // In the top layer, under the icon button
 .icons {
 	position: fixed;
@@ -382,11 +434,33 @@ button.icon {
 	border-radius: var(--lnx-radius-3);
 	background: var(--color-gray-0);
 	box-shadow: 0 2px 4px #0000000F, 0 8px 24px #0000001A;
+	transform-origin: top left;
+	opacity: 0;
+	scale: .96;
+	translate: 0 -4px;
+	// A transition, so closing it while it opens turns back from where it is
+	transition:
+		opacity var(--duration-fast) var(--ease-out),
+		scale var(--duration) var(--ease-spring),
+		translate var(--duration) var(--ease-spring),
+		display var(--duration) allow-discrete,
+		overlay var(--duration) allow-discrete;
+
+	// The layout stays while it fades out, only display goes
+	grid-template-columns: repeat(6, 40px);
+	gap: var(--lnx-spacing-1);
 
 	&:popover-open {
 		display: grid;
-		grid-template-columns: repeat(6, 40px);
-		gap: var(--lnx-spacing-1);
+		opacity: 1;
+		scale: 1;
+		translate: 0;
+
+		@starting-style {
+			opacity: 0;
+			scale: .96;
+			translate: 0 -4px;
+		}
 	}
 
 	button {
@@ -405,6 +479,10 @@ button.icon {
 		&:focus-visible {
 			outline: none;
 			background: var(--color-gray-2);
+		}
+
+		&:active {
+			scale: .9;
 		}
 
 		&[aria-pressed='true'] {

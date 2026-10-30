@@ -3,6 +3,8 @@ import type { CommunityStats } from '../application/usePortfolio.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { loadCommunityStats } from '../application/usePortfolio.ts';
 
@@ -30,6 +32,12 @@ async function load() {
 	}
 }
 watch(communitiesLoading, load, { immediate: true });
+// Coming back shows the last figures while they're read again
+onRevalidate(load);
+
+const pending = computed(() => (loading.value || communitiesLoading.value) && !stats.value.length);
+const TILE_WIDTHS = [70, 55, 80, 65, 60];
+const ROW_WIDTHS = [60, 45, 70, 50];
 
 function averageDays(sum: number, count: number) {
 	return count ? `${Math.round(sum / count)} días` : '—';
@@ -54,9 +62,7 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver" title="Volver">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton to="/" label="Volver" />
 		<h1>Panel de cartera</h1>
 		<LnxButton class="reload" mode="outline" :is-loading="loading" @click="load">
 			<LnxIcon icon="lucide:refresh-cw" />
@@ -68,7 +74,13 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 		No se ha podido cargar: {{ (error ?? communitiesError)?.message }}
 	</p>
 
-	<dl class="totals">
+	<dl v-if="pending" class="totals" aria-busy="true">
+		<div v-for="width in TILE_WIDTHS" :key="width">
+			<dt><span class="skeleton-item skeleton-item--small" :style="{ width: `${width}%` }" /></dt>
+			<dd><span class="skeleton-item skeleton-item--title" style="width: 40%" /></dd>
+		</div>
+	</dl>
+	<dl v-else class="totals ux-appear">
 		<div>
 			<dt>Incidencias abiertas</dt>
 			<dd>{{ totals.openIssues }}</dd>
@@ -96,9 +108,14 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 		</div>
 	</dl>
 
-	<section class="card">
-		<span v-if="(loading || communitiesLoading) && !stats.length" class="skeleton-item" />
-		<div v-else-if="stats.length" class="table">
+	<section class="card" :aria-busy="pending">
+		<div v-if="pending" class="skeleton-rows">
+			<div v-for="width in ROW_WIDTHS" :key="width">
+				<span class="skeleton-item" :style="{ width: `${width}%` }" />
+				<span v-for="column in 5" :key="column" class="skeleton-item skeleton-item--small" />
+			</div>
+		</div>
+		<div v-else-if="stats.length" class="table ux-appear">
 			<table>
 				<thead>
 					<tr>
@@ -125,7 +142,7 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 				<tbody>
 					<tr v-for="row in stats" :key="row.community.id">
 						<th scope="row">
-							<RouterLink :to="`/communities/${row.community.id}`">
+							<RouterLink :to="`/communities/${row.community.id}`" :style="{ viewTransitionName: `community-${row.community.id}` }">
 								{{ row.community.name }}
 							</RouterLink>
 						</th>
@@ -197,6 +214,7 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 	dd {
 		font-size: var(--lnx-font-size-title);
 		font-weight: var(--lnx-font-weight-bold);
+		font-variant-numeric: tabular-nums;
 
 		small {
 			color: var(--color-gray-6);
@@ -222,6 +240,23 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 	overflow-x: auto;
 }
 
+.skeleton-rows {
+	display: flex;
+	flex-direction: column;
+
+	> div {
+		padding: var(--lnx-spacing-3) var(--lnx-spacing-2);
+		display: grid;
+		grid-template-columns: 2fr repeat(5, 1fr);
+		align-items: center;
+		gap: var(--lnx-spacing-4);
+	}
+
+	> div + div {
+		border-top: 1px solid var(--color-gray-3);
+	}
+}
+
 table {
 	width: 100%;
 	border-collapse: collapse;
@@ -238,6 +273,14 @@ table {
 	thead th {
 		color: var(--color-gray-6);
 		font-weight: normal;
+	}
+
+	tbody tr {
+		transition: background-color var(--duration) var(--ease-out);
+
+		&:hover {
+			background-color: var(--color-gray-1);
+		}
 	}
 
 	a {

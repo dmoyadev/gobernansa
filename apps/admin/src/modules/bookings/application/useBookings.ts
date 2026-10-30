@@ -37,3 +37,15 @@ export async function cancelBooking(communityId: string, booking: Booking, areaN
 	});
 	await batch.commit();
 }
+
+// Puts back a cancelled one exactly as it was, from what was shown: the same id, so the slot is taken again
+export async function restoreBooking(communityId: string, { id, ...booking }: Booking, areaName: string) {
+	const batch = writeBatch(db);
+	batch.set(doc(db, 'communities', communityId, 'bookings', id), booking);
+	logActivity(batch, communityId, {
+		area: 'booking',
+		summary: `Restauró la reserva de ${booking.name} en ${areaName} el ${booking.date} a las ${booking.from}`,
+		link: `/communities/${communityId}/locations/${booking.areaId}`,
+	});
+	await batch.commit();
+}

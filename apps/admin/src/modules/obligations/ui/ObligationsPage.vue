@@ -9,6 +9,11 @@ import { collection, deleteField, doc, serverTimestamp, Timestamp, writeBatch } 
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useCollection } from 'vuefire';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 
@@ -75,8 +80,9 @@ function emptyForm(): ObligationForm {
 
 const form = ref(emptyForm());
 const editingId = ref<string>();
-const saving = ref(false);
-const formError = ref<string>();
+// The next new one's id, made with its form, so sending it twice writes it once
+const newObligationId = ref(newId());
+const formElement = ref<HTMLFormElement>();
 
 // Choosing a type fills in its usual title and period, still editable
 function onTypeChange() {
@@ -103,56 +109,66 @@ function reset() {
 	form.value = emptyForm();
 }
 
-async function save() {
-	saving.value = true;
-	formError.value = undefined;
-	try {
-		const uid = auth.currentUser!.uid;
-		const { type, title, dueAt, everyMonths, providerId, notes } = form.value;
-		const months = Number.parseInt(everyMonths, 10);
-		// Kept when it's no longer shared with this community, so editing something else doesn't drop it
-		const provider = providers.value.find(item => item.id === providerId)
-			?? obligations.value.find(item => item.id === editingId.value && item.provider?.id === providerId)?.provider;
-		const obligationRef = editingId.value ? doc(obligationsRef, editingId.value) : doc(obligationsRef);
-		const now = serverTimestamp();
-		const batch = writeBatch(db);
-		// Merged, so the optional fields left empty are removed
-		batch.set(obligationRef, {
-			communityId: props.id,
-			type,
-			title: title.trim(),
-			dueAt: Timestamp.fromDate(new Date(`${dueAt}T00:00`)),
-			everyMonths: months > 0 ? months : deleteField(),
-			provider: provider ? { id: provider.id, name: provider.name } : deleteField(),
-			notes: notes.trim() || deleteField(),
-			updatedAt: now,
-			updatedBy: uid,
-			...(editingId.value ? {} : { createdAt: now, createdBy: uid }),
-		}, { merge: true });
-		logActivity(batch, props.id, {
-			area: 'obligation',
-			summary: `${editingId.value ? 'Editó' : 'Añadió'} la obligación «${title.trim()}», vence el ${new Date(`${dueAt}T00:00`).toLocaleDateString('es')}`,
-			link: `/communities/${props.id}/obligations`,
-		});
-		await batch.commit();
+// The list shows it at once, so the form empties straight away, and comes back as it was typed if the server refuses it
+function save() {
+	const uid = auth.currentUser!.uid;
+	const typed = form.value;
+	const id = editingId.value ?? newObligationId.value;
+	const editing = !!editingId.value;
+	const { type, title, dueAt, everyMonths, providerId, notes } = typed;
+	const months = Number.parseInt(everyMonths, 10);
+	// Kept when it's no longer shared with this community, so editing something else doesn't drop it
+	const provider = providers.value.find(item => item.id === providerId)
+		?? obligations.value.find(item => item.id === editingId.value && item.provider?.id === providerId)?.provider;
+	const now = serverTimestamp();
+	const batch = writeBatch(db);
+	// Merged, so the optional fields left empty are removed
+	batch.set(doc(obligationsRef, id), {
+		communityId: props.id,
+		type,
+		title: title.trim(),
+		dueAt: Timestamp.fromDate(new Date(`${dueAt}T00:00`)),
+		everyMonths: months > 0 ? months : deleteField(),
+		provider: provider ? { id: provider.id, name: provider.name } : deleteField(),
+		notes: notes.trim() || deleteField(),
+		updatedAt: now,
+		updatedBy: uid,
+		...(editing ? {} : { createdAt: now, createdBy: uid }),
+	}, { merge: true });
+	logActivity(batch, props.id, {
+		area: 'obligation',
+		summary: `${editing ? 'Editó' : 'Añadió'} la obligación «${title.trim()}», vence el ${new Date(`${dueAt}T00:00`).toLocaleDateString('es')}`,
+		link: `/communities/${props.id}/obligations`,
+	});
+	void optimistic(batch.commit(), {
+		done: editing ? 'Guardado' : 'Obligación añadida',
+		failed: 'No se ha podido guardar',
+		onError: () => {
+			form.value = typed;
+			editingId.value = editing ? id : undefined;
+			if (!editing) {
+				newObligationId.value = id;
+			}
+		},
+	});
+	if (!editing) {
+		newObligationId.value = newId();
+	}
+	reset();
+}
+
+function focusForm() {
+	formElement.value?.querySelector<HTMLElement>('input, button')?.focus();
+}
+
+useShortcut('n', focusForm, 'Nueva obligación');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la obligación');
+// Only while editing, so Escape stays free for anything else the rest of the time
+useEventListener(window, 'keydown', (event) => {
+	if (event.key === 'Escape' && editingId.value && !event.defaultPrevented) {
 		reset();
-	} catch (e) {
-		formError.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
 	}
-}
-
-const actionError = ref<string>();
-
-async function run(action: () => Promise<void>, failure: string) {
-	actionError.value = undefined;
-	try {
-		await action();
-	} catch (e) {
-		actionError.value = `${failure}: ${(e as Error).message}`;
-	}
-}
+});
 
 // The next one counts from when it was due, so doing it late doesn't shift the cycle, unless that's still in the past
 function nextDueAt(obligation: Obligation) {
@@ -164,44 +180,57 @@ function nextDueAt(obligation: Obligation) {
 	return next >= today() ? next : addMonths(today(), obligation.everyMonths);
 }
 
-// A second click before the list updates would move the due date forward twice
-const marking = ref<string>();
-
-async function markDone(obligation: Obligation) {
+// The local write updates the list before a second click could move the due date forward twice
+function markDone(obligation: Obligation) {
 	const next = nextDueAt(obligation);
-	marking.value = obligation.id;
-	await run(async () => {
-		const batch = writeBatch(db);
-		batch.update(doc(obligationsRef, obligation.id), {
-			lastDoneAt: serverTimestamp(),
-			...(next ? { dueAt: Timestamp.fromDate(next) } : {}),
-			updatedAt: serverTimestamp(),
-			updatedBy: auth.currentUser!.uid,
-		});
-		logActivity(batch, props.id, {
-			area: 'obligation',
-			summary: `Marcó como hecha «${obligation.title}»${next ? `, la próxima vence el ${next.toLocaleDateString('es')}` : ''}`,
-			link: `/communities/${props.id}/obligations`,
-		});
-		await batch.commit();
-	}, 'No se ha podido marcar como hecha');
-	marking.value = undefined;
+	const batch = writeBatch(db);
+	batch.update(doc(obligationsRef, obligation.id), {
+		lastDoneAt: serverTimestamp(),
+		...(next ? { dueAt: Timestamp.fromDate(next) } : {}),
+		updatedAt: serverTimestamp(),
+		updatedBy: auth.currentUser!.uid,
+	});
+	logActivity(batch, props.id, {
+		area: 'obligation',
+		summary: `Marcó como hecha «${obligation.title}»${next ? `, la próxima vence el ${next.toLocaleDateString('es')}` : ''}`,
+		link: `/communities/${props.id}/obligations`,
+	});
+	void optimistic(batch.commit(), { done: 'Marcada como hecha', failed: 'No se ha podido marcar como hecha', revert: async () => unmarkDone(obligation) });
 }
 
-async function remove(obligation: Obligation) {
+// Undoes markDone with the dates it had before
+async function unmarkDone({ id, title, dueAt, lastDoneAt }: Obligation) {
+	const batch = writeBatch(db);
+	batch.update(doc(obligationsRef, id), {
+		lastDoneAt: lastDoneAt ?? deleteField(),
+		dueAt,
+		updatedAt: serverTimestamp(),
+		updatedBy: auth.currentUser!.uid,
+	});
+	logActivity(batch, props.id, { area: 'obligation', summary: `Desmarcó como hecha «${title}»`, link: `/communities/${props.id}/obligations` });
+	await batch.commit();
+}
+
+function remove(obligation: Obligation) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar «${obligation.title}»?`)) {
 		return;
 	}
-	await run(async () => {
-		const batch = writeBatch(db);
-		batch.delete(doc(obligationsRef, obligation.id));
-		logActivity(batch, props.id, { area: 'obligation', summary: `Borró la obligación «${obligation.title}»` });
-		await batch.commit();
-		if (editingId.value === obligation.id) {
-			reset();
-		}
-	}, 'No se ha podido borrar');
+	const batch = writeBatch(db);
+	batch.delete(doc(obligationsRef, obligation.id));
+	logActivity(batch, props.id, { area: 'obligation', summary: `Borró la obligación «${obligation.title}»` });
+	void optimistic(batch.commit(), { done: 'Obligación borrada', failed: 'No se ha podido borrar', revert: async () => restore(obligation) });
+	if (editingId.value === obligation.id) {
+		reset();
+	}
+}
+
+// Undoes remove with the data it had, kept from the list
+async function restore({ id, ...obligation }: Obligation) {
+	const batch = writeBatch(db);
+	batch.set(doc(obligationsRef, id), obligation);
+	logActivity(batch, props.id, { area: 'obligation', summary: `Restauró la obligación «${obligation.title}»`, link: `/communities/${props.id}/obligations` });
+	await batch.commit();
 }
 
 function icsText(text: string) {
@@ -245,9 +274,7 @@ function downloadIcs(obligation: Obligation) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Obligaciones</h1>
 	</header>
 
@@ -255,12 +282,12 @@ function downloadIcs(obligation: Obligation) {
 		<LnxIcon icon="lucide:bell-ring" :size="20" />
 		<ul>
 			<li v-for="obligation in warnings" :key="obligation.id">
-				<strong>{{ obligation.title }}</strong>: {{ daysLabel(obligation).toLowerCase() }}
+				<strong>{{ obligation.title }}</strong>: <span class="tabular">{{ daysLabel(obligation).toLowerCase() }}</span>
 			</li>
 		</ul>
 	</section>
 
-	<form class="card" @submit.prevent="save()">
+	<form ref="formElement" class="card" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar obligación' : 'Nueva obligación' }}</h2>
 		<div class="fields">
 			<LnxSelect
@@ -308,30 +335,37 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 
 		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
 			<LnxButton v-if="editingId" mode="clear" @click="reset()">
 				Cancelar
+				<Kbd combo="escape" />
 			</LnxButton>
-			<LnxButton type="submit" :is-loading="saving">
+			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
 
-	<section class="card">
+	<section class="card" :aria-busy="pending && !sorted.length">
 		<h2>Calendario</h2>
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
 
-		<span v-if="pending && !sorted.length" class="skeleton-item" />
-		<ul v-else-if="sorted.length" class="list">
+		<ul v-if="pending && !sorted.length" class="list">
+			<li v-for="width in ['50%', '35%', '60%']" :key="width" class="item">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width }" />
+					<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+				</div>
+				<div class="item-actions">
+					<span class="skeleton-item skeleton-item--title" style="width: 80px" />
+				</div>
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="sorted.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="obligation in sorted" :key="obligation.id" class="item">
 				<LnxIcon class="type" :icon="obligationTypes[obligation.type]?.icon ?? 'lucide:calendar-check'" :size="20" :title="obligationTypes[obligation.type]?.label" />
 				<div class="what">
@@ -339,11 +373,11 @@ function downloadIcs(obligation: Obligation) {
 						{{ obligation.title }}
 						<span class="badge" :class="status(obligation)">{{ obligationStatusLabels[status(obligation)] }}</span>
 					</strong>
-					<small>
+					<small class="tabular">
 						{{ obligation.dueAt.toDate().toLocaleDateString('es') }} · {{ daysLabel(obligation) }}
 						<template v-if="obligation.everyMonths"> · Cada {{ obligation.everyMonths }} meses</template>
 					</small>
-					<small v-if="obligation.provider || obligation.lastDoneAt">
+					<small v-if="obligation.provider || obligation.lastDoneAt" class="tabular">
 						<template v-if="obligation.provider">{{ obligation.provider.name }}</template>
 						<template v-if="obligation.provider && obligation.lastDoneAt"> · </template>
 						<template v-if="obligation.lastDoneAt">Última vez: {{ obligation.lastDoneAt.toDate().toLocaleDateString('es') }}</template>
@@ -353,7 +387,7 @@ function downloadIcs(obligation: Obligation) {
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton mode="outline" size="small" :is-loading="marking === obligation.id" :disabled="!!marking" @click="markDone(obligation)">
+					<LnxButton mode="outline" size="small" @click="markDone(obligation)">
 						<LnxIcon icon="lucide:check" />
 						Hecha
 					</LnxButton>
@@ -368,7 +402,7 @@ function downloadIcs(obligation: Obligation) {
 					</LnxButton>
 				</div>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no hay obligaciones. Añade las inspecciones y revisiones de la comunidad para que avisemos antes de que venzan.
 		</p>
@@ -449,8 +483,28 @@ function downloadIcs(obligation: Obligation) {
 }
 
 .list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
+}
+
+// Rows coming, going and reordering by due date. Transitions, so a change midway turns back from where it is
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+// Out of the flow, so the rest move up into its place
+.row-leave-active {
+	position: absolute;
+	inset-inline: 0;
 }
 
 .item {
@@ -482,6 +536,10 @@ function downloadIcs(obligation: Obligation) {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
+
+	strong {
+		text-wrap: balance;
+	}
 
 	small {
 		color: var(--color-gray-6);

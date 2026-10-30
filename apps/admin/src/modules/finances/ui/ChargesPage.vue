@@ -5,9 +5,15 @@ import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, ref } from 'vue';
-import { deleteCharge, issueCharges, loadPropertyCharges, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { computed, ref, useTemplateRef } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic, toast } from '@/app/ux/toast.ts';
+import { deleteCharge, issueCharges, loadPropertyCharges, restoreCharge, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -49,7 +55,14 @@ const withoutCoefficient = computed(() => properties.value.filter(property => !p
 const issuing = ref(false);
 const formError = ref<string>();
 
+// The ids of a confirmed emission, kept until it's issued: trying the same one again after a failure rewrites those
+// charges instead of issuing them twice. Changing the form makes it another emission
+let confirmed: { key: string; batchId: string; ids: string[] } | undefined;
+
 async function issue() {
+	if (issuing.value) {
+		return;
+	}
 	if (!shares.value.length) {
 		formError.value = cents.value > 0
 			? 'Ninguna propiedad tiene coeficiente. Añádelos en el censo de propiedades.'
@@ -61,6 +74,12 @@ async function issue() {
 		return;
 	}
 
+	const key = JSON.stringify([form.value.type, form.value.concept.trim(), form.value.dueDate, shares.value.map(share => [share.property.id, share.cents])]);
+	if (confirmed?.key !== key) {
+		confirmed = { key, batchId: newId(), ids: shares.value.map(() => newId()) };
+	}
+
+	// Money: it waits for the server before telling it's done
 	issuing.value = true;
 	formError.value = undefined;
 	try {
@@ -69,14 +88,22 @@ async function issue() {
 			concept: form.value.concept.trim(),
 			dueDate: toDueDate(form.value.dueDate),
 			shares: shares.value,
+			batchId: confirmed.batchId,
+			ids: confirmed.ids,
 		});
+		toast(shares.value.length === 1 ? 'Recibo emitido' : 'Recibos emitidos');
 		form.value = emptyForm();
+		confirmed = undefined;
 	} catch (e) {
 		formError.value = `No se han podido emitir: ${(e as Error).message}`;
 	} finally {
 		issuing.value = false;
 	}
 }
+
+const issueForm = useTemplateRef('issueForm');
+useShortcut('n', () => issueForm.value?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus(), 'Emitir recibos');
+useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), 'Emitir los recibos');
 
 // Arrears, from the live unpaid charges
 const rows = computed(() => {
@@ -97,70 +124,90 @@ const rows = computed(() => {
 const totalOverdue = computed(() => rows.value.reduce((sum, row) => sum + row.overdueAmount, 0));
 const totalPending = computed(() => rows.value.reduce((sum, row) => sum + row.pendingAmount, 0));
 const debtors = computed(() => rows.value.filter(row => row.overdueCount).length);
+const loading = computed(() => (propertiesPending.value || chargesPending.value) && !rows.value.length);
 
 // The property opened to see its charges, and its whole history once asked for
 const openId = ref<string>();
 const history = ref<Charge[]>();
 const historyLoading = ref(false);
+const actionError = ref<string>();
 
 function toggle(property: Property) {
 	openId.value = openId.value === property.id ? undefined : property.id;
 	history.value = undefined;
 }
 
-const busy = ref(false);
-const actionError = ref<string>();
-
-async function run(action: () => Promise<void>, failure: string) {
-	busy.value = true;
-	actionError.value = undefined;
-	try {
-		await action();
-	} catch (e) {
-		actionError.value = `${failure}: ${(e as Error).message}`;
-	} finally {
-		busy.value = false;
-	}
-}
-
 async function loadHistory(propertyId: string) {
 	historyLoading.value = true;
-	await run(async () => {
+	actionError.value = undefined;
+	try {
 		history.value = await loadPropertyCharges(props.id, propertyId);
-	}, 'No se ha podido cargar el historial');
-	historyLoading.value = false;
-}
-
-async function refreshHistory(charge: Charge) {
-	if (history.value) {
-		await loadHistory(charge.propertyId);
+	} catch (e) {
+		actionError.value = `No se ha podido cargar el historial: ${(e as Error).message}`;
+	} finally {
+		historyLoading.value = false;
 	}
 }
 
-async function togglePaid(charge: Charge) {
-	await run(async () => setChargePaid(props.id, charge, !charge.paidAt), 'No se ha podido cambiar');
-	await refreshHistory(charge);
+// The history is read once, so coming back reads it again, showing the last one meanwhile
+onRevalidate(() => history.value && openId.value && loadHistory(openId.value));
+
+// The unpaid ones are live, the history is updated by hand
+function patchHistory(id: string, paidAt: Timestamp | null) {
+	history.value = history.value?.map(charge => charge.id === id ? { ...charge, paidAt } : charge);
 }
 
-async function remove(charge: Charge) {
+function setInHistory(charge: Charge, present: boolean) {
+	if (!history.value) {
+		return;
+	}
+	const others = history.value.filter(candidate => candidate.id !== charge.id);
+	history.value = present ? [...others, charge].sort((a, b) => b.dueDate.toMillis() - a.dueDate.toMillis()) : others;
+}
+
+function togglePaid(charge: Charge) {
+	const previous = charge.paidAt;
+	const paidAt = previous ? null : Timestamp.now();
+	patchHistory(charge.id, paidAt);
+	void optimistic(setChargePaid(props.id, charge, paidAt), {
+		done: paidAt ? 'Marcado como pagado' : 'Marcado como pendiente',
+		failed: 'No se ha podido cambiar',
+		revert: async () => {
+			patchHistory(charge.id, previous);
+			await setChargePaid(props.id, charge, previous);
+		},
+		onError: () => patchHistory(charge.id, previous),
+	});
+}
+
+function remove(charge: Charge) {
 	// eslint-disable-next-line no-alert
-	if (window.confirm(`¿Borrar «${charge.concept}» de ${charge.propertyName}?`)) {
-		await run(async () => deleteCharge(props.id, charge), 'No se ha podido borrar');
-		await refreshHistory(charge);
+	if (!window.confirm(`¿Borrar «${charge.concept}» de ${charge.propertyName}?`)) {
+		return;
 	}
+	// What it had, to put it back as it was
+	const deleted = { ...charge, id: charge.id };
+	setInHistory(deleted, false);
+	void optimistic(deleteCharge(props.id, deleted), {
+		done: 'Recibo borrado',
+		failed: 'No se ha podido borrar',
+		revert: async () => {
+			setInHistory(deleted, true);
+			await restoreCharge(props.id, deleted);
+		},
+		onError: () => setInHistory(deleted, true),
+	});
 }
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Recibos y morosidad</h1>
 	</header>
 
-	<form class="card" @submit.prevent="issue()">
-		<h2>Emitir recibos o derrama</h2>
+	<form ref="issueForm" class="card" @submit.prevent="issue()">
+		<h2>Emitir recibos o derrama <Kbd combo="n" /></h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="form.type"
@@ -202,7 +249,7 @@ async function remove(charge: Charge) {
 			</DatePicker>
 		</div>
 
-		<p v-if="shares.length" class="hint">
+		<p v-if="shares.length" class="hint tabular">
 			{{ shares.length }} {{ shares.length === 1 ? 'propiedad' : 'propiedades' }} · {{ formatCents(sharesTotal) }} en total
 		</p>
 		<p v-if="split === 'coefficient' && properties.length && (coefficientSum !== 100 || withoutCoefficient)" class="warning">
@@ -219,6 +266,7 @@ async function remove(charge: Charge) {
 			<LnxButton type="submit" :is-loading="issuing" :disabled="!properties.length">
 				<LnxIcon icon="lucide:receipt-euro" />
 				Emitir
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -232,33 +280,47 @@ async function remove(charge: Charge) {
 			{{ actionError }}
 		</p>
 
-		<div class="totals">
+		<div class="totals tabular" :aria-busy="loading">
 			<div>
 				<small>Deuda vencida</small>
-				<strong :class="{ debt: totalOverdue }">{{ formatCents(totalOverdue) }}</strong>
+				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 110px" />
+				<strong v-else :class="{ debt: totalOverdue }">{{ formatCents(totalOverdue) }}</strong>
 			</div>
 			<div>
 				<small>Pendiente de cobro</small>
-				<strong>{{ formatCents(totalPending) }}</strong>
+				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 95px" />
+				<strong v-else>{{ formatCents(totalPending) }}</strong>
 			</div>
 			<div>
 				<small>Propiedades con deuda</small>
-				<strong>{{ debtors }}</strong>
+				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
+				<strong v-else>{{ debtors }}</strong>
 			</div>
 		</div>
 
-		<span v-if="propertiesPending || chargesPending" class="skeleton-item" />
-		<ul v-else-if="rows.length" class="list">
+		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
+			<li v-for="width in [55, 40, 65, 48]" :key="width" class="item">
+				<div class="row">
+					<div class="what">
+						<span class="skeleton-item" :style="{ width: `${width}%` }" />
+						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+					</div>
+					<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+					<span class="skeleton-item skeleton-item--icon" />
+				</div>
+			</li>
+		</ul>
+		<ul v-else-if="rows.length" class="list ux-appear">
 			<li v-for="row in rows" :key="row.property.id" class="item">
 				<div class="row">
-					<button type="button" class="what" :aria-expanded="openId === row.property.id" @click="toggle(row.property)">
+					<button type="button" class="what ux-row" :aria-expanded="openId === row.property.id" @click="toggle(row.property)">
 						<strong>{{ row.property.name }}</strong>
 						<small>{{ row.property.ownerName || 'Sin propietario' }}<template v-if="row.property.coefficient"> · {{ formatCoefficient(row.property.coefficient) }}</template></small>
 					</button>
-					<span v-if="row.overdueCount" class="chip debt">
+					<span v-if="row.overdueCount" class="chip debt tabular">
 						{{ row.overdueCount }} {{ row.overdueCount === 1 ? 'vencido' : 'vencidos' }} · {{ formatCents(row.overdueAmount) }}
 					</span>
-					<span v-else-if="row.pendingAmount" class="chip">
+					<span v-else-if="row.pendingAmount" class="chip tabular">
 						Pendiente {{ formatCents(row.pendingAmount) }}
 					</span>
 					<span v-else class="chip ok">Al corriente</span>
@@ -275,27 +337,27 @@ async function remove(charge: Charge) {
 				</div>
 
 				<div v-if="openId === row.property.id" class="charges">
-					<ul v-if="(history ?? row.charges).length">
+					<TransitionGroup v-if="(history ?? row.charges).length" tag="ul" name="charge">
 						<li v-for="charge in history ?? row.charges" :key="charge.id" class="charge">
 							<div class="what">
 								<span>{{ charge.concept }}</span>
-								<small>
+								<small class="tabular">
 									{{ chargeTypes[charge.type] }} · vence {{ dateFormat.format(charge.dueDate.toDate()) }}
 									<template v-if="charge.paidAt"> · pagado el {{ dateFormat.format(charge.paidAt.toDate()) }}</template>
 									<template v-else-if="isOverdue(charge)"> · <span class="debt">vencido</span></template>
 								</small>
 							</div>
-							<strong>{{ formatCents(charge.amount) }}</strong>
+							<strong class="tabular">{{ formatCents(charge.amount) }}</strong>
 							<div class="item-actions">
-								<LnxButton mode="clear" size="small" :disabled="busy" @click="togglePaid(charge)">
+								<LnxButton mode="clear" size="small" @click="togglePaid(charge)">
 									{{ charge.paidAt ? 'Marcar pendiente' : 'Marcar pagado' }}
 								</LnxButton>
-								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" :disabled="busy" @click="remove(charge)">
+								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
 									<LnxIcon icon="lucide:trash-2" />
 								</LnxButton>
 							</div>
 						</li>
-					</ul>
+					</TransitionGroup>
 					<p v-else class="hint">
 						{{ history ? 'No tiene recibos.' : 'No tiene nada pendiente.' }}
 					</p>
@@ -417,12 +479,19 @@ async function remove(charge: Charge) {
 }
 
 button.what {
-	padding: 0;
+	// Its hover reaches a bit past the text, without moving it
+	margin: calc(-1 * var(--lnx-spacing-1)) calc(-1 * var(--lnx-spacing-2));
+	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
 	border: none;
+	border-radius: var(--lnx-radius-2);
 	background: none;
 	font: inherit;
 	color: inherit;
 	cursor: pointer;
+
+	strong {
+		text-wrap: balance;
+	}
 }
 
 .chip {
@@ -456,6 +525,7 @@ button.what {
 	gap: var(--lnx-spacing-2);
 
 	ul {
+		position: relative;
 		width: 100%;
 	}
 }
@@ -466,6 +536,24 @@ button.what {
 	grid-template-columns: minmax(0, 1fr) auto auto;
 	align-items: center;
 	gap: var(--lnx-spacing-3);
+}
+
+// Paid, pending or deleted: the rest slide into place
+.charge-move,
+.charge-enter-active,
+.charge-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.charge-enter-from,
+.charge-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+.charge-leave-active {
+	position: absolute;
+	width: 100%;
 }
 
 .item-actions {

@@ -7,8 +7,13 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { Bytes, collection, doc, getDoc, orderBy, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed, ref } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 
 // The same shape as the webapp's, which lists them to the neighbour along with the ones they upload
 interface PersonDocument {
@@ -49,13 +54,19 @@ const propertyId = ref('');
 const sending = ref(false);
 const formError = ref<string>();
 const fileInput = ref<HTMLInputElement>();
+const formElement = useTemplateRef<HTMLFormElement>('formElement');
+// Sending it again after a failure writes the same document instead of a second one
+let documentId = newId();
+
+useShortcut('n', () => fileInput.value?.focus(), 'Enviar un documento');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el documento elegido');
 
 function fileRef(id: string) {
 	return doc(db, 'users', props.uid, 'documentFiles', id);
 }
 
 async function upload() {
-	if (!file.value) {
+	if (!file.value || sending.value) {
 		return;
 	}
 	if (file.value.size > MAX_DOCUMENT_SIZE) {
@@ -66,7 +77,7 @@ async function upload() {
 	sending.value = true;
 	formError.value = undefined;
 	try {
-		const documentRef = doc(documentsRef);
+		const documentRef = doc(documentsRef, documentId);
 		const batch = writeBatch(db);
 		batch.set(fileRef(documentRef.id), { data: Bytes.fromUint8Array(new Uint8Array(await file.value.arrayBuffer())) });
 		batch.set(documentRef, {
@@ -86,6 +97,7 @@ async function upload() {
 		await batch.commit();
 		file.value = undefined;
 		fileInput.value!.value = '';
+		documentId = newId();
 	} catch (e) {
 		formError.value = `No se ha podido enviar: ${(e as Error).message}`;
 	} finally {
@@ -111,27 +123,23 @@ async function download(document: PersonDocument) {
 	}
 }
 
-// Only the ones sent by the administration, the neighbour's own are theirs to remove
-async function remove(document: PersonDocument) {
+// Only the ones sent by the administration, the neighbour's own are theirs to remove. No undo: the file itself isn't
+// in the page (it's only read to download it), and reading it first just in case would cost a read per delete
+function remove(document: PersonDocument) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar «${document.name}»? ${person.value?.name ?? 'El vecino'} dejará de verlo.`)) {
 		return;
 	}
 
-	actionError.value = undefined;
-	try {
-		const batch = writeBatch(db);
-		batch.delete(doc(documentsRef, document.id));
-		batch.delete(fileRef(document.id));
-		logActivity(batch, props.id, {
-			area: 'people',
-			summary: `Borró «${document.name}» de los documentos de ${person.value?.name ?? 'un vecino'}`,
-			link: `/communities/${props.id}/people/${props.uid}/documents`,
-		});
-		await batch.commit();
-	} catch (e) {
-		actionError.value = `No se ha podido borrar: ${(e as Error).message}`;
-	}
+	const batch = writeBatch(db);
+	batch.delete(doc(documentsRef, document.id));
+	batch.delete(fileRef(document.id));
+	logActivity(batch, props.id, {
+		area: 'people',
+		summary: `Borró «${document.name}» de los documentos de ${person.value?.name ?? 'un vecino'}`,
+		link: `/communities/${props.id}/people/${props.uid}/documents`,
+	});
+	void optimistic(batch.commit(), { done: 'Documento borrado', failed: 'No se ha podido borrar' });
 }
 
 function formatSize(bytes: number) {
@@ -141,18 +149,16 @@ function formatSize(bytes: number) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/people`" mode="clear" shape="circle" aria-label="Volver a vecinos y gestores" title="Volver a vecinos y gestores">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}/people`" label="Volver a vecinos y gestores" />
 		<h1>
 			Documentos<template v-if="person">
-				de {{ person.name }}
+				de <span :style="{ viewTransitionName: `person-${uid}` }">{{ person.name }}</span>
 			</template>
 		</h1>
 	</header>
 
-	<form class="card" @submit.prevent="upload()">
-		<h2>Enviar un documento</h2>
+	<form ref="formElement" class="card" @submit.prevent="upload()">
+		<h2>Enviar un documento <Kbd combo="n" /></h2>
 		<p class="hint">
 			Lo verá en su perfil, con tu nombre. Hasta 1 MB.
 		</p>
@@ -190,6 +196,7 @@ function formatSize(bytes: number) {
 			<LnxButton type="submit" :is-loading="sending">
 				<LnxIcon icon="lucide:send" />
 				Enviar
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -203,13 +210,22 @@ function formatSize(bytes: number) {
 			{{ actionError }}
 		</p>
 
-		<span v-if="pending" class="skeleton-item" />
-		<ul v-else-if="documents.length" class="list">
+		<ul v-if="pending && !documents.length" class="list" aria-busy="true">
+			<li v-for="width in [42, 60, 34]" :key="width" class="document">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 25}%` }" />
+				</div>
+				<span class="skeleton-item skeleton-item--icon" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="documents.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="document in documents" :key="document.id" class="document">
 				<LnxIcon :icon="categories.find(option => option.value === document.category)?.icon ?? 'lucide:file'" />
 				<div class="what">
 					<strong>{{ document.name }}</strong>
-					<small>
+					<small class="tabular">
 						{{ categories.find(option => option.value === document.category)?.label }}
 						<template v-if="document.propertyId && propertyNames[document.propertyId]"> · {{ propertyNames[document.propertyId] }}</template>
 						· {{ formatSize(document.size) }}
@@ -233,7 +249,7 @@ function formatSize(bytes: number) {
 					</LnxButton>
 				</div>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no tiene documentos.
 		</p>
@@ -350,6 +366,15 @@ function formatSize(bytes: number) {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover input:not(:checked) + span {
+		background: var(--color-gray-1);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {
@@ -367,5 +392,18 @@ function formatSize(bytes: number) {
 .error {
 	color: var(--color-secondary-accent);
 	font-size: var(--lnx-font-size-small);
+}
+
+// Rows coming and going, interruptible as they're transitions
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
 }
 </style>

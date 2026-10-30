@@ -74,20 +74,22 @@ export interface ChargeIssue {
 	concept: string;
 	dueDate: Timestamp;
 	shares: { property: Property; cents: number }[];
+	// Made beforehand, one per share: issuing again after a failure rewrites the same charges instead of duplicating them
+	batchId: string;
+	ids: string[];
 }
 
 // One charge per property sharing a batchId, so a fee run or a derrama can be told apart later
-export async function issueCharges(communityId: string, { type, concept, dueDate, shares }: ChargeIssue) {
+export async function issueCharges(communityId: string, { type, concept, dueDate, shares, batchId, ids }: ChargeIssue) {
 	const uid = signedUid();
-	const batchId = doc(chargesRef(communityId)).id;
 	const now = serverTimestamp();
 	const total = shares.reduce((sum, share) => sum + share.cents, 0);
 
 	// ponytail: past 499 properties the run is split in several batches, a failure halfway leaves the first ones issued
 	for (let start = 0; start < shares.length; start += CHARGES_PER_BATCH) {
 		const batch = writeBatch(db);
-		for (const { property, cents } of shares.slice(start, start + CHARGES_PER_BATCH)) {
-			batch.set(doc(chargesRef(communityId)), {
+		for (const [index, { property, cents }] of shares.slice(start, start + CHARGES_PER_BATCH).entries()) {
+			batch.set(doc(chargesRef(communityId), ids[start + index]), {
 				communityId,
 				propertyId: property.id,
 				propertyName: property.name,
@@ -114,10 +116,12 @@ export async function issueCharges(communityId: string, { type, concept, dueDate
 	}
 }
 
-export async function setChargePaid(communityId: string, charge: Charge, paid: boolean) {
+// paidAt is given, so undoing puts back the exact date it had
+export async function setChargePaid(communityId: string, charge: Charge, paidAt: Timestamp | null) {
+	const paid = !!paidAt;
 	const batch = writeBatch(db);
 	batch.update(doc(chargesRef(communityId), charge.id), {
-		paidAt: paid ? Timestamp.now() : null,
+		paidAt,
 		updatedAt: serverTimestamp(),
 		updatedBy: signedUid(),
 	});
@@ -135,6 +139,18 @@ export async function deleteCharge(communityId: string, charge: Charge) {
 	logActivity(batch, communityId, {
 		area: 'finance',
 		summary: `Borró «${charge.concept}» de ${charge.propertyName} (${formatCents(charge.amount)})`,
+		link: `/communities/${communityId}/charges`,
+	});
+	await batch.commit();
+}
+
+// Undoes deleteCharge: the same charge again, with its id and the data it had
+export async function restoreCharge(communityId: string, { id, ...charge }: Charge) {
+	const batch = writeBatch(db);
+	batch.set(doc(chargesRef(communityId), id), { ...charge, updatedAt: serverTimestamp(), updatedBy: signedUid() });
+	logActivity(batch, communityId, {
+		area: 'finance',
+		summary: `Restauró «${charge.concept}» de ${charge.propertyName} (${formatCents(charge.amount)})`,
 		link: `/communities/${communityId}/charges`,
 	});
 	await batch.commit();
@@ -188,11 +204,12 @@ export function useExpenses(communityId: string, year: MaybeRefOrGetter<number>)
 
 export type ExpenseData = Pick<Expense, 'itemId' | 'concept' | 'amount' | 'date' | 'provider'>;
 
-export async function addExpense(communityId: string, { provider, ...expense }: ExpenseData) {
+// id made when the form opens, so sending it twice writes one expense
+export async function addExpense(communityId: string, id: string, { provider, ...expense }: ExpenseData) {
 	const uid = signedUid();
 	const now = serverTimestamp();
 	const batch = writeBatch(db);
-	batch.set(doc(expensesRef(communityId)), {
+	batch.set(doc(expensesRef(communityId), id), {
 		...expense,
 		...(provider ? { provider } : {}),
 		year: expense.date.toDate().getFullYear(),
@@ -215,6 +232,18 @@ export async function deleteExpense(communityId: string, expense: Expense) {
 	logActivity(batch, communityId, {
 		area: 'finance',
 		summary: `Borró el gasto «${expense.concept}» de ${formatCents(expense.amount)}`,
+		link: `/communities/${communityId}/budget`,
+	});
+	await batch.commit();
+}
+
+// Undoes deleteExpense: the same expense again, with its id and the data it had
+export async function restoreExpense(communityId: string, { id, ...expense }: Expense) {
+	const batch = writeBatch(db);
+	batch.set(doc(expensesRef(communityId), id), { ...expense, updatedAt: serverTimestamp(), updatedBy: signedUid() });
+	logActivity(batch, communityId, {
+		area: 'finance',
+		summary: `Restauró el gasto «${expense.concept}» de ${formatCents(expense.amount)}`,
 		link: `/communities/${communityId}/budget`,
 	});
 	await batch.commit();

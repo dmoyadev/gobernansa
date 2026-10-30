@@ -4,6 +4,8 @@ import { getCurrentUser } from 'vuefire';
 
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
+	// Back and forward return to where the page was left, a new page starts at its top
+	scrollBehavior: (to, from, savedPosition) => savedPosition ?? (to.path === from.path ? undefined : { top: 0 }),
 	routes: [
 		{
 			path: '/login',

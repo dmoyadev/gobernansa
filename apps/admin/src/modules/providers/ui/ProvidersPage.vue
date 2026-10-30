@@ -5,10 +5,16 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { averageRating, providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
+import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
-import { deleteProvider, loadRatings, rateProvider, saveProvider } from '../application/providerActions.ts';
+import { canRestoreProvider, deleteProvider, loadRatings, rateProvider, restoreProvider, saveProvider } from '../application/providerActions.ts';
 import { useProviders } from '../application/useProviders.ts';
 
 // One directory for every community the user manages, each provider shared with the ones they choose
@@ -35,8 +41,11 @@ function emptyForm(): ProviderForm {
 
 const form = ref<ProviderForm>(emptyForm());
 const editingId = ref<string>();
-const saving = ref(false);
+// The new one's id, so sending it twice creates it once
+const draftId = ref(newId());
 const formError = ref<string>();
+const formElement = ref<HTMLFormElement>();
+const filtersElement = ref<HTMLElement>();
 
 // Communities load after the form is built
 watch(communities, () => {
@@ -49,6 +58,7 @@ function reset() {
 	editingId.value = undefined;
 	form.value = emptyForm();
 	formError.value = undefined;
+	draftId.value = newId();
 }
 
 function edit(provider: Provider) {
@@ -67,7 +77,7 @@ function edit(provider: Provider) {
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-async function save() {
+function save() {
 	// The ones they don't manage count too, so a manager can stop sharing one an administrator also shares it with
 	const original = providers.value.find(provider => provider.id === editingId.value);
 	const others = original?.communityIds.filter(id => !managesCommunity(me.value, id)) ?? [];
@@ -77,35 +87,34 @@ async function save() {
 		return;
 	}
 
-	saving.value = true;
-	formError.value = undefined;
-	try {
-		await saveProvider(editingId.value, { ...form.value, communityIds });
-		reset();
-	} catch (e) {
-		formError.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
-	}
+	// The list shows it at once; the form is cleared now and comes back as it was if the server says no
+	const sent = { editingId: editingId.value, draftId: draftId.value, form: form.value };
+	reset();
+	void optimistic(saveProvider(sent.editingId, { ...sent.form, communityIds }, sent.draftId), {
+		done: sent.editingId ? 'Proveedor guardado' : 'Proveedor añadido',
+		failed: 'No se ha podido guardar',
+		onError: () => {
+			editingId.value = sent.editingId;
+			draftId.value = sent.draftId;
+			form.value = sent.form;
+		},
+	});
 }
 
-const actionError = ref<string>();
-
-async function remove(provider: Provider) {
+function remove(provider: Provider) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Eliminar ${provider.name} del directorio de todas sus comunidades?`)) {
 		return;
 	}
 
-	actionError.value = undefined;
-	try {
-		await deleteProvider(provider.id);
-		if (editingId.value === provider.id) {
-			reset();
-		}
-	} catch (e) {
-		actionError.value = `No se ha podido eliminar: ${(e as Error).message}`;
+	if (editingId.value === provider.id) {
+		reset();
 	}
+	void optimistic(deleteProvider(provider.id), {
+		done: 'Proveedor eliminado',
+		failed: 'No se ha podido eliminar',
+		revert: canRestoreProvider(provider, me.value) ? () => restoreProvider(provider) : undefined,
+	});
 }
 
 function canDelete(provider: Provider) {
@@ -122,9 +131,11 @@ const ratings = ref<ProviderRating[]>([]);
 const ratingsLoading = ref(false);
 const ratingsError = ref<string>();
 const rating = ref({ score: 5 as ProviderRating['score'], comment: '' });
-const ratingSaving = ref(false);
+// It reads the previous rating before writing, so a second send meanwhile would count it twice
+let ratingSaving = false;
 
-async function refreshRatings(providerId: string) {
+// Coming back keeps what they were writing
+async function refreshRatings(providerId: string, keepDraft = false) {
 	ratingsLoading.value = true;
 	ratingsError.value = undefined;
 	try {
@@ -134,8 +145,10 @@ async function refreshRatings(providerId: string) {
 			return;
 		}
 		ratings.value = loaded;
-		const mine = ratings.value.find(item => item.authorId === me.value?.id);
-		rating.value = { score: mine?.score ?? 5, comment: mine?.comment ?? '' };
+		if (!keepDraft) {
+			const mine = ratings.value.find(item => item.authorId === me.value?.id);
+			rating.value = { score: mine?.score ?? 5, comment: mine?.comment ?? '' };
+		}
 	} catch (e) {
 		ratingsError.value = `No se han podido cargar las valoraciones: ${(e as Error).message}`;
 	} finally {
@@ -154,31 +167,54 @@ async function toggle(provider: Provider) {
 	await refreshRatings(provider.id);
 }
 
+onRevalidate(() => openedId.value && refreshRatings(openedId.value, true));
+
 async function rate(provider: Provider) {
+	if (ratingSaving) {
+		return;
+	}
 	// From the first of its communities the user manages, to know where the experience comes from
 	const communityId = provider.communityIds.find(id => managesCommunity(me.value, id)) ?? provider.communityIds[0];
-	ratingSaving.value = true;
+	const sent = { ...rating.value, communityId, authorName: me.value?.name ?? '' };
+	const uid = me.value?.id ?? '';
+	// Shown in the list at once instead of reading them all again, rolled back if the server says no
+	const previous = ratings.value;
+	const comment = sent.comment.trim();
+	ratings.value = [
+		{ ...sent, comment, id: uid, authorId: uid, createdAt: Timestamp.now() } as ProviderRating,
+		...previous.filter(item => item.authorId !== uid),
+	];
 	ratingsError.value = undefined;
-	try {
-		await rateProvider(provider, { ...rating.value, communityId, authorName: me.value?.name ?? '' });
-		await refreshRatings(provider.id);
-	} catch (e) {
-		ratingsError.value = `No se ha podido guardar la valoración: ${(e as Error).message}`;
-	} finally {
-		ratingSaving.value = false;
-	}
+	ratingSaving = true;
+	await optimistic(rateProvider(provider, sent), {
+		done: 'Valoración guardada',
+		failed: 'No se ha podido guardar la valoración',
+		onError: () => {
+			ratings.value = previous;
+			rating.value = { score: sent.score, comment: sent.comment };
+		},
+	});
+	ratingSaving = false;
 }
+
+function focusFirst(element: HTMLElement | undefined, selector: string) {
+	element?.querySelector<HTMLElement>(selector)?.focus();
+}
+
+useShortcut('n', () => focusFirst(formElement.value, 'input'), 'Añadir proveedor');
+useShortcut('/', () => focusFirst(filtersElement.value, 'input[type="search"]'), 'Buscar proveedores');
+// The rating's form when writing in it, the provider's otherwise
+useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formElement.value)?.requestSubmit(), 'Guardar');
+useShortcut('escape', () => reset(), 'Cancelar la edición', () => !!editingId.value);
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver a comunidades" title="Volver a comunidades">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton to="/" label="Volver a comunidades" />
 		<h1>Proveedores</h1>
 	</header>
 
-	<form class="card" @submit.prevent="save()">
+	<form ref="formElement" class="card" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar proveedor' : 'Añadir proveedor' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.name" required>
@@ -227,16 +263,17 @@ async function rate(provider: Provider) {
 			<LnxButton v-if="editingId" mode="clear" @click="reset()">
 				Cancelar
 			</LnxButton>
-			<LnxButton type="submit" :is-loading="saving">
+			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
 
 	<section class="card">
 		<h2>Directorio</h2>
-		<div class="fields">
+		<div ref="filtersElement" class="fields">
 			<LnxInput v-model="search" type="search">
 				Buscar
 			</LnxInput>
@@ -259,12 +296,18 @@ async function rate(provider: Provider) {
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
 
-		<span v-if="loading" class="skeleton-item" />
-		<ul v-else-if="visibleProviders.length" class="list">
+		<ul v-if="loading && !providers.length" class="list" aria-busy="true" aria-label="Cargando proveedores">
+			<li v-for="width in [45, 30, 55, 38]" :key="width" class="provider">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="who">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 20}%` }" />
+				</div>
+				<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="visibleProviders.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="provider in visibleProviders" :key="provider.id" class="provider">
 				<LnxIcon :icon="providerCategories[provider.category]?.icon ?? 'lucide:hammer'" class="category-icon" />
 				<div class="who">
@@ -286,7 +329,7 @@ async function rate(provider: Provider) {
 					<span class="stars" :aria-label="`${averageRating(provider)?.toFixed(1) ?? 'Sin'} de 5`" :title="`${averageRating(provider)?.toFixed(1) ?? 'Sin'} de 5`">
 						<LnxIcon v-for="n in 5" :key="n" icon="lucide:star" :class="{ filled: n <= stars(averageRating(provider)) }" />
 					</span>
-					<small>({{ provider.ratingCount }})</small>
+					<small class="tabular">({{ provider.ratingCount }})</small>
 				</button>
 				<div class="provider-actions">
 					<LnxButton mode="clear" size="small" @click="edit(provider)">
@@ -322,21 +365,27 @@ async function rate(provider: Provider) {
 							<p v-if="ratingsError" class="error" role="alert">
 								{{ ratingsError }}
 							</p>
-							<LnxButton type="submit" size="small" :is-loading="ratingSaving">
+							<LnxButton type="submit" size="small">
 								<LnxIcon icon="lucide:star" />
 								Valorar
+								<Kbd combo="mod+enter" />
 							</LnxButton>
 						</footer>
 					</form>
 
-					<span v-if="ratingsLoading" class="skeleton-item" />
+					<ul v-if="ratingsLoading && !ratings.length" class="list" aria-busy="true" aria-label="Cargando valoraciones">
+						<li v-for="width in [35, 50, 28]" :key="width" class="rating-item">
+							<span class="skeleton-item" :style="{ width: `${width}%` }" />
+							<span class="skeleton-item skeleton-item--small wide" :style="{ width: `${width + 30}%` }" />
+						</li>
+					</ul>
 					<ul v-else-if="ratings.length" class="list">
 						<li v-for="item in ratings" :key="item.id" class="rating-item">
 							<strong>{{ item.authorName }}</strong>
 							<span class="stars" :aria-label="`${item.score} de 5`" :title="`${item.score} de 5`">
 								<LnxIcon v-for="n in 5" :key="n" icon="lucide:star" :class="{ filled: n <= item.score }" />
 							</span>
-							<small class="hint">
+							<small class="hint tabular">
 								{{ communityNames.get(item.communityId) ?? '' }}
 								<template v-if="item.createdAt"> · {{ item.createdAt.toDate().toLocaleDateString('es') }}</template>
 							</small>
@@ -350,7 +399,7 @@ async function rate(provider: Provider) {
 					</p>
 				</div>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			{{ providers.length ? 'Ningún proveedor coincide con la búsqueda.' : 'Aún no hay proveedores.' }}
 		</p>
@@ -418,8 +467,27 @@ async function rate(provider: Provider) {
 }
 
 .list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
+}
+
+// Filtering slides the rest into place; transitions, so typing fast turns them back halfway
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+.row-leave-active {
+	position: absolute;
+	width: 100%;
 }
 
 // Category, who, rating and actions, with notes, communities and ratings below
@@ -448,6 +516,10 @@ async function rate(provider: Provider) {
 	flex-direction: column;
 	min-width: 0;
 
+	strong {
+		text-wrap: balance;
+	}
+
 	small {
 		overflow: hidden;
 		color: var(--color-gray-6);
@@ -469,6 +541,10 @@ async function rate(provider: Provider) {
 
 	&:hover {
 		background: var(--color-gray-2);
+	}
+
+	&:active {
+		scale: var(--press-scale);
 	}
 
 	&:focus-visible {
@@ -546,6 +622,15 @@ async function rate(provider: Provider) {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+
+		&:hover {
+			background: var(--color-gray-1);
+		}
+
+		&:active {
+			scale: var(--press-scale);
+		}
 	}
 
 	input:checked + span {

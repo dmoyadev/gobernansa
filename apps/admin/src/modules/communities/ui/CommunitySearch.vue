@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import { LnxIcon } from 'lnxjs-components';
-import { computed, onBeforeUnmount, onMounted, ref, useId, useTemplateRef, watch } from 'vue';
+import { computed, ref, useId, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import Kbd from '@/app/ux/Kbd.vue';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { useCommunitySearch } from '../application/useCommunitySearch.ts';
 
 const props = defineProps<{ communityId: string; community?: Community }>();
@@ -20,8 +22,6 @@ const active = ref(0);
 const results = computed(() => search(text.value));
 const expanded = computed(() => open.value && !!text.value.trim());
 watch(results, () => active.value = 0);
-
-const shortcut = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘K' : 'Ctrl K';
 
 // The rest of the community is only read once something is typed
 function show() {
@@ -66,13 +66,12 @@ function onKeydown(event: KeyboardEvent) {
 	}
 }
 
-function onShortcut(event: KeyboardEvent) {
-	if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-		event.preventDefault();
-		input.value?.focus();
-		input.value?.select();
-	}
+function focus() {
+	input.value?.focus();
+	input.value?.select();
 }
+useShortcut('mod+k', focus, 'Buscar en la comunidad');
+useShortcut('/', focus, 'Buscar en la comunidad');
 
 // Closes when the focus leaves it, e.g. with Tab
 function onFocusout(event: FocusEvent) {
@@ -99,15 +98,7 @@ function onPointerdown(event: PointerEvent) {
 		open.value = false;
 	}
 }
-
-onMounted(() => {
-	window.addEventListener('keydown', onShortcut);
-	document.addEventListener('pointerdown', onPointerdown);
-});
-onBeforeUnmount(() => {
-	window.removeEventListener('keydown', onShortcut);
-	document.removeEventListener('pointerdown', onPointerdown);
-});
+useEventListener(document, 'pointerdown', onPointerdown);
 </script>
 
 <template>
@@ -130,51 +121,53 @@ onBeforeUnmount(() => {
 				@input="show()"
 				@keydown="onKeydown"
 			>
-			<kbd :title="`Pulsa ${shortcut} para buscar`">{{ shortcut }}</kbd>
+			<Kbd combo="mod+k" />
 		</label>
 
 		<!-- The focus stays in the input, or leaving it would close the list before the click -->
-		<div v-show="expanded" class="popover" @mousedown.prevent>
-			<ul :id="listId" role="listbox" aria-label="Resultados">
-				<li
-					v-for="(result, index) in results"
-					:id="`${listId}-${index}`"
-					:key="`${result.to}-${result.title}-${index}`"
-					role="option"
-					:aria-selected="index === active"
-					:class="{ active: index === active }"
-					@pointermove="active = index"
-					@click="go(index)"
-				>
-					<span class="icon">
-						<LnxIcon :icon="result.icon" :size="16" />
-					</span>
-					<span class="body">
-						<span class="section">{{ result.section }}</span>
-						<span class="title">
-							<template v-for="(segment, part) in result.titleSegments" :key="part">
-								<mark v-if="segment.mark">{{ segment.text }}</mark>
-								<template v-else>{{ segment.text }}</template>
-							</template>
+		<Transition name="popover">
+			<div v-show="expanded" class="popover" @mousedown.prevent>
+				<ul :id="listId" role="listbox" aria-label="Resultados">
+					<li
+						v-for="(result, index) in results"
+						:id="`${listId}-${index}`"
+						:key="`${result.to}-${result.title}-${index}`"
+						role="option"
+						:aria-selected="index === active"
+						:class="{ active: index === active }"
+						@pointermove="active = index"
+						@click="go(index)"
+					>
+						<span class="icon">
+							<LnxIcon :icon="result.icon" :size="16" />
 						</span>
-						<span v-if="result.textSegments.length" class="text">
-							<template v-for="(segment, part) in result.textSegments" :key="part">
-								<mark v-if="segment.mark">{{ segment.text }}</mark>
-								<template v-else>{{ segment.text }}</template>
-							</template>
+						<span class="body">
+							<span class="section">{{ result.section }}</span>
+							<span class="title">
+								<template v-for="(segment, part) in result.titleSegments" :key="part">
+									<mark v-if="segment.mark">{{ segment.text }}</mark>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</span>
+							<span v-if="result.textSegments.length" class="text">
+								<template v-for="(segment, part) in result.textSegments" :key="part">
+									<mark v-if="segment.mark">{{ segment.text }}</mark>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</span>
 						</span>
-					</span>
-				</li>
-			</ul>
-			<p class="status" aria-hidden="true">
-				<template v-if="!results.length && !loading">
-					Sin resultados para «{{ text.trim() }}»
-				</template>
-				<template v-else-if="loading">
-					Buscando en el resto de la comunidad…
-				</template>
-			</p>
-		</div>
+					</li>
+				</ul>
+				<p class="status" aria-hidden="true">
+					<template v-if="!results.length && !loading">
+						Sin resultados para «{{ text.trim() }}»
+					</template>
+					<template v-else-if="loading">
+						Buscando en el resto de la comunidad…
+					</template>
+				</p>
+			</div>
+		</Transition>
 		<p class="sr-only" role="status">
 			{{ status }}
 		</p>
@@ -197,7 +190,7 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: var(--lnx-spacing-2);
 	color: var(--color-gray-6);
-	transition: border-color .15s;
+	transition: border-color var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out);
 
 	&:focus-within {
 		border-color: var(--color-primary);
@@ -218,16 +211,6 @@ onBeforeUnmount(() => {
 		&::placeholder {
 			color: var(--color-gray-5);
 		}
-	}
-
-	kbd {
-		padding: 2px var(--lnx-spacing-2);
-		border: 1px solid var(--color-gray-3);
-		border-radius: var(--lnx-radius-2);
-		color: var(--color-gray-6);
-		font-family: inherit;
-		font-size: var(--lnx-font-size-small);
-		white-space: nowrap;
 	}
 }
 
@@ -259,6 +242,10 @@ onBeforeUnmount(() => {
 
 		&.active {
 			background: var(--color-gray-1);
+		}
+
+		&:active {
+			scale: .99;
 		}
 	}
 
@@ -313,6 +300,18 @@ onBeforeUnmount(() => {
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-small);
 	}
+}
+
+// Drops in from the field, and back if it closes halfway
+.popover-enter-active,
+.popover-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.popover-enter-from,
+.popover-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
 }
 
 @media (prefers-reduced-motion: reduce) {

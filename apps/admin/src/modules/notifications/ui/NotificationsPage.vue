@@ -5,10 +5,15 @@ import { eventTypes } from '@gobernansa/shared/domain/event.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { onMounted, ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
-import { deleteNotification, loadNotification, saveNotification, useNotifications } from '../application/useNotifications.ts';
+import { deleteNotification, loadNotification, restoreNotification, saveNotification, useNotifications } from '../application/useNotifications.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -23,11 +28,12 @@ function emptyForm(): NotificationForm {
 	return { title: '', description: '', type: 'community', date: toInputDate(new Date()) };
 }
 
+const formElement = ref<HTMLFormElement>();
 const form = ref(emptyForm());
 // The one being edited, none while writing a new one
 const editingId = ref<string>();
-const saving = ref(false);
-const formError = ref<string>();
+// The new one's id, kept until it's published
+const draftId = ref(newId());
 
 function edit(notification: Event) {
 	editingId.value = notification.id;
@@ -40,11 +46,12 @@ function edit(notification: Event) {
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Opened from the search with ?edit=<id>, it's shown in the form even when it's not on the first page
+// Opened from the search with ?edit=<id>, it's shown in the form even when it's not on the first page. Watched, as
+// the page is kept and opened again with another one
 const route = useRoute();
-onMounted(async () => {
-	const editId = route.query.edit;
-	if (typeof editId !== 'string') {
+const path = route.path;
+watch(() => route.query.edit, async (editId) => {
+	if (route.path !== path || typeof editId !== 'string' || editId === editingId.value) {
 		return;
 	}
 	try {
@@ -56,55 +63,63 @@ onMounted(async () => {
 	} catch {
 		// Deleted or unreadable, the page is still usable
 	}
-});
+}, { immediate: true });
 
 function reset() {
 	editingId.value = undefined;
 	form.value = emptyForm();
 }
 
-async function save() {
-	saving.value = true;
-	formError.value = undefined;
-	try {
-		await saveNotification(props.id, editingId.value, form.value);
-		reset();
-	} catch (e) {
-		formError.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
+// The form empties at once; if the server rejects it, what was written comes back
+function save() {
+	const sent = { ...form.value };
+	const isNew = !editingId.value;
+	const id = editingId.value ?? draftId.value;
+	reset();
+	if (isNew) {
+		draftId.value = newId();
 	}
+	void optimistic(saveNotification(props.id, id, isNew, sent), {
+		done: isNew ? 'Aviso publicado' : 'Aviso guardado',
+		failed: 'No se ha podido guardar',
+		onError: () => {
+			form.value = sent;
+			if (isNew) {
+				draftId.value = id;
+			} else {
+				editingId.value = id;
+			}
+		},
+	});
 }
 
-const actionError = ref<string>();
-
-async function remove(notification: Event) {
+function remove(notification: Event) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar «${notification.title}»?`)) {
 		return;
 	}
 
-	actionError.value = undefined;
-	try {
-		await deleteNotification(notification.id);
-		if (editingId.value === notification.id) {
-			reset();
-		}
-	} catch (e) {
-		actionError.value = `No se ha podido borrar: ${(e as Error).message}`;
+	if (editingId.value === notification.id) {
+		reset();
 	}
+	void optimistic(deleteNotification(notification), {
+		done: 'Aviso borrado',
+		failed: 'No se ha podido borrar',
+		revert: () => restoreNotification(notification),
+	});
 }
+
+useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Escribir un aviso');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o guardar el aviso');
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Avisos</h1>
 	</header>
 
-	<form class="card" @submit.prevent="save()">
+	<form ref="formElement" class="card" @submit.prevent="save()" @keydown.esc="editingId && reset()">
 		<h2>{{ editingId ? 'Editar aviso' : 'Nuevo aviso' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
@@ -133,35 +148,39 @@ async function remove(notification: Event) {
 		</div>
 
 		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
 			<LnxButton v-if="editingId" mode="clear" @click="reset()">
 				Cancelar
 			</LnxButton>
-			<LnxButton type="submit" :is-loading="saving">
+			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:send'" />
 				{{ editingId ? 'Guardar cambios' : 'Publicar' }}
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
 
-	<section class="card">
+	<section class="card" :aria-busy="pending">
 		<h2>Publicados</h2>
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
 
-		<span v-if="pending && !notifications.length" class="skeleton-item" />
-		<ul v-else-if="notifications.length" class="list">
+		<ul v-if="pending && !notifications.length" class="list">
+			<li v-for="width in [55, 70, 40]" :key="width" class="item">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" style="width: 9em" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 25}%` }" />
+				</div>
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="notifications.length" tag="ul" name="item" class="list ux-appear">
 			<li v-for="notification in notifications" :key="notification.id" class="item">
 				<LnxIcon class="type" :icon="eventTypes[notification.type]?.icon ?? 'lucide:info'" :size="20" />
 				<div class="what">
 					<strong>{{ notification.title }}</strong>
-					<small>
+					<small class="tabular">
 						{{ eventTypes[notification.type]?.label }} · {{ notification.date.toDate().toLocaleDateString('es') }}
 					</small>
 					<p v-if="notification.description">
@@ -177,7 +196,7 @@ async function remove(notification: Event) {
 					</LnxButton>
 				</div>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no hay avisos.
 		</p>
@@ -270,8 +289,16 @@ async function remove(notification: Event) {
 	flex-direction: column;
 	min-width: 0;
 
+	strong {
+		text-wrap: balance;
+	}
+
 	small {
 		color: var(--color-gray-6);
+	}
+
+	.skeleton-item + .skeleton-item {
+		margin-top: var(--lnx-spacing-1);
 	}
 
 	p {
@@ -279,6 +306,19 @@ async function remove(notification: Event) {
 		font-size: var(--lnx-font-size-small);
 		white-space: pre-line;
 	}
+}
+
+// Published, edited or deleted, also from elsewhere: they make room and fade in or out
+.item-move,
+.item-enter-active,
+.item-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.item-enter-from,
+.item-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
 }
 
 .item-actions {

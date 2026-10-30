@@ -9,7 +9,9 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
 import { propertyTypeLabels, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed, ref, shallowReactive, watch } from 'vue';
+import { computed, onActivated, ref, shallowReactive, watch } from 'vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
+import { toast } from '@/app/ux/toast.ts';
 import { dashboardMonths, dashboardSources } from '../application/useCommunityDashboard.ts';
 
 const props = defineProps<{ communityId: string }>();
@@ -79,6 +81,8 @@ function loadLayout(): LayoutItem[] {
 const layout = ref(loadLayout());
 // The profile may arrive after the page
 watch(storageKey, () => layout.value = loadLayout());
+// The same for every community, so another kept page may have changed it meanwhile
+onActivated(() => layout.value = loadLayout());
 watch(layout, (value) => {
 	try {
 		localStorage.setItem(storageKey.value, JSON.stringify(value));
@@ -95,21 +99,32 @@ const data = shallowReactive<DashboardData>({});
 const failed = shallowReactive(new Set<DashboardSource>());
 const requested = new Set<DashboardSource>();
 
+function load(source: DashboardSource) {
+	sources[source]().then(
+		(value) => {
+			(data as Record<DashboardSource, unknown>)[source] = value;
+			failed.delete(source);
+		},
+		// Its widgets say so, the rest still show. A failed reread keeps what was shown
+		() => {
+			if (!data[source]) {
+				failed.add(source);
+			}
+		},
+	);
+}
+
 watch(widgets, (shown) => {
 	for (const source of new Set(shown.flatMap(widget => widget.sources))) {
-		if (requested.has(source)) {
-			continue;
+		if (!requested.has(source)) {
+			requested.add(source);
+			load(source);
 		}
-		requested.add(source);
-		sources[source]().then(
-			(value) => {
-				(data as Record<DashboardSource, unknown>)[source] = value;
-			},
-			// Its widgets say so, the rest still show
-			() => failed.add(source),
-		);
 	}
 }, { immediate: true });
+
+// Coming back to the community, the figures are read again while the last ones stay
+onRevalidate(() => requested.forEach(load));
 
 function state(widget: Widget) {
 	return widget.sources.some(source => failed.has(source)) ? 'failed' : widget.sources.every(source => data[source]) ? 'ready' : 'loading';
@@ -368,14 +383,20 @@ function onDrop(to: number) {
 }
 
 function reset() {
+	const previous = layout.value;
 	layout.value = structuredClone(defaultLayout);
 	announcement.value = 'Dashboard restablecido';
+	toast('Dashboard restablecido', {
+		undo: async () => {
+			layout.value = previous;
+		},
+	});
 }
 </script>
 
 <template>
-	<ul v-if="widgets.length" class="dashboard" aria-label="Resumen de la comunidad">
-		<li v-for="widget in widgets" :key="widget.key" :class="[`size-${widget.size}`, widget.key]">
+	<TransitionGroup v-if="widgets.length" tag="ul" name="widget" class="dashboard" aria-label="Resumen de la comunidad">
+		<li v-for="widget in widgets" :key="widget.key" :class="[`size-${widget.size}`, widget.key]" :aria-busy="state(widget) === 'loading'">
 			<header>
 				<LnxIcon :icon="widget.icon" :size="16" aria-hidden="true" />
 				<h2>
@@ -388,7 +409,18 @@ function reset() {
 			<p v-if="state(widget) === 'failed'" class="muted">
 				No se ha podido cargar
 			</p>
-			<span v-else-if="state(widget) === 'loading'" class="skeleton-item" />
+			<!-- Shaped like the widget: a figure and its line, or rows for the lists and charts -->
+			<div v-else-if="state(widget) === 'loading'" class="skeleton" aria-hidden="true">
+				<template v-if="widget.size === 1">
+					<span class="skeleton-item skeleton-item--title" style="width: 38%" />
+					<span class="skeleton-item skeleton-item--small" style="width: 70%" />
+				</template>
+				<template v-else>
+					<span class="skeleton-item skeleton-item--title" style="width: 24%" />
+					<span class="skeleton-item skeleton-item--small" style="width: 62%" />
+					<span class="skeleton-item skeleton-item--small" style="width: 48%" />
+				</template>
+			</div>
 
 			<!-- Unresolved issues, by how long they've waited -->
 			<template v-else-if="widget.key === 'openIssues'">
@@ -706,7 +738,7 @@ function reset() {
 				</p>
 			</template>
 		</li>
-	</ul>
+	</TransitionGroup>
 
 	<dialog ref="dialog" class="customize" aria-labelledby="customize-title" @close="draggedIndex = undefined">
 		<header>
@@ -720,7 +752,7 @@ function reset() {
 		<p id="customize-help" class="muted">
 			Elige qué ver y en qué orden. Arrastra cada fila o muévela con sus flechas.
 		</p>
-		<ul class="widget-list">
+		<TransitionGroup tag="ul" name="widget-row" class="widget-list">
 			<li
 				v-for="(item, index) in layout"
 				:key="item.key"
@@ -761,7 +793,7 @@ function reset() {
 					<LnxIcon icon="lucide:chevron-down" />
 				</LnxButton>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p class="sr-only" aria-live="polite">
 			{{ announcement }}
 		</p>
@@ -801,10 +833,19 @@ function reset() {
 		box-shadow: 0 1px 2px #0000000A;
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
-		transition: border-color .15s;
+		// Figures in columns, so they don't jump as they change
+		font-variant-numeric: tabular-nums;
+		transition: border-color var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out), translate var(--duration) var(--ease-spring), scale var(--duration-fast) var(--ease-out);
 
 		&:has(.stretched:hover) {
 			border-color: var(--color-primary-light);
+			box-shadow: 0 2px 4px #0000000F, 0 8px 24px #0000000F;
+			translate: 0 -2px;
+		}
+
+		&:has(.stretched:active) {
+			translate: 0;
+			scale: .99;
 		}
 	}
 
@@ -828,6 +869,27 @@ function reset() {
 		white-space: nowrap;
 		text-overflow: ellipsis;
 	}
+}
+
+// Shown or added from "Personalizar dashboard": they fade in and the rest slide to make room
+.widget-move,
+.widget-row-move {
+	transition: transform .3s var(--ease-out);
+}
+
+.widget-enter-active {
+	transition: opacity var(--duration) var(--ease-out), scale var(--duration) var(--ease-out);
+}
+
+.widget-enter-from {
+	opacity: 0;
+	scale: .96;
+}
+
+.skeleton {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
 }
 
 // The title's link covers the whole widget
@@ -1157,15 +1219,42 @@ function reset() {
 	background: var(--color-gray-0);
 	box-shadow: 0 8px 32px #00000026;
 	color: var(--color-gray-8);
+	opacity: 0;
+	scale: .96;
+	// Transitions, so closing while it opens turns back from where it is
+	transition:
+		opacity var(--duration) var(--ease-out),
+		scale var(--duration) var(--ease-out),
+		overlay var(--duration) allow-discrete,
+		display var(--duration) allow-discrete;
+
+	// The layout stays while it fades out, only display goes
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
 
 	&[open] {
 		display: flex;
-		flex-direction: column;
-		gap: var(--lnx-spacing-3);
+		opacity: 1;
+		scale: 1;
+
+		@starting-style {
+			opacity: 0;
+			scale: .96;
+		}
 	}
 
 	&::backdrop {
 		background: #0000004D;
+		opacity: 0;
+		transition: opacity var(--duration) var(--ease-out), overlay var(--duration) allow-discrete, display var(--duration) allow-discrete;
+	}
+
+	&[open]::backdrop {
+		opacity: 1;
+
+		@starting-style {
+			opacity: 0;
+		}
 	}
 
 	header,
@@ -1204,6 +1293,10 @@ function reset() {
 			border-top: 1px solid var(--color-gray-2);
 		}
 
+		&:hover {
+			background: var(--color-gray-1);
+		}
+
 		&.hidden label {
 			color: var(--color-gray-6);
 		}
@@ -1227,6 +1320,10 @@ function reset() {
 		align-items: center;
 		gap: var(--lnx-spacing-2);
 		cursor: pointer;
+
+		&:active {
+			scale: .99;
+		}
 	}
 
 	// The native checkbox, the global reset hides it

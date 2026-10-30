@@ -5,9 +5,14 @@ import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, useTemplateRef, watch } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
-import { addExpense, deleteExpense, saveBudget, useBudget, useCommunityProperties, useExpenses } from '../application/useFinances.ts';
+import { addExpense, deleteExpense, restoreExpense, saveBudget, useBudget, useCommunityProperties, useExpenses } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -15,16 +20,24 @@ const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + 1 - i).map(year => ({ value: year, label: String(year) }));
 const year = ref(currentYear);
 
-const { data: budget, error: budgetLoadError } = useBudget(props.id, year);
+const { data: budget, pending: budgetPending, error: budgetLoadError } = useBudget(props.id, year);
 const { data: expenses, pending: expensesPending, error: expensesError } = useExpenses(props.id, year);
 const { data: properties } = useCommunityProperties(props.id);
 const { providers } = useProviders(() => props.id);
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 
-// The items being edited, amounts as typed. Reset whenever the saved budget or the year changes
+// The items being edited, amounts as typed. Reset whenever the saved budget or the year changes, except after a failed
+// save: the budget going back to what it was would wipe what was typed
 const items = ref<{ id: string; name: string; amount: string }[]>([]);
+const unsaved = ref(false);
+watch(year, () => {
+	unsaved.value = false;
+});
 watch(budget, (saved) => {
+	if (unsaved.value) {
+		return;
+	}
 	items.value = (saved?.items ?? []).map(item => ({ id: item.id, name: item.name, amount: (item.amount / 100).toFixed(2).replace('.', ',') }));
 }, { immediate: true });
 
@@ -33,10 +46,9 @@ function addItem() {
 	items.value.push({ id: crypto.randomUUID(), name: '', amount: '' });
 }
 
-const savingBudget = ref(false);
 const budgetError = ref<string>();
 
-async function save() {
+function save() {
 	const parsed = items.value.map(item => ({ id: item.id, name: item.name.trim(), amount: toCents(item.amount || '0') }));
 	const invalid = parsed.find(item => !item.name || Number.isNaN(item.amount) || item.amount < 0);
 	if (invalid) {
@@ -44,15 +56,21 @@ async function save() {
 		return;
 	}
 
-	savingBudget.value = true;
+	const typed = items.value.map(item => ({ ...item }));
+	const savedYear = year.value;
+	const previous = budget.value?.items;
+	unsaved.value = false;
 	budgetError.value = undefined;
-	try {
-		await saveBudget(props.id, year.value, parsed, !!budget.value);
-	} catch (e) {
-		budgetError.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		savingBudget.value = false;
-	}
+	void optimistic(saveBudget(props.id, savedYear, parsed, !!budget.value), {
+		done: 'Presupuesto guardado',
+		failed: 'No se ha podido guardar',
+		// A new one has nothing to go back to
+		revert: previous && (() => saveBudget(props.id, savedYear, previous, true)),
+		onError: () => {
+			unsaved.value = true;
+			items.value = typed;
+		},
+	});
 }
 
 const savedItems = computed(() => budget.value?.items ?? []);
@@ -88,10 +106,11 @@ function emptyExpense() {
 }
 
 const expenseForm = ref(emptyExpense());
-const addingExpense = ref(false);
+// Idempotency key: the new expense's id, made with the form
+let expenseId = newId();
 const expenseError = ref<string>();
 
-async function submitExpense() {
+function submitExpense() {
 	const amount = toCents(expenseForm.value.amount);
 	if (!(amount > 0) || !expenseForm.value.itemId) {
 		expenseError.value = 'Elige la partida y escribe un importe válido, p. ej. 120,50';
@@ -99,46 +118,54 @@ async function submitExpense() {
 	}
 
 	const provider = providers.value.find(provider => provider.id === expenseForm.value.providerId);
-	addingExpense.value = true;
+	const typed = expenseForm.value;
+	const id = expenseId;
+	const expense = {
+		itemId: typed.itemId,
+		concept: typed.concept.trim(),
+		amount,
+		date: Timestamp.fromDate(new Date(`${typed.date}T00:00`)),
+		...(provider ? { provider: { id: provider.id, name: provider.name } } : {}),
+	};
+	// Cleared at once, ready for the next one. If it fails it's back as typed, with the same id
+	expenseForm.value = emptyExpense();
+	expenseId = newId();
 	expenseError.value = undefined;
-	try {
-		await addExpense(props.id, {
-			itemId: expenseForm.value.itemId,
-			concept: expenseForm.value.concept.trim(),
-			amount,
-			date: Timestamp.fromDate(new Date(`${expenseForm.value.date}T00:00`)),
-			...(provider ? { provider: { id: provider.id, name: provider.name } } : {}),
-		});
-		expenseForm.value = emptyExpense();
-	} catch (e) {
-		expenseError.value = `No se ha podido añadir: ${(e as Error).message}`;
-	} finally {
-		addingExpense.value = false;
-	}
+	void optimistic(addExpense(props.id, id, expense), {
+		done: 'Gasto añadido',
+		failed: 'No se ha podido añadir',
+		onError: () => {
+			expenseForm.value = typed;
+			expenseId = id;
+		},
+	});
 }
 
-const sortedExpenses = computed(() => [...expenses.value].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
-const actionError = ref<string>();
+const expenseFormElement = useTemplateRef('expenseFormElement');
+useShortcut('n', () => expenseFormElement.value?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus(), 'Nuevo gasto');
+// The form being filled in
+useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), 'Guardar el formulario');
 
-async function remove(expense: Expense) {
+const sortedExpenses = computed(() => [...expenses.value].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
+
+function remove(expense: Expense) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar el gasto «${expense.concept}»?`)) {
 		return;
 	}
-	actionError.value = undefined;
-	try {
-		await deleteExpense(props.id, expense);
-	} catch (e) {
-		actionError.value = `No se ha podido borrar: ${(e as Error).message}`;
-	}
+	// What it had, to put it back as it was
+	const deleted = { ...expense, id: expense.id };
+	void optimistic(deleteExpense(props.id, deleted), {
+		done: 'Gasto borrado',
+		failed: 'No se ha podido borrar',
+		revert: () => restoreExpense(props.id, deleted),
+	});
 }
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Presupuesto</h1>
 		<LnxSelect
 			v-model.convert="year"
@@ -162,7 +189,14 @@ async function remove(expense: Expense) {
 		<p v-if="budgetLoadError" class="error" role="alert">
 			No se ha podido cargar: {{ budgetLoadError.message }}
 		</p>
-		<ul v-if="items.length" class="items">
+		<ul v-if="budgetPending && !items.length" class="items" aria-busy="true" aria-label="Cargando">
+			<li v-for="width in [70, 55, 62]" :key="width" class="budget-item">
+				<span class="skeleton-item skeleton-item--title" :style="{ width: `${width}%` }" />
+				<span class="skeleton-item skeleton-item--title" />
+				<span class="skeleton-item skeleton-item--icon" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="items.length" tag="ul" name="row" class="items">
 			<li v-for="(item, index) in items" :key="item.id" class="budget-item">
 				<LnxInput v-model="item.name" placeholder="Limpieza, Ascensor…" required>
 					Partida
@@ -174,7 +208,7 @@ async function remove(expense: Expense) {
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no hay presupuesto para {{ year }}.
 		</p>
@@ -187,9 +221,10 @@ async function remove(expense: Expense) {
 				<LnxIcon icon="lucide:plus" />
 				Añadir partida
 			</LnxButton>
-			<LnxButton type="submit" :is-loading="savingBudget">
+			<LnxButton type="submit">
 				<LnxIcon icon="lucide:save" />
 				Guardar presupuesto
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -240,13 +275,13 @@ async function remove(expense: Expense) {
 				</tr>
 			</tfoot>
 		</table>
-		<p v-else class="hint">
+		<p v-else-if="!budgetPending" class="hint">
 			Guarda las partidas para comparar con los gastos.
 		</p>
 	</section>
 
-	<form class="card" @submit.prevent="submitExpense()">
-		<h2>Nuevo gasto</h2>
+	<form ref="expenseFormElement" class="card" @submit.prevent="submitExpense()">
+		<h2>Nuevo gasto <Kbd combo="n" /></h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="expenseForm.itemId"
@@ -290,9 +325,10 @@ async function remove(expense: Expense) {
 			<p v-if="expenseError" class="error" role="alert">
 				{{ expenseError }}
 			</p>
-			<LnxButton type="submit" :is-loading="addingExpense" :disabled="!itemOptions.length">
+			<LnxButton type="submit" :disabled="!itemOptions.length">
 				<LnxIcon icon="lucide:plus" />
 				Añadir gasto
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -302,24 +338,30 @@ async function remove(expense: Expense) {
 		<p v-if="expensesError" class="error" role="alert">
 			No se han podido cargar: {{ expensesError.message }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
-		<span v-if="expensesPending" class="skeleton-item" />
-		<ul v-else-if="sortedExpenses.length" class="list">
+		<ul v-if="expensesPending && !sortedExpenses.length" class="list" aria-busy="true" aria-label="Cargando">
+			<li v-for="width in [60, 45, 70, 50]" :key="width" class="item">
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 10}%` }" />
+				</div>
+				<span class="skeleton-item" style="width: 70px" />
+				<span class="skeleton-item skeleton-item--icon" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="sortedExpenses.length" tag="ul" name="row" class="list">
 			<li v-for="expense in sortedExpenses" :key="expense.id" class="item">
 				<div class="what">
 					<strong>{{ expense.concept }}</strong>
-					<small>
+					<small class="tabular">
 						{{ dateFormat.format(expense.date.toDate()) }} · {{ itemNames[expense.itemId] ?? 'Sin partida' }}<template v-if="expense.provider"> · {{ expense.provider.name }}</template>
 					</small>
 				</div>
-				<strong>{{ formatCents(expense.amount) }}</strong>
+				<strong class="tabular">{{ formatCents(expense.amount) }}</strong>
 				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no hay gastos en {{ year }}.
 		</p>
@@ -463,6 +505,29 @@ table {
 	}
 }
 
+.items,
+.list {
+	position: relative;
+}
+
+// Items and expenses added or removed: the rest slide into place
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+.row-leave-active {
+	position: absolute;
+	width: 100%;
+}
+
 .list {
 	display: flex;
 	flex-direction: column;
@@ -484,6 +549,10 @@ table {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
+
+	strong {
+		text-wrap: balance;
+	}
 
 	small {
 		overflow: hidden;

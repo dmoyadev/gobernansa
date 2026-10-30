@@ -10,9 +10,10 @@ import { fromCommunityForm } from '../domain/communityForm.ts';
 
 /**
  * Creates a community from the form, prefilled from another one used as a template, plus what the form doesn't edit:
- * its common areas, obligations and providers. The source comes already loaded by the form. Returns the new id
+ * its common areas, obligations and providers. The source comes already loaded by the form. The new id is made when the
+ * form opens (newId), and each obligation keeps its source's id, so sending it twice doesn't duplicate anything
  */
-export async function duplicateCommunity(id: string, form: CommunityForm, source: Community | undefined): Promise<string> {
+export async function duplicateCommunity(id: string, newId: string, form: CommunityForm, source: Community | undefined) {
 	const uid = auth.currentUser?.uid;
 	if (!uid) {
 		throw new Error('The admin must be signed in to duplicate a community');
@@ -27,7 +28,7 @@ export async function duplicateCommunity(id: string, form: CommunityForm, source
 	]);
 
 	const batch = writeBatch(db);
-	const communityRef = doc(collection(db, 'communities'));
+	const communityRef = doc(collection(db, 'communities'), newId);
 	const now = serverTimestamp();
 	const audit = { createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid };
 	// The form's empty fields come as deleteField(), only valid when merging, and a new document has nothing to remove
@@ -41,7 +42,7 @@ export async function duplicateCommunity(id: string, form: CommunityForm, source
 
 	for (const snapshot of obligations.docs) {
 		const { type, title, dueAt, everyMonths, provider, notes } = snapshot.data() as Obligation;
-		batch.set(doc(collection(communityRef, 'obligations')), withoutUndefined({
+		batch.set(doc(collection(communityRef, 'obligations'), snapshot.id), withoutUndefined({
 			communityId: communityRef.id,
 			type,
 			title,
@@ -60,8 +61,6 @@ export async function duplicateCommunity(id: string, form: CommunityForm, source
 	logActivity(batch, communityRef.id, { area: 'community', summary: `Creó la comunidad «${form.name.trim()}» a partir de «${source.name}»`, link: `/communities/${communityRef.id}` });
 	// ponytail: a batch takes 500 writes, more obligations and providers than that would need several
 	await batch.commit();
-
-	return communityRef.id;
 }
 
 // Firestore rejects undefined, and optional fields the source doesn't have are left out

@@ -3,9 +3,11 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, useTemplateRef } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 import { useSearchHighlight } from './useSearchHighlight.ts';
+import { shortcutTitle, useShortcut } from './ux/shortcuts.ts';
+import Toaster from './ux/Toaster.vue';
 
 const route = useRoute();
 const { user, logout } = useAuth();
@@ -31,6 +33,29 @@ const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.v
 
 // Search results open their page with the text they matched highlighted
 useSearchHighlight(useTemplateRef('main'));
+
+// G then a letter goes to each section, as in other tools
+const router = useRouter();
+const SECTIONS = [
+	{ to: '/', label: 'Comunidades', icon: 'lucide:building-2', combo: 'g c' },
+	{ to: '/dashboard', label: 'Panel', icon: 'lucide:chart-no-axes-column', combo: 'g d' },
+	{ to: '/issues', label: 'Incidencias', icon: 'lucide:inbox', combo: 'g i' },
+	{ to: '/announcements', label: 'Comunicados', icon: 'lucide:megaphone', combo: 'g m' },
+	{ to: '/providers', label: 'Proveedores', icon: 'lucide:hard-hat', combo: 'g p' },
+	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
+];
+const sections = computed(() => SECTIONS.filter(section => !section.superadmin || user.value?.role === 'superadmin'));
+for (const section of SECTIONS) {
+	useShortcut(section.combo, () => {
+		if (sections.value.includes(section) && access.value !== 'loading' && access.value !== 'denied') {
+			void router.push(section.to);
+		}
+	}, `Ir a ${section.label.toLowerCase()}`);
+}
+
+// Pages already visited are kept, with their data and scroll, so going back to them is instant.
+// ponytail: their live listeners keep running (and reading on changes) while hidden; lower this if reads grow
+const KEPT_PAGES = 6;
 </script>
 
 <template>
@@ -40,29 +65,9 @@ useSearchHighlight(useTemplateRef('main'));
 		</RouterLink>
 
 		<nav v-if="access === 'granted' || access === 'forbidden'">
-			<RouterLink to="/" title="Comunidades">
-				<LnxIcon icon="lucide:building-2" :size="18" />
-				Comunidades
-			</RouterLink>
-			<RouterLink to="/dashboard" title="Panel">
-				<LnxIcon icon="lucide:chart-no-axes-column" :size="18" />
-				Panel
-			</RouterLink>
-			<RouterLink to="/issues" title="Incidencias">
-				<LnxIcon icon="lucide:inbox" :size="18" />
-				Incidencias
-			</RouterLink>
-			<RouterLink to="/announcements" title="Comunicados">
-				<LnxIcon icon="lucide:megaphone" :size="18" />
-				Comunicados
-			</RouterLink>
-			<RouterLink to="/providers" title="Proveedores">
-				<LnxIcon icon="lucide:hard-hat" :size="18" />
-				Proveedores
-			</RouterLink>
-			<RouterLink v-if="user?.role === 'superadmin'" to="/admins" title="Administradores">
-				<LnxIcon icon="lucide:shield-user" :size="18" />
-				Administradores
+			<RouterLink v-for="section in sections" :key="section.to" :to="section.to" :title="shortcutTitle(section.label, section.combo)">
+				<LnxIcon :icon="section.icon" :size="18" />
+				{{ section.label }}
 			</RouterLink>
 		</nav>
 
@@ -73,9 +78,15 @@ useSearchHighlight(useTemplateRef('main'));
 	</header>
 
 	<main ref="main">
-		<RouterView v-if="access === 'granted'" />
+		<!-- Always there, so a page without access in between doesn't throw away the kept ones. The community form isn't
+			kept: each section saves the whole community, and a kept one would write back the others' old values -->
+		<RouterView v-slot="{ Component, route: page }">
+			<KeepAlive :max="KEPT_PAGES" exclude="CommunityFormPage">
+				<component :is="Component" v-if="access === 'granted'" :key="page.path" />
+			</KeepAlive>
+		</RouterView>
 
-		<p v-else-if="access === 'loading'" class="status">
+		<p v-if="access === 'loading'" class="status">
 			<span class="skeleton-item" />
 		</p>
 
@@ -89,7 +100,7 @@ useSearchHighlight(useTemplateRef('main'));
 			</LnxButton>
 		</section>
 
-		<section v-else class="status">
+		<section v-else-if="access === 'denied'" class="status">
 			<LnxIcon icon="lucide:shield-x" :size="40" />
 			<h1>Sin acceso</h1>
 			<template v-if="managers.length">
@@ -110,6 +121,8 @@ useSearchHighlight(useTemplateRef('main'));
 			</LnxButton>
 		</section>
 	</main>
+
+	<Toaster />
 </template>
 
 <style lang="scss" scoped>
@@ -141,6 +154,15 @@ nav {
 		font-size: var(--lnx-font-size-small);
 		font-weight: var(--lnx-font-weight-bold);
 		text-decoration: none;
+
+		&:hover {
+			background: var(--color-gray-1);
+			color: var(--color-gray-9);
+		}
+
+		&:active {
+			scale: var(--press-scale);
+		}
 
 		&.router-link-exact-active,
 		&.router-link-active:not([href="/"]) {

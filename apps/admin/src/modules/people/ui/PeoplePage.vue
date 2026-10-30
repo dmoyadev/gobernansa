@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
-import type { Role, User } from '@gobernansa/shared/domain/user.ts';
+import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { assignableRoles, roles } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, ref } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { setBlocked } from '../application/useModeration.ts';
-import { cancelInvitation, invite, removePerson, setCommunityAssigned, setRole, usePeople } from '../application/usePeople.ts';
+import { cancelInvitation, invite, removePerson, restoreInvitation, setCommunityAssigned, setRole, usePeople } from '../application/usePeople.ts';
 
 // A community's neighbours and managers or, without one, the administrators
 const props = defineProps<{ id?: string }>();
@@ -33,51 +37,52 @@ function canEdit(person: User & { id: string }) {
 }
 
 const form = ref({ name: '', email: '', role: scopeRoles[0], communityIds: [] as string[] });
-const sending = ref(false);
 const formError = ref<string>();
+const formElement = useTemplateRef<HTMLFormElement>('formElement');
 
-async function sendInvitation() {
+// The email is its id, so sending it twice can't make two. The form empties at once and gets its values back if it fails
+function sendInvitation() {
 	const email = form.value.email.trim().toLowerCase();
 	if (people.value.some(person => person.email === email)) {
 		formError.value = 'Esa persona ya tiene cuenta.';
 		return;
 	}
+	if (invitations.value.some(invitation => invitation.id === email)) {
+		formError.value = 'Ese email ya tiene una invitación pendiente.';
+		return;
+	}
 
-	sending.value = true;
+	const sent = { ...form.value };
 	formError.value = undefined;
-	try {
-		await invite({ ...form.value, email, communityId });
-		form.value = { ...form.value, name: '', email: '', communityIds: [] };
-	} catch (e) {
+	form.value = { ...form.value, name: '', email: '', communityIds: [] };
+	void optimistic(invite({ ...sent, email, communityId }), {
+		done: `${sent.name.trim()} invitado`,
 		// Sending one over another is an update, which the rules don't allow
-		formError.value = `No se ha podido invitar, puede que ese email ya tenga una invitación pendiente: ${(e as Error).message}`;
-	} finally {
-		sending.value = false;
-	}
+		failed: 'No se ha podido invitar, puede que ese email ya tenga una invitación pendiente',
+		onError: () => {
+			form.value = sent;
+		},
+	});
 }
 
-const actionError = ref<string>();
+useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Invitar a alguien');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar la invitación');
 
-async function run(action: () => Promise<void>, failure: string) {
-	actionError.value = undefined;
-	try {
-		await action();
-	} catch (e) {
-		actionError.value = `${failure}: ${(e as Error).message}`;
-	}
-}
-
-async function remove(person: User & { id: string }) {
+function remove(person: User & { id: string }) {
 	const question = communityId ? `¿Quitar a ${person.name} de la comunidad?` : `¿Quitar el acceso de ${person.name}?`;
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(question)) {
 		return;
 	}
 
-	await run(async () => removePerson(person.id, communityId, person.name), 'No se ha podido quitar');
+	// No undo: only they can create their profile again, by signing in with a new invitation
+	void optimistic(removePerson(person.id, communityId, person.name), {
+		done: communityId ? `${person.name} quitado de la comunidad` : `Acceso de ${person.name} quitado`,
+		failed: 'No se ha podido quitar',
+	});
 }
 
-async function toggleBlocked(person: User & { id: string }) {
+function toggleBlocked(person: User & { id: string }) {
 	const question = person.blocked
 		? `¿Desbloquear a ${person.name}? Podrá volver a reportar, comentar, votar y reservar.`
 		: `¿Bloquear a ${person.name}? Podrá seguir leyendo, pero no reportar, comentar, votar ni reservar.`;
@@ -86,26 +91,50 @@ async function toggleBlocked(person: User & { id: string }) {
 		return;
 	}
 
-	await run(async () => setBlocked(person.id, communityId, !person.blocked, person.name), 'No se ha podido cambiar el bloqueo');
+	const blocked = !person.blocked;
+	void optimistic(setBlocked(person.id, communityId, blocked, person.name), {
+		done: `${person.name} ${blocked ? 'bloqueado' : 'desbloqueado'}`,
+		failed: 'No se ha podido cambiar el bloqueo',
+		revert: async () => setBlocked(person.id, communityId, !blocked, person.name),
+	});
+}
+
+function toggleManager(person: User & { id: string }) {
+	const previous = person.role;
+	const role: Role = previous === 'manager' ? 'user' : 'manager';
+	void optimistic(setRole(person.id, role, communityId, person.name), {
+		done: `${person.name} ahora es ${roles[role].label.toLowerCase()}`,
+		failed: 'No se ha podido cambiar el rol',
+		revert: async () => setRole(person.id, previous, communityId, person.name),
+	});
+}
+
+function toggleAssigned(person: User & { id: string }, community: Community, assigned: boolean) {
+	const name = community.name || 'Sin nombre';
+	void optimistic(setCommunityAssigned(person.id, community.id, assigned, person.name), {
+		done: `${name} ${assigned ? 'asignada' : 'desasignada'}`,
+		failed: 'No se ha podido asignar',
+		revert: async () => setCommunityAssigned(person.id, community.id, !assigned, person.name),
+	});
+}
+
+function cancel(invitation: Invitation & { id: string }) {
+	void optimistic(cancelInvitation(invitation.id, invitation.communityId, invitation.name), {
+		done: 'Invitación cancelada',
+		failed: 'No se ha podido cancelar',
+		revert: async () => restoreInvitation(invitation),
+	});
 }
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton
-			:to="communityId ? `/communities/${communityId}` : '/'"
-			mode="clear"
-			shape="circle"
-			:aria-label="communityId ? 'Volver a la comunidad' : 'Volver a comunidades'"
-			:title="communityId ? 'Volver a la comunidad' : 'Volver a comunidades'"
-		>
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="communityId ? `/communities/${communityId}` : '/'" :label="communityId ? 'Volver a la comunidad' : 'Volver a comunidades'" />
 		<h1>{{ communityId ? 'Vecinos y gestores' : 'Administradores' }}</h1>
 	</header>
 
-	<form v-if="roleOptions.length" class="card" @submit.prevent="sendInvitation()">
-		<h2>Invitar</h2>
+	<form v-if="roleOptions.length" ref="formElement" class="card" @submit.prevent="sendInvitation()">
+		<h2>Invitar <Kbd combo="n" /></h2>
 		<p class="hint">
 			No se envía ningún email: avísale de que entre en gobernança con este email. Su cuenta se crea al entrar por primera vez.
 		</p>
@@ -145,9 +174,10 @@ async function toggleBlocked(person: User & { id: string }) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="submit" :is-loading="sending">
+			<LnxButton type="submit">
 				<LnxIcon icon="lucide:send" />
 				Invitar
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -157,15 +187,21 @@ async function toggleBlocked(person: User & { id: string }) {
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
 
-		<span v-if="loading" class="skeleton-item" />
-		<ul v-else-if="sortedPeople.length" class="list">
+		<ul v-if="loading && !people.length" class="list" aria-busy="true">
+			<li v-for="width in [38, 52, 30, 45]" :key="width" class="person">
+				<div class="who">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 15}%` }" />
+				</div>
+				<span class="skeleton-item skeleton-item--small" style="width: 64px" />
+				<span class="skeleton-item skeleton-item--small" style="width: 96px" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="sortedPeople.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="person in sortedPeople" :key="person.id" class="person">
 				<div class="who">
-					<strong>{{ person.name }}<template v-if="person.id === me?.id"> (tú)</template></strong>
+					<strong :style="communityId ? { viewTransitionName: `person-${person.id}` } : undefined">{{ person.name }}<template v-if="person.id === me?.id"> (tú)</template></strong>
 					<small>{{ person.email }}</small>
 				</div>
 				<span class="badges">
@@ -191,7 +227,7 @@ async function toggleBlocked(person: User & { id: string }) {
 						v-if="canEdit(person) && communityId && roleOptions.includes('manager')"
 						mode="clear"
 						size="small"
-						@click="run(async () => setRole(person.id, person.role === 'manager' ? 'user' : 'manager', communityId, person.name), 'No se ha podido cambiar el rol')"
+						@click="toggleManager(person)"
 					>
 						<LnxIcon :icon="person.role === 'manager' ? 'lucide:user-minus' : 'lucide:user-check'" />
 						{{ person.role === 'manager' ? 'Quitar gestión' : 'Hacer gestor' }}
@@ -212,13 +248,13 @@ async function toggleBlocked(person: User & { id: string }) {
 							type="checkbox"
 							class="sr-only"
 							:checked="person.communityIds?.includes(community.id)"
-							@change="run(async () => setCommunityAssigned(person.id, community.id, ($event.target as HTMLInputElement).checked, person.name), 'No se ha podido asignar')"
+							@change="toggleAssigned(person, community, ($event.target as HTMLInputElement).checked)"
 						>
 						<span>{{ community.name || 'Sin nombre' }}</span>
 					</label>
 				</fieldset>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no hay cuentas.
 		</p>
@@ -226,7 +262,7 @@ async function toggleBlocked(person: User & { id: string }) {
 
 	<section v-if="invitations.length" class="card">
 		<h2>Invitaciones pendientes</h2>
-		<ul class="list">
+		<TransitionGroup tag="ul" name="row" class="list">
 			<li v-for="invitation in invitations" :key="invitation.id" class="person">
 				<div class="who">
 					<strong>{{ invitation.name }}</strong>
@@ -238,14 +274,14 @@ async function toggleBlocked(person: User & { id: string }) {
 						mode="clear"
 						size="small"
 						variant="danger"
-						@click="run(async () => cancelInvitation(invitation.id, invitation.communityId, invitation.name), 'No se ha podido cancelar')"
+						@click="cancel(invitation)"
 					>
 						<LnxIcon icon="lucide:x" />
 						Cancelar
 					</LnxButton>
 				</div>
 			</li>
-		</ul>
+		</TransitionGroup>
 	</section>
 </template>
 
@@ -332,6 +368,10 @@ async function toggleBlocked(person: User & { id: string }) {
 	flex-direction: column;
 	min-width: 0;
 
+	strong {
+		text-wrap: balance;
+	}
+
 	small {
 		overflow: hidden;
 		color: var(--color-gray-6);
@@ -389,6 +429,15 @@ async function toggleBlocked(person: User & { id: string }) {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover input:not(:checked, :disabled) + span {
+		background: var(--color-gray-1);
+	}
+
+	label:active input:not(:disabled) + span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {
@@ -410,6 +459,19 @@ async function toggleBlocked(person: User & { id: string }) {
 .error {
 	color: var(--color-secondary-accent);
 	font-size: var(--lnx-font-size-small);
+}
+
+// Rows coming and going, interruptible as they're transitions
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
 }
 
 @media (max-width: 640px) {

@@ -55,10 +55,10 @@ export function toMeetingForm(meeting?: Meeting): MeetingForm {
 	};
 }
 
-// Creates it as a draft when there's no id. Returns its id
-export async function saveMeeting(communityId: string, id: string | undefined, { date, time, place, link: url, agenda, ...form }: MeetingForm) {
+// Creates it as a draft when `create`, with the id made when its form opened, so sending it twice writes it once
+export async function saveMeeting(communityId: string, id: string, { date, time, place, link: url, agenda, ...form }: MeetingForm, create = false) {
 	const uid = auth.currentUser!.uid;
-	const meetingRef = id ? doc(meetingsRef(communityId), id) : doc(meetingsRef(communityId));
+	const meetingRef = doc(meetingsRef(communityId), id);
 	const data = {
 		...form,
 		title: form.title.trim(),
@@ -72,22 +72,22 @@ export async function saveMeeting(communityId: string, id: string | undefined, {
 	};
 
 	const batch = writeBatch(db);
-	batch.set(meetingRef, id ? data : { ...data, status: 'draft', votingOpen: false, createdAt: serverTimestamp(), createdBy: uid }, { merge: true });
+	batch.set(meetingRef, !create ? data : { ...data, status: 'draft', votingOpen: false, createdAt: serverTimestamp(), createdBy: uid }, { merge: true });
 	logActivity(batch, communityId, {
 		area: 'meeting',
-		summary: `${id ? 'Editó' : 'Creó'} la junta «${data.title}»`,
+		summary: `${create ? 'Creó' : 'Editó'} la junta «${data.title}»`,
 		link: link(communityId, meetingRef.id),
 	});
 	await batch.commit();
-	return meetingRef.id;
 }
 
-export async function setMeetingStatus(meeting: Meeting, status: MeetingStatus) {
+// votingOpen: to bring back how it was when undoing
+export async function setMeetingStatus(meeting: Meeting, status: MeetingStatus, votingOpen?: boolean) {
 	const batch = writeBatch(db);
 	// Voting closes with the meeting
 	batch.update(doc(meetingsRef(meeting.communityId), meeting.id), {
 		status,
-		...(status === 'convened' ? {} : { votingOpen: false }),
+		...(status === 'convened' ? (votingOpen === undefined ? {} : { votingOpen }) : { votingOpen: false }),
 		updatedAt: serverTimestamp(),
 		updatedBy: auth.currentUser!.uid,
 	});
@@ -114,6 +114,14 @@ export async function deleteMeeting(meeting: Meeting) {
 	const batch = writeBatch(db);
 	batch.delete(doc(meetingsRef(meeting.communityId), meeting.id));
 	logActivity(batch, meeting.communityId, { area: 'meeting', summary: `Borró el borrador de la junta «${meeting.title}»` });
+	await batch.commit();
+}
+
+// Undoes deleteMeeting with the data it had, kept from the page. Its answers and votes were never deleted
+export async function restoreMeeting({ id, ...meeting }: Meeting) {
+	const batch = writeBatch(db);
+	batch.set(doc(meetingsRef(meeting.communityId), id), meeting);
+	logActivity(batch, meeting.communityId, { area: 'meeting', summary: `Restauró el borrador de la junta «${meeting.title}»`, link: link(meeting.communityId, id) });
 	await batch.commit();
 }
 
@@ -174,6 +182,18 @@ export async function removeBallot(meeting: Meeting, item: AgendaItem, ballot: M
 	logActivity(batch, meeting.communityId, {
 		area: 'meeting',
 		summary: `Anuló el voto de ${ballot.propertyName} en «${item.title}»`,
+		link: link(meeting.communityId, meeting.id),
+	});
+	await batch.commit();
+}
+
+// Undoes removeBallot as it was, with who cast it and when
+export async function restoreBallot(meeting: Meeting, item: AgendaItem, { id, ...ballot }: MeetingVote) {
+	const batch = writeBatch(db);
+	batch.set(doc(meetingsRef(meeting.communityId), meeting.id, 'ballots', id), ballot);
+	logActivity(batch, meeting.communityId, {
+		area: 'meeting',
+		summary: `Restauró el voto de ${ballot.propertyName} en «${item.title}»`,
 		link: link(meeting.communityId, meeting.id),
 	});
 	await batch.commit();

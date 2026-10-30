@@ -9,6 +9,11 @@ import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic, toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
 import {
@@ -20,6 +25,8 @@ import {
 	recordBallot,
 	removeAttendance,
 	removeBallot,
+	restoreBallot,
+	restoreMeeting,
 	saveMeeting,
 	setMeetingStatus,
 	setVotingOpen,
@@ -33,6 +40,8 @@ const router = useRouter();
 const isNew = computed(() => props.meetingId === 'new');
 const { meeting, attendance, ballots } = useMeeting(props.id, () => props.meetingId);
 const listenError = computed(() => (meeting.error.value ?? attendance.error.value ?? ballots.error.value)?.message);
+// Undefined until it's read, null when it doesn't exist
+const loading = computed(() => !isNew.value && meeting.value === undefined && !listenError.value);
 const { people } = usePeople(props.id);
 
 const typeOptions = Object.entries(meetingTypes).map(([value, label]) => ({ value: value as Meeting['type'], label }));
@@ -40,19 +49,22 @@ const attendanceOptions = Object.entries(attendanceStatus).map(([value, label]) 
 const choices = Object.keys(voteChoices) as VoteChoice[];
 const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeStyle: 'short' });
 
-// The census and the community's name, once
+// The census and the community's name, once, and again when coming back while showing the last
 const properties = ref<Property[]>([]);
 const communityName = ref('');
 const loadError = ref<string>();
-onMounted(async () => {
+async function load() {
 	try {
 		const [census, community] = await Promise.all([loadProperties(props.id), loadCommunity(props.id)]);
 		properties.value = census.sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
 		communityName.value = community?.name ?? '';
+		loadError.value = undefined;
 	} catch (e) {
 		loadError.value = `No se ha podido cargar el censo: ${(e as Error).message}`;
 	}
-});
+}
+onMounted(load);
+onRevalidate(load);
 const total = computed(() => totalCoefficient(properties.value));
 // What each owner weighs, adding up all their properties
 const coefficientByOwner = computed(() => {
@@ -64,21 +76,6 @@ const coefficientByOwner = computed(() => {
 	}
 	return byOwner;
 });
-
-const busy = ref(false);
-const actionError = ref<string>();
-
-async function run(action: () => Promise<void>, failure: string) {
-	busy.value = true;
-	actionError.value = undefined;
-	try {
-		await action();
-	} catch (e) {
-		actionError.value = `${failure}: ${(e as Error).message}`;
-	} finally {
-		busy.value = false;
-	}
-}
 
 // The form
 
@@ -99,28 +96,75 @@ function moveItem(index: number, offset: number) {
 	[agenda[index], agenda[index + offset]] = [agenda[index + offset]!, agenda[index]!];
 }
 
-async function save() {
-	await run(async () => {
-		const meetingId = await saveMeeting(props.id, isNew.value ? undefined : props.meetingId, form.value);
-		if (isNew.value) {
-			await router.replace(`/communities/${props.id}/meetings/${meetingId}`);
-		}
-	}, 'No se ha podido guardar');
+// The new draft's id, made with its form, so sending it twice writes it once
+let draftId = newId();
+
+function save() {
+	if (!isNew.value) {
+		void optimistic(saveMeeting(props.id, props.meetingId, form.value), { done: 'Guardado', failed: 'No se ha podido guardar' });
+		return;
+	}
+	const meetingId = draftId;
+	const typed = form.value;
+	void optimistic(saveMeeting(props.id, meetingId, typed, true), {
+		done: 'Borrador creado',
+		failed: 'No se ha podido crear',
+		// Back to the form as it was typed, to send it again with the same id
+		onError: () => {
+			draftId = meetingId;
+			form.value = typed;
+			void router.replace(`/communities/${props.id}/meetings/new`);
+		},
+	});
+	// Already in the local cache, so it opens at once. This page stays kept alive, empty for the next one
+	draftId = newId();
+	form.value = toMeetingForm();
+	void router.replace(`/communities/${props.id}/meetings/${meetingId}`);
 }
 
-async function setStatus(status: MeetingStatus) {
-	await run(async () => setMeetingStatus(meeting.value!, status), 'No se ha podido cambiar el estado');
+const statusDone: Record<MeetingStatus, string> = {
+	draft: 'Junta en borrador',
+	convened: 'Junta convocada',
+	held: 'Junta celebrada',
+	cancelled: 'Junta desconvocada',
+};
+
+function setStatus(status: MeetingStatus) {
+	const current = meeting.value!;
+	const { status: before, votingOpen } = current;
+	void optimistic(setMeetingStatus(current, status), {
+		done: statusDone[status],
+		failed: 'No se ha podido cambiar el estado',
+		revert: async () => setMeetingStatus(current, before, votingOpen ?? false),
+	});
 }
 
-async function remove() {
+function toggleVoting() {
+	const current = meeting.value!;
+	const open = !current.votingOpen;
+	void optimistic(setVotingOpen(current, open), {
+		done: open ? 'Votación abierta' : 'Votación cerrada',
+		failed: 'No se ha podido cambiar la votación',
+		revert: async () => setVotingOpen(current, !open),
+	});
+}
+
+function remove() {
 	// eslint-disable-next-line no-alert
 	if (window.confirm('¿Borrar este borrador de junta?')) {
-		await run(async () => {
-			await deleteMeeting(meeting.value!);
-			await router.push(`/communities/${props.id}/meetings`);
-		}, 'No se ha podido borrar');
+		// Kept to bring it back as it was
+		const deleted = meeting.value!;
+		void optimistic(deleteMeeting(deleted), { done: 'Borrador borrado', failed: 'No se ha podido borrar', revert: async () => restoreMeeting(deleted) });
+		void router.push(`/communities/${props.id}/meetings`);
 	}
 }
+
+const formElement = ref<HTMLFormElement>();
+// The form being typed in, the attendance one too, or else the meeting's
+useShortcut('mod+enter', () => {
+	const typingIn = document.activeElement?.closest('form');
+	(typingIn ?? formElement.value)?.requestSubmit();
+}, 'Guardar');
 
 // Attendance
 
@@ -135,16 +179,30 @@ const personOptions = computed(() => [...people.value]
 	.map(person => ({ value: person.id, label: person.name })));
 const attendanceForm = ref({ uid: '', status: 'attending' as MeetingAttendance['status'], delegateName: '' });
 
-async function addAttendance() {
+function addAttendance() {
 	const person = people.value.find(entry => entry.id === attendanceForm.value.uid);
 	if (!person) {
 		return;
 	}
 
-	await run(async () => {
-		await recordAttendance(meeting.value!, person, attendanceForm.value.status, attendanceForm.value.delegateName);
-		attendanceForm.value = { uid: '', status: 'attending', delegateName: '' };
-	}, 'No se ha podido anotar');
+	// The row shows at once, so no toast; only back to what was chosen if it fails
+	const typed = attendanceForm.value;
+	attendanceForm.value = { uid: '', status: 'attending', delegateName: '' };
+	void optimistic(recordAttendance(meeting.value!, person, typed.status, typed.delegateName), {
+		failed: 'No se ha podido anotar',
+		onError: () => {
+			attendanceForm.value = typed;
+		},
+	});
+}
+
+function unrecordAttendance(entry: MeetingAttendance) {
+	const current = meeting.value!;
+	void optimistic(removeAttendance(current, entry), {
+		done: 'Asistencia quitada',
+		failed: 'No se ha podido quitar',
+		revert: async () => recordAttendance(current, { id: entry.id, name: entry.name }, entry.status, entry.delegateName ?? ''),
+	});
 }
 
 // Votes
@@ -157,8 +215,17 @@ function ballotOf(item: AgendaItem, property: Property): MeetingVote | undefined
 	return ballotsById.value[`${item.id}_${property.id}`];
 }
 
-async function vote(item: AgendaItem, property: Property, choice: VoteChoice) {
-	await run(async () => recordBallot(meeting.value!, item, property, choice), 'No se ha podido anotar el voto');
+function vote(item: AgendaItem, property: Property, choice: VoteChoice) {
+	void optimistic(recordBallot(meeting.value!, item, property, choice), { failed: 'No se ha podido anotar el voto' });
+}
+
+function annulBallot(item: AgendaItem, ballot: MeetingVote) {
+	const current = meeting.value!;
+	void optimistic(removeBallot(current, item, ballot), {
+		done: 'Voto anulado',
+		failed: 'No se ha podido anular',
+		revert: async () => restoreBallot(current, item, ballot),
+	});
 }
 
 function result(item: AgendaItem) {
@@ -171,12 +238,14 @@ const minutes = ref<HTMLElement>();
 const copied = ref(false);
 
 async function copyMinutes() {
-	await run(async () => {
+	try {
 		// innerText keeps the line breaks between paragraphs and items, textContent would run them together
 		// eslint-disable-next-line unicorn/prefer-dom-node-text-content
 		await navigator.clipboard.writeText(minutes.value!.innerText);
 		copied.value = true;
-	}, 'No se ha podido copiar');
+	} catch (e) {
+		toast(`No se ha podido copiar: ${(e as Error).message}`, { tone: 'error' });
+	}
 }
 
 function print() {
@@ -186,10 +255,10 @@ function print() {
 
 <template>
 	<header class="page-header screen-only">
-		<LnxButton :to="`/communities/${id}/meetings`" mode="clear" shape="circle" aria-label="Volver a juntas" title="Volver a juntas">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
-		<h1>{{ isNew ? 'Nueva junta' : meeting?.title || 'Junta' }}</h1>
+		<BackButton :to="`/communities/${id}/meetings`" label="Volver a juntas" />
+		<h1 :style="isNew ? undefined : { viewTransitionName: `meeting-${meetingId}` }">
+			{{ isNew ? 'Nueva junta' : meeting?.title || 'Junta' }}
+		</h1>
 		<span v-if="meeting" class="status" :class="`status--${meeting.status}`">{{ meetingStatus[meeting.status] }}</span>
 	</header>
 
@@ -199,16 +268,31 @@ function print() {
 	<p v-if="loadError" class="error screen-only" role="alert">
 		{{ loadError }}
 	</p>
-	<p v-if="actionError" class="error screen-only" role="alert">
-		{{ actionError }}
-	</p>
-
 	<p v-if="!isNew && meeting === null" class="hint">
 		Esta junta no existe o se ha borrado.
 	</p>
 
+	<div v-else-if="loading" class="screen-only" aria-busy="true">
+		<section class="card">
+			<span class="skeleton-item skeleton-item--small" style="width: 25%" />
+			<span class="skeleton-item skeleton-item--title" style="width: 100%" />
+			<div class="fields">
+				<span v-for="field in 5" :key="field" class="skeleton-item skeleton-item--title" />
+			</div>
+			<span class="skeleton-item skeleton-item--small" style="width: 30%" />
+			<span v-for="width in ['70%', '55%', '62%']" :key="width" class="skeleton-item" :style="{ width }" />
+		</section>
+		<section class="card">
+			<span class="skeleton-item skeleton-item--small" style="width: 20%" />
+			<span class="skeleton-item" style="width: 60%" />
+			<div class="actions">
+				<span v-for="width in ['110px', '150px']" :key="width" class="skeleton-item skeleton-item--title" :style="{ width }" />
+			</div>
+		</section>
+	</div>
+
 	<template v-else>
-		<form class="card screen-only" @submit.prevent="save()">
+		<form ref="formElement" class="card screen-only" @submit.prevent="save()">
 			<h2>Convocatoria</h2>
 			<div class="fields">
 				<LnxInput v-model="form.title" class="wide" placeholder="Junta ordinaria 2026" required>
@@ -243,7 +327,7 @@ function print() {
 			</div>
 
 			<h2>Orden del día</h2>
-			<ol v-if="form.agenda.length" class="agenda">
+			<TransitionGroup v-if="form.agenda.length" tag="ol" name="row" class="agenda">
 				<li v-for="(item, index) in form.agenda" :key="item.id" class="agenda-item">
 					<div class="fields">
 						<LnxInput v-model="item.title" class="wide" required>
@@ -268,7 +352,7 @@ function print() {
 						</LnxButton>
 					</div>
 				</li>
-			</ol>
+			</TransitionGroup>
 			<p v-else class="hint">
 				Aún no hay puntos.
 			</p>
@@ -278,9 +362,10 @@ function print() {
 					<LnxIcon icon="lucide:plus" />
 					Añadir punto
 				</LnxButton>
-				<LnxButton type="submit" :is-loading="busy">
+				<LnxButton type="submit">
 					<LnxIcon icon="lucide:save" />
 					{{ isNew ? 'Crear borrador' : 'Guardar cambios' }}
+					<Kbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</form>
@@ -293,30 +378,30 @@ function print() {
 				</p>
 				<div class="actions">
 					<template v-if="meeting.status === 'draft'">
-						<LnxButton :disabled="busy" @click="setStatus('convened')">
+						<LnxButton @click="setStatus('convened')">
 							<LnxIcon icon="lucide:send" />
 							Convocar
 						</LnxButton>
-						<LnxButton mode="clear" variant="danger" :disabled="busy" @click="remove()">
+						<LnxButton mode="clear" variant="danger" @click="remove()">
 							<LnxIcon icon="lucide:trash-2" />
 							Borrar borrador
 						</LnxButton>
 					</template>
 					<template v-else-if="meeting.status === 'convened'">
-						<LnxButton :mode="meeting.votingOpen ? 'outline' : undefined" :disabled="busy" @click="run(async () => setVotingOpen(meeting!, !meeting!.votingOpen), 'No se ha podido cambiar la votación')">
+						<LnxButton :mode="meeting.votingOpen ? 'outline' : undefined" @click="toggleVoting()">
 							<LnxIcon :icon="meeting.votingOpen ? 'lucide:lock' : 'lucide:vote'" />
 							{{ meeting.votingOpen ? 'Cerrar votación' : 'Abrir votación en la app' }}
 						</LnxButton>
-						<LnxButton mode="outline" :disabled="busy" @click="setStatus('held')">
+						<LnxButton mode="outline" @click="setStatus('held')">
 							<LnxIcon icon="lucide:check" />
 							Marcar como celebrada
 						</LnxButton>
-						<LnxButton mode="clear" variant="danger" :disabled="busy" @click="setStatus('cancelled')">
+						<LnxButton mode="clear" variant="danger" @click="setStatus('cancelled')">
 							<LnxIcon icon="lucide:x" />
 							Desconvocar
 						</LnxButton>
 					</template>
-					<LnxButton v-else mode="outline" :disabled="busy" @click="setStatus('convened')">
+					<LnxButton v-else mode="outline" @click="setStatus('convened')">
 						<LnxIcon icon="lucide:rotate-ccw" />
 						Volver a convocada
 					</LnxButton>
@@ -328,27 +413,27 @@ function print() {
 
 			<section class="card screen-only">
 				<h2>Asistencia</h2>
-				<p class="summary">
+				<p class="summary counters">
 					<span><strong>{{ present.length }}</strong> asistirán</span>
 					<span><strong>{{ represented.length }}</strong> delegan su voto</span>
 					<span><strong>{{ sortedAttendance.length - present.length - represented.length }}</strong> no asistirán</span>
 					<span><strong>{{ share(sumCoefficient([...present, ...represented])) }}</strong> del coeficiente presente o representado</span>
 				</p>
 
-				<ul v-if="sortedAttendance.length" class="list">
+				<TransitionGroup v-if="sortedAttendance.length" tag="ul" name="row" class="list">
 					<li v-for="entry in sortedAttendance" :key="entry.id" class="item">
 						<div class="what">
 							<strong>{{ entry.name }}</strong>
-							<small>
+							<small class="tabular">
 								{{ attendanceStatus[entry.status] }}<template v-if="entry.status === 'delegated' && entry.delegateName"> en {{ entry.delegateName }}</template>
 								· {{ formatPercent(coefficientByOwner[entry.uid] ?? 0) }}
 							</small>
 						</div>
-						<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" :disabled="busy" @click="run(async () => removeAttendance(meeting!, entry), 'No se ha podido quitar')">
+						<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" @click="unrecordAttendance(entry)">
 							<LnxIcon icon="lucide:x" />
 						</LnxButton>
 					</li>
-				</ul>
+				</TransitionGroup>
 				<p v-else class="hint">
 					Nadie ha respondido aún.
 				</p>
@@ -385,7 +470,7 @@ function print() {
 					<LnxInput v-if="attendanceForm.status === 'delegated'" v-model="attendanceForm.delegateName" required>
 						Delega en
 					</LnxInput>
-					<LnxButton type="submit" mode="outline" :disabled="busy || !attendanceForm.uid">
+					<LnxButton type="submit" mode="outline" :disabled="!attendanceForm.uid">
 						<LnxIcon icon="lucide:user-check" />
 						Anotar
 					</LnxButton>
@@ -400,12 +485,12 @@ function print() {
 				<details v-for="item in votableItems" :key="item.id" class="vote-item">
 					<summary>
 						<strong>{{ item.title }}</strong>
-						<small>{{ result(item) }}</small>
+						<small class="tabular">{{ result(item) }}</small>
 					</summary>
 					<ul class="list">
 						<li v-for="property in properties" :key="property.id" class="ballot">
 							<div class="what">
-								<strong>{{ property.name }} · {{ formatPercent(property.coefficient ?? 0) }}</strong>
+								<strong class="tabular">{{ property.name }} · {{ formatPercent(property.coefficient ?? 0) }}</strong>
 								<small>
 									{{ property.ownerName || ownerNames[property.ownerUid] || 'Sin propietario' }}
 									<template v-if="ballotOf(item, property)"> · votó {{ ballotOf(item, property)!.voterName }}</template>
@@ -417,7 +502,6 @@ function print() {
 									:key="choice"
 									size="small"
 									:mode="ballotOf(item, property)?.choice === choice ? undefined : 'outline'"
-									:disabled="busy"
 									@click="vote(item, property, choice)"
 								>
 									{{ voteChoices[choice] }}
@@ -430,8 +514,7 @@ function print() {
 									variant="danger"
 									aria-label="Anular voto"
 									title="Anular voto"
-									:disabled="busy"
-									@click="run(async () => removeBallot(meeting!, item, ballotOf(item, property)!), 'No se ha podido anular')"
+									@click="annulBallot(item, ballotOf(item, property)!)"
 								>
 									<LnxIcon icon="lucide:x" />
 								</LnxButton>
@@ -444,7 +527,7 @@ function print() {
 			<section class="card">
 				<header class="minutes-header screen-only">
 					<h2>Acta</h2>
-					<LnxButton mode="outline" size="small" :disabled="busy" @click="copyMinutes()">
+					<LnxButton mode="outline" size="small" @click="copyMinutes()">
 						<LnxIcon :icon="copied ? 'lucide:check' : 'lucide:copy'" />
 						{{ copied ? 'Copiado' : 'Copiar texto' }}
 					</LnxButton>
@@ -557,6 +640,7 @@ function print() {
 }
 
 .agenda {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	gap: var(--lnx-spacing-3);
@@ -600,8 +684,28 @@ function print() {
 }
 
 .list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
+}
+
+// Rows coming, going and moving. Transitions, so a change midway turns back from where it is
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+// Out of the flow, so the rest move up into its place
+.row-leave-active {
+	position: absolute;
+	inset-inline: 0;
 }
 
 .item,
@@ -641,6 +745,15 @@ function print() {
 	summary {
 		padding: var(--lnx-spacing-3) 0;
 		cursor: pointer;
+
+		strong {
+			text-wrap: balance;
+			transition: color var(--duration) var(--ease-out);
+		}
+
+		&:hover strong {
+			color: var(--color-primary);
+		}
 
 		small {
 			display: block;

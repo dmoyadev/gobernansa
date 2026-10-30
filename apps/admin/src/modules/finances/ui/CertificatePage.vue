@@ -7,13 +7,16 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
+import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { loadCertificate } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string; propertyId: string }>();
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'long' });
-const today = new Date();
+const today = ref(new Date());
 
 const community = ref<Community>();
 const property = ref<Property>();
@@ -21,26 +24,34 @@ const unpaid = ref<Charge[]>([]);
 const loading = ref(true);
 const error = ref<string>();
 
-// Read once: a certificate is a picture of the day it's issued
-onMounted(async () => {
+// Read once: a certificate is a picture of the day it's issued. Coming back to it reads it again, for that day, showing
+// the last one meanwhile
+async function load() {
 	try {
 		const [loadedCommunity, certificate] = await Promise.all([loadCommunity(props.id), loadCertificate(props.id, props.propertyId)]);
 		community.value = loadedCommunity;
 		property.value = certificate.property;
 		unpaid.value = certificate.unpaid;
+		today.value = new Date();
 		// A property of another community would be certified against charges that aren't its own
-		if (!loadedCommunity || certificate.property?.communityId !== props.id) {
-			error.value = 'No existe esta comunidad o propiedad.';
-		}
+		error.value = !loadedCommunity || certificate.property?.communityId !== props.id ? 'No existe esta comunidad o propiedad.' : undefined;
 	} catch (e) {
-		error.value = `No se ha podido cargar: ${(e as Error).message}`;
+		// Read again, the one already shown stays
+		if (community.value) {
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+		} else {
+			error.value = `No se ha podido cargar: ${(e as Error).message}`;
+		}
 	} finally {
 		loading.value = false;
 	}
-});
+}
+
+onMounted(load);
+onRevalidate(load);
 
 // Charges not yet due don't count against it
-const overdue = computed(() => unpaid.value.filter(charge => isOverdue(charge, today)).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis()));
+const overdue = computed(() => unpaid.value.filter(charge => isOverdue(charge, today.value)).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis()));
 const overdueTotal = computed(() => overdue.value.reduce((sum, charge) => sum + charge.amount, 0));
 
 function print() {
@@ -50,9 +61,7 @@ function print() {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/charges`" mode="clear" shape="circle" aria-label="Volver a recibos" title="Volver a recibos">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}/charges`" label="Volver a recibos" />
 		<h1>Certificado de pagos</h1>
 		<LnxButton class="print" :disabled="loading || !!error" @click="print()">
 			<LnxIcon icon="lucide:printer" />
@@ -63,8 +72,18 @@ function print() {
 	<p v-if="error" class="error" role="alert">
 		{{ error }}
 	</p>
-	<span v-else-if="loading" class="skeleton-item" />
-	<article v-else-if="community && property" class="sheet">
+	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
+		<header>
+			<span class="skeleton-item" style="width: 55%" />
+			<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+			<span class="skeleton-item skeleton-item--small" style="width: 20%" />
+		</header>
+		<span class="skeleton-item skeleton-item--title" style="width: 60%; align-self: center" />
+		<div class="lines">
+			<span v-for="width in [100, 96, 100, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+		</div>
+	</article>
+	<article v-else-if="community && property" class="sheet ux-appear">
 		<header>
 			<strong>Comunidad de propietarios {{ community.name }}</strong>
 			<span>{{ community.address }}</span>
@@ -155,9 +174,14 @@ function print() {
 	font-size: 11pt;
 	line-height: 1.6;
 
-	> header {
+	> header,
+	.lines {
 		display: flex;
 		flex-direction: column;
+	}
+
+	.lines {
+		gap: 2mm;
 	}
 
 	h2 {

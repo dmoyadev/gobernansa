@@ -3,9 +3,14 @@ import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { formatCoefficient, propertyTypeIcons, propertyTypeLabels, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, ref } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
-import { deleteProperty, saveProperty, toPropertyForm, useProperties } from '../application/useProperties.ts';
+import { deleteProperty, restoreProperty, saveProperty, toPropertyForm, useProperties } from '../application/useProperties.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -43,8 +48,10 @@ const groups = computed(() => {
 const form = ref(toPropertyForm());
 // The one being edited, none while adding a new one
 const editingId = ref<string>();
-const saving = ref(false);
-const formError = ref<string>();
+// The new one's id, made with the form so sending it twice writes the same property
+let createId = newId();
+const formElement = useTemplateRef<HTMLFormElement>('formElement');
+const searchInput = useTemplateRef<HTMLElement>('searchInput');
 
 function edit(property: Property) {
 	editingId.value = property.id;
@@ -57,42 +64,51 @@ function reset() {
 	form.value = toPropertyForm();
 }
 
-async function save() {
-	saving.value = true;
-	formError.value = undefined;
-	try {
-		// The account's name and email are copied, so the census reads without loading the accounts
-		const owner = people.value.find(person => person.id === form.value.ownerUid);
-		await saveProperty(props.id, editingId.value, {
-			...form.value,
-			coefficient: String(form.value.coefficient ?? ''),
-			...(owner ? { ownerName: owner.name, ownerEmail: owner.email } : {}),
-		});
-		reset();
-	} catch (e) {
-		formError.value = `No se ha podido guardar: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
-	}
+// The form empties at once, the list shows it from the local cache. If the server rejects it, the form gets it back
+function save() {
+	// The account's name and email are copied, so the census reads without loading the accounts
+	const owner = people.value.find(person => person.id === form.value.ownerUid);
+	const sent = { form: form.value, editingId: editingId.value, createId };
+	const action = saveProperty(props.id, editingId.value, {
+		...form.value,
+		coefficient: String(form.value.coefficient ?? ''),
+		...(owner ? { ownerName: owner.name, ownerEmail: owner.email } : {}),
+	}, createId);
+	reset();
+	createId = newId();
+	void optimistic(action, {
+		done: sent.editingId ? 'Propiedad guardada' : 'Propiedad añadida',
+		failed: 'No se ha podido guardar',
+		onError: () => {
+			({ form: form.value, editingId: editingId.value, createId } = sent);
+		},
+	});
 }
 
-const actionError = ref<string>();
+useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Añadir una propiedad');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la propiedad');
+useShortcut('/', () => searchInput.value?.querySelector('input')?.focus(), 'Buscar en el censo');
+// Only while editing, so Esc keeps closing whatever else is open otherwise
+useEventListener(window, 'keydown', (event) => {
+	if (event.key === 'Escape' && editingId.value && !event.defaultPrevented) {
+		reset();
+	}
+});
 
-async function remove(property: Property) {
+function remove(property: Property) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar «${property.name}»?`)) {
 		return;
 	}
 
-	actionError.value = undefined;
-	try {
-		await deleteProperty(property);
-		if (editingId.value === property.id) {
-			reset();
-		}
-	} catch (e) {
-		actionError.value = `No se ha podido borrar: ${(e as Error).message}`;
+	if (editingId.value === property.id) {
+		reset();
 	}
+	void optimistic(deleteProperty(property), {
+		done: 'Propiedad borrada',
+		failed: 'No se ha podido borrar',
+		revert: async () => restoreProperty(property),
+	});
 }
 
 function ownerLabel(property: Property) {
@@ -105,14 +121,12 @@ function ownerLabel(property: Property) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Propiedades</h1>
 	</header>
 
-	<form class="card" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar propiedad' : 'Nueva propiedad' }}</h2>
+	<form ref="formElement" class="card" @submit.prevent="save()">
+		<h2>{{ editingId ? 'Editar propiedad' : 'Nueva propiedad' }} <Kbd v-if="!editingId" combo="n" /></h2>
 		<div class="fields">
 			<LnxInput v-model="form.name" placeholder="2A, Plaza 14…" required>
 				Nombre
@@ -166,15 +180,14 @@ function ownerLabel(property: Property) {
 		</div>
 
 		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
 			<LnxButton v-if="editingId" mode="clear" @click="reset()">
 				Cancelar
+				<Kbd combo="escape" />
 			</LnxButton>
-			<LnxButton type="submit" :is-loading="saving">
+			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -184,18 +197,17 @@ function ownerLabel(property: Property) {
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
-		<p v-if="actionError" class="error" role="alert">
-			{{ actionError }}
-		</p>
-		<p v-if="!pending && properties.length" :class="total === 100 ? 'hint' : 'warning'" :role="total === 100 ? undefined : 'status'">
+		<p v-if="properties.length" class="tabular" :class="total === 100 ? 'hint' : 'warning'" :role="total === 100 ? undefined : 'status'">
 			<LnxIcon :icon="total === 100 ? 'lucide:circle-check' : 'lucide:triangle-alert'" :size="16" />
 			{{ properties.length }} propiedades · los coeficientes suman {{ total.toLocaleString('es') }} %{{ total === 100 ? '' : ', deberían sumar 100 %' }}
 		</p>
 
 		<div class="filters">
-			<LnxInput v-model="search" type="search" placeholder="Nombre, propietario o inquilino">
-				Buscar
-			</LnxInput>
+			<div ref="searchInput">
+				<LnxInput v-model="search" type="search" placeholder="Nombre, propietario o inquilino">
+					Buscar <Kbd combo="/" />
+				</LnxInput>
+			</div>
 			<fieldset class="chips">
 				<legend>Tipo</legend>
 				<label>
@@ -209,17 +221,26 @@ function ownerLabel(property: Property) {
 			</fieldset>
 		</div>
 
-		<span v-if="pending" class="skeleton-item" />
-		<template v-else-if="groups.length">
+		<ul v-if="pending && !properties.length" class="list" aria-busy="true">
+			<li v-for="width in [20, 28, 16, 24]" :key="width" class="item">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 30}%` }" />
+				</div>
+				<span class="skeleton-item skeleton-item--icon" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="groups.length" tag="div" name="row" class="groups ux-appear">
 			<section v-for="group in groups" :key="group.type">
-				<h3>
+				<h3 class="tabular">
 					{{ propertyTypeLabels[group.type] }} · {{ group.properties.length }} · {{ totalCoefficient(group.properties).toLocaleString('es') }} %
 				</h3>
-				<ul class="list">
+				<TransitionGroup tag="ul" name="row" class="list">
 					<li v-for="property in group.properties" :key="property.id" class="item">
 						<LnxIcon class="type" :icon="propertyTypeIcons[property.type] ?? 'lucide:map-pin'" :size="20" />
 						<div class="what">
-							<strong>{{ property.name }}<template v-if="property.coefficient !== undefined"> · {{ formatCoefficient(property.coefficient) }}</template></strong>
+							<strong>{{ property.name }}<template v-if="property.coefficient !== undefined"> · <span class="tabular">{{ formatCoefficient(property.coefficient) }}</span></template></strong>
 							<small>
 								{{ ownerLabel(property) }}<template v-if="property.tenantName"> · Inquilino: {{ property.tenantName }}</template>
 							</small>
@@ -233,9 +254,9 @@ function ownerLabel(property: Property) {
 							</LnxButton>
 						</div>
 					</li>
-				</ul>
+				</TransitionGroup>
 			</section>
-		</template>
+		</TransitionGroup>
 		<p v-else class="hint">
 			{{ properties.length ? 'Ninguna propiedad coincide.' : 'Aún no hay propiedades.' }}
 		</p>
@@ -323,6 +344,10 @@ function ownerLabel(property: Property) {
 	flex-direction: column;
 	min-width: 0;
 
+	strong {
+		text-wrap: balance;
+	}
+
 	small {
 		overflow: hidden;
 		color: var(--color-gray-6);
@@ -376,6 +401,15 @@ h3 {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover input:not(:checked) + span {
+		background: var(--color-gray-1);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {
@@ -406,5 +440,24 @@ h3 {
 .error {
 	color: var(--color-secondary-accent);
 	font-size: var(--lnx-font-size-small);
+}
+
+.groups {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-4);
+}
+
+// Rows and groups coming and going as the filters change, interruptible as they're transitions
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
 }
 </style>

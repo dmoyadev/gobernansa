@@ -4,8 +4,13 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getIssueAge, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import BackButton from '@/app/ux/BackButton.vue';
+import Kbd from '@/app/ux/Kbd.vue';
+import { newId } from '@/app/ux/navigation.ts';
+import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { createIssue, useIssues } from '../application/useIssues.ts';
 import IssueAge from './IssueAge.vue';
 
@@ -39,47 +44,68 @@ function openedAgo(issue: Issue) {
 	return days < 1 ? 'hoy' : days < 2 ? 'ayer' : `hace ${days} días`;
 }
 
+// Each form brings the new issue's id, so sending it again can't duplicate it
 function emptyForm() {
-	return { title: '', description: '', category: 'maintenance' as IssueCategory, place: '' as '' | keyof typeof issueLocationTypes, reference: '' };
+	return { id: newId(), title: '', description: '', category: 'maintenance' as IssueCategory, place: '' as '' | keyof typeof issueLocationTypes, reference: '' };
 }
 
 const form = ref<ReturnType<typeof emptyForm>>();
-const saving = ref(false);
-const formError = ref<string>();
+const formElement = ref<HTMLFormElement>();
 
-async function create() {
-	const { title, description, category, place, reference } = form.value!;
-	saving.value = true;
-	formError.value = undefined;
-	try {
-		const issueId = await createIssue(props.id, me.value!.id, {
-			title: title.trim() || categories[category]!.defaultTitle,
-			description: description.trim(),
-			category,
-			...(place ? { location: { type: place, reference: reference.trim() } } : {}),
-		});
-		await router.push(`/communities/${props.id}/issues/${issueId}`);
-	} catch (e) {
-		formError.value = `No se ha podido crear: ${(e as Error).message}`;
-	} finally {
-		saving.value = false;
-	}
+async function openForm() {
+	form.value ??= emptyForm();
+	await nextTick();
+	formElement.value?.querySelector<HTMLInputElement>('.fields input')?.focus();
 }
+
+// The issue is in the local cache at once, so it opens straight away. If the server rejects it, back to the form as it was
+function create() {
+	const values = form.value;
+	if (!values) {
+		return;
+	}
+	form.value = undefined;
+	const { id: issueId, title, description, category, place, reference } = values;
+	const link = `/communities/${props.id}/issues/${issueId}`;
+	void optimistic(createIssue(props.id, me.value!.id, issueId, {
+		title: title.trim() || categories[category]!.defaultTitle,
+		description: description.trim(),
+		category,
+		...(place ? { location: { type: place, reference: reference.trim() } } : {}),
+	}), {
+		done: 'Incidencia creada',
+		failed: 'No se ha podido crear',
+		onError: () => {
+			form.value = values;
+			if (router.currentRoute.value.path === link) {
+				void router.replace(`/communities/${props.id}/issues`);
+			}
+		},
+	});
+	void router.push(link);
+}
+
+useShortcut('n', openForm, 'Nueva incidencia');
+useShortcut('mod+enter', create, 'Crear la incidencia');
+useEventListener(window, 'keydown', (event) => {
+	if (event.key === 'Escape' && form.value && !event.defaultPrevented) {
+		form.value = undefined;
+	}
+});
 </script>
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Incidencias</h1>
-		<LnxButton v-if="!form" @click="form = emptyForm()">
+		<LnxButton v-if="!form" @click="openForm()">
 			<LnxIcon icon="lucide:plus" />
 			Nueva incidencia
+			<Kbd combo="n" />
 		</LnxButton>
 	</header>
 
-	<form v-if="form" class="card new" @submit.prevent="create()">
+	<form v-if="form" ref="formElement" class="card new ux-appear" @submit.prevent="create()">
 		<h2>Nueva incidencia</h2>
 		<fieldset class="categories">
 			<legend>Categoría</legend>
@@ -114,16 +140,14 @@ async function create() {
 				Descripción
 			</LnxTextarea>
 		</div>
-		<p v-if="formError" class="error" role="alert">
-			{{ formError }}
-		</p>
 		<footer class="form-actions">
 			<LnxButton mode="clear" @click="form = undefined">
 				Cancelar
 			</LnxButton>
-			<LnxButton type="submit" :is-loading="saving">
+			<LnxButton type="submit">
 				<LnxIcon icon="lucide:plus" />
 				Crear incidencia
+				<Kbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -142,16 +166,27 @@ async function create() {
 		</label>
 	</fieldset>
 
-	<section class="card list-card">
+	<section class="card list-card" :aria-busy="pending && !issues.length">
 		<p v-if="error" class="error" role="alert">
 			No se han podido cargar: {{ error.message }}
 		</p>
 
-		<span v-if="pending && !issues.length" class="skeleton-item" />
-		<ul v-else-if="issues.length" class="list">
+		<ul v-if="pending && !issues.length" class="list" aria-hidden="true">
+			<li v-for="width in [62, 45, 74, 38, 56]" :key="width" class="issue">
+				<span class="skeleton-item skeleton-item--big-square tile" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width / 2 + 10}%` }" />
+				</div>
+				<span class="skeleton-item skeleton-item--small" style="width: 56px" />
+				<span class="skeleton-item skeleton-item--small" style="width: 80px" />
+				<span class="skeleton-item skeleton-item--small badge-skeleton" />
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="issues.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="issue in issues" :key="issue.id">
 				<RouterLink
-					class="issue"
+					class="issue ux-row"
 					:to="`/communities/${id}/issues/${issue.id}`"
 					:style="{
 						'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
@@ -163,7 +198,7 @@ async function create() {
 						<LnxIcon :icon="categories[issue.category]?.icon ?? 'lucide:triangle-alert'" :size="18" />
 					</span>
 					<div class="what">
-						<strong>{{ issue.title }}</strong>
+						<strong :style="{ viewTransitionName: `issue-${issue.id}` }">{{ issue.title }}</strong>
 						<small>
 							<span class="category">{{ categories[issue.category]?.label ?? 'Sin categoría' }}</span>
 							<span v-if="issue.location">
@@ -198,7 +233,7 @@ async function create() {
 					<span class="badge">{{ statusLabels[issue.status] }}</span>
 				</RouterLink>
 			</li>
-		</ul>
+		</TransitionGroup>
 		<p v-else class="hint">
 			No hay incidencias{{ status ? ' con este estado' : '' }}.
 		</p>
@@ -284,6 +319,15 @@ async function create() {
 		font-size: var(--lnx-font-size-small);
 		font-weight: var(--lnx-font-weight-bold);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover input:not(:checked) + span {
+		background: var(--cat-color-bg);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {
@@ -315,6 +359,15 @@ async function create() {
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover input:not(:checked) + span {
+		background: var(--color-gray-1);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	i {
@@ -339,8 +392,30 @@ async function create() {
 	margin-bottom: var(--lnx-spacing-4);
 }
 
-.list li + li {
-	border-top: 1px solid var(--color-gray-2);
+.list {
+	position: relative;
+
+	li + li {
+		border-top: 1px solid var(--color-gray-2);
+	}
+}
+
+// Filtering: rows that stay slide into place, the rest fade. Transitions, so a quick second filter turns them back
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 4px;
+}
+
+.row-leave-active {
+	position: absolute;
+	inset-inline: 0;
 }
 
 .issue {
@@ -352,12 +427,8 @@ async function create() {
 	color: var(--color-gray-9);
 	text-decoration: none;
 
-	&:hover {
-		background: var(--color-gray-1);
-
-		strong {
-			color: var(--color-primary);
-		}
+	&:hover strong {
+		color: var(--color-primary);
 	}
 
 	&:focus-visible {
@@ -387,6 +458,7 @@ async function create() {
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		line-height: 1.3;
+		transition: color var(--duration) var(--ease-out);
 	}
 
 	small {
@@ -446,7 +518,13 @@ async function create() {
 	small {
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-legal);
+		font-variant-numeric: tabular-nums;
 	}
+}
+
+.badge-skeleton {
+	justify-self: end;
+	width: 64px;
 }
 
 .badge {
@@ -470,7 +548,7 @@ async function create() {
 
 		.tile { grid-area: tile; align-self: start; }
 		.what { grid-area: what; }
-		.badge { grid-area: badge; align-self: start; }
+		.badge, .badge-skeleton { grid-area: badge; align-self: start; }
 		.opened { grid-area: opened; justify-content: flex-start; }
 		.counters { grid-area: counters; justify-self: end; }
 

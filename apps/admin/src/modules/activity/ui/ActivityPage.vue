@@ -4,9 +4,11 @@ import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { activityAreas } from '@gobernansa/shared/domain/activity.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, getDocs, limit, orderBy, query, startAfter } from 'firebase/firestore';
+import { collection, endBefore, getDocs, limit, orderBy, query, startAfter } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -16,6 +18,7 @@ const activityRef = collection(db, 'communities', props.id, 'activity');
 
 // Read a page at a time and once, not live: each page added later only reads its own entries
 const entries = ref<Activity[]>([]);
+const first = ref<QueryDocumentSnapshot>();
 const last = ref<QueryDocumentSnapshot>();
 const hasMore = ref(false);
 const loading = ref(false);
@@ -27,6 +30,7 @@ async function loadMore() {
 	try {
 		const snapshot = await getDocs(query(activityRef, orderBy('at', 'desc'), ...(last.value ? [startAfter(last.value)] : []), limit(PAGE_SIZE)));
 		entries.value.push(...snapshot.docs.map(entry => ({ ...entry.data(), id: entry.id }) as Activity));
+		first.value ??= snapshot.docs[0];
 		last.value = snapshot.docs.at(-1);
 		hasMore.value = snapshot.size === PAGE_SIZE;
 	} catch (e) {
@@ -36,6 +40,34 @@ async function loadMore() {
 	}
 }
 loadMore();
+
+// Coming back keeps what was loaded and only reads what happened since, on top. A page at most: after a long
+// while away it starts over from the newest instead of reading everything in between
+async function loadNewer() {
+	if (loading.value) {
+		return;
+	}
+	if (!first.value) {
+		return loadMore();
+	}
+	try {
+		const snapshot = await getDocs(query(activityRef, orderBy('at', 'desc'), endBefore(first.value), limit(PAGE_SIZE)));
+		if (snapshot.size === PAGE_SIZE) {
+			entries.value = [];
+			first.value = undefined;
+			last.value = undefined;
+			return await loadMore();
+		}
+		if (snapshot.size) {
+			entries.value.unshift(...snapshot.docs.map(entry => ({ ...entry.data(), id: entry.id }) as Activity));
+			first.value = snapshot.docs[0];
+		}
+	} catch (e) {
+		error.value = e as Error;
+	}
+}
+onRevalidate(loadNewer);
+const ROW_WIDTHS = [70, 50, 80, 60, 45];
 
 // Filtered here, among the loaded ones, so it needs no index
 const areaFilter = ref<ActivityArea | ''>('');
@@ -47,13 +79,11 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
-			<LnxIcon icon="lucide:arrow-left" />
-		</LnxButton>
+		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Registro de actividad</h1>
 	</header>
 
-	<section class="card">
+	<section class="card" :aria-busy="loading && !entries.length">
 		<fieldset v-if="areaOptions.length > 1" class="chips">
 			<legend class="sr-only">
 				Filtrar por área
@@ -72,8 +102,17 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 			No se ha podido cargar: {{ error.message }}
 		</p>
 
-		<ul v-if="visibleEntries.length" class="list">
-			<li v-for="entry in visibleEntries" :key="entry.id" class="entry">
+		<ul v-if="loading && !entries.length" class="list">
+			<li v-for="width in ROW_WIDTHS" :key="width" class="entry">
+				<span class="skeleton-item skeleton-item--icon" />
+				<div class="what">
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="skeleton-item skeleton-item--small" style="width: 30%" />
+				</div>
+			</li>
+		</ul>
+		<TransitionGroup v-else-if="visibleEntries.length" tag="ul" name="row" class="list ux-appear">
+			<li v-for="entry in visibleEntries" :key="entry.id" class="entry" :class="{ 'ux-row': entry.link }">
 				<LnxIcon :icon="activityAreas[entry.area]?.icon ?? 'lucide:history'" :title="activityAreas[entry.area]?.label" />
 				<div class="what">
 					<RouterLink v-if="entry.link" :to="entry.link">
@@ -89,8 +128,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 					</small>
 				</div>
 			</li>
-		</ul>
-		<span v-else-if="loading" class="skeleton-item" />
+		</TransitionGroup>
 		<p v-else class="hint">
 			{{ entries.length ? 'Nada de esa área entre lo cargado.' : 'Aún no hay actividad.' }}
 		</p>
@@ -131,12 +169,34 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 }
 
 .list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 }
 
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 4px;
+}
+
+// Out of the flow while it leaves, so the rest move up at once
+.row-leave-active {
+	position: absolute;
+	width: 100%;
+}
+
 .entry {
-	padding: var(--lnx-spacing-3) 0;
+	margin: 0 calc(-1 * var(--lnx-spacing-2));
+	padding: var(--lnx-spacing-3) var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-2);
+	position: relative;
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
 	align-items: start;
@@ -154,6 +214,14 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 	a {
 		color: inherit;
+
+		// The whole row opens it
+		&::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			border-radius: inherit;
+		}
 	}
 
 	small {
@@ -178,6 +246,15 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
 		cursor: pointer;
+		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
+	}
+
+	label:hover span {
+		background: var(--color-gray-1);
+	}
+
+	label:active span {
+		scale: var(--press-scale);
 	}
 
 	input:checked + span {

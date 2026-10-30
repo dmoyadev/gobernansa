@@ -1,0 +1,198 @@
+// How the admin moves and reads, for every page. Pages add their own on top with the same tokens
+:root {
+	--ease-out: cubic-bezier(.2, .8, .2, 1);
+	// A slight overshoot, settling at once
+	--ease-spring: linear(0, .25 8%, .64 18%, .9 28%, 1.03 38%, 1.06 45%, 1.03 58%, 1 72%, 1);
+	--duration-fast: .12s;
+	--duration: .2s;
+	--press-scale: .97;
+}
+
+/* Text */
+
+h1, h2, h3, h4, legend, dt {
+	text-wrap: balance;
+}
+
+p, li, dd, blockquote, figcaption {
+	text-wrap: pretty;
+}
+
+// Figures in columns and counters don't jump as they change
+time, td, th, output, data, progress, meter, input[type="number"], .tabular, .badge, .counters {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Continuous corners: squircles where the browser draws them, a bit bigger as they look smaller */
+
+@supports (corner-shape: squircle) {
+	:root {
+		--lnx-radius-2: 6px;
+		--lnx-radius-3: 12px;
+		--lnx-radius-4: 24px;
+	}
+
+	// Only what's drawn with the radius tokens: circles, dots and pills stay round
+	.card, dialog, [popover], [role="menu"], .toast, .badge, kbd, textarea, select, input:not([type="radio"], [type="checkbox"]),
+	.button-mode-solid:not(.button-shape-circle), .button-mode-outline:not(.button-shape-circle), .button-mode-clear:not(.button-shape-circle) {
+		corner-shape: squircle;
+	}
+}
+
+/* Microinteractions. Transitions, not keyframes: a hover that ends halfway turns back from where it is */
+
+a, button, summary, label, [role="menuitem"], [role="option"], [role="tab"] {
+	transition:
+		background-color var(--duration) var(--ease-out),
+		border-color var(--duration) var(--ease-out),
+		box-shadow var(--duration) var(--ease-out),
+		color var(--duration) var(--ease-out),
+		opacity var(--duration) var(--ease-out),
+		scale var(--duration-fast) var(--ease-out),
+		translate var(--duration) var(--ease-spring);
+}
+
+// The components' buttons, raised on hover and pressed in on click
+.button-mode-solid, .button-mode-outline, .button-mode-clear {
+	&:not(.is-disabled):hover {
+		translate: 0 -1px;
+	}
+
+	&:not(.is-disabled):active {
+		translate: 0;
+		scale: var(--press-scale);
+		transition-duration: .06s;
+	}
+
+	iconify-icon {
+		transition: translate var(--duration) var(--ease-spring), rotate var(--duration) var(--ease-spring), scale var(--duration) var(--ease-spring);
+	}
+
+	// Each icon hints at what it does
+	&:hover iconify-icon[icon="lucide:arrow-left"] { translate: -2px 0; }
+	&:hover iconify-icon[icon="lucide:arrow-right"], &:hover iconify-icon[icon="lucide:chevron-right"] { translate: 2px 0; }
+	&:hover iconify-icon[icon="lucide:plus"] { rotate: 90deg; }
+	&:hover iconify-icon[icon="lucide:x"] { rotate: 90deg; }
+	&:hover iconify-icon[icon="lucide:trash-2"], &:hover iconify-icon[icon="lucide:trash"] { rotate: -8deg; }
+	&:hover iconify-icon[icon="lucide:rotate-ccw"], &:hover iconify-icon[icon="lucide:refresh-cw"] { rotate: -45deg; }
+	&:hover iconify-icon[icon="lucide:check"] { scale: 1.15; }
+	&:hover iconify-icon[icon="lucide:send"] { translate: 2px -2px; }
+	&:hover iconify-icon[icon="lucide:download"] { translate: 0 2px; }
+}
+
+// Shortcut hints inside buttons fade in on hover or focus
+.button-mode-solid, .button-mode-outline, .button-mode-clear {
+	.kbd {
+		opacity: .55;
+		transition: opacity var(--duration) var(--ease-out);
+	}
+
+	&:hover .kbd, &:focus-visible .kbd {
+		opacity: 1;
+	}
+}
+
+// Rows and cards that open something: lit on hover, pressed in on click
+.ux-row {
+	&:hover {
+		background-color: var(--color-gray-1);
+	}
+
+	&:active {
+		scale: .995;
+	}
+}
+
+.ux-lift {
+	&:hover {
+		translate: 0 -2px;
+		box-shadow: 0 2px 4px #0000000F, 0 8px 24px #00000014;
+	}
+
+	&:active {
+		translate: 0;
+		scale: .99;
+	}
+}
+
+:focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+	transition: outline-offset var(--duration-fast) var(--ease-out);
+}
+
+/* Skeletons: only after a moment, so fast loads don't flash them */
+
+.skeleton-item {
+	opacity: 0;
+	animation: skeleton-in .25s .15s var(--ease-out) forwards;
+}
+
+@keyframes skeleton-in {
+	to {
+		opacity: 1;
+	}
+}
+
+// What arrives after a skeleton fades in instead of popping
+.ux-appear {
+	animation: ux-appear .3s var(--ease-out) both;
+}
+
+@keyframes ux-appear {
+	from {
+		opacity: 0;
+		translate: 0 4px;
+	}
+}
+
+/* Page transitions (navigation.ts). The top bar stays still, the page slides a bit forward or back */
+
+.topbar {
+	view-transition-name: topbar;
+}
+
+::view-transition-group(*) {
+	animation-duration: .28s;
+	animation-timing-function: var(--ease-out);
+}
+
+::view-transition-old(root) {
+	animation: .16s var(--ease-out) both vt-out;
+}
+
+::view-transition-new(root) {
+	animation: .28s var(--ease-out) both vt-in;
+}
+
+html[data-navigation="back"] {
+	&::view-transition-old(root) {
+		animation-name: vt-out-back;
+	}
+
+	&::view-transition-new(root) {
+		animation-name: vt-in-back;
+	}
+}
+
+@keyframes vt-out { to { opacity: 0; translate: -12px 0; } }
+@keyframes vt-in { from { opacity: 0; translate: 16px 0; } }
+@keyframes vt-out-back { to { opacity: 0; translate: 12px 0; } }
+@keyframes vt-in-back { from { opacity: 0; translate: -16px 0; } }
+
+/* Less motion: things still change, without moving */
+
+@media (prefers-reduced-motion: reduce) {
+	*, ::before, ::after {
+		transition-property: background-color, border-color, color, opacity, box-shadow !important;
+	}
+
+	.button-mode-solid, .button-mode-outline, .button-mode-clear, .ux-row, .ux-lift {
+		translate: none !important;
+		scale: none !important;
+	}
+
+	.ux-appear {
+		animation-name: none;
+	}
+}

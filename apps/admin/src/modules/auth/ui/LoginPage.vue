@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { onBeforeMount, ref } from 'vue';
+import { onBeforeMount, ref, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
+import Kbd from '@/app/ux/Kbd.vue';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
 
 const { completeMagicLink, sendMagicLink, signInWithPassword } = useAuth();
 const route = useRoute();
@@ -16,6 +18,7 @@ const emailSent = ref(false);
 const error = ref<string>();
 // Once the daily quota of sign-in emails runs out, users who set a password can still sign in with it
 const askPassword = ref(false);
+const form = useTemplateRef('form');
 
 async function goToApp() {
 	await router.replace((route.query.redirect as string | undefined) || '/');
@@ -56,11 +59,17 @@ async function signIn() {
 		loading.value = false;
 	}
 }
+
+useShortcut('mod+enter', () => {
+	if (!loading.value && !emailSent.value) {
+		form.value?.requestSubmit();
+	}
+}, 'Entrar');
 </script>
 
 <template>
 	<main>
-		<form @submit.prevent="signIn()">
+		<form ref="form" class="ux-appear" @submit.prevent="signIn()">
 			<header>
 				<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="180">
 				<h1>Administración</h1>
@@ -103,6 +112,7 @@ async function signIn() {
 			<LnxButton type="submit" :is-loading="loading" :disabled="emailSent" is-block>
 				<LnxIcon :icon="emailSent ? 'lucide:check' : 'lucide:arrow-right'" />
 				{{ emailSent ? '¡Enviado!' : 'Entrar' }}
+				<Kbd v-if="!emailSent" combo="mod+enter" />
 			</LnxButton>
 		</form>
 	</main>

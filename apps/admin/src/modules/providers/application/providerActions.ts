@@ -1,4 +1,6 @@
 import type { Provider, ProviderCategory, ProviderRating } from '@gobernansa/shared/domain/provider.ts';
+import type { User } from '@gobernansa/shared/domain/user.ts';
+import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, getDocs, increment, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { providersRef } from './useProviders.ts';
@@ -21,8 +23,8 @@ function currentUid() {
 	return uid;
 }
 
-// Creates the provider when there's no id
-export async function saveProvider(id: string | undefined, form: ProviderForm) {
+// Creates the provider when there's no id, as newId: made when its form opened, so sending twice writes it once
+export async function saveProvider(id: string | undefined, form: ProviderForm, newId = doc(providersRef).id) {
 	const uid = currentUid();
 	const now = serverTimestamp();
 	const data = {
@@ -39,7 +41,7 @@ export async function saveProvider(id: string | undefined, form: ProviderForm) {
 	if (id) {
 		await updateDoc(doc(providersRef, id), data);
 	} else {
-		await setDoc(doc(providersRef), { ...data, ratingSum: 0, ratingCount: 0, createdAt: now, createdBy: uid });
+		await setDoc(doc(providersRef, newId), { ...data, ratingSum: 0, ratingCount: 0, createdAt: now, createdBy: uid });
 	}
 }
 
@@ -51,6 +53,18 @@ export async function deleteProvider(id: string) {
 	ratings.docs.forEach(rating => batch.delete(rating.ref));
 	batch.delete(doc(providersRef, id));
 	await batch.commit();
+}
+
+// Undoes deleteProvider from the copy in memory, with its id. Only for one without ratings, created by the user and
+// shared only with communities they manage: the rules let nobody bring back someone else's rating, nor create a
+// provider with counters, for another author or shared beyond theirs
+export function canRestoreProvider(provider: Provider, me: (User & { id: string }) | null | undefined) {
+	return provider.ratingCount === 0 && provider.createdBy === me?.id && provider.communityIds.every(id => managesCommunity(me, id));
+}
+
+export async function restoreProvider(provider: Provider) {
+	const { id, ...data } = provider;
+	await setDoc(doc(providersRef, id), data);
 }
 
 function ratingsRef(providerId: string) {
