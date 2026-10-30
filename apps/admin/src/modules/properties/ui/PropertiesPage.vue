@@ -105,7 +105,7 @@ function ownerLabel(property: Property) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Propiedades</h1>
@@ -225,10 +225,10 @@ function ownerLabel(property: Property) {
 							</small>
 						</div>
 						<div class="item-actions">
-							<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" @click="edit(property)">
+							<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
 								<LnxIcon icon="lucide:pencil" />
 							</LnxButton>
-							<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" @click="remove(property)">
+							<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
 								<LnxIcon icon="lucide:trash-2" />
 							</LnxButton>
 						</div>

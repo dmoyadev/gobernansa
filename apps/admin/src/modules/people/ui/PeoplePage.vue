@@ -97,6 +97,7 @@ async function toggleBlocked(person: User & { id: string }) {
 			mode="clear"
 			shape="circle"
 			:aria-label="communityId ? 'Volver a la comunidad' : 'Volver a comunidades'"
+			:title="communityId ? 'Volver a la comunidad' : 'Volver a comunidades'"
 		>
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>

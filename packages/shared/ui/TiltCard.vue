@@ -42,7 +42,7 @@ function onPointerMove(event: PointerEvent) {
 	--x: .5;
 	--y: .5;
 	position: relative;
-	border-radius: calc(var(--lnx-radius-3) * 2);
+	border-radius: var(--lnx-radius-3);
 	transform: rotateX(calc((var(--y) - .5) * -14deg)) rotateY(calc((var(--x) - .5) * 18deg));
 	// The shadow falls away from the raised side, as if lit from above
 	box-shadow:
@@ -74,7 +74,7 @@ function onPointerMove(event: PointerEvent) {
 // Touch screens have no hover, so the card shows once that it moves
 @keyframes intro {
 	from {
-		transform: rotateX(18deg) rotateY(-24deg) translateY(16px);
+		transform: rotateX(3deg) rotateY(-3deg) translateY(4px);
 	}
 }
 

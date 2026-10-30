@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import IsotypeSVG from './IsotypeSVG.vue';
 
 const props = defineProps<{
 	title?: string;

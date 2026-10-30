@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { BUTTON_MODES, BUTTON_SHAPES, BUTTON_VARIANTS, LnxButton, LnxIcon } from 'lnxjs-components';
-import IsotypeSVG from '@/shared/ui/IsotypeSVG.vue';
 
 const tabs = [
 	{

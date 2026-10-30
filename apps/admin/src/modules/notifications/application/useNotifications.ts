@@ -41,6 +41,12 @@ export async function saveNotification(communityId: string, id: string | undefin
 	await batch.commit();
 }
 
+// One that may not be among the loaded pages, e.g. opened from the search
+export async function loadNotification(id: string) {
+	const snapshot = await getDoc(doc(eventsRef, id));
+	return snapshot.exists() ? { ...snapshot.data() as Event, id } : undefined;
+}
+
 // Read once to log where it was and what it said, so callers only need its id
 export async function deleteNotification(id: string) {
 	const eventRef = doc(eventsRef, id);

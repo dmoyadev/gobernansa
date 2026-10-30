@@ -15,7 +15,7 @@ const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeSty
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Juntas</h1>

@@ -2,14 +2,14 @@
 import type { UserDocument } from '../domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { propertyTypeIcons, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
+import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
+import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
-import IsotypeSVG from '@/shared/ui/IsotypeSVG.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
-import TiltCard from '@/shared/ui/TiltCard.vue';
 import { version } from '../../../../package.json';
 import { usePushNotifications } from '../application/usePushNotifications.ts';
 import { MAX_DOCUMENT_SIZE, useUserDocuments } from '../application/useUserDocuments.ts';

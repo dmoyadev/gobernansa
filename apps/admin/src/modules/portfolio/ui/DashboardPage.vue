@@ -54,7 +54,7 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 
 <template>
 	<header class="page-header">
-		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver">
+		<LnxButton to="/" mode="clear" shape="circle" aria-label="Volver" title="Volver">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Panel de cartera</h1>

@@ -47,7 +47,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad">
+		<LnxButton :to="`/communities/${id}`" mode="clear" shape="circle" aria-label="Volver a la comunidad" title="Volver a la comunidad">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Registro de actividad</h1>
@@ -74,7 +74,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 		<ul v-if="visibleEntries.length" class="list">
 			<li v-for="entry in visibleEntries" :key="entry.id" class="entry">
-				<LnxIcon :icon="activityAreas[entry.area]?.icon ?? 'lucide:history'" />
+				<LnxIcon :icon="activityAreas[entry.area]?.icon ?? 'lucide:history'" :title="activityAreas[entry.area]?.label" />
 				<div class="what">
 					<RouterLink v-if="entry.link" :to="entry.link">
 						{{ entry.summary }}

@@ -50,7 +50,7 @@ function print() {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/charges`" mode="clear" shape="circle" aria-label="Volver a recibos">
+		<LnxButton :to="`/communities/${id}/charges`" mode="clear" shape="circle" aria-label="Volver a recibos" title="Volver a recibos">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>Certificado de pagos</h1>

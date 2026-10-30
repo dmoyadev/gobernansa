@@ -1,10 +1,49 @@
+<script lang="ts">
+import { computed, reactive, ref, watch } from 'vue';
+</script>
+
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { useCommunities } from '../application/useCommunities.ts';
+import { normalize } from '@gobernansa/shared/utils/helpers.ts';
+import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { loadNeighbourCount, useCommunities } from '../application/useCommunities.ts';
+
+// Neighbours per community, null while loading and undefined when it failed
+// ponytail: kept until the page reloads, a new neighbour shows up then
+const neighbours = reactive<Record<string, number | null | undefined>>({});
 
 const { user } = useAuth();
 const { communities, loading, error } = useCommunities();
+
+const search = ref('');
+const filtered = computed(() => {
+	const words = normalize(search.value).split(' ').filter(Boolean);
+	return words.length
+		? communities.value.filter((community) => {
+				const text = normalize(`${community.name ?? ''} ${community.address ?? ''}`);
+				return words.every(word => text.includes(word));
+			})
+		: communities.value;
+});
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+// One aggregation per community, only for the ones not counted yet: the live list changes on every edit, not just on new ones.
+// The counts live in the module (above), so coming back to the list doesn't count them again
+watch(() => communities.value.map(community => community.id).join(), () => {
+	for (const { id } of communities.value) {
+		if (id in neighbours) {
+			continue;
+		}
+		neighbours[id] = null;
+		loadNeighbourCount(id)
+			.then((count) => {
+				neighbours[id] = count;
+			})
+			.catch(() => {
+				neighbours[id] = undefined;
+			});
+	}
+}, { immediate: true });
 </script>
 
 <template>
@@ -12,7 +51,12 @@ const { communities, loading, error } = useCommunities();
 		<div>
 			<h1>Comunidades</h1>
 			<p v-if="!loading && !error">
-				{{ communities.length === 1 ? '1 comunidad' : `${communities.length} comunidades` }}
+				<template v-if="search.trim()">
+					{{ filtered.length }} de {{ plural(communities.length, 'comunidad', 'comunidades') }}
+				</template>
+				<template v-else>
+					{{ plural(communities.length, 'comunidad', 'comunidades') }}
+				</template>
 			</p>
 		</div>
 
@@ -34,32 +78,52 @@ const { communities, loading, error } = useCommunities();
 		</li>
 	</ul>
 
-	<ul v-else-if="communities.length" class="list">
-		<li v-for="community in communities" :key="community.id">
-			<RouterLink class="row" :to="`/communities/${community.id}`">
-				<span class="icon">
-					<LnxIcon icon="lucide:building-2" :size="20" />
-				</span>
-				<span class="body">
-					<strong>{{ community.name || 'Sin nombre' }}</strong>
-					<small>{{ community.address }}</small>
-				</span>
-				<span class="meta">
-					<span>
-						<LnxIcon icon="lucide:phone" :size="14" />
-						{{ community.contacts?.length ?? 0 }}
-						<span class="sr-only">contactos</span>
+	<template v-else-if="communities.length">
+		<LnxInput v-model="search" class="search" type="search" placeholder="Buscar por nombre o dirección">
+			<span class="sr-only">Buscar comunidades</span>
+			<template #icon>
+				<LnxIcon icon="lucide:search" />
+			</template>
+		</LnxInput>
+
+		<ul v-if="filtered.length" class="list">
+			<li v-for="community in filtered" :key="community.id">
+				<RouterLink class="row" :to="`/communities/${community.id}`">
+					<span class="icon">
+						<LnxIcon icon="lucide:building-2" :size="20" />
 					</span>
-					<span>
-						<LnxIcon icon="lucide:file-text" :size="14" />
-						{{ community.documents?.length ?? 0 }}
-						<span class="sr-only">documentos</span>
+					<span class="body">
+						<strong>{{ community.name || 'Sin nombre' }}</strong>
+						<small>{{ community.address }}</small>
 					</span>
-				</span>
-				<LnxIcon class="chevron" icon="lucide:chevron-right" :size="18" />
-			</RouterLink>
-		</li>
-	</ul>
+					<span class="meta">
+						<span :title="neighbours[community.id] == null ? 'Vecinos' : plural(neighbours[community.id]!, 'vecino', 'vecinos')">
+							<LnxIcon icon="lucide:users" :size="14" />
+							<span v-if="neighbours[community.id] === null" class="skeleton-item skeleton-item--count" aria-hidden="true" />
+							<template v-else>{{ neighbours[community.id] ?? '–' }}</template>
+							<span class="sr-only">vecinos</span>
+						</span>
+						<span :title="plural(community.contacts?.length ?? 0, 'contacto', 'contactos')">
+							<LnxIcon icon="lucide:phone" :size="14" />
+							{{ community.contacts?.length ?? 0 }}
+							<span class="sr-only">contactos</span>
+						</span>
+						<span :title="plural(community.documents?.length ?? 0, 'documento', 'documentos')">
+							<LnxIcon icon="lucide:file-text" :size="14" />
+							{{ community.documents?.length ?? 0 }}
+							<span class="sr-only">documentos</span>
+						</span>
+					</span>
+					<LnxIcon class="chevron" icon="lucide:chevron-right" :size="18" />
+				</RouterLink>
+			</li>
+		</ul>
+
+		<section v-else class="empty" role="status">
+			<LnxIcon icon="lucide:search-x" :size="40" />
+			<p>Ninguna comunidad coincide con «{{ search.trim() }}». Prueba con otra parte del nombre o de la dirección.</p>
+		</section>
+	</template>
 
 	<section v-else class="empty">
 		<LnxIcon icon="lucide:building-2" :size="40" />
@@ -89,6 +153,16 @@ const { communities, loading, error } = useCommunities();
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-small);
 	}
+}
+
+.search {
+	margin-bottom: var(--lnx-spacing-4);
+	width: 100%;
+}
+
+.skeleton-item--count {
+	width: 1.5em;
+	height: 1em;
 }
 
 .error {

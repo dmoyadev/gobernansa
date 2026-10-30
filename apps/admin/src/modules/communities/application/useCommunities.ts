@@ -3,7 +3,7 @@ import type { CommunityForm } from '../domain/communityForm.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, getCountFromServer, getDoc, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, ref, watch } from 'vue';
 import { useCollection } from 'vuefire';
 import { fromCommunityForm } from '../domain/communityForm.ts';
@@ -54,6 +54,12 @@ export function useCommunities() {
 export async function loadCommunity(id: string) {
 	const snapshot = await getDoc(doc(communitiesRef, id));
 	return snapshot.exists() ? snapshot.data() as Community : undefined;
+}
+
+// An aggregation is a single read, whatever the size of the community
+export async function loadNeighbourCount(id: string) {
+	const snapshot = await getCountFromServer(query(collection(db, 'users'), where('communityId', '==', id), where('role', '==', 'user')));
+	return snapshot.data().count;
 }
 
 // Creates the community when there's no id. Returns its id

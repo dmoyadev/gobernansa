@@ -141,7 +141,7 @@ function formatSize(bytes: number) {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/people`" mode="clear" shape="circle" aria-label="Volver a vecinos y gestores">
+		<LnxButton :to="`/communities/${id}/people`" mode="clear" shape="circle" aria-label="Volver a vecinos y gestores" title="Volver a vecinos y gestores">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
 		<h1>
@@ -217,7 +217,7 @@ function formatSize(bytes: number) {
 					</small>
 				</div>
 				<div class="actions">
-					<LnxButton mode="clear" size="small" :aria-label="`Descargar ${document.name}`" @click="download(document)">
+					<LnxButton mode="clear" size="small" :aria-label="`Descargar ${document.name}`" :title="`Descargar ${document.name}`" @click="download(document)">
 						<LnxIcon icon="lucide:download" />
 					</LnxButton>
 					<LnxButton
@@ -226,6 +226,7 @@ function formatSize(bytes: number) {
 						size="small"
 						variant="danger"
 						:aria-label="`Borrar ${document.name}`"
+						:title="`Borrar ${document.name}`"
 						@click="remove(document)"
 					>
 						<LnxIcon icon="lucide:trash-2" />
