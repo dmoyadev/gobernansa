@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import type { CommunityContact, CommunityDocument, ContactType } from '@gobernansa/shared/domain/community.ts';
+import type { Community, CommunityContact, CommunityDocument, ContactType } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm, CommunitySection } from '../domain/communityForm.ts';
 import { contactTypes, documentTypes, WEEKDAYS } from '@gobernansa/shared/domain/community.ts';
+import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { duplicateCommunity } from '../application/duplicateCommunity.ts';
 import { loadCommunity, saveCommunity } from '../application/useCommunities.ts';
 import { findFormError, toCommunityForm, toInputDate } from '../domain/communityForm.ts';
 
-// Without an id, a new community is created from its general info
+// Without an id, a new community is created from its general info and settings, prefilled from another one with ?from=<id>
 const props = withDefaults(defineProps<{ id?: string; section?: CommunitySection }>(), { section: 'info' });
-const backTo = props.id ? `/communities/${props.id}` : '/';
+const fromId = props.id ? undefined : useRoute().query.from as string | undefined;
+const backTo = props.id || fromId ? `/communities/${props.id || fromId}` : '/';
 
 const contactTypeOptions = Object.entries(contactTypes).map(([value, { label }]) => ({ value: value as ContactType, label }));
 const documentTypeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({ value: value as CommunityDocument['type'], label }));
@@ -18,7 +22,9 @@ const currentYear = new Date().getFullYear();
 
 const router = useRouter();
 const form = ref<CommunityForm>(toCommunityForm());
-const loading = ref(!!props.id);
+const loading = ref(!!(props.id || fromId));
+// The community being duplicated, kept so duplicating doesn't read it again
+const source = ref<Community>();
 const notFound = ref(false);
 // Without the community, saving the empty form would replace its contacts and documents
 const loadError = ref<string>();
@@ -26,14 +32,20 @@ const saving = ref(false);
 const error = ref<string>();
 
 onMounted(async () => {
-	if (!props.id) {
+	const id = props.id || fromId;
+	if (!id) {
 		return;
 	}
 
 	try {
-		const community = await loadCommunity(props.id);
+		const community = await loadCommunity(id);
 		notFound.value = !community;
 		form.value = toCommunityForm(community);
+		if (fromId && community) {
+			source.value = community;
+			// The address, fiscal data and documents belong to the building, they're left for the admin to fill in
+			Object.assign(form.value, { name: `${community.name} (copia)`, address: '', cif: '', iban: '', bank: '', documents: [] });
+		}
 	} catch (e) {
 		loadError.value = (e as Error).message;
 	} finally {
@@ -61,7 +73,7 @@ async function save() {
 
 	saving.value = true;
 	try {
-		const id = await saveCommunity(props.id, form.value);
+		const id = fromId ? await duplicateCommunity(fromId, form.value, source.value) : await saveCommunity(props.id, form.value);
 		await router.push(`/communities/${id}`);
 	} catch (e) {
 		// The form keeps what was typed, so it can be saved again
@@ -75,7 +87,7 @@ async function save() {
 <template>
 	<form @submit.prevent="save()">
 		<header class="page-header">
-			<LnxButton :to="backTo" mode="clear" shape="circle" :aria-label="id ? 'Volver a la comunidad' : 'Volver a comunidades'">
+			<LnxButton :to="backTo" mode="clear" shape="circle" :aria-label="id || fromId ? 'Volver a la comunidad' : 'Volver a comunidades'" :title="id || fromId ? 'Volver a la comunidad' : 'Volver a comunidades'">
 				<LnxIcon icon="lucide:arrow-left" />
 			</LnxButton>
 			<h1>{{ id ? (form.name || 'Editar comunidad') : 'Nueva comunidad' }}</h1>
@@ -100,7 +112,12 @@ async function save() {
 		</section>
 
 		<template v-else>
-			<section v-if="section === 'info'" class="card">
+			<p v-if="source" class="hint duplicate">
+				<LnxIcon icon="lucide:copy" aria-hidden="true" />
+				Se copiarán las zonas comunes, contactos, zonas reservables, obligaciones y proveedores de «{{ source.name }}».
+			</p>
+
+			<section v-if="section === 'info' || !id" class="card">
 				<h2>Datos generales</h2>
 				<div class="fields">
 					<LnxInput v-model="form.name" class="wide" required>
@@ -112,31 +129,9 @@ async function save() {
 					<LnxInput v-model="form.constructionYear" type="number" min="1800" :max="currentYear" required>
 						Año de construcción
 					</LnxInput>
-					<LnxInput v-model="form.monthlyVotes" type="number" min="1" max="99" placeholder="5">
-						Votos al mes por vecino
-						<template #helper>
-							Si se deja vacío, 5.
-						</template>
-					</LnxInput>
 				</div>
-			</section>
-
-			<section v-if="section === 'locations'" class="card">
-				<h2>Zonas comunes</h2>
-				<div class="fields">
-					<LnxInput v-model="form.commonAreas" class="wide" placeholder="Portal, Escalera, Garaje, Piscina">
-						Zonas comunes
-						<template #helper>
-							Separadas por comas. Los vecinos las eligen como lugar al dar un aviso.
-						</template>
-					</LnxInput>
-				</div>
-			</section>
-
-			<section v-if="section === 'finances'" class="card">
-				<h2>Datos fiscales</h2>
 				<p class="hint">
-					Los vecinos los ven y copian en la tarjeta de su comunidad, para pagar cuotas o facturar.
+					Los datos fiscales los ven y copian los vecinos en la tarjeta de su comunidad, para pagar cuotas o facturar.
 				</p>
 				<div class="fields">
 					<LnxInput v-model="form.cif">
@@ -147,6 +142,21 @@ async function save() {
 					</LnxInput>
 					<LnxInput v-model="form.iban" class="wide" placeholder="ES00 0000 0000 0000 0000 0000">
 						IBAN
+					</LnxInput>
+				</div>
+			</section>
+
+			<section v-if="section === 'settings' || !id" class="card">
+				<h2>Configuración de la comunidad</h2>
+				<p class="hint">
+					Ajustes propios de esta comunidad, que cambian cómo funciona la app para sus vecinos.
+				</p>
+				<div class="fields">
+					<LnxInput v-model="form.monthlyVotes" type="number" min="1" max="99" :placeholder="String(DEFAULT_MONTHLY_VOTES)">
+						Votos al mes por vecino
+						<template #helper>
+							Para apoyar incidencias. Si se deja vacío, {{ DEFAULT_MONTHLY_VOTES }}.
+						</template>
 					</LnxInput>
 				</div>
 			</section>
@@ -215,6 +225,7 @@ async function save() {
 							mode="clear"
 							shape="circle"
 							:aria-label="`Quitar este horario de ${contact.name || 'el contacto'}`"
+							:title="`Quitar este horario de ${contact.name || 'el contacto'}`"
 							@click="contact.schedule!.splice(scheduleIndex, 1)"
 						>
 							<LnxIcon icon="lucide:x" />
@@ -265,9 +276,9 @@ async function save() {
 								{{ documentTypes[value]?.label }}
 							</template>
 						</LnxSelect>
-						<LnxInput v-model="communityDocument.date" type="date" required>
+						<DatePicker v-model="communityDocument.date" required>
 							Fecha
-						</LnxInput>
+						</DatePicker>
 						<LnxInput v-model="communityDocument.title" class="wide" required>
 							Título
 						</LnxInput>
@@ -352,6 +363,12 @@ form {
 	margin-top: calc(-1 * var(--lnx-spacing-2));
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
+
+	&.duplicate {
+		display: flex;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
+	}
 }
 
 .fields {

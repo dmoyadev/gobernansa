@@ -61,9 +61,9 @@ const router = createRouter({
 				},
 				{
 					path: 'communities/:id/notifications',
-					name: 'Notificaciones',
+					name: 'Avisos',
 					component: async () => import('@/modules/notifications/ui/NotificationsPage.vue'),
-					meta: { title: 'Notificaciones' },
+					meta: { title: 'Avisos' },
 					props: true,
 				},
 				{
@@ -123,12 +123,22 @@ const router = createRouter({
 					props: true,
 				},
 				{
-					path: 'communities/:id/bookings',
+					path: 'communities/:id/locations',
+					name: 'Zonas comunes',
+					component: async () => import('@/modules/bookings/ui/CommonAreasPage.vue'),
+					meta: { title: 'Zonas comunes' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/locations/:areaId',
 					name: 'Reservas',
 					component: async () => import('@/modules/bookings/ui/BookingsPage.vue'),
 					meta: { title: 'Reservas' },
 					props: true,
 				},
+				// Older links, from the activity log or bookmarks, to the pages merged into others
+				{ path: 'communities/:id/bookings', redirect: to => `/communities/${to.params.id as string}/locations` },
+				{ path: 'communities/:id/finances', redirect: to => `/communities/${to.params.id as string}/info` },
 				{
 					path: 'communities/:id/activity',
 					name: 'Registro de actividad',
@@ -137,7 +147,7 @@ const router = createRouter({
 					props: true,
 				},
 				{
-					path: 'communities/:id/:section(info|contacts|documents|locations|finances)',
+					path: 'communities/:id/:section(info|contacts|documents|settings)',
 					name: 'Editar comunidad',
 					component: async () => import('@/modules/communities/ui/CommunityFormPage.vue'),
 					meta: { title: 'Editar comunidad' },

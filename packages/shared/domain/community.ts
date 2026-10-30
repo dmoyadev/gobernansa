@@ -14,8 +14,9 @@ export interface Community extends Datable {
 	name: string;
 	address: string;
 	constructionYear: number;
-	// Offered as places when reporting an issue, e.g. "Portal" or "Garaje"
-	commonAreas?: string[];
+	// Offered as places when reporting an issue, e.g. "Portal" or "Garaje", and booked by neighbours when they have booking.
+	// Read it with getCommonAreas(), older communities still have plain names here and the bookable ones in bookableAreas
+	commonAreas?: (CommonArea | string)[];
 
 	// Fiscal data, for neighbours paying fees or providers invoicing the community
 	cif?: string;
@@ -28,14 +29,26 @@ export interface Community extends Datable {
 	// Votes each neighbour gets every month, DEFAULT_MONTHLY_VOTES when missing
 	monthlyVotes?: number;
 
-	// Common areas neighbours can book, e.g. the paddle court
-	bookableAreas?: BookableArea[];
+	// Legacy, the bookable areas now live in commonAreas. Removed the next time the areas are saved
+	bookableAreas?: Omit<BookableArea, 'icon'>[];
 }
 
-export interface BookableArea {
+export interface CommonArea {
 	// Kept when it's renamed, bookings point to it
 	id: string;
 	name: string;
+	icon: string;
+	// Only when neighbours can book it, e.g. the paddle court
+	booking?: BookingSettings;
+}
+
+export type BookingSettings = Omit<BookableArea, 'id' | 'name' | 'icon'>;
+
+// A common area with its booking settings, as neighbours book it
+export interface BookableArea {
+	id: string;
+	name: string;
+	icon: string;
 	// ISO weekdays it opens, 1 is Monday and 7 is Sunday
 	days: number[];
 	// 24 hour 'HH:MM', zero padded. Slots of slotMinutes are laid from opens until closes
@@ -134,8 +147,29 @@ export function formatIban(iban: string) {
 	return iban.replace(SPACES_REGEX, '').replace(GROUPS_OF_4_REGEX, '$1 ').trim();
 }
 
-// Each community names its areas freely, so the icon is guessed from the name (accents and case ignored)
-// shortcut: unknown names get a generic building, store a type per area if that's not enough
+// The icons an admin can pick for an area
+export const commonAreaIcons: { icon: string; label: string }[] = [
+	{ icon: 'lucide:building-2', label: 'Edificio' },
+	{ icon: 'lucide:door-open', label: 'Portal' },
+	{ icon: 'lucide:door-stairwell', label: 'Escalera' },
+	{ icon: 'lucide:arrow-down-up', label: 'Ascensor' },
+	{ icon: 'lucide:car', label: 'Garaje' },
+	{ icon: 'lucide:bike', label: 'Bicicletas' },
+	{ icon: 'lucide:waves-ladder', label: 'Piscina' },
+	{ icon: 'lucide:trees', label: 'Jardín' },
+	{ icon: 'lucide:baby', label: 'Zona infantil' },
+	{ icon: 'lucide:volleyball', label: 'Pista' },
+	{ icon: 'lucide:dumbbell', label: 'Gimnasio' },
+	{ icon: 'lucide:sofa', label: 'Sala común' },
+	{ icon: 'lucide:flame', label: 'Barbacoa' },
+	{ icon: 'lucide:shirt', label: 'Lavandería' },
+	{ icon: 'lucide:package', label: 'Trastero' },
+	{ icon: 'lucide:sun', label: 'Azotea' },
+	{ icon: 'lucide:trash-2', label: 'Basuras' },
+	{ icon: 'lucide:mail', label: 'Buzones' },
+];
+
+// For areas saved without an icon, it's guessed from the name (accents and case ignored)
 const COMMON_AREA_ICONS: [RegExp, string][] = [
 	[/portal|entrada|vestibulo|recibidor/, 'lucide:door-open'],
 	[/escalera/, 'lucide:door-stairwell'],
@@ -156,4 +190,25 @@ const COMMON_AREA_ICONS: [RegExp, string][] = [
 export function getCommonAreaIcon(name: string) {
 	const normalized = normalize(name);
 	return COMMON_AREA_ICONS.find(([pattern]) => pattern.test(normalized))?.[1] ?? 'lucide:building-2';
+}
+
+// Older communities have the names in commonAreas and the bookable ones apart, matched by name.
+// Read without migrating, they're saved in the new shape the next time an admin changes them
+export function getCommonAreas(community?: Pick<Community, 'commonAreas' | 'bookableAreas'> | null): CommonArea[] {
+	const areas = (community?.commonAreas ?? []).map(area => typeof area === 'string'
+		? { id: normalize(area), name: area, icon: getCommonAreaIcon(area) }
+		: { ...area });
+	for (const { id, name, ...booking } of community?.bookableAreas ?? []) {
+		const area = areas.find(other => other.name === name);
+		if (area) {
+			Object.assign(area, { id, booking });
+		} else {
+			areas.push({ id, name, icon: getCommonAreaIcon(name), booking });
+		}
+	}
+	return areas;
+}
+
+export function getBookableAreas(community?: Pick<Community, 'commonAreas' | 'bookableAreas'> | null): BookableArea[] {
+	return getCommonAreas(community).flatMap(({ booking, ...area }) => booking ? [{ ...area, ...booking }] : []);
 }

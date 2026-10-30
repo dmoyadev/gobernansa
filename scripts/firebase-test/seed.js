@@ -79,7 +79,15 @@ async function seed() {
 			name: 'Residencial Los Olivos',
 			address: 'Calle Falsa 123, Jaén',
 			constructionYear: 1990,
-			commonAreas: ['Portal', 'Escalera', 'Ascensor', 'Garaje', 'Piscina', 'Jardín'],
+			commonAreas: [
+				{ id: 'portal', name: 'Portal', icon: 'lucide:door-open' },
+				{ id: 'escalera', name: 'Escalera', icon: 'lucide:door-stairwell' },
+				{ id: 'ascensor', name: 'Ascensor', icon: 'lucide:arrow-down-up' },
+				{ id: 'garaje', name: 'Garaje', icon: 'lucide:car' },
+				{ id: 'piscina', name: 'Piscina', icon: 'lucide:waves-ladder' },
+				{ id: 'jardin', name: 'Jardín', icon: 'lucide:trees' },
+				{ id: 'padel', name: 'Pista de pádel', icon: 'lucide:volleyball', booking: { days: [1, 2, 3, 4, 5, 6, 7], opens: '09:00', closes: '22:00', slotMinutes: 90, maxPerWeek: 3, rules: 'Máximo 4 personas.' } },
+			],
 			monthlyVotes: 5,
 			// Made-up data: the IBAN is the usual example one
 			cif: 'H23123456',

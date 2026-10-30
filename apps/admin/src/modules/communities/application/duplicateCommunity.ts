@@ -1,43 +1,41 @@
+import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Obligation } from '@gobernansa/shared/domain/obligation.ts';
+import type { CommunityForm } from '../domain/communityForm.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
+import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { arrayUnion, collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { arrayUnion, collection, doc, FieldValue, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { providersRef } from '@/modules/providers/application/useProviders.ts';
-import { loadCommunity } from './useCommunities.ts';
+import { fromCommunityForm } from '../domain/communityForm.ts';
 
 /**
- * Creates a community from another one as a template: its areas, contacts, settings, obligations and providers.
- * The address and fiscal data belong to the building, so they're left for the admin to fill in. Returns the new id
+ * Creates a community from the form, prefilled from another one used as a template, plus what the form doesn't edit:
+ * its common areas, obligations and providers. The source comes already loaded by the form. Returns the new id
  */
-export async function duplicateCommunity(id: string): Promise<string> {
+export async function duplicateCommunity(id: string, form: CommunityForm, source: Community | undefined): Promise<string> {
 	const uid = auth.currentUser?.uid;
 	if (!uid) {
 		throw new Error('The admin must be signed in to duplicate a community');
 	}
-
-	const [source, obligations, providers] = await Promise.all([
-		loadCommunity(id),
-		getDocs(collection(db, 'communities', id, 'obligations')),
-		getDocs(query(providersRef, where('communityIds', 'array-contains', id))),
-	]);
 	if (!source) {
 		throw new Error('La comunidad ya no existe.');
 	}
 
+	const [obligations, providers] = await Promise.all([
+		getDocs(collection(db, 'communities', id, 'obligations')),
+		getDocs(query(providersRef, where('communityIds', 'array-contains', id))),
+	]);
+
 	const batch = writeBatch(db);
 	const communityRef = doc(collection(db, 'communities'));
 	const now = serverTimestamp();
-	const name = `${source.name} (copia)`;
 	const audit = { createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid };
+	// The form's empty fields come as deleteField(), only valid when merging, and a new document has nothing to remove
+	const fields = Object.fromEntries(Object.entries(fromCommunityForm(form)).filter(([, value]) => !(value instanceof FieldValue)));
 
 	batch.set(communityRef, withoutUndefined({
-		name,
-		address: '',
-		constructionYear: source.constructionYear,
-		commonAreas: source.commonAreas,
-		contacts: source.contacts,
-		monthlyVotes: source.monthlyVotes,
-		bookableAreas: source.bookableAreas,
+		...fields,
+		commonAreas: getCommonAreas(source),
 		...audit,
 	}));
 
@@ -59,7 +57,7 @@ export async function duplicateCommunity(id: string): Promise<string> {
 		batch.update(provider.ref, { communityIds: arrayUnion(communityRef.id), updatedAt: now, updatedBy: uid });
 	}
 
-	logActivity(batch, communityRef.id, { area: 'community', summary: `Creó la comunidad a partir de «${source.name}»`, link: `/communities/${communityRef.id}` });
+	logActivity(batch, communityRef.id, { area: 'community', summary: `Creó la comunidad «${form.name.trim()}» a partir de «${source.name}»`, link: `/communities/${communityRef.id}` });
 	// ponytail: a batch takes 500 writes, more obligations and providers than that would need several
 	await batch.commit();
 

@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import type { CommunityDocument } from '@gobernansa/shared/domain/community.ts';
-import { contactTypes, documentTypes, formatIban, formatSchedule, getPhoneLink, getWhatsappLink, isWithinSchedule } from '@gobernansa/shared/domain/community.ts';
+import { contactTypes, documentTypes, formatIban, formatSchedule, getBookableAreas, getPhoneLink, getWhatsappLink, isWithinSchedule } from '@gobernansa/shared/domain/community.ts';
+import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useCommunityEvents } from '@/modules/events/application/useCommunityEvents.ts';
 import EventCard from '@/modules/events/ui/EventCard.vue';
 import { formatMeetingDate, useMeetings } from '@/modules/meetings/application/useMeetings.ts';
-import IsotypeSVG from '@/shared/ui/IsotypeSVG.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
-import TiltCard from '@/shared/ui/TiltCard.vue';
 import { useUserCommunity } from '../application/useUserCommunity.ts';
 
 const SPACES_REGEX = /\s/g;
@@ -19,6 +18,7 @@ const { userCommunity } = useUserCommunity();
 const { events } = useCommunityEvents(3);
 const { nextMeeting } = useMeetings();
 
+const bookableAreas = computed(() => getBookableAreas(userCommunity.value));
 const fiscalData = computed(() => [
 	{ label: 'CIF', value: userCommunity.value?.cif },
 	{ label: 'IBAN', value: userCommunity.value?.iban && formatIban(userCommunity.value.iban) },
@@ -83,26 +83,14 @@ function formatDate(document: CommunityDocument) {
 
 	<MainLayout>
 		<section v-if="userCommunity">
-			<TiltCard>
-				<div class="business-card">
-					<IsotypeSVG class="watermark" width="180" height="180" aria-hidden="true" />
-					<div class="brand">
-						<small>Comunidad de propietarios</small>
-						<h2>{{ userCommunity.name }}</h2>
-						<p>{{ userCommunity.address }}</p>
-					</div>
-
-					<dl v-if="fiscalData.length">
-						<div v-for="item in fiscalData" :key="item.label" :class="{ wide: item.label === 'IBAN' }">
-							<dt>{{ item.label }}</dt>
-							<dd>{{ item.value }}</dd>
-						</div>
-					</dl>
-					<p v-else class="no-data">
-						Tu administración aún no ha añadido los datos fiscales.
-					</p>
-				</div>
-			</TiltCard>
+			<CommunityBusinessCard
+				:name="userCommunity.name"
+				:address="userCommunity.address"
+				:cif="userCommunity.cif"
+				:iban="userCommunity.iban"
+				:bank="userCommunity.bank"
+				empty-text="Tu administración aún no ha añadido los datos fiscales."
+			/>
 
 			<div v-if="fiscalData.length" class="card-actions">
 				<LnxButton
@@ -261,13 +249,13 @@ function formatDate(document: CommunityDocument) {
 						<LnxIcon class="chevron" icon="lucide:chevron-right" :size="16" />
 					</RouterLink>
 				</li>
-				<li v-if="userCommunity?.bookableAreas?.length">
+				<li v-if="bookableAreas.length">
 					<RouterLink class="row" to="/neighborhood/bookings">
 						<span class="icon">
 							<LnxIcon icon="lucide:calendar-check" :size="20" />
 						</span>
 						<span class="body">
-							<small>{{ userCommunity.bookableAreas.map(area => area.name).join(' · ') }}</small>
+							<small>{{ bookableAreas.map(area => area.name).join(' · ') }}</small>
 							<strong>Reservas</strong>
 						</span>
 						<LnxIcon class="chevron" icon="lucide:chevron-right" :size="16" />
@@ -324,77 +312,6 @@ section {
 			text-transform: uppercase;
 			font-size: var(--lnx-font-size-legal);
 		}
-	}
-}
-
-.business-card {
-	position: relative;
-	overflow: hidden;
-	aspect-ratio: 1.586; // Credit card proportions
-	padding: var(--lnx-spacing-5) var(--lnx-spacing-4) var(--lnx-spacing-4);
-	border-radius: inherit;
-	background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-	color: var(--color-primary-accent);
-	display: flex;
-	flex-direction: column;
-	justify-content: space-between;
-	gap: var(--lnx-spacing-3);
-
-	.watermark {
-		position: absolute;
-		right: -40px;
-		bottom: -50px;
-		color: var(--color-gray-0-alpha);
-	}
-
-	.brand {
-		small {
-			color: var(--color-secondary-accent);
-			font-size: .7rem;
-			font-weight: var(--lnx-font-weight-bold);
-			letter-spacing: .08em;
-			text-transform: uppercase;
-		}
-
-		h2 {
-			font-size: 1.3rem;
-			line-height: 1.2;
-		}
-
-		p {
-			color: var(--color-primary-accent-alpha);
-			font-size: var(--lnx-font-size-small);
-		}
-	}
-
-	dl {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: var(--lnx-spacing-2) var(--lnx-spacing-4);
-
-		.wide {
-			grid-column: 1 / -1;
-			order: -1;
-		}
-
-		dt {
-			color: var(--color-primary-accent-alpha);
-			font-size: .65rem;
-			letter-spacing: .08em;
-			text-transform: uppercase;
-		}
-
-		dd {
-			font-family: var(--font-family-mono);
-			font-size: .95rem;
-			letter-spacing: .04em;
-			white-space: nowrap;
-		}
-	}
-
-	.no-data {
-		color: var(--color-primary-accent-alpha);
-		font-size: var(--lnx-font-size-small);
 	}
 }
 

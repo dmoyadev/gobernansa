@@ -5,7 +5,7 @@ import { deleteField, Timestamp } from 'firebase/firestore';
 const SPACES_REGEX = /\s/g;
 
 // Each one edited on its own page, opened from the community's page
-export type CommunitySection = 'info' | 'contacts' | 'documents' | 'locations' | 'finances';
+export type CommunitySection = 'info' | 'contacts' | 'documents' | 'settings';
 
 // What the inputs edit: text as typed, and dates as the 'YYYY-MM-DD' of date inputs
 export interface CommunityForm {
@@ -13,8 +13,6 @@ export interface CommunityForm {
 	address: string;
 	constructionYear: string;
 	monthlyVotes: string;
-	// Comma separated, e.g. "Portal, Garaje, Piscina"
-	commonAreas: string;
 	cif: string;
 	iban: string;
 	bank: string;
@@ -28,7 +26,6 @@ export function toCommunityForm(community?: Community): CommunityForm {
 		address: community?.address ?? '',
 		constructionYear: community?.constructionYear?.toString() ?? '',
 		monthlyVotes: community?.monthlyVotes?.toString() ?? '',
-		commonAreas: community?.commonAreas?.join(', ') ?? '',
 		cif: community?.cif ?? '',
 		iban: community?.iban ? formatIban(community.iban) : '',
 		bank: community?.bank ?? '',
@@ -51,13 +48,11 @@ export function findFormError(form: CommunityForm) {
 
 // The fields to save with a merge, so the ones left empty are removed and the rest of the document is kept
 export function fromCommunityForm(form: CommunityForm) {
-	const commonAreas = form.commonAreas.split(',').map(area => area.trim()).filter(Boolean);
 	return {
 		name: form.name.trim(),
 		address: form.address.trim(),
 		constructionYear: Number(form.constructionYear),
 		monthlyVotes: form.monthlyVotes ? Number(form.monthlyVotes) : deleteField(),
-		commonAreas: commonAreas.length ? commonAreas : deleteField(),
 		cif: form.cif.trim().toUpperCase() || deleteField(),
 		iban: form.iban.replace(SPACES_REGEX, '').toUpperCase() || deleteField(),
 		bank: form.bank.trim() || deleteField(),

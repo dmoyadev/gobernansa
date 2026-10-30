@@ -2,7 +2,7 @@
 import type { Booking } from '@gobernansa/shared/domain/booking.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
-import { getCommonAreaIcon } from '@gobernansa/shared/domain/community.ts';
+import { getBookableAreas } from '@gobernansa/shared/domain/community.ts';
 import { FirebaseError } from 'firebase/app';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -15,7 +15,7 @@ const DEFAULT_ADVANCE_DAYS = 14;
 
 const { user, viewingAs } = useAuth();
 const { userCommunity } = useUserCommunity();
-const areas = computed(() => userCommunity.value?.bookableAreas ?? []);
+const areas = computed(() => getBookableAreas(userCommunity.value));
 
 const areaId = ref<string>();
 const area = computed(() => areas.value.find(({ id }) => id === areaId.value));
@@ -165,12 +165,12 @@ function formatDay(day: string) {
 				</legend>
 				<label v-for="option in areas" :key="option.id" :class="{ active: option.id === areaId }">
 					<input v-model="areaId" type="radio" name="area" class="sr-only" :value="option.id">
-					<LnxIcon :icon="getCommonAreaIcon(option.name)" :size="18" />
+					<LnxIcon :icon="option.icon" :size="18" />
 					{{ option.name }}
 				</label>
 			</fieldset>
 			<h2 v-else class="area-name">
-				<LnxIcon :icon="getCommonAreaIcon(area.name)" :size="20" />
+				<LnxIcon :icon="area.icon" :size="20" />
 				{{ area.name }}
 			</h2>
 

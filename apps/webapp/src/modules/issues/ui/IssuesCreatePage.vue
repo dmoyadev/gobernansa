@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { Issue } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { getCommonAreaIcon } from '@gobernansa/shared/domain/community.ts';
+import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
@@ -241,16 +242,16 @@ async function submit() {
 				<section>
 					<h2>Zonas comunes</h2>
 					<ul class="grid">
-						<li v-for="area in userCommunity?.commonAreas" :key="area">
+						<li v-for="area in getCommonAreas(userCommunity)" :key="area.id">
 							<LnxButton
-								:variant="isChosenArea(area) ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
-								:aria-pressed="isChosenArea(area)"
+								:variant="isChosenArea(area.name) ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
+								:aria-pressed="isChosenArea(area.name)"
 								class="option place"
 								is-block
-								@click="choosePlace({ type: 'common_area', reference: area })"
+								@click="choosePlace({ type: 'common_area', reference: area.name })"
 							>
-								<LnxIcon :icon="getCommonAreaIcon(area)" :size="28" />
-								{{ area }}
+								<LnxIcon :icon="area.icon" :size="28" />
+								{{ area.name }}
 							</LnxButton>
 						</li>
 						<li>
@@ -333,14 +334,13 @@ async function submit() {
 					</div>
 				</div>
 
-				<label class="description">
+				<LnxTextarea
+					v-model="description"
+					rows="4"
+					placeholder="Por ejemplo: desde cuándo pasa o si es urgente"
+				>
 					Cuéntanos más (opcional)
-					<textarea
-						v-model="description"
-						rows="4"
-						placeholder="Por ejemplo: desde cuándo pasa o si es urgente"
-					/>
-				</label>
+				</LnxTextarea>
 
 				<div v-if="canUploadMedia" class="media">
 					<span id="media-label">Fotos o vídeos (opcional)</span>
@@ -613,27 +613,6 @@ header {
 		flex: 1;
 		min-width: 0;
 		overflow-wrap: anywhere;
-	}
-}
-
-// Same look as LnxInput, which has no multiline version
-.description {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	font-size: var(--lnx-font-size-small);
-
-	textarea {
-		width: 100%;
-		padding: 8px;
-		border: 1px solid var(--lnx-color-gray-5);
-		border-radius: 4px;
-		font-size: var(--lnx-font-size-body);
-		resize: vertical;
-
-		&::placeholder {
-			color: var(--lnx-color-gray-3);
-		}
 	}
 }
 
