@@ -27,6 +27,28 @@ export function useIssues(communityId: string, status: MaybeRefOrGetter<IssueSta
 	}));
 }
 
+// Reported by the administration, e.g. after a call. The same fields as the webapp's, so neighbours see it as any other
+export async function createIssue(communityId: string, uid: string, fields: Pick<Issue, 'title' | 'description' | 'category' | 'location'>) {
+	const issueRef = doc(issuesRef(communityId));
+	const batch = writeBatch(db);
+	batch.set(issueRef, {
+		...fields,
+		status: 'open',
+		communityId,
+		votesScore: 0,
+		votesCount: 0,
+		commentsCount: 0,
+		createdBy: uid,
+		updatedBy: uid,
+		createdAt: serverTimestamp(),
+		updatedAt: serverTimestamp(),
+		deletedAt: null,
+	});
+	logActivity(batch, communityId, { area: 'issue', summary: `Abrió la incidencia «${fields.title}»`, link: `/communities/${communityId}/issues/${issueRef.id}` });
+	await batch.commit();
+	return issueRef.id;
+}
+
 export function useIssue(communityId: string, issueId: string) {
 	const issueRef = doc(issuesRef(communityId), issueId);
 	const privateRef = doc(issueRef, 'private', 'admin');

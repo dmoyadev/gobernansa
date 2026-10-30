@@ -224,8 +224,8 @@ service cloud.firestore {
       match /issues/{issueId} {
         allow read: if inOrManages(communityId);
 
-        allow create: if inCommunity(communityId)
-          && notBlocked()
+        // By neighbours, or by the administration on their behalf
+        allow create: if (manages(communityId) || (inCommunity(communityId) && notBlocked()))
           && request.resource.data.communityId == communityId
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.status == 'open'

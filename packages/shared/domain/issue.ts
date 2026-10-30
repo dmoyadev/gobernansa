@@ -139,6 +139,15 @@ export function getIssueStep(status: IssueStatus) {
 		: issueLifecycle.findIndex(lifecycleStatus => lifecycleStatus.value === status) + 1;
 }
 
+// How long an issue has been waiting, counted from when it was reported while it's open or in progress.
+// level: 0 nothing, 1 grey (2 days), 2 red (7), 3 two red (14), 4 three red (over 20)
+export function getIssueAge(issue: Pick<Issue, 'createdAt' | 'status'>, now = Date.now()) {
+	const days = issue.createdAt ? Math.floor((now - issue.createdAt.toMillis()) / 86_400_000) : 0;
+	const waiting = issue.status === 'open' || issue.status === 'in_progress';
+	const level = !waiting ? 0 : days > 20 ? 4 : days >= 14 ? 3 : days >= 7 ? 2 : days >= 2 ? 1 : 0;
+	return { days, level };
+}
+
 export const issueLocationTypes: Record<NonNullable<Issue['location']>['type'], string> = {
 	property: 'Propiedad',
 	common_area: 'Zona común',

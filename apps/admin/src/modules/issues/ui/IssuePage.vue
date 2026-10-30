@@ -2,8 +2,11 @@
 import type { ClaimStatus, IssueComment, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
-import { claimStatus, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { claimStatus, getIssueAge, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -12,6 +15,7 @@ import { setBlocked } from '@/modules/people/application/useModeration.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 import { useIssue } from '../application/useIssues.ts';
+import IssueAge from './IssueAge.vue';
 
 const props = defineProps<{ id: string; issueId: string }>();
 
@@ -26,6 +30,17 @@ const category = computed(() => issuesCategories.find(option => option.value ===
 const reporter = computed(() => people.value.find(person => person.id === issue.value?.createdBy)?.name);
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
 const VIDEO_REGEX = /\/video\//;
+const SPACES_REGEX = /\s+/;
+
+const age = computed(() => issue.value && getIssueAge(issue.value));
+const waiting = computed(() => issue.value?.status === 'open' || issue.value?.status === 'in_progress');
+// The provider's date has passed and it's still not fixed
+const overdue = computed(() => waiting.value && !!issue.value?.expectedAt && issue.value.expectedAt.toMillis() < new Date().setHours(0, 0, 0, 0));
+const messagesCount = computed(() => comments.value.filter(comment => comment.type !== 'status').length);
+
+function formatDate(date: Date, timeStyle?: 'short') {
+	return date.toLocaleString('es', { dateStyle: 'medium', timeStyle });
+}
 
 const busy = ref(false);
 // Shown in the card where it failed, so it's seen next to what was done
@@ -51,13 +66,14 @@ async function setStatus(status: IssueStatus) {
 
 // Filled with what's saved each time it changes, also after saving
 const assignment = ref({ providerId: '', expectedAt: '', note: '' });
-watch(() => [issue.value?.provider?.id, issue.value?.expectedAt?.toMillis(), adminData.value?.note], () => {
+function resetAssignment() {
 	assignment.value = {
 		providerId: issue.value?.provider?.id ?? '',
 		expectedAt: issue.value?.expectedAt ? toDateString(issue.value.expectedAt.toDate()) : '',
 		note: adminData.value?.note ?? '',
 	};
-}, { immediate: true });
+}
+watch(() => [issue.value?.provider?.id, issue.value?.expectedAt?.toMillis(), adminData.value?.note], resetAssignment, { immediate: true });
 
 const providerOptions = computed(() => [{ value: '', label: 'Sin asignar' }, ...providers.value.map(provider => ({ value: provider.id, label: provider.name }))]);
 const selectedProvider = computed(() => providers.value.find(provider => provider.id === assignment.value.providerId));
@@ -74,11 +90,45 @@ const providerMail = computed(() => {
 	return `mailto:${email}?subject=${encodeURIComponent(`Incidencia: ${issue.value.title}`)}&body=${encodeURIComponent(body)}`;
 });
 
+// Shown as a card once someone is assigned, the form only to change it
+const editingAssignment = ref(false);
+
 async function saveAssignment() {
 	const { providerId, expectedAt, note } = assignment.value;
 	// A provider removed from the directory stays assigned until it's changed
 	const provider = selectedProvider.value ?? (providerId === issue.value?.provider?.id ? issue.value.provider : undefined);
-	await run(async () => assign(me.value!, provider, expectedAt ? new Date(`${expectedAt}T00:00`) : undefined, note.trim()), 'No se ha podido guardar la asignación', 'assignment');
+	await run(async () => {
+		await assign(me.value!, provider, expectedAt ? new Date(`${expectedAt}T00:00`) : undefined, note.trim());
+		editingAssignment.value = false;
+	}, 'No se ha podido guardar la asignación', 'assignment');
+}
+
+const assignedProvider = computed(() => providers.value.find(provider => provider.id === issue.value?.provider?.id));
+const initials = (name: string) => name.split(SPACES_REGEX).slice(0, 2).map(word => word[0]?.toUpperCase()).join('');
+
+const quickDates = [{ label: 'Hoy', days: 0 }, { label: 'Mañana', days: 1 }, { label: 'En 3 días', days: 3 }, { label: 'En una semana', days: 7 }];
+
+function setExpectedIn(days: number) {
+	const date = new Date();
+	date.setDate(date.getDate() + days);
+	assignment.value.expectedAt = toDateString(date);
+}
+
+const claimColors: Record<ClaimStatus, string> = {
+	opened: '#4fa2dc',
+	expert: '#d97706',
+	accepted: '#11ad70',
+	rejected: '#dc2626',
+	paid: '#15803d',
+	closed: '#718096',
+};
+
+const copied = ref(false);
+
+async function copyClaimNumber(number: string) {
+	await navigator.clipboard.writeText(number);
+	copied.value = true;
+	setTimeout(() => copied.value = false, 1500);
 }
 
 const claimStatusOptions = Object.entries(claimStatus).map(([value, { label }]) => ({ value: value as ClaimStatus, label }));
@@ -149,15 +199,10 @@ async function deleteIssue() {
 
 <template>
 	<header class="page-header">
-		<LnxButton :to="`/communities/${id}/issues`" mode="clear" shape="circle" aria-label="Volver a incidencias">
+		<LnxButton :to="`/communities/${id}/issues`" mode="clear" shape="circle" aria-label="Volver a incidencias" title="Volver a incidencias">
 			<LnxIcon icon="lucide:arrow-left" />
 		</LnxButton>
-		<h1>
-			<span v-if="loading" class="skeleton-item skeleton-item--title" />
-			<template v-else>
-				{{ issue?.title || 'Incidencia' }}
-			</template>
-		</h1>
+		<span>Incidencias</span>
 	</header>
 
 	<p v-if="error" class="error" role="alert">
@@ -166,239 +211,548 @@ async function deleteIssue() {
 	<p v-else-if="!loading && (!issue || issue.deletedAt)" class="hint">
 		Esta incidencia no existe o se ha borrado.
 	</p>
+	<span v-else-if="loading" class="skeleton-item skeleton-item--title" />
 
 	<template v-else-if="issue">
-		<section class="card">
-			<p class="meta">
-				<LnxIcon :icon="category?.icon ?? 'lucide:triangle-alert'" :size="18" />
-				{{ category?.label }}
-				<template v-if="reporter">
-					· {{ reporter }}
-				</template>
-				<template v-if="issue.createdAt">
-					· {{ issue.createdAt.toDate().toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) }}
-				</template>
-				· {{ issue.votesScore }} votos ({{ issue.votesCount }})
-			</p>
-			<p v-if="issue.location" class="meta">
-				<LnxIcon icon="lucide:map-pin" :size="18" />
-				{{ issueLocationTypes[issue.location.type] }}<template v-if="issue.location.reference">
-					: {{ issue.location.reference }}
-				</template>
-			</p>
-			<p class="description">
-				{{ issue.description || 'Sin descripción' }}
-			</p>
-			<ul v-if="issue.assets?.length" class="assets">
-				<li v-for="asset in issue.assets" :key="asset">
-					<a :href="asset" target="_blank" rel="noopener">
-						<video v-if="VIDEO_REGEX.test(asset)" :src="asset" muted preload="metadata" />
-						<img v-else :src="asset" alt="Foto de la incidencia" loading="lazy">
-					</a>
-				</li>
-			</ul>
+		<section
+			class="hero"
+			:style="{
+				'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
+				'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
+				'--status-color': `var(--color-issue-status-${issue.status})`,
+			}"
+		>
+			<span class="tile">
+				<LnxIcon :icon="category?.icon ?? 'lucide:triangle-alert'" :size="28" />
+			</span>
+			<div class="heading">
+				<span class="category">{{ category?.label ?? 'Sin categoría' }}</span>
+				<h1>{{ issue.title || 'Incidencia' }}</h1>
+				<p class="tags">
+					<span class="badge">{{ statusLabels[issue.status] }}</span>
+					<span v-if="issue.createdAt">
+						<LnxIcon icon="lucide:calendar" :size="14" />
+						Abierta el {{ formatDate(issue.createdAt.toDate()) }}
+						<template v-if="age && age.days > 0"> (hace {{ age.days }} {{ age.days === 1 ? 'día' : 'días' }})</template>
+					</span>
+					<IssueAge :issue="issue" />
+					<span v-if="reporter">
+						<LnxIcon icon="lucide:user" :size="14" />
+						{{ reporter }}
+					</span>
+					<span v-if="issue.location">
+						<LnxIcon icon="lucide:map-pin" :size="14" />
+						{{ issueLocationTypes[issue.location.type] }}<template v-if="issue.location.reference">
+							· {{ issue.location.reference }}
+						</template>
+					</span>
+				</p>
+			</div>
+			<dl class="counters">
+				<div>
+					<dt>Votos</dt>
+					<dd :class="{ hot: issue.votesScore > 0 }">
+						{{ issue.votesScore }}
+					</dd>
+				</div>
+				<div>
+					<dt>Mensajes</dt>
+					<dd>{{ messagesCount }}</dd>
+				</div>
+			</dl>
 		</section>
 
-		<section class="card">
-			<h2>Estado</h2>
-			<fieldset class="chips" :disabled="busy">
+		<dl class="facts">
+			<div>
+				<dt>Proveedor</dt>
+				<dd :class="{ missing: !issue.provider && waiting }">
+					<LnxIcon icon="lucide:hard-hat" :size="16" />
+					{{ issue.provider?.name ?? 'Sin asignar' }}
+				</dd>
+			</div>
+			<div>
+				<dt>Fecha prevista</dt>
+				<dd :class="{ missing: overdue }">
+					<LnxIcon :icon="overdue ? 'lucide:calendar-x' : 'lucide:calendar-clock'" :size="16" />
+					{{ issue.expectedAt ? formatDate(issue.expectedAt.toDate()) : 'Sin fecha' }}
+					<template v-if="overdue">
+						· Retrasada
+					</template>
+				</dd>
+			</div>
+			<div v-if="issue.resolvedAt">
+				<dt>Solucionada</dt>
+				<dd>
+					<LnxIcon icon="lucide:circle-check" :size="16" />
+					{{ formatDate(issue.resolvedAt.toDate()) }}
+				</dd>
+			</div>
+			<div>
+				<dt>Seguro</dt>
+				<dd>
+					<LnxIcon icon="lucide:shield" :size="16" />
+					{{ adminData?.claim ? claimStatus[adminData.claim.status].label : 'Sin parte' }}
+				</dd>
+			</div>
+		</dl>
+
+		<section class="status-card">
+			<fieldset class="statuses" :disabled="busy">
 				<legend class="sr-only">
 					Estado
 				</legend>
-				<label v-for="option in issueStatus" :key="option.value">
+				<label v-for="option in issueStatus" :key="option.value" :style="{ '--status-color': `var(--color-issue-status-${option.value})` }">
 					<input type="radio" class="sr-only" name="status" :checked="issue.status === option.value" @change="setStatus(option.value)">
-					<span>{{ option.label }}</span>
+					<span>
+						<i />
+						{{ option.label }}
+					</span>
 				</label>
 			</fieldset>
 			<p v-if="actionError?.section === 'status'" class="error" role="alert">
 				{{ actionError.message }}
 			</p>
 		</section>
-
-		<form class="card" @submit.prevent="saveAssignment()">
-			<h2>Asignación</h2>
-			<div class="fields">
-				<LnxSelect
-					v-model.convert="assignment.providerId"
-					:options="providerOptions"
-					:convert-fn="option => option.value"
-					search-placeholder-text="Buscar..."
-				>
-					Proveedor
-					<template #option="{ option }">
-						{{ option.label }}
-					</template>
-					<template #optionInput="{ value }">
-						{{ providerOptions.find(option => option.value === value)?.label ?? issue.provider?.name }}
-					</template>
-				</LnxSelect>
-				<LnxInput v-model="assignment.expectedAt" type="date">
-					Fecha prevista
-				</LnxInput>
-				<label class="textarea wide">
-					Nota interna (los vecinos no la ven)
-					<textarea v-model="assignment.note" rows="3" />
-				</label>
-			</div>
-			<p v-if="actionError?.section === 'assignment'" class="error" role="alert">
-				{{ actionError.message }}
-			</p>
-			<footer class="form-actions">
-				<RouterLink to="/providers" class="link">
-					Añadir proveedor
-				</RouterLink>
-				<LnxButton v-if="providerMail" :href="providerMail" mode="outline">
-					<LnxIcon icon="lucide:mail" />
-					Avisar por email
-				</LnxButton>
-				<LnxButton type="submit" :is-loading="busy">
-					<LnxIcon icon="lucide:save" />
-					Guardar
-				</LnxButton>
-			</footer>
-		</form>
-
-		<section class="card">
-			<h2>Parte al seguro</h2>
-			<template v-if="adminData?.claim">
-				<p>
-					<strong>{{ adminData.claim.insurer }}</strong> · Siniestro {{ adminData.claim.number || 'sin número' }} ·
-					{{ claimStatus[adminData.claim.status].label }}
-				</p>
-				<ol class="history">
-					<li v-for="entry in adminData.claim.history" :key="entry.at.toMillis()">
-						<small>{{ entry.at.toDate().toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }) }} · {{ claimStatus[entry.status].label }}</small>
-						<p v-if="entry.note">
-							{{ entry.note }}
-						</p>
-					</li>
-				</ol>
-			</template>
-			<p v-else-if="!claimForm" class="hint">
-				No hay ningún parte abierto.
-			</p>
-
-			<form v-if="claimForm" class="claim" @submit.prevent="submitClaim()">
-				<div class="fields">
-					<LnxInput v-model="claimForm.insurer" required>
-						Aseguradora
-					</LnxInput>
-					<LnxInput v-model="claimForm.number">
-						Número de siniestro
-					</LnxInput>
-					<LnxSelect
-						v-model.convert="claimForm.status"
-						:options="claimStatusOptions"
-						:convert-fn="option => option.value"
-						search-placeholder-text="Buscar..."
-					>
-						Estado
-						<template #option="{ option }">
-							{{ option.label }}
-						</template>
-						<template #optionInput="{ value }">
-							{{ claimStatus[value as ClaimStatus]?.label }}
-						</template>
-					</LnxSelect>
-					<label class="textarea wide">
-						Qué ha pasado
-						<textarea v-model="claimForm.note" rows="2" />
-					</label>
-				</div>
-				<p v-if="actionError?.section === 'claim'" class="error" role="alert">
-					{{ actionError.message }}
-				</p>
-				<footer class="form-actions">
-					<LnxButton mode="clear" @click="claimForm = undefined">
-						Cancelar
-					</LnxButton>
-					<LnxButton type="submit" :is-loading="busy">
-						<LnxIcon icon="lucide:save" />
-						{{ adminData?.claim ? 'Guardar cambios' : 'Abrir parte' }}
-					</LnxButton>
-				</footer>
-			</form>
-			<footer v-else class="form-actions">
-				<LnxButton mode="outline" @click="openClaimForm()">
-					<LnxIcon :icon="adminData?.claim ? 'lucide:pencil' : 'lucide:file-plus'" />
-					{{ adminData?.claim ? 'Actualizar parte' : 'Abrir parte al seguro' }}
-				</LnxButton>
-			</footer>
-		</section>
-
-		<section class="card">
-			<h2>Historial</h2>
-			<ol v-if="comments.length" class="history">
-				<li v-for="comment in comments" :key="comment.id" :class="{ status: comment.type === 'status', hidden: comment.hiddenAt }">
-					<small>
-						<strong>{{ comment.authorName || 'Vecino' }}</strong>
-						<template v-if="comment.authorRole"> ({{ roles[comment.authorRole]?.label }})</template>
-						<template v-if="comment.createdAt"> · {{ comment.createdAt.toDate().toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }) }}</template>
-						<template v-if="comment.hiddenAt"> · Oculto</template>
-						<template v-if="authorOf(comment)?.blocked"> · Bloqueado</template>
-					</small>
-					<p v-if="comment.type === 'status'">
-						Ha cambiado el estado a «{{ statusLabels[comment.status!] }}»
+		<div class="layout">
+			<div class="main">
+				<section class="card">
+					<h2>Descripción</h2>
+					<p class="description" :class="{ hint: !issue.description }">
+						{{ issue.description || 'Sin descripción' }}
 					</p>
-					<template v-else>
-						<p>
-							{{ comment.message }}
-						</p>
-						<div class="moderation">
-							<LnxButton mode="clear" size="small" :disabled="busy" @click="toggleHidden(comment)">
-								<LnxIcon :icon="comment.hiddenAt ? 'lucide:eye' : 'lucide:eye-off'" />
-								{{ comment.hiddenAt ? 'Mostrar' : 'Ocultar' }}
+					<ul v-if="issue.assets?.length" class="assets">
+						<li v-for="asset in issue.assets" :key="asset">
+							<a :href="asset" target="_blank" rel="noopener">
+								<video v-if="VIDEO_REGEX.test(asset)" :src="asset" muted preload="metadata" />
+								<img v-else :src="asset" alt="Foto de la incidencia" loading="lazy">
+							</a>
+						</li>
+					</ul>
+				</section>
+
+				<section class="card">
+					<h2>Historial y mensajes</h2>
+					<ol v-if="comments.length" class="history">
+						<li
+							v-for="comment in comments"
+							:key="comment.id"
+							:class="{ status: comment.type === 'status', hidden: comment.hiddenAt, mine: !!comment.authorRole }"
+							:style="comment.status ? { '--status-color': `var(--color-issue-status-${comment.status})` } : undefined"
+						>
+							<p v-if="comment.type === 'status'" class="status-change">
+								<span class="dot" />
+								<span>
+									<strong>{{ comment.authorName || 'Vecino' }}</strong> la ha pasado a
+									<strong class="status-label">{{ statusLabels[comment.status!] }}</strong>
+								</span>
+								<small v-if="comment.createdAt">{{ formatDate(comment.createdAt.toDate(), 'short') }}</small>
+							</p>
+							<template v-else>
+								<small>
+									<strong>{{ comment.authorName || 'Vecino' }}</strong>
+									<template v-if="comment.authorRole"> ({{ roles[comment.authorRole]?.label }})</template>
+									<template v-if="comment.createdAt"> · {{ formatDate(comment.createdAt.toDate(), 'short') }}</template>
+									<template v-if="comment.hiddenAt"> · Oculto</template>
+									<template v-if="authorOf(comment)?.blocked"> · Bloqueado</template>
+								</small>
+								<p>
+									{{ comment.message }}
+								</p>
+								<div class="moderation">
+									<LnxButton mode="clear" size="small" :disabled="busy" @click="toggleHidden(comment)">
+										<LnxIcon :icon="comment.hiddenAt ? 'lucide:eye' : 'lucide:eye-off'" />
+										{{ comment.hiddenAt ? 'Mostrar' : 'Ocultar' }}
+									</LnxButton>
+									<LnxButton v-if="authorOf(comment)" mode="clear" size="small" :disabled="busy" @click="toggleBlocked(comment)">
+										<LnxIcon :icon="authorOf(comment)?.blocked ? 'lucide:user-check' : 'lucide:user-x'" />
+										{{ authorOf(comment)?.blocked ? 'Desbloquear vecino' : 'Bloquear vecino' }}
+									</LnxButton>
+								</div>
+							</template>
+						</li>
+					</ol>
+					<p v-else class="hint">
+						Aún no hay comentarios.
+					</p>
+
+					<p v-if="actionError?.section === 'comments'" class="error" role="alert">
+						{{ actionError.message }}
+					</p>
+					<form class="reply" @submit.prevent="sendReply()">
+						<LnxTextarea v-model="message" rows="3" placeholder="Responder a los vecinos…" aria-label="Responder" required />
+						<LnxButton type="submit" :is-loading="busy" :disabled="!message.trim()">
+							<LnxIcon icon="lucide:send" />
+							Responder
+						</LnxButton>
+					</form>
+				</section>
+			</div>
+
+			<aside class="side">
+				<section class="card box">
+					<header class="box-header">
+						<span class="box-icon provider-icon"><LnxIcon icon="lucide:hard-hat" :size="18" /></span>
+						<h2>Proveedor</h2>
+						<LnxButton
+							v-if="issue.provider && !editingAssignment"
+							mode="clear"
+							size="small"
+							@click="editingAssignment = true"
+						>
+							<LnxIcon icon="lucide:pencil" />
+							Cambiar
+						</LnxButton>
+					</header>
+
+					<template v-if="issue.provider && !editingAssignment">
+						<div class="provider">
+							<span class="avatar">{{ initials(issue.provider.name) }}</span>
+							<div>
+								<strong>{{ issue.provider.name }}</strong>
+								<small v-if="assignedProvider">{{ providerCategories[assignedProvider.category]?.label }}</small>
+							</div>
+						</div>
+						<div class="quick-actions">
+							<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" size="small">
+								<LnxIcon icon="lucide:phone" />
+								Llamar
 							</LnxButton>
-							<LnxButton v-if="authorOf(comment)" mode="clear" size="small" :disabled="busy" @click="toggleBlocked(comment)">
-								<LnxIcon :icon="authorOf(comment)?.blocked ? 'lucide:user-check' : 'lucide:user-x'" />
-								{{ authorOf(comment)?.blocked ? 'Desbloquear vecino' : 'Bloquear vecino' }}
+							<LnxButton v-if="providerMail" :href="providerMail" mode="outline" size="small">
+								<LnxIcon icon="lucide:mail" />
+								Enviar aviso
 							</LnxButton>
 						</div>
+						<p class="expected" :class="{ late: overdue, unset: !issue.expectedAt }">
+							<LnxIcon :icon="overdue ? 'lucide:calendar-x' : 'lucide:calendar-clock'" :size="16" />
+							<span v-if="issue.expectedAt">
+								{{ overdue ? 'Debía estar el' : 'Previsto para el' }} <strong>{{ formatDate(issue.expectedAt.toDate()) }}</strong>
+							</span>
+							<span v-else>Sin fecha prevista</span>
+						</p>
+						<p v-if="adminData?.note" class="note">
+							<small><LnxIcon icon="lucide:lock" :size="12" /> Nota interna</small>
+							{{ adminData.note }}
+						</p>
 					</template>
-				</li>
-			</ol>
-			<p v-else class="hint">
-				Aún no hay comentarios.
-			</p>
 
-			<p v-if="actionError?.section === 'comments'" class="error" role="alert">
-				{{ actionError.message }}
-			</p>
-			<form class="reply" @submit.prevent="sendReply()">
-				<label class="sr-only" for="reply">Responder</label>
-				<textarea id="reply" v-model="message" rows="3" placeholder="Responder a los vecinos…" required />
-				<LnxButton type="submit" :is-loading="busy" :disabled="!message.trim()">
-					<LnxIcon icon="lucide:send" />
-					Responder
+					<form v-else class="assignment" @submit.prevent="saveAssignment()">
+						<p v-if="!issue.provider" class="hint">
+							Elige quién se encarga. Si está notificada, pasará a «Actuando».
+						</p>
+						<LnxSelect
+							v-model.convert="assignment.providerId"
+							:options="providerOptions"
+							:convert-fn="option => option.value"
+							search-placeholder-text="Buscar..."
+						>
+							Proveedor
+							<template #option="{ option }">
+								{{ option.label }}
+							</template>
+							<template #optionInput="{ value }">
+								{{ providerOptions.find(option => option.value === value)?.label ?? issue.provider?.name }}
+							</template>
+						</LnxSelect>
+						<RouterLink to="/providers" class="add-provider">
+							<LnxIcon icon="lucide:plus" :size="14" />
+							¿No está? Añádelo al directorio
+						</RouterLink>
+						<div>
+							<DatePicker v-model="assignment.expectedAt">
+								Fecha prevista
+							</DatePicker>
+							<div class="quick-dates">
+								<button v-for="quick in quickDates" :key="quick.days" type="button" @click="setExpectedIn(quick.days)">
+									{{ quick.label }}
+								</button>
+							</div>
+						</div>
+						<LnxTextarea v-model="assignment.note" rows="3" placeholder="Llaves, presupuesto aprobado, contacto…">
+							Nota interna (los vecinos no la ven)
+						</LnxTextarea>
+						<p v-if="actionError?.section === 'assignment'" class="error" role="alert">
+							{{ actionError.message }}
+						</p>
+						<footer class="form-actions">
+							<LnxButton v-if="issue.provider" mode="clear" @click="resetAssignment(); editingAssignment = false">
+								Cancelar
+							</LnxButton>
+							<LnxButton type="submit" :is-loading="busy">
+								<LnxIcon icon="lucide:check" />
+								{{ issue.provider ? 'Guardar' : 'Asignar' }}
+							</LnxButton>
+						</footer>
+					</form>
+				</section>
+
+				<section class="card box">
+					<header class="box-header">
+						<span class="box-icon claim-icon"><LnxIcon icon="lucide:shield" :size="18" /></span>
+						<h2>Seguro</h2>
+						<LnxButton
+							v-if="adminData?.claim && !claimForm"
+							mode="clear"
+							size="small"
+							@click="openClaimForm()"
+						>
+							<LnxIcon icon="lucide:pencil" />
+							Actualizar
+						</LnxButton>
+					</header>
+
+					<template v-if="adminData?.claim && !claimForm">
+						<div class="claim-summary" :style="{ '--claim-color': claimColors[adminData.claim.status] }">
+							<div>
+								<strong>{{ adminData.claim.insurer }}</strong>
+								<button
+									v-if="adminData.claim.number"
+									type="button"
+									class="claim-number"
+									:title="copied ? 'Copiado' : 'Copiar número de siniestro'"
+									@click="copyClaimNumber(adminData.claim.number)"
+								>
+									Siniestro {{ adminData.claim.number }}
+									<LnxIcon :icon="copied ? 'lucide:check' : 'lucide:copy'" :size="12" />
+								</button>
+								<small v-else class="hint">Sin número de siniestro</small>
+							</div>
+							<span class="claim-status">
+								<LnxIcon :icon="claimStatus[adminData.claim.status].icon" :size="14" />
+								{{ claimStatus[adminData.claim.status].label }}
+							</span>
+						</div>
+						<ol class="timeline">
+							<li
+								v-for="entry in [...adminData.claim.history].reverse()"
+								:key="entry.at.toMillis()"
+								:style="{ '--claim-color': claimColors[entry.status] }"
+							>
+								<span class="timeline-icon"><LnxIcon :icon="claimStatus[entry.status].icon" :size="12" /></span>
+								<div>
+									<strong>{{ claimStatus[entry.status].label }}</strong>
+									<small>{{ formatDate(entry.at.toDate(), 'short') }}</small>
+									<p v-if="entry.note">
+										{{ entry.note }}
+									</p>
+								</div>
+							</li>
+						</ol>
+					</template>
+
+					<div v-else-if="!claimForm" class="empty">
+						<p class="hint">
+							Si los daños los cubre el seguro, abre un parte y sigue aquí su tramitación.
+						</p>
+						<LnxButton mode="outline" @click="openClaimForm()">
+							<LnxIcon icon="lucide:file-plus" />
+							Abrir parte al seguro
+						</LnxButton>
+					</div>
+
+					<form v-if="claimForm" class="claim" @submit.prevent="submitClaim()">
+						<LnxInput v-model="claimForm.insurer" required>
+							Aseguradora
+						</LnxInput>
+						<LnxInput v-model="claimForm.number">
+							Número de siniestro
+						</LnxInput>
+						<fieldset class="claim-statuses">
+							<legend>Estado</legend>
+							<label v-for="option in claimStatusOptions" :key="option.value" :style="{ '--claim-color': claimColors[option.value] }">
+								<input v-model="claimForm.status" type="radio" class="sr-only" name="claim-status" :value="option.value">
+								<span><LnxIcon :icon="claimStatus[option.value].icon" :size="14" />{{ option.label }}</span>
+							</label>
+						</fieldset>
+						<LnxTextarea v-model="claimForm.note" rows="2" placeholder="Visita del perito el martes, piden presupuesto…">
+							Qué ha pasado
+						</LnxTextarea>
+						<p v-if="actionError?.section === 'claim'" class="error" role="alert">
+							{{ actionError.message }}
+						</p>
+						<footer class="form-actions">
+							<LnxButton mode="clear" @click="claimForm = undefined">
+								Cancelar
+							</LnxButton>
+							<LnxButton type="submit" :is-loading="busy">
+								<LnxIcon icon="lucide:check" />
+								{{ adminData?.claim ? 'Guardar' : 'Abrir parte' }}
+							</LnxButton>
+						</footer>
+					</form>
+				</section>
+
+				<LnxButton mode="clear" variant="danger" :disabled="busy" @click="deleteIssue()">
+					<LnxIcon icon="lucide:trash-2" />
+					Borrar incidencia
 				</LnxButton>
-			</form>
-		</section>
-
-		<footer class="danger">
-			<LnxButton mode="clear" variant="danger" :disabled="busy" @click="deleteIssue()">
-				<LnxIcon icon="lucide:trash-2" />
-				Borrar incidencia
-			</LnxButton>
-		</footer>
+			</aside>
+		</div>
 	</template>
 </template>
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
+	margin-bottom: var(--lnx-spacing-3);
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-2);
+	color: var(--color-gray-6);
+	font-size: var(--lnx-font-size-small);
+}
+
+.hero {
+	margin-bottom: var(--lnx-spacing-3);
+	padding: var(--lnx-spacing-5);
+	border: 1px solid var(--color-gray-3);
+	border-radius: var(--lnx-radius-3);
+	background: linear-gradient(180deg, var(--cat-color-bg), var(--color-gray-0) 70%);
+	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: start;
+	gap: var(--lnx-spacing-4);
+
+	.tile {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 56px;
+		height: 56px;
+		border-radius: var(--lnx-radius-3);
+		background: var(--color-gray-0);
+		color: var(--cat-color);
+		box-shadow: 0 0 0 1px var(--cat-color-bg), 0 2px 6px #0000000F;
+	}
+
+	.category {
+		color: var(--cat-color);
+		font-size: .75rem;
+		font-weight: var(--lnx-font-weight-bold);
+		letter-spacing: .06em;
+		text-transform: uppercase;
+	}
 
 	h1 {
-		flex: 1;
-		min-width: 0;
+		margin: 2px 0 var(--lnx-spacing-2);
 		font-size: var(--lnx-font-size-title);
+		line-height: 1.2;
 	}
 }
 
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-1) var(--lnx-spacing-3);
+	color: var(--color-gray-7);
+	font-size: var(--lnx-font-size-small);
+
+	> span {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+}
+
+.badge {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-5);
+	background: var(--status-color);
+	color: var(--color-gray-0);
+	font-size: var(--lnx-font-size-legal);
+	font-weight: var(--lnx-font-weight-bold);
+	white-space: nowrap;
+}
+
+.counters {
+	display: flex;
+	gap: var(--lnx-spacing-2);
+
+	div {
+		min-width: 64px;
+		padding: var(--lnx-spacing-2);
+		border-radius: var(--lnx-radius-3);
+		background: var(--color-gray-0);
+		box-shadow: 0 0 0 1px var(--color-gray-3);
+		text-align: center;
+	}
+
+	dt {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-legal);
+	}
+
+	dd {
+		font-size: 1.4rem;
+		font-weight: var(--lnx-font-weight-bold);
+		line-height: 1.2;
+
+		&.hot {
+			color: #ed821d;
+		}
+	}
+}
+
+.facts {
+	margin-bottom: var(--lnx-spacing-2);
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: var(--lnx-spacing-2);
+
+	div {
+		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+		border: 1px solid var(--color-gray-3);
+		border-radius: var(--lnx-radius-3);
+		background: var(--color-gray-0);
+	}
+
+	dt {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-legal);
+		text-transform: uppercase;
+		letter-spacing: .04em;
+	}
+
+	dd {
+		display: flex;
+		align-items: center;
+		gap: var(--lnx-spacing-1);
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+
+		&.missing {
+			color: #dc2626;
+		}
+	}
+}
+
+.layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 320px;
+	align-items: start;
+	gap: var(--lnx-spacing-5);
+
+	@media (max-width: 860px) {
+		grid-template-columns: minmax(0, 1fr);
+
+		.side {
+			order: -1;
+		}
+	}
+}
+
+.main,
+.side {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-5);
+}
+
+.side > :deep(.lnx-button) {
+	align-self: flex-end;
+}
+
 .card {
-	margin-bottom: var(--lnx-spacing-5);
 	padding: var(--lnx-spacing-5);
 	border: 1px solid var(--color-gray-3);
 	border-radius: var(--lnx-radius-3);
@@ -417,16 +771,9 @@ async function deleteIssue() {
 	}
 }
 
-.meta {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-1);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
 .description {
+	font-size: 1.05rem;
+	line-height: 1.5;
 	white-space: pre-line;
 }
 
@@ -444,28 +791,51 @@ async function deleteIssue() {
 	}
 }
 
-.chips {
+.status-card {
+	margin-bottom: var(--lnx-spacing-5);
+}
+
+.statuses {
 	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
+	gap: var(--lnx-spacing-2);
+
+	label {
+		flex: 1;
+		min-width: 0;
+	}
 
 	span {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
+		justify-content: center;
+		gap: var(--lnx-spacing-2);
+		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+		border: 1px solid var(--color-gray-3);
+		border-radius: var(--lnx-radius-3);
 		background: var(--color-gray-0);
 		color: var(--color-gray-7);
 		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		white-space: nowrap;
 		cursor: pointer;
+
+		&:hover {
+			border-color: var(--status-color);
+		}
+	}
+
+	i {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--status-color);
 	}
 
 	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
+		border-color: var(--status-color);
+		background: color-mix(in srgb, var(--status-color) 12%, var(--color-gray-0));
+		box-shadow: inset 0 0 0 1px var(--status-color);
+		color: var(--status-color);
 	}
 
 	input:focus-visible + span {
@@ -485,17 +855,21 @@ async function deleteIssue() {
 	gap: var(--lnx-spacing-3);
 
 	li {
-		padding-left: var(--lnx-spacing-3);
-		border-left: 2px solid var(--color-gray-3);
+		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+		border-radius: var(--lnx-radius-2);
+		background: var(--color-gray-1);
+
+		&.mine {
+			background: #e8f1f8;
+		}
 
 		&.hidden {
-			color: var(--color-gray-5);
+			opacity: .55;
 		}
 
 		&.status {
-			border-color: var(--color-primary-light);
-			color: var(--color-gray-6);
-			font-style: italic;
+			padding: 0 var(--lnx-spacing-3);
+			background: none;
 		}
 	}
 
@@ -508,25 +882,35 @@ async function deleteIssue() {
 	}
 }
 
+.status-change {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	color: var(--color-gray-7);
+	font-size: var(--lnx-font-size-small);
+
+	.dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--status-color);
+	}
+
+	.status-label {
+		color: var(--status-color);
+	}
+
+	small {
+		margin-left: auto;
+	}
+}
+
 .reply {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
 	gap: var(--lnx-spacing-2);
-
-	textarea {
-		width: 100%;
-		padding: var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		font: inherit;
-		resize: vertical;
-
-		&:focus-visible {
-			outline: 2px solid var(--color-primary);
-			outline-offset: 1px;
-		}
-	}
 }
 
 .moderation {
@@ -535,35 +919,301 @@ async function deleteIssue() {
 	gap: var(--lnx-spacing-1);
 }
 
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
+.box {
+	gap: var(--lnx-spacing-4);
+}
 
-	.wide {
-		grid-column: 1 / -1;
+.box-header {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+
+	h2 {
+		flex: 1;
 	}
 }
 
-.textarea {
+.box-icon {
 	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-1);
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: var(--lnx-radius-2);
+
+	&.provider-icon {
+		background: #fef3c7;
+		color: #d97706;
+	}
+
+	&.claim-icon {
+		background: #dbeafe;
+		color: #1d4ed8;
+	}
+}
+
+.provider {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	div {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	strong {
+		font-size: 1.05rem;
+		line-height: 1.2;
+	}
+
+	small {
+		color: var(--color-gray-6);
+	}
+}
+
+.avatar {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	background: var(--color-primary);
+	color: var(--color-primary-accent);
+	font-weight: var(--lnx-font-weight-bold);
+}
+
+.quick-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-2);
+}
+
+.expected {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+	border-radius: var(--lnx-radius-2);
+	background: #e8f6f1;
+	color: #0f7a52;
 	font-size: var(--lnx-font-size-small);
 
-	textarea {
-		padding: var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		font: inherit;
-		font-size: var(--lnx-font-size-body);
-		resize: vertical;
+	&.late {
+		background: #fee2e2;
+		color: #dc2626;
+	}
 
-		&:focus-visible {
-			outline: 2px solid var(--color-primary);
-			outline-offset: 1px;
+	&.unset {
+		background: var(--color-gray-1);
+		color: var(--color-gray-6);
+	}
+}
+
+.note {
+	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+	border-left: 3px solid #f59e0b;
+	border-radius: var(--lnx-radius-2);
+	background: #fffbeb;
+	color: var(--color-gray-8);
+	font-size: var(--lnx-font-size-small);
+	white-space: pre-line;
+
+	small {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-bottom: 2px;
+		color: #b45309;
+		font-size: var(--lnx-font-size-legal);
+		font-weight: var(--lnx-font-weight-bold);
+		text-transform: uppercase;
+		letter-spacing: .04em;
+	}
+}
+
+.assignment {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
+}
+
+.add-provider {
+	margin-top: calc(-1 * var(--lnx-spacing-2));
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--color-primary);
+	font-size: var(--lnx-font-size-legal);
+}
+
+.quick-dates {
+	margin-top: var(--lnx-spacing-1);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+
+	button {
+		padding: 2px var(--lnx-spacing-2);
+		border: 1px solid var(--color-gray-3);
+		border-radius: var(--lnx-radius-5);
+		background: var(--color-gray-0);
+		color: var(--color-gray-7);
+		font-size: var(--lnx-font-size-legal);
+		cursor: pointer;
+
+		&:hover {
+			border-color: var(--color-primary);
+			color: var(--color-primary);
 		}
+	}
+}
+
+.claim-summary {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
+
+	> div {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		min-width: 0;
+	}
+}
+
+.claim-number {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--color-gray-6);
+	font-family: ui-monospace, monospace;
+	font-size: var(--lnx-font-size-legal);
+	white-space: nowrap;
+	cursor: pointer;
+
+	&:hover {
+		color: var(--color-primary);
+	}
+}
+
+.claim-status {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 4px;
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-5);
+	background: color-mix(in srgb, var(--claim-color) 14%, var(--color-gray-0));
+	color: var(--claim-color);
+	font-size: var(--lnx-font-size-legal);
+	font-weight: var(--lnx-font-weight-bold);
+}
+
+.timeline {
+	display: flex;
+	flex-direction: column;
+
+	li {
+		position: relative;
+		display: flex;
+		gap: var(--lnx-spacing-2);
+		padding-bottom: var(--lnx-spacing-3);
+
+		&:not(:last-child)::before {
+			content: '';
+			position: absolute;
+			top: 22px;
+			bottom: 0;
+			left: 10px;
+			width: 2px;
+			background: var(--color-gray-3);
+		}
+
+		&:first-child .timeline-icon {
+			background: var(--claim-color);
+			color: var(--color-gray-0);
+		}
+	}
+
+	div {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		font-size: var(--lnx-font-size-small);
+	}
+
+	small {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-legal);
+	}
+
+	p {
+		margin-top: 2px;
+		color: var(--color-gray-8);
+		white-space: pre-line;
+	}
+}
+
+.timeline-icon {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--claim-color) 14%, var(--color-gray-0));
+	color: var(--claim-color);
+}
+
+.empty {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-3);
+}
+
+.claim-statuses {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+
+	legend {
+		margin-bottom: var(--lnx-spacing-1);
+		color: var(--color-gray-7);
+		font-size: var(--lnx-font-size-small);
+	}
+
+	span {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 4px var(--lnx-spacing-2);
+		border: 1px solid var(--color-gray-3);
+		border-radius: var(--lnx-radius-5);
+		color: var(--color-gray-7);
+		font-size: var(--lnx-font-size-legal);
+		cursor: pointer;
+	}
+
+	input:checked + span {
+		border-color: var(--claim-color);
+		background: color-mix(in srgb, var(--claim-color) 14%, var(--color-gray-0));
+		color: var(--claim-color);
+		font-weight: var(--lnx-font-weight-bold);
+	}
+
+	input:focus-visible + span {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 2px;
 	}
 }
 
@@ -587,9 +1237,14 @@ async function deleteIssue() {
 	}
 }
 
-.danger {
-	display: flex;
-	justify-content: flex-end;
+@media (max-width: 640px) {
+	.hero {
+		grid-template-columns: auto minmax(0, 1fr);
+
+		.counters {
+			grid-column: 1 / -1;
+		}
+	}
 }
 
 .hint {
