@@ -1,6 +1,7 @@
 import type { Community, CommunityContact, CommunityDocument } from '@gobernansa/shared/domain/community.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
+import { isValidBic, isValidCreditorSuffix } from '@gobernansa/shared/domain/sepa.ts';
 import { deleteField, Timestamp } from 'firebase/firestore';
 
 const SPACES_REGEX = /\s/g;
@@ -17,6 +18,8 @@ export interface CommunityForm {
 	cif: string;
 	iban: string;
 	bank: string;
+	bic: string;
+	sepaSuffix: string;
 	contacts: CommunityContact[];
 	documents: (Omit<CommunityDocument, 'date'> & { date: string })[];
 }
@@ -30,6 +33,8 @@ export function toCommunityForm(community?: Community): CommunityForm {
 		cif: community?.cif ?? '',
 		iban: community?.iban ? formatIban(community.iban) : '',
 		bank: community?.bank ?? '',
+		bic: community?.bic ?? '',
+		sepaSuffix: community?.sepaSuffix ?? '',
 		// Copies, so the form doesn't edit the community it was loaded from
 		contacts: structuredClone(community?.contacts ?? []),
 		documents: (community?.documents ?? []).map(document => ({ ...document, date: toInputDate(document.date.toDate()) })),
@@ -44,6 +49,12 @@ export function findFormError(form: CommunityForm, loaded?: CommunityForm) {
 	}
 	if (form.iban.trim() && form.iban !== loaded?.iban && !isValidIban(form.iban)) {
 		return 'Revisa el IBAN: no es válido, p. ej. ES91 2100 0418 4502 0005 1332.';
+	}
+	if (form.bic.trim() && !isValidBic(form.bic)) {
+		return 'Revisa el BIC: son 8 u 11 letras y números, p. ej. CAIXESBBXXX.';
+	}
+	if (form.sepaSuffix.trim() && !isValidCreditorSuffix(form.sepaSuffix.trim().toUpperCase())) {
+		return 'El sufijo del acreedor SEPA son 3 letras o números, normalmente 000.';
 	}
 	const schedules = form.contacts.flatMap(contact => contact.schedule ?? []);
 	if (schedules.some(schedule => !schedule.days.length)) {
@@ -64,6 +75,8 @@ export function fromCommunityForm(form: CommunityForm) {
 		cif: form.cif.trim().toUpperCase() || deleteField(),
 		iban: form.iban.replace(SPACES_REGEX, '').toUpperCase() || deleteField(),
 		bank: form.bank.trim() || deleteField(),
+		bic: form.bic.replace(SPACES_REGEX, '').toUpperCase() || deleteField(),
+		sepaSuffix: form.sepaSuffix.trim().toUpperCase() || deleteField(),
 		contacts: form.contacts.map(contact => withoutEmptyFields(contact)),
 		documents: form.documents.map(({ date, ...document }) => ({
 			...withoutEmptyFields(document),

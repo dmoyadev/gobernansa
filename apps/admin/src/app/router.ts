@@ -146,6 +146,20 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/mandates',
+					name: 'Mandatos SEPA',
+					component: async () => import('@/modules/finances/ui/MandatesPage.vue'),
+					meta: { title: 'Mandatos SEPA' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/remittances',
+					name: 'Remesas de recibos',
+					component: async () => import('@/modules/finances/ui/RemittancesPage.vue'),
+					meta: { title: 'Remesas de recibos' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/obligations',
 					name: 'Obligaciones',
 					component: async () => import('@/modules/obligations/ui/ObligationsPage.vue'),

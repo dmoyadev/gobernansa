@@ -53,7 +53,7 @@ function setForm(next: CommunityForm) {
 
 // A copy of the source: the address, fiscal data and documents belong to the building, they're left for the admin to fill in
 function prefill(community: Community) {
-	return { ...toCommunityForm(community), name: `${community.name} (copia)`, address: '', cif: '', iban: '', bank: '', documents: [] };
+	return { ...toCommunityForm(community), name: `${community.name} (copia)`, address: '', cif: '', iban: '', bank: '', bic: '', sepaSuffix: '', documents: [] };
 }
 
 // `replace` loads it whatever is in the form; otherwise only while the admin hasn't changed it, nor does meanwhile
@@ -229,6 +229,18 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 					</LnxInput>
 					<LnxInput v-model="form.iban" class="wide" placeholder="ES00 0000 0000 0000 0000 0000">
 						IBAN
+					</LnxInput>
+					<LnxInput v-model="form.bic" placeholder="CAIXESBBXXX">
+						BIC
+						<template #helper>
+							Opcional, para las remesas
+						</template>
+					</LnxInput>
+					<LnxInput v-model="form.sepaSuffix" maxlength="3" placeholder="000">
+						Sufijo de acreedor SEPA
+						<template #helper>
+							El que dé el banco, si no 000
+						</template>
 					</LnxInput>
 				</div>
 			</section>

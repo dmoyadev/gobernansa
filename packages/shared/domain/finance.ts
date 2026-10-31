@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
 import type { Property } from './property.ts';
+import type { ReturnReason } from './sepa.ts';
 import { splitByCoefficient } from './property.ts';
 
 // Recibos and derramas, one per property, at communities/{communityId}/charges. Owners see theirs. Amounts in cents (see money.ts)
@@ -22,6 +23,17 @@ export interface Charge extends Datable {
 	batchId?: string;
 	// The part of the amount that goes to the fondo de reserva, in the fees from the budget
 	reserve?: number;
+	// The remittance (domiciliación) it's being collected with, removed when it's returned so it can go in another one
+	remittanceId?: string;
+	// Direct debits of it the bank returned, the last one last
+	returns?: ChargeReturn[];
+}
+
+export interface ChargeReturn {
+	remittanceId: string;
+	reason: ReturnReason;
+	// 'YYYY-MM-DD'
+	date: string;
 }
 
 export const chargeTypes: Record<Charge['type'], string> = {

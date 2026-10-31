@@ -355,6 +355,8 @@ function remove(charge: Charge) {
 									{{ chargeTypes[charge.type] }} · vence {{ dateFormat.format(charge.dueDate.toDate()) }}
 									<template v-if="charge.paidAt"> · pagado el {{ dateFormat.format(charge.paidAt.toDate()) }}</template>
 									<template v-else-if="isOverdue(charge)"> · <span class="debt">vencido</span></template>
+									<template v-if="charge.remittanceId"> · domiciliado</template>
+									<template v-else-if="!charge.paidAt && charge.returns?.length"> · <span class="debt">devuelto ({{ charge.returns.at(-1)!.reason }})</span></template>
 								</small>
 							</div>
 							<strong class="tabular">{{ formatCents(charge.amount) }}</strong>

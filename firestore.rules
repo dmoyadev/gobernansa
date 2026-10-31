@@ -145,7 +145,8 @@ service cloud.firestore {
       }
     }
 
-    // Their owners see them, and whoever manages the community keeps them, kept in the community they're in
+    // Their owners see them, and whoever manages the community keeps them, kept in the community they're in.
+    // The SEPA mandate (mandate) is the owner's account, so only they and the office see it
     match /properties/{propertyId} {
       allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || manages(resource.data.communityId));
       allow create: if manages(request.resource.data.communityId)
@@ -336,11 +337,17 @@ service cloud.firestore {
       }
 
       // Recibos and derramas. Owners see theirs. The year's fees from the budget share batchId fees-{year} and carry
-      // their part for the fondo de reserva (reserve)
+      // their part for the fondo de reserva (reserve). A domiciliated one points to its remittance and keeps its returns
       match /charges/{chargeId} {
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
         allow create, update: if manages(communityId) && request.resource.data.communityId == communityId;
         allow delete: if manages(communityId);
+      }
+
+      // Remesas of domiciliated charges (SEPA direct debit), with each debtor's account. Only the office: the owners'
+      // mandates are in their properties
+      match /remittances/{remittanceId} {
+        allow read, write: if manages(communityId);
       }
 
       // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes

@@ -93,6 +93,9 @@ async function seed() {
 			cif: 'H23123458',
 			iban: 'ES9121000418450200051332',
 			bank: 'Banco Ejemplo',
+			bic: 'CAIXESBBXXX',
+			// SEPA creditor identifier ES10000H23123458: the CIF with this suffix
+			sepaSuffix: '000',
 			contacts: [
 				{ type: 'admin', name: 'Fincas Olivares S.L.', phone: '953 000 101', whatsapp: '600 000 101', email: 'administracion@example.com' },
 				{ type: 'president', name: 'Carmen Ruiz', whatsapp: '600 000 102' },
@@ -136,6 +139,13 @@ async function seed() {
 			['prop7', 'Solar 1', 'other', 'user5'],
 		];
 
+		// Domiciliaciones SEPA with made-up accounts (valid check digits), for the remittances
+		const mandates = {
+			prop1: { reference: 'GOB-PROP1-20250115', debtorName: 'User1', iban: 'ES6000491500051234567892', signedAt: '2025-01-15', status: 'active' },
+			prop2: { reference: 'GOB-PROP2-20250203', debtorName: 'User2', iban: 'ES6520850001110123456789', bic: 'CAZRES2ZXXX', signedAt: '2025-02-03', status: 'active' },
+			prop4: { reference: 'GOB-PROP4-20240610', debtorName: 'María Núñez', iban: 'ES7921000813610123456789', signedAt: '2024-06-10', status: 'cancelled' },
+		};
+
 		properties.forEach(([id, name, type, ownerUid]) => {
 			const ref = db.collection('properties').doc(id);
 			batch.set(ref, {
@@ -143,6 +153,7 @@ async function seed() {
 				name,
 				type,
 				ownerUid,
+				...(mandates[id] ? { mandate: mandates[id] } : {}),
 				...getDatableProperties(),
 			});
 		});

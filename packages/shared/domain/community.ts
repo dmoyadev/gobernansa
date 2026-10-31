@@ -22,6 +22,9 @@ export interface Community extends Datable {
 	cif?: string;
 	iban?: string;
 	bank?: string;
+	bic?: string;
+	// Business code of the SEPA creditor identifier, '000' unless the bank gave another one (see creditorId())
+	sepaSuffix?: string;
 
 	contacts?: CommunityContact[];
 	documents?: CommunityDocument[];

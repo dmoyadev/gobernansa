@@ -1,4 +1,5 @@
 import type { Datable } from './audit.ts';
+import type { SepaMandate } from './sepa.ts';
 
 export interface Property extends Datable {
 	id: string;
@@ -14,6 +15,8 @@ export interface Property extends Datable {
 	tenantEmail?: string;
 	// Share of the community's expenses and votes, as a percentage (e.g. 3.25). The census should add up to 100
 	coefficient?: number;
+	// Domiciliación of its charges. Its owner sees it, as it's their account
+	mandate?: SepaMandate;
 }
 
 // As deeds write it, e.g. "20,5 %"
