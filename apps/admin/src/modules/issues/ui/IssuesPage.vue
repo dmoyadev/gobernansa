@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { CommonArea } from '@gobernansa/shared/domain/community.ts';
 import type { Issue, IssueCategory, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { getIssueAge, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
@@ -11,6 +13,7 @@ import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { createIssue, useIssues } from '../application/useIssues.ts';
 import IssueAge from './IssueAge.vue';
 
@@ -52,8 +55,15 @@ function emptyForm() {
 const form = ref<ReturnType<typeof emptyForm>>();
 const formElement = ref<HTMLFormElement>();
 
+// Offered as places, as neighbours see them. Read once, when the form first opens; without them it's typed
+const areas = ref<CommonArea[]>();
+
 async function openForm() {
 	form.value ??= emptyForm();
+	if (!areas.value) {
+		areas.value = [];
+		loadCommunity(props.id).then(community => areas.value = getCommonAreas(community), () => areas.value = undefined);
+	}
 	await nextTick();
 	formElement.value?.querySelector<HTMLInputElement>('.fields input')?.focus();
 }
@@ -131,6 +141,13 @@ useEventListener(window, 'keydown', (event) => {
 				<label v-for="(label, value) in issueLocationTypes" :key="value">
 					<input v-model="form.place" type="radio" class="sr-only" name="place" :value="value">
 					<span>{{ label }}</span>
+				</label>
+			</fieldset>
+			<fieldset v-if="form.place === 'common_area' && areas?.length" class="chips wide">
+				<legend>Zona común</legend>
+				<label v-for="area in areas" :key="area.id">
+					<input v-model="form.reference" type="radio" class="sr-only" name="area" :value="area.name">
+					<span><LnxIcon :icon="area.icon" :size="16" />{{ area.name }}</span>
 				</label>
 			</fieldset>
 			<LnxInput v-if="form.place" v-model="form.reference" :placeholder="form.place === 'property' ? 'Portal 2, 3ºB' : 'Garaje, planta -1'">

@@ -109,6 +109,135 @@ function remove(area: CommonArea) {
 	});
 }
 
+// Neighbours see them in this order, when reporting and booking. Dragged by the handle, or with the arrow keys on it
+function move(area: CommonArea, by: -1 | 1) {
+	const index = areas.value.findIndex(other => other.id === area.id);
+	if (draft.value || index + by < 0 || index + by >= areas.value.length) {
+		return;
+	}
+	const next = [...areas.value];
+	next.splice(index, 1);
+	next.splice(index + by, 0, area);
+	persist(next, 'Reordenó las zonas comunes', 'Orden guardado');
+	land(area.id);
+	// Moving the row in the page takes the focus away, it's given back so the arrows keep moving it
+	void nextTick(() => document.querySelector<HTMLElement>(`li[data-id="${area.id}"] .handle`)?.focus());
+}
+
+// Dragging: the row lifts and follows the pointer, the others slide out of its way, and on release it glides into its
+// slot. Pointer events rather than native drag and drop, whose ghost image can't be styled
+interface Sorting {
+	id: string;
+	from: number;
+	to: number;
+	offset: number;
+	startY: number;
+	// Each row's top and height when it started, the layout doesn't change until it's dropped
+	tops: number[];
+	heights: number[];
+	dropping: boolean;
+}
+const sorting = ref<Sorting>();
+const landed = ref<string>();
+let landedTimer: ReturnType<typeof setTimeout> | undefined;
+
+function land(id: string) {
+	clearTimeout(landedTimer);
+	landed.value = id;
+	landedTimer = setTimeout(() => landed.value = undefined, 700);
+}
+
+function startSorting(area: CommonArea, event: PointerEvent) {
+	if (event.button !== 0 || draft.value || sorting.value) {
+		return;
+	}
+	const handle = event.currentTarget as HTMLElement;
+	const rows = Array.from(handle.closest('ul')!.querySelectorAll<HTMLElement>(':scope > li[data-id]'), row => row.getBoundingClientRect());
+	handle.setPointerCapture(event.pointerId);
+	sorting.value = {
+		id: area.id,
+		from: areas.value.findIndex(other => other.id === area.id),
+		to: areas.value.findIndex(other => other.id === area.id),
+		offset: 0,
+		startY: event.clientY,
+		tops: rows.map(row => row.top),
+		heights: rows.map(row => row.height),
+		dropping: false,
+	};
+}
+
+function onSortingMove(event: PointerEvent) {
+	const state = sorting.value;
+	if (!state || state.dropping) {
+		return;
+	}
+	const { from, tops, heights } = state;
+	const last = tops.length - 1;
+	// Kept within the list, and at either end it takes the first or last slot
+	const min = tops[0]! - tops[from]!;
+	const max = tops[last]! + heights[last]! - tops[from]! - heights[from]!;
+	state.offset = Math.min(Math.max(event.clientY - state.startY, min), max);
+	const center = tops[from]! + state.offset + heights[from]! / 2;
+	state.to = state.offset <= min
+		? 0
+		: state.offset >= max ? last : tops.filter((top, index) => index !== from && top + heights[index]! / 2 < center).length;
+}
+
+// Where the row ends, relative to where it started
+function slotOffset({ from, to, tops, heights }: Sorting) {
+	return to > from ? tops[to]! + heights[to]! - tops[from]! - heights[from]! : tops[to]! - tops[from]!;
+}
+
+const DROP_MS = 220;
+
+function endSorting(cancel = false) {
+	const state = sorting.value;
+	if (!state || state.dropping) {
+		return;
+	}
+	if (cancel) {
+		state.to = state.from;
+	}
+	state.dropping = true;
+	state.offset = slotOffset(state);
+	setTimeout(() => {
+		sorting.value = undefined;
+		if (state.to !== state.from) {
+			const next = [...areas.value];
+			const [area] = next.splice(state.from, 1);
+			next.splice(state.to, 0, area!);
+			persist(next, 'Reordenó las zonas comunes', 'Orden guardado');
+		}
+		land(state.id);
+	}, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DROP_MS);
+}
+
+// The others make room for it in the slot it's over
+function sortingStyle(area: CommonArea) {
+	const state = sorting.value;
+	if (!state) {
+		return;
+	}
+	if (area.id === state.id) {
+		return { translate: `0 ${state.offset}px` };
+	}
+	const index = areas.value.findIndex(other => other.id === area.id);
+	const height = state.heights[state.from]!;
+	if (state.from < index && index <= state.to) {
+		return { translate: `0 ${-height}px` };
+	}
+	if (state.to <= index && index < state.from) {
+		return { translate: `0 ${height}px` };
+	}
+}
+
+useEventListener(window, 'keydown', (event) => {
+	if (event.key === 'Escape' && sorting.value) {
+		event.preventDefault();
+		endSorting(true);
+	}
+});
+
 // The list changes at once; if the server rejects it, it goes back and what was being edited is open again
 function persist(next: CommonArea[], summary: string, done: string, revert?: () => Promise<unknown>) {
 	const previous = areas.value;
@@ -191,12 +320,18 @@ useEventListener(window, 'resize', closeIcons);
 		</li>
 	</ul>
 
-	<TransitionGroup v-else-if="!loadError || areas.length" tag="ul" name="row" class="card list ux-appear">
+	<TransitionGroup v-else-if="!loadError || areas.length" tag="ul" name="row" class="card list ux-appear" :class="{ sorting }">
 		<li v-if="!areas.length && !draft" key="empty" class="empty">
 			Aún no hay zonas comunes: portal, garaje, piscina…
 		</li>
 
-		<li v-for="area in draft?.isNew ? [draft, ...areas] : areas" :key="area.id">
+		<li
+			v-for="area in draft?.isNew ? [draft, ...areas] : areas"
+			:key="area.id"
+			:data-id="area.id"
+			:class="{ lifted: sorting?.id === area.id, dropping: sorting?.id === area.id && sorting.dropping, landed: landed === area.id }"
+			:style="sortingStyle(area)"
+		>
 			<form v-if="draft?.id === area.id" class="row editing" @submit.prevent="save()" @keydown.esc="onEscape">
 				<button
 					type="button"
@@ -263,6 +398,22 @@ useEventListener(window, 'resize', closeIcons);
 			</form>
 
 			<div v-else class="row">
+				<button
+					type="button"
+					class="handle"
+					title="Reordenar"
+					:aria-label="`Reordenar ${area.name}, con las flechas arriba y abajo`"
+					:disabled="!!draft || areas.length < 2"
+					@pointerdown="startSorting(area, $event)"
+					@pointermove="onSortingMove"
+					@pointerup="endSorting()"
+					@pointercancel="endSorting(true)"
+					@lostpointercapture="endSorting()"
+					@keydown.up.prevent="move(area, -1)"
+					@keydown.down.prevent="move(area, 1)"
+				>
+					<LnxIcon icon="lucide:grip-vertical" :size="18" />
+				</button>
 				<span class="icon">
 					<LnxIcon :icon="area.icon" :size="20" />
 				</span>
@@ -409,6 +560,114 @@ button.icon {
 
 .wide {
 	flex-basis: 100%;
+}
+
+// On the left of each row, the only place a row is dragged from
+.handle {
+	flex-shrink: 0;
+	margin-left: calc(-1 * var(--lnx-spacing-2));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 40px;
+	border: none;
+	border-radius: var(--lnx-radius-2);
+	background: none;
+	color: var(--color-gray-5);
+	cursor: grab;
+	touch-action: none;
+
+	&:hover:not(:disabled),
+	&:focus-visible {
+		outline: none;
+		background: var(--color-gray-2);
+		color: var(--color-gray-8);
+	}
+
+	&:active:not(:disabled) {
+		cursor: grabbing;
+	}
+
+	&:disabled {
+		cursor: default;
+		opacity: .4;
+	}
+}
+
+// While one is carried the others slide out of its way, springing into the slots
+.sorting {
+	cursor: grabbing;
+	user-select: none;
+
+	> li {
+		transition: translate var(--duration) var(--ease-spring);
+	}
+
+	.handle {
+		cursor: grabbing;
+	}
+}
+
+.list > li {
+	position: relative;
+	border-radius: var(--lnx-radius-2);
+	background: var(--color-gray-0);
+}
+
+// Picked up: above the rest, a little bigger and tilted, with a deeper shadow. It follows the pointer without delay
+.sorting > li.lifted {
+	z-index: 1;
+	border-top-color: transparent;
+	scale: 1.02;
+	rotate: -.6deg;
+	box-shadow: 0 2px 4px #0000000F, 0 12px 32px #00000026;
+	transition: scale var(--duration) var(--ease-spring), rotate var(--duration) var(--ease-spring), box-shadow var(--duration) var(--ease-out);
+
+	+ li {
+		border-top-color: transparent;
+	}
+
+	.handle {
+		background: var(--color-gray-2);
+		color: var(--color-primary);
+	}
+}
+
+// Let go: it glides into its slot and settles flat
+.sorting > li.lifted.dropping {
+	scale: 1;
+	rotate: 0deg;
+	box-shadow: 0 1px 2px #0000000A;
+	transition: translate 220ms var(--ease-out), scale 220ms var(--ease-out), rotate 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
+}
+
+// Where it landed glows for a moment
+.landed {
+	animation: landed 700ms var(--ease-out);
+}
+
+@keyframes landed {
+	0% {
+		background: color-mix(in srgb, var(--color-primary) 14%, var(--color-gray-0));
+	}
+
+	100% {
+		background: var(--color-gray-0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sorting > li,
+	.sorting > li.lifted,
+	.sorting > li.lifted.dropping {
+		rotate: 0deg;
+		transition: none;
+	}
+
+	.landed {
+		animation: none;
+	}
 }
 
 // Created or removed, the others make room
