@@ -169,6 +169,8 @@ export interface Expense extends Datable {
 	paymentMethod?: PaymentMethod;
 	// Paid from the fondo de reserva, e.g. an extraordinary repair
 	fromReserve?: boolean;
+	// The transfer order it's being paid with, so it can't go in another one
+	paymentOrderId?: string;
 }
 
 export type VatRate = 0 | 4 | 10 | 21;

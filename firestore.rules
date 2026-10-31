@@ -350,9 +350,15 @@ service cloud.firestore {
         allow read, write: if manages(communityId);
       }
 
+      // Órdenes de pago to providers (SEPA credit transfer), with each provider's account. Only the office
+      match /paymentOrders/{orderId} {
+        allow read, write: if manages(communityId);
+      }
+
       // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes
-      // and whether they're paid (paidAt null while owed). The budget keeps the fondo de reserva (contribution and
-      // opening balance) and how the year's fees were issued; an expense may be paid from that fund (fromReserve)
+      // and whether they're paid (paidAt null while owed) or going in a transfer order (paymentOrderId). The budget
+      // keeps the fondo de reserva (contribution and opening balance) and how the year's fees were issued; an expense
+      // may be paid from that fund (fromReserve)
       match /budgets/{year} {
         allow read: if inOrManages(communityId);
         allow write: if manages(communityId);

@@ -208,3 +208,88 @@ export function remittanceXml(remittance: Pick<Remittance, 'reference' | 'collec
 		'',
 	].join('\n');
 }
+
+// Orden de pago a proveedores por transferencia, at communities/{communityId}/paymentOrders. Self-contained like the
+// remittance: the debtor and each creditor as they were, so the same file can be downloaded again
+export interface PaymentOrder extends Datable {
+	id: string;
+	// Also the file's MsgId
+	reference: string;
+	// 'YYYY-MM-DD', the day the bank sends the transfers
+	executionDate: string;
+	// ISO date and time without milliseconds, the file's CreDtTm
+	issuedAt: string;
+	status: 'generated' | 'executed';
+	// id: NIF plus the business suffix, how Spanish banks identify who orders the transfers
+	debtor: { name: string; id: string; iban: string; bic?: string };
+	items: PaymentOrderItem[];
+	total: number;
+	executedAt?: Timestamp | null;
+}
+
+export interface PaymentOrderItem {
+	expenseId: string;
+	providerId: string;
+	creditorName: string;
+	iban: string;
+	// What's owed to the provider, the withholding is paid to Hacienda
+	amount: number;
+	concept: string;
+	invoiceNumber?: string;
+	endToEndId: string;
+}
+
+export const paymentOrderStatuses: Record<PaymentOrder['status'], string> = {
+	generated: 'Generada',
+	executed: 'Ejecutada',
+};
+
+/**
+ * The order as a pain.001.001.03 file (SEPA Credit Transfer), the one Spanish banks take in their online banking: one
+ * PmtInf from the community's account, a transfer per invoice with the invoice number as the remittance information
+ */
+export function paymentOrderXml(order: Pick<PaymentOrder, 'reference' | 'executionDate' | 'issuedAt' | 'debtor' | 'items'>) {
+	const { debtor, items } = order;
+	const name = escapeXml(sepaText(debtor.name, 70));
+	const id = `<Id><OrgId><Othr><Id>${escapeXml(debtor.id)}</Id></Othr></OrgId></Id>`;
+	const total = amount(items.reduce((sum, item) => sum + item.amount, 0));
+
+	return [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		'<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+		'<CstmrCdtTrfInitn>',
+		'<GrpHdr>',
+		`<MsgId>${escapeXml(order.reference)}</MsgId>`,
+		`<CreDtTm>${order.issuedAt}</CreDtTm>`,
+		`<NbOfTxs>${items.length}</NbOfTxs>`,
+		`<CtrlSum>${total}</CtrlSum>`,
+		`<InitgPty><Nm>${name}</Nm>${id}</InitgPty>`,
+		'</GrpHdr>',
+		'<PmtInf>',
+		`<PmtInfId>${sepaId(`${order.reference}-1`)}</PmtInfId>`,
+		'<PmtMtd>TRF</PmtMtd>',
+		'<BtchBookg>true</BtchBookg>',
+		`<NbOfTxs>${items.length}</NbOfTxs>`,
+		`<CtrlSum>${total}</CtrlSum>`,
+		'<PmtTpInf><SvcLvl><Cd>SEPA</Cd></SvcLvl></PmtTpInf>',
+		`<ReqdExctnDt>${order.executionDate}</ReqdExctnDt>`,
+		`<Dbtr><Nm>${name}</Nm>${id}</Dbtr>`,
+		`<DbtrAcct><Id><IBAN>${escapeXml(debtor.iban)}</IBAN></Id><Ccy>EUR</Ccy></DbtrAcct>`,
+		`<DbtrAgt>${agent(debtor.bic)}</DbtrAgt>`,
+		'<ChrgBr>SLEV</ChrgBr>',
+		// The creditor's bank is left out, within SEPA the IBAN is enough
+		...items.map(item => [
+			'<CdtTrfTxInf>',
+			`<PmtId><EndToEndId>${escapeXml(item.endToEndId)}</EndToEndId></PmtId>`,
+			`<Amt><InstdAmt Ccy="EUR">${amount(item.amount)}</InstdAmt></Amt>`,
+			`<Cdtr><Nm>${escapeXml(sepaText(item.creditorName, 70))}</Nm></Cdtr>`,
+			`<CdtrAcct><Id><IBAN>${escapeXml(item.iban)}</IBAN></Id></CdtrAcct>`,
+			`<RmtInf><Ustrd>${escapeXml(sepaText(item.invoiceNumber ? `Fra. ${item.invoiceNumber} ${item.concept}` : item.concept, 140))}</Ustrd></RmtInf>`,
+			'</CdtTrfTxInf>',
+		].join('')),
+		'</PmtInf>',
+		'</CstmrCdtTrfInitn>',
+		'</Document>',
+		'',
+	].join('\n');
+}

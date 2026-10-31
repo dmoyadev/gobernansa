@@ -56,6 +56,7 @@ const allTiles: Tile[] = [
 	{ key: 'remittances', title: 'Remesas de recibos', icon: 'lucide:landmark', description: 'Recibos domiciliados y devoluciones', details: 'Genera el fichero SEPA para cobrar los recibos domiciliados desde el banco y registra las devoluciones.', sizes: [1, 2], size: 1 },
 	{ key: 'mandates', title: 'Mandatos SEPA', icon: 'lucide:file-signature', description: 'Domiciliaciones por propiedad', details: 'Cuenta, titular y referencia del mandato de cada propiedad que paga domiciliado.', sizes: [1, 2], size: 1 },
 	{ key: 'payables', title: 'Facturas pendientes', icon: 'lucide:file-clock', description: 'Lo que se debe a proveedores', details: 'Facturas de proveedores por pagar, por vencimiento, con las vencidas destacadas.', sizes: [1, 2], size: 1 },
+	{ key: 'payments', title: 'Pagos a proveedores', icon: 'lucide:send', description: 'Transferencias SEPA de las facturas', details: 'Genera el fichero SEPA de transferencias para pagar de una vez las facturas pendientes desde el banco.', sizes: [1, 2], size: 1 },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…', details: 'Vencimientos de inspecciones, revisiones y seguros, con su proveedor y aviso previo.', sizes: [1, 2], size: 1 },
 	{ key: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué', details: 'Quién cambió qué y cuándo en esta comunidad, para revisar o explicar un cambio.', sizes: [1, 2], size: 1 },
 ];
@@ -215,6 +216,7 @@ const goSections = computed(() => [
 	{ key: 'remittances', label: 'Remesas de recibos', icon: 'lucide:landmark' },
 	{ key: 'mandates', label: 'Mandatos SEPA', icon: 'lucide:file-signature' },
 	{ key: 'payables', label: 'Facturas pendientes', icon: 'lucide:file-clock' },
+	{ key: 'payments', label: 'Pagos a proveedores', icon: 'lucide:send' },
 	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
 	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
 	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },

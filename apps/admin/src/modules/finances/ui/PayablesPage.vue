@@ -36,6 +36,10 @@ function markPaid(invoice: Expense) {
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Facturas pendientes de pago</h1>
+		<LnxButton :to="`/communities/${id}/payments`" mode="clear" size="small">
+			<LnxIcon icon="lucide:send" />
+			Pagar por transferencia
+		</LnxButton>
 		<LnxButton :to="`/communities/${id}/budget`" mode="clear" size="small">
 			<LnxIcon icon="lucide:plus" />
 			Añadir factura
@@ -86,6 +90,7 @@ function markPaid(invoice: Expense) {
 							· <span :class="{ overdue: isOverdue(invoice) }">{{ isOverdue(invoice) ? 'venció' : 'vence' }} el {{ dateFormat.format(invoice.dueDate.toDate()) }}</span>
 						</template>
 						<template v-if="invoice.paymentMethod"> · {{ paymentMethods[invoice.paymentMethod] }}</template>
+						<template v-if="invoice.paymentOrderId"> · en una orden de pago</template>
 					</small>
 				</div>
 				<div class="cost tabular">
