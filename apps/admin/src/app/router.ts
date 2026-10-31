@@ -167,6 +167,20 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/annual-report',
+					name: 'Liquidación del ejercicio',
+					component: async () => import('@/modules/finances/ui/AnnualReportPage.vue'),
+					meta: { title: 'Liquidación del ejercicio' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/exchange',
+					name: 'Exportar e importar',
+					component: async () => import('@/modules/finances/ui/ExchangePage.vue'),
+					meta: { title: 'Exportar e importar' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/mandates',
 					name: 'Mandatos SEPA',
 					component: async () => import('@/modules/finances/ui/MandatesPage.vue'),

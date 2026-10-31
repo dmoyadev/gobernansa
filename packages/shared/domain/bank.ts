@@ -90,7 +90,8 @@ export function ibanAccount(iban: string) {
 }
 
 // Uppercase, without accents nor repeated spaces: the same concept from a file or another reads the same
-function canonical(text: string) {
+// Upper case, without accents nor repeated spaces, to compare names as people type them
+export function canonical(text: string) {
 	return text.normalize('NFD').replace(DIACRITICS_REGEX, '').replace(SPACES_REGEX, ' ').trim().toUpperCase();
 }
 
@@ -334,6 +335,15 @@ export function norma43(account: Pick<StatementAccount, 'account' | 'holder' | '
 }
 
 /* CSV, as most online banking exports it */
+
+// Files from banks and other programs are usually Latin-1, or else UTF-8
+export function decodeText(buffer: ArrayBuffer) {
+	try {
+		return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+	} catch {
+		return new TextDecoder('windows-1252').decode(buffer);
+	}
+}
 
 // Rows of cells, separated by whichever of ; tab or , the first line has most of. Quoted cells may have any of them
 export function parseCsv(content: string) {

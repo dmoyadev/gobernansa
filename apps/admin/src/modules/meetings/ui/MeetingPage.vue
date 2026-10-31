@@ -260,6 +260,11 @@ function print() {
 			{{ isNew ? 'Nueva junta' : meeting?.title || 'Junta' }}
 		</h1>
 		<span v-if="meeting" class="status" :class="`status--${meeting.status}`">{{ meetingStatus[meeting.status] }}</span>
+		<!-- The ordinary one approves the accounts of the year before: the liquidación to attach to the convocatoria -->
+		<LnxButton v-if="meeting?.type === 'ordinary'" mode="outline" size="small" @click="router.push(`/communities/${id}/annual-report?year=${meeting.date.toDate().getFullYear() - 1}`)">
+			<LnxIcon icon="lucide:file-chart-column" />
+			Liquidación {{ meeting.date.toDate().getFullYear() - 1 }}
+		</LnxButton>
 	</header>
 
 	<p v-if="listenError" class="error screen-only" role="alert">

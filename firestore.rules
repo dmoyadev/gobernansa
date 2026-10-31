@@ -337,7 +337,8 @@ service cloud.firestore {
       }
 
       // Recibos and derramas. Owners see theirs. The year's fees from the budget share batchId fees-{year} and carry
-      // their part for the fondo de reserva (reserve). A domiciliated one points to its remittance and keeps its returns
+      // their part for the fondo de reserva (reserve). A domiciliated one points to its remittance and keeps its returns.
+      // Those imported from another program (the debt brought when migrating) share batchId import
       match /charges/{chargeId} {
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
         allow create, update: if manages(communityId) && request.resource.data.communityId == communityId;

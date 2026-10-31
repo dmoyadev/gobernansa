@@ -437,12 +437,14 @@ export function closingMatches(stored: Pick<FiscalYearClosing, 'regularization' 
 	return flat(stored) === flat(current);
 }
 
-const CSV_QUOTE_REGEX = /[";\n]/;
+const CSV_QUOTE_REGEX = /[";\n\r]/;
+// A text starting like a formula would run as one in a spreadsheet, e.g. a concept typed as "=HYPERLINK(...)"
+const CSV_FORMULA_REGEX = /^[=+\-@\t\r]/;
 
 // For a spreadsheet in Spanish: semicolons, decimal commas and a BOM so accents open right. Numbers are cents
 export function toCsv(rows: (string | number)[][]) {
 	const cell = (value: string | number) => {
-		const text = typeof value === 'number' ? (value / 100).toFixed(2).replace('.', ',') : value;
+		const text = typeof value === 'number' ? (value / 100).toFixed(2).replace('.', ',') : CSV_FORMULA_REGEX.test(value) ? `'${value}` : value;
 		return CSV_QUOTE_REGEX.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 	};
 	return `\uFEFF${rows.map(row => row.map(cell).join(';')).join('\r\n')}\r\n`;

@@ -59,6 +59,8 @@ const allTiles: Tile[] = [
 	{ key: 'payments', title: 'Pagos a proveedores', icon: 'lucide:send', description: 'Transferencias SEPA de las facturas', details: 'Genera el fichero SEPA de transferencias para pagar de una vez las facturas pendientes desde el banco.', sizes: [1, 2], size: 1 },
 	{ key: 'bank', title: 'Conciliación bancaria', icon: 'lucide:arrow-left-right', description: 'Extractos y movimientos del banco', details: 'Importa el extracto del banco (Norma 43 o CSV) y concilia cada movimiento con sus recibos, facturas, remesas y pagos.', sizes: [1, 2], size: 1 },
 	{ key: 'accounting', title: 'Contabilidad', icon: 'lucide:book-open-check', description: 'Diario, mayor, balances y cierre', details: 'Asientos por partida doble de recibos, facturas, cobros y pagos, con el diario, el mayor, los balances y el cierre del ejercicio.', sizes: [1, 2], size: 1 },
+	{ key: 'annual-report', title: 'Liquidación del ejercicio', icon: 'lucide:file-chart-column', description: 'Cuentas del año para la junta', details: 'Ingresos y gastos frente al presupuesto, fondo de reserva, saldo en bancos, morosos y presupuesto propuesto, listo para la convocatoria.', sizes: [1, 2], size: 1 },
+	{ key: 'exchange', title: 'Exportar e importar', icon: 'lucide:arrow-down-up', description: 'Excel, ContaPlus y saldos de otro programa', details: 'Descarga recibos, saldos, morosos, facturas y el diario en CSV o para ContaPlus, e importa la deuda de cada propiedad desde otro programa.', sizes: [1, 2], size: 1 },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…', details: 'Vencimientos de inspecciones, revisiones y seguros, con su proveedor y aviso previo.', sizes: [1, 2], size: 1 },
 	{ key: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué', details: 'Quién cambió qué y cuándo en esta comunidad, para revisar o explicar un cambio.', sizes: [1, 2], size: 1 },
 ];
@@ -221,6 +223,8 @@ const goSections = computed(() => [
 	{ key: 'payments', label: 'Pagos a proveedores', icon: 'lucide:send' },
 	{ key: 'bank', label: 'Conciliación bancaria', icon: 'lucide:arrow-left-right' },
 	{ key: 'accounting', label: 'Contabilidad', icon: 'lucide:book-open-check' },
+	{ key: 'annual-report', label: 'Liquidación del ejercicio', icon: 'lucide:file-chart-column' },
+	{ key: 'exchange', label: 'Exportar e importar', icon: 'lucide:arrow-down-up' },
 	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
 	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
 	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },

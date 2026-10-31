@@ -2,7 +2,7 @@
 import type { BankMovement, CsvColumns, MatchCandidate, MovementData, ParsedStatement } from '@gobernansa/shared/domain/bank.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { PaymentOrder, Remittance } from '@gobernansa/shared/domain/sepa.ts';
-import { commonConcepts, csvMovements, demoMovements, guessColumns, ibanAccount, matchCandidates, movementSources, norma43, parseCsv, parseNorma43, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
+import { commonConcepts, csvMovements, decodeText, demoMovements, guessColumns, ibanAccount, matchCandidates, movementSources, norma43, parseCsv, parseNorma43, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidIban } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
@@ -264,15 +264,6 @@ const importError = ref<string>();
 
 useShortcut('i', () => fileInput.value?.click(), 'Importar un extracto');
 
-// Norma 43 files are usually Latin-1, CSV exports either
-function decode(buffer: ArrayBuffer) {
-	try {
-		return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-	} catch {
-		return new TextDecoder('windows-1252').decode(buffer);
-	}
-}
-
 async function readFile(event: Event) {
 	const input = event.target as HTMLInputElement;
 	const file = input.files?.[0];
@@ -281,7 +272,7 @@ async function readFile(event: Event) {
 		return;
 	}
 	importError.value = undefined;
-	const content = decode(await file.arrayBuffer());
+	const content = decodeText(await file.arrayBuffer());
 	const firstLine = content.trimStart().split('\n', 1)[0].trimEnd();
 	if (NORMA43_HEADER_REGEX.test(firstLine) && firstLine.length <= 80) {
 		draft.value = { name: file.name, statement: parseNorma43(content) };
