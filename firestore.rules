@@ -355,6 +355,12 @@ service cloud.firestore {
         allow read, write: if manages(communityId);
       }
 
+      // Movements of the community's bank account, imported from its statements (or the test bank feed) and reconciled
+      // with the charges, invoices, remittances and orders they paid, which point back to them (bankMovementId). Only the office
+      match /bankMovements/{movementId} {
+        allow read, write: if manages(communityId);
+      }
+
       // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes
       // and whether they're paid (paidAt null while owed) or going in a transfer order (paymentOrderId). The budget
       // keeps the fondo de reserva (contribution and opening balance) and how the year's fees were issued; an expense

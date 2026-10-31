@@ -27,6 +27,8 @@ export interface Charge extends Datable {
 	remittanceId?: string;
 	// Direct debits of it the bank returned, the last one last
 	returns?: ChargeReturn[];
+	// The bank movement it was paid with, when reconciled
+	bankMovementId?: string;
 }
 
 export interface ChargeReturn {
@@ -171,6 +173,8 @@ export interface Expense extends Datable {
 	fromReserve?: boolean;
 	// The transfer order it's being paid with, so it can't go in another one
 	paymentOrderId?: string;
+	// The bank movement it was paid with, when reconciled
+	bankMovementId?: string;
 }
 
 export type VatRate = 0 | 4 | 10 | 21;

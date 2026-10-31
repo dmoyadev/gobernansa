@@ -25,6 +25,8 @@ export interface Community extends Datable {
 	bic?: string;
 	// Business code of the SEPA creditor identifier, '000' unless the bank gave another one (see creditorId())
 	sepaSuffix?: string;
+	// Connection to the bank's feed of movements. Only in test mode for now, with simulated movements
+	bankFeed?: { mode: 'demo'; connectedAt: Timestamp; syncedAt?: Timestamp };
 
 	contacts?: CommunityContact[];
 	documents?: CommunityDocument[];

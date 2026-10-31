@@ -153,6 +153,13 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/bank',
+					name: 'Conciliación bancaria',
+					component: async () => import('@/modules/finances/ui/BankPage.vue'),
+					meta: { title: 'Conciliación bancaria' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/mandates',
 					name: 'Mandatos SEPA',
 					component: async () => import('@/modules/finances/ui/MandatesPage.vue'),

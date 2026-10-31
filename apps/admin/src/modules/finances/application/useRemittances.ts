@@ -1,7 +1,7 @@
 import type { Charge, ChargeReturn } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { Remittance, RemittanceItem, ReturnReason, SepaMandate } from '@gobernansa/shared/domain/sepa.ts';
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp, WriteBatch } from 'firebase/firestore';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remittanceStatuses, returnReasons } from '@gobernansa/shared/domain/sepa.ts';
@@ -110,9 +110,10 @@ export async function deleteRemittance(communityId: string, remittance: Remittan
 
 /**
  * Collected marks its charges paid, the returned ones are no longer tied to it and stay unpaid. Going back from
- * collected (undo) marks unpaid again those it paid. Returns the remittance as it's now
+ * collected (undo) marks unpaid again those it paid. `also` adds to the same batch, e.g. the bank movement that
+ * collected it. Returns the remittance as it's now
  */
-export async function setRemittanceStatus(communityId: string, remittance: Remittance, status: Remittance['status'], at: Timestamp | null) {
+export async function setRemittanceStatus(communityId: string, remittance: Remittance, status: Remittance['status'], at: Timestamp | null, also?: (batch: WriteBatch) => void) {
 	const uid = signedUid();
 	const now = serverTimestamp();
 	const batch = writeBatch(db);
@@ -136,6 +137,7 @@ export async function setRemittanceStatus(communityId: string, remittance: Remit
 		summary: `Marcó la remesa ${remittance.reference} como ${remittanceStatuses[status].toLowerCase()}`,
 		link: link(communityId),
 	});
+	also?.(batch);
 	await batch.commit();
 	return { ...remittance, status, ...dates } as Remittance;
 }

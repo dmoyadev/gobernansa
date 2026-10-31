@@ -1,6 +1,6 @@
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
 import type { PaymentOrder } from '@gobernansa/shared/domain/sepa.ts';
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp, WriteBatch } from 'firebase/firestore';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
@@ -79,9 +79,10 @@ export async function deletePaymentOrder(communityId: string, order: PaymentOrde
 
 /**
  * Executed marks its invoices paid on the day the bank sent the transfers. Going back (undo) marks unpaid again only
- * those it paid, not those paid by hand meanwhile. Returns the order as it's now
+ * those it paid, not those paid by hand meanwhile. `also` adds to the same batch, e.g. the bank movement that paid it.
+ * Returns the order as it's now
  */
-export async function setPaymentOrderExecuted(communityId: string, order: PaymentOrder, at: Timestamp | null) {
+export async function setPaymentOrderExecuted(communityId: string, order: PaymentOrder, at: Timestamp | null, also?: (batch: WriteBatch) => void) {
 	const uid = signedUid();
 	const now = serverTimestamp();
 	const status: PaymentOrder['status'] = at ? 'executed' : 'generated';
@@ -102,6 +103,7 @@ export async function setPaymentOrderExecuted(communityId: string, order: Paymen
 			: `Deshizo la ejecución de la orden de pago ${order.reference}`,
 		link: link(communityId),
 	});
+	also?.(batch);
 	await batch.commit();
 	return { ...order, status, executedAt: at } as PaymentOrder;
 }
