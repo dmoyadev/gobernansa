@@ -66,7 +66,9 @@ const debtorProblem = computed(() => {
 
 // Providers with an account the transfer can go to
 const payees = computed(() => new Map(providers.value.flatMap(provider => provider.iban && isValidIban(provider.iban) ? [[provider.id, provider]] : [])));
-const free = computed(() => unpaid.value.filter(invoice => !invoice.paymentOrderId && payableAmount(invoice) > 0));
+// Unpaid again after its order was executed (the transfer bounced, marked pending by hand) it can go in a new one
+const executedIds = computed(() => new Set(orders.value.filter(order => order.status === 'executed').map(order => order.id)));
+const free = computed(() => unpaid.value.filter(invoice => (!invoice.paymentOrderId || executedIds.value.has(invoice.paymentOrderId)) && payableAmount(invoice) > 0));
 const candidates = computed(() => free.value
 	.filter(invoice => invoice.provider && payees.value.has(invoice.provider.id))
 	.sort((a, b) => (a.dueDate?.toMillis() ?? Infinity) - (b.dueDate?.toMillis() ?? Infinity) || a.date.toMillis() - b.date.toMillis()));
