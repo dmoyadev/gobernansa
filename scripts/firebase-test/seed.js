@@ -90,7 +90,7 @@ async function seed() {
 			],
 			monthlyVotes: 5,
 			// Made-up data: the IBAN is the usual example one
-			cif: 'H23123456',
+			cif: 'H23123458',
 			iban: 'ES9121000418450200051332',
 			bank: 'Banco Ejemplo',
 			contacts: [
@@ -339,6 +339,56 @@ async function seed() {
 				// Cast this month, so they use some of the voters' monthly votes
 				batch.set(voteRef, { voterId, score, votedAt: new Date() });
 			}
+		}
+	}
+
+	// PROVIDERS + BUDGET + SUPPLIER INVOICES (made-up fiscal data with valid control characters)
+	if (shouldRun('invoices')) {
+		const year = new Date().getFullYear();
+		const providers = [
+			['prov_cleaning', 'Limpiezas Jaén', 'cleaning', { cif: 'B23000003', fiscalName: 'Limpiezas Jaén S.L.', address: 'Calle Mayor 1, 23001 Jaén', iban: 'ES7921000813610123456789' }],
+			['prov_lawyer', 'Laura Pérez, abogada', 'other', { cif: '12345678Z', fiscalName: 'Laura Pérez Gómez', address: 'Plaza Nueva 3, 23002 Jaén', iban: 'ES9121000418450200051332' }],
+		];
+		for (const [id, name, category, fiscal] of providers) {
+			batch.set(db.collection('providers').doc(id), { name, category, ...fiscal, communityIds: ['comm1'], ratingSum: 0, ratingCount: 0, ...getDatableProperties() });
+		}
+
+		const comm1 = db.collection('communities').doc('comm1');
+		batch.set(comm1.collection('budgets').doc(String(year)), {
+			year,
+			items: [{ id: 'cleaning', name: 'Limpieza', amount: 480000 }, { id: 'legal', name: 'Asesoría jurídica', amount: 120000 }],
+			...getDatableProperties(),
+		});
+
+		// Base, VAT and withholding in cents; amount is base + VAT, what it costs the community
+		const invoices = [
+			['inv_1', 'cleaning', 'prov_cleaning', 'Limpieza septiembre', 'LJ-2026/0901', 8, 30000, 21, 0, true],
+			['inv_2', 'cleaning', 'prov_cleaning', 'Limpieza octubre', 'LJ-2026/1001', 9, 30000, 21, 0, false],
+			['inv_3', 'legal', 'prov_lawyer', 'Reclamación de deuda Piso 2B', '2026-017', 9, 50000, 21, 15, false],
+		];
+		const providerById = Object.fromEntries(providers.map(([id, name, , fiscal]) => [id, { id, name, nif: fiscal.cif }]));
+		for (const [id, itemId, providerId, concept, invoiceNumber, month, base, vatRate, withholdingRate, paid] of invoices) {
+			const vat = Math.round(base * vatRate / 100);
+			const withholding = Math.round(base * withholdingRate / 100);
+			batch.set(comm1.collection('expenses').doc(id), {
+				year,
+				itemId,
+				concept,
+				amount: base + vat,
+				date: new Date(year, month - 1, 5),
+				provider: providerById[providerId],
+				invoiceNumber,
+				base,
+				vatRate,
+				vat,
+				withholdingRate,
+				withholding,
+				...(withholdingRate ? { withholdingType: 'professional' } : {}),
+				dueDate: new Date(year, month, 5, 23, 59, 59),
+				paidAt: paid ? new Date(year, month, 1) : null,
+				paymentMethod: 'transfer',
+				...getDatableProperties(),
+			});
 		}
 	}
 

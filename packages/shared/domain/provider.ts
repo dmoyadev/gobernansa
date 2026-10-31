@@ -10,7 +10,12 @@ export interface Provider extends Datable {
 	category: ProviderCategory;
 	phone?: string;
 	email?: string;
+	// NIF or CIF, validated. With the fiscal name and address, what invoices and the tax returns (347, 190) need
 	cif?: string;
+	fiscalName?: string;
+	address?: string;
+	// Where the community pays their invoices
+	iban?: string;
 	notes?: string;
 	communityIds: string[];
 	// Counters, written along with each rating. The average is ratingSum / ratingCount

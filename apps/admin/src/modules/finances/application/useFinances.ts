@@ -3,7 +3,7 @@ import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { chargeTypes } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
@@ -202,16 +202,17 @@ export function useExpenses(communityId: string, year: MaybeRefOrGetter<number>)
 	return useCollection<Expense>(computed(() => query(expensesRef(communityId), where('year', '==', toValue(year)))));
 }
 
-export type ExpenseData = Pick<Expense, 'itemId' | 'concept' | 'amount' | 'date' | 'provider'>;
+export type ExpenseData = Pick<Expense, 'itemId' | 'concept' | 'amount' | 'date' | 'provider' | 'invoiceNumber' | 'base' | 'vatRate' | 'vat'
+	| 'withholdingRate' | 'withholding' | 'withholdingType' | 'dueDate' | 'paidAt' | 'paymentMethod'>;
 
-// id made when the form opens, so sending it twice writes one expense
-export async function addExpense(communityId: string, id: string, { provider, ...expense }: ExpenseData) {
+// id made when the form opens, so sending it twice writes one expense. Fields left out aren't written
+export async function addExpense(communityId: string, id: string, data: ExpenseData) {
+	const expense = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as ExpenseData;
 	const uid = signedUid();
 	const now = serverTimestamp();
 	const batch = writeBatch(db);
 	batch.set(doc(expensesRef(communityId), id), {
 		...expense,
-		...(provider ? { provider } : {}),
 		year: expense.date.toDate().getFullYear(),
 		createdAt: now,
 		createdBy: uid,
@@ -222,6 +223,27 @@ export async function addExpense(communityId: string, id: string, { provider, ..
 		area: 'finance',
 		summary: `Añadió el gasto «${expense.concept}» de ${formatCents(expense.amount)}`,
 		link: `/communities/${communityId}/budget`,
+	});
+	await batch.commit();
+}
+
+// Invoices still owed, few at a time, so kept live. Older expenses have no paidAt and don't match
+export function useUnpaidInvoices(communityId: string) {
+	return useCollection<Expense>(query(expensesRef(communityId), where('paidAt', '==', null)));
+}
+
+// paidAt is given, so undoing puts back the exact date it had
+export async function setExpensePaid(communityId: string, expense: Expense, paidAt: Timestamp | null) {
+	const batch = writeBatch(db);
+	batch.update(doc(expensesRef(communityId), expense.id), {
+		paidAt,
+		updatedAt: serverTimestamp(),
+		updatedBy: signedUid(),
+	});
+	logActivity(batch, communityId, {
+		area: 'finance',
+		summary: `Marcó la factura «${expense.concept}»${expense.provider ? ` de ${expense.provider.name}` : ''} como ${paidAt ? 'pagada' : 'pendiente'} (${formatCents(payableAmount(expense))})`,
+		link: `/communities/${communityId}/payables`,
 	});
 	await batch.commit();
 }

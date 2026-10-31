@@ -113,7 +113,7 @@ function addDocument() {
 }
 
 async function save() {
-	error.value = findFormError(form.value);
+	error.value = findFormError(form.value, pristine ? JSON.parse(pristine) as CommunityForm : undefined);
 	if (error.value || saving.value) {
 		return;
 	}

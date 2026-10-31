@@ -118,6 +118,13 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/payables',
+					name: 'Facturas pendientes',
+					component: async () => import('@/modules/finances/ui/PayablesPage.vue'),
+					meta: { title: 'Facturas pendientes' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/obligations',
 					name: 'Obligaciones',
 					component: async () => import('@/modules/obligations/ui/ObligationsPage.vue'),

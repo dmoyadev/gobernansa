@@ -342,7 +342,8 @@ service cloud.firestore {
         allow delete: if manages(communityId);
       }
 
-      // The budget and its expenses, open to every neighbour
+      // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes
+      // and whether they're paid (paidAt null while owed)
       match /budgets/{year} {
         allow read: if inOrManages(communityId);
         allow write: if manages(communityId);

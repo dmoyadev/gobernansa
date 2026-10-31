@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import type { Expense } from '@gobernansa/shared/domain/finance.ts';
+import type { Expense, PaymentMethod, VatRate } from '@gobernansa/shared/domain/finance.ts';
+import type { ExpenseData } from '../application/useFinances.ts';
+import { invoiceAmounts, isOverdue, paymentMethods, vatRates, withholdings } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
@@ -12,7 +15,7 @@ import { newId } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
-import { addExpense, deleteExpense, restoreExpense, saveBudget, useBudget, useCommunityProperties, useExpenses } from '../application/useFinances.ts';
+import { addExpense, deleteExpense, restoreExpense, saveBudget, toDueDate, useBudget, useCommunityProperties, useExpenses } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -97,12 +100,27 @@ const itemNames = computed(() => Object.fromEntries(savedItems.value.map(item =>
 const shares = computed(() => splitByCoefficient(budgetTotal.value, properties.value)
 	.sort((a, b) => a.property.name.localeCompare(b.property.name, 'es', { numeric: true })));
 
-// New expense
+// New expense, or supplier invoice: the base and its taxes give what it costs and what's paid to the provider
 const itemOptions = computed(() => savedItems.value.map(item => ({ value: item.id, label: item.name })));
 const providerOptions = computed(() => [{ value: '', label: 'Sin proveedor' }, ...providers.value.map(provider => ({ value: provider.id, label: provider.name }))]);
+const vatOptions = vatRates.map(rate => ({ value: rate, label: `${rate} %` }));
+const withholdingOptions = withholdings.map((withholding, index) => ({ value: index, label: withholding.label }));
+const methodOptions = Object.entries(paymentMethods).map(([value, label]) => ({ value: value as PaymentMethod, label }));
 
 function emptyExpense() {
-	return { itemId: '', concept: '', amount: '', date: '', providerId: '' };
+	return {
+		itemId: '',
+		concept: '',
+		providerId: '',
+		invoiceNumber: '',
+		base: '',
+		vatRate: 21 as VatRate,
+		withholding: 0,
+		date: '',
+		dueDate: '',
+		paymentMethod: 'transfer' as PaymentMethod,
+		paid: false,
+	};
 }
 
 const expenseForm = ref(emptyExpense());
@@ -110,29 +128,50 @@ const expenseForm = ref(emptyExpense());
 let expenseId = newId();
 const expenseError = ref<string>();
 
+const formProvider = computed(() => providers.value.find(provider => provider.id === expenseForm.value.providerId));
+const formAmounts = computed(() => {
+	const base = toCents(expenseForm.value.base);
+	return base > 0 ? invoiceAmounts(base, expenseForm.value.vatRate, withholdings[expenseForm.value.withholding].rate) : undefined;
+});
+
 function submitExpense() {
-	const amount = toCents(expenseForm.value.amount);
-	if (!(amount > 0) || !expenseForm.value.itemId) {
-		expenseError.value = 'Elige la partida y escribe un importe válido, p. ej. 120,50';
+	const typed = expenseForm.value;
+	const amounts = formAmounts.value;
+	if (!amounts || !typed.itemId) {
+		expenseError.value = 'Elige la partida y escribe una base imponible válida, p. ej. 120,50';
+		return;
+	}
+	if (typed.dueDate && typed.date && typed.dueDate < typed.date) {
+		expenseError.value = 'El vencimiento no puede ser anterior a la fecha de la factura.';
 		return;
 	}
 
-	const provider = providers.value.find(provider => provider.id === expenseForm.value.providerId);
-	const typed = expenseForm.value;
+	const provider = formProvider.value;
+	const withholding = withholdings[typed.withholding];
 	const id = expenseId;
-	const expense = {
+	const expense: ExpenseData = {
 		itemId: typed.itemId,
 		concept: typed.concept.trim(),
-		amount,
+		amount: amounts.amount,
 		date: Timestamp.fromDate(new Date(`${typed.date}T00:00`)),
-		...(provider ? { provider: { id: provider.id, name: provider.name } } : {}),
+		provider: provider && { id: provider.id, name: provider.name, ...(provider.cif ? { nif: provider.cif } : {}) },
+		invoiceNumber: typed.invoiceNumber.trim() || undefined,
+		base: toCents(typed.base),
+		vatRate: typed.vatRate,
+		vat: amounts.vat,
+		withholdingRate: withholding.rate,
+		withholding: amounts.withholding,
+		withholdingType: withholding.type,
+		dueDate: typed.dueDate ? toDueDate(typed.dueDate) : undefined,
+		paidAt: typed.paid ? Timestamp.now() : null,
+		paymentMethod: typed.paymentMethod,
 	};
 	// Cleared at once, ready for the next one. If it fails it's back as typed, with the same id
 	expenseForm.value = emptyExpense();
 	expenseId = newId();
 	expenseError.value = undefined;
 	void optimistic(addExpense(props.id, id, expense), {
-		done: 'Gasto añadido',
+		done: typed.paid ? 'Gasto añadido' : 'Factura añadida, pendiente de pago',
 		failed: 'No se ha podido añadir',
 		onError: () => {
 			expenseForm.value = typed;
@@ -150,7 +189,7 @@ const sortedExpenses = computed(() => [...expenses.value].sort((a, b) => b.date.
 
 function remove(expense: Expense) {
 	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar el gasto «${expense.concept}»?`)) {
+	if (!window.confirm(`¿Borrar ${expense.invoiceNumber ? `la factura ${expense.invoiceNumber}` : 'el gasto'} «${expense.concept}»?`)) {
 		return;
 	}
 	// What it had, to put it back as it was
@@ -281,7 +320,7 @@ function remove(expense: Expense) {
 	</section>
 
 	<form ref="expenseFormElement" class="card" @submit.prevent="submitExpense()">
-		<h2>Nuevo gasto <Kbd combo="n" /></h2>
+		<h2>Nuevo gasto o factura <Kbd combo="n" /></h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="expenseForm.itemId"
@@ -297,15 +336,6 @@ function remove(expense: Expense) {
 					{{ itemNames[value] }}
 				</template>
 			</LnxSelect>
-			<LnxInput v-model="expenseForm.concept" placeholder="Factura limpieza octubre" required>
-				Concepto
-			</LnxInput>
-			<LnxInput v-model="expenseForm.amount" inputmode="decimal" placeholder="120,50" required>
-				Importe (€)
-			</LnxInput>
-			<DatePicker v-model="expenseForm.date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
-				Fecha
-			</DatePicker>
 			<LnxSelect
 				v-model.convert="expenseForm.providerId"
 				:options="providerOptions"
@@ -320,7 +350,76 @@ function remove(expense: Expense) {
 					{{ providerOptions.find(option => option.value === value)?.label }}
 				</template>
 			</LnxSelect>
+			<LnxInput v-model="expenseForm.concept" placeholder="Limpieza octubre" required>
+				Concepto
+			</LnxInput>
+			<LnxInput v-model="expenseForm.invoiceNumber" placeholder="2026/0142">
+				Nº de factura
+			</LnxInput>
+			<DatePicker v-model="expenseForm.date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
+				Fecha de la factura
+			</DatePicker>
+			<LnxInput v-model="expenseForm.base" inputmode="decimal" placeholder="120,50" required>
+				Base imponible (€)
+			</LnxInput>
+			<LnxSelect
+				v-model.convert="expenseForm.vatRate"
+				:options="vatOptions"
+				:convert-fn="option => option.value"
+				search-placeholder-text="Buscar..."
+			>
+				IVA
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ value }} %
+				</template>
+			</LnxSelect>
+			<LnxSelect
+				v-model.convert="expenseForm.withholding"
+				:options="withholdingOptions"
+				:convert-fn="option => option.value"
+				search-placeholder-text="Buscar..."
+			>
+				Retención IRPF
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ withholdings[value as number]?.label }}
+				</template>
+			</LnxSelect>
+			<DatePicker v-model="expenseForm.dueDate" :min="expenseForm.date || undefined">
+				Vencimiento
+			</DatePicker>
+			<LnxSelect
+				v-model.convert="expenseForm.paymentMethod"
+				:options="methodOptions"
+				:convert-fn="option => option.value"
+				search-placeholder-text="Buscar..."
+			>
+				Forma de pago
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ paymentMethods[value as PaymentMethod] }}
+				</template>
+			</LnxSelect>
+			<LnxCheckbox v-model="expenseForm.paid" class="paid">
+				Ya está pagada
+			</LnxCheckbox>
 		</div>
+		<p v-if="formAmounts" class="hint tabular">
+			IVA {{ formatCents(formAmounts.vat) }}<template v-if="formAmounts.withholding">
+				· retención −{{ formatCents(formAmounts.withholding) }}
+			</template> · total factura {{ formatCents(formAmounts.amount) }} · <strong>a pagar {{ formatCents(formAmounts.payable) }}</strong>
+		</p>
+		<p v-if="formProvider && !formProvider.cif" class="warning">
+			<LnxIcon icon="lucide:triangle-alert" />
+			{{ formProvider.name }} no tiene NIF en el directorio de proveedores. Hace falta para los modelos 347, 111 y 190.
+		</p>
 		<footer class="form-actions">
 			<p v-if="expenseError" class="error" role="alert">
 				{{ expenseError }}
@@ -354,9 +453,17 @@ function remove(expense: Expense) {
 					<strong>{{ expense.concept }}</strong>
 					<small class="tabular">
 						{{ dateFormat.format(expense.date.toDate()) }} · {{ itemNames[expense.itemId] ?? 'Sin partida' }}<template v-if="expense.provider"> · {{ expense.provider.name }}</template>
+						<template v-if="expense.invoiceNumber"> · Fra. {{ expense.invoiceNumber }}</template>
+						<template v-if="expense.base !== undefined"> · base {{ formatCents(expense.base) }} + IVA {{ expense.vatRate }} %</template>
+						<template v-if="expense.withholding"> · retención {{ expense.withholdingRate }} %</template>
 					</small>
 				</div>
-				<strong class="tabular">{{ formatCents(expense.amount) }}</strong>
+				<div class="cost">
+					<strong class="tabular">{{ formatCents(expense.amount) }}</strong>
+					<RouterLink v-if="expense.paidAt === null" :to="`/communities/${id}/payables`" class="pending" :class="{ overdue: isOverdue(expense) }">
+						{{ isOverdue(expense) ? 'Vencida' : 'Pendiente de pago' }}
+					</RouterLink>
+				</div>
 				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
@@ -543,6 +650,33 @@ table {
 	& + & {
 		border-top: 1px solid var(--color-gray-3);
 	}
+}
+
+.cost {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+
+	.pending {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+	}
+
+	.overdue {
+		color: var(--color-secondary-accent);
+	}
+}
+
+.paid {
+	align-self: center;
+}
+
+.warning {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	font-size: var(--lnx-font-size-small);
+	color: var(--color-gray-7);
 }
 
 .what {

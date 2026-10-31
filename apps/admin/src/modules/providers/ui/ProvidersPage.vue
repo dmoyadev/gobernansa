@@ -2,6 +2,7 @@
 import type { Provider, ProviderCategory, ProviderRating } from '@gobernansa/shared/domain/provider.ts';
 import type { ProviderForm } from '../application/providerActions.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { averageRating, providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
@@ -14,7 +15,7 @@ import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
-import { canRestoreProvider, deleteProvider, loadRatings, rateProvider, restoreProvider, saveProvider } from '../application/providerActions.ts';
+import { canRestoreProvider, deleteProvider, findProviderError, loadRatings, rateProvider, restoreProvider, saveProvider } from '../application/providerActions.ts';
 import { useProviders } from '../application/useProviders.ts';
 
 // One directory for every community the user manages, each provider shared with the ones they choose
@@ -31,12 +32,12 @@ const search = ref('');
 const visibleProviders = computed(() => {
 	const text = search.value.trim().toLocaleLowerCase('es');
 	return providers.value.filter(provider => (!category.value || provider.category === category.value)
-		&& (!text || [provider.name, provider.phone, provider.email, provider.cif, provider.notes].some(field => field?.toLocaleLowerCase('es').includes(text))));
+		&& (!text || [provider.name, provider.fiscalName, provider.phone, provider.email, provider.cif, provider.notes].some(field => field?.toLocaleLowerCase('es').includes(text))));
 });
 
 function emptyForm(): ProviderForm {
 	// Shared with all of theirs unless they say otherwise
-	return { name: '', category: 'plumbing', phone: '', email: '', cif: '', notes: '', communityIds: communities.value.map(community => community.id) };
+	return { name: '', category: 'plumbing', phone: '', email: '', cif: '', fiscalName: '', address: '', iban: '', notes: '', communityIds: communities.value.map(community => community.id) };
 }
 
 const form = ref<ProviderForm>(emptyForm());
@@ -69,6 +70,9 @@ function edit(provider: Provider) {
 		phone: provider.phone ?? '',
 		email: provider.email ?? '',
 		cif: provider.cif ?? '',
+		fiscalName: provider.fiscalName ?? '',
+		address: provider.address ?? '',
+		iban: provider.iban ? formatIban(provider.iban) : '',
 		notes: provider.notes ?? '',
 		// Only the ones they manage show as chips, the rest are kept as they are
 		communityIds: provider.communityIds.filter(id => managesCommunity(me.value, id)),
@@ -78,8 +82,12 @@ function edit(provider: Provider) {
 }
 
 function save() {
-	// The ones they don't manage count too, so a manager can stop sharing one an administrator also shares it with
 	const original = providers.value.find(provider => provider.id === editingId.value);
+	formError.value = findProviderError(form.value, original);
+	if (formError.value) {
+		return;
+	}
+	// The ones they don't manage count too, so a manager can stop sharing one an administrator also shares it with
 	const others = original?.communityIds.filter(id => !managesCommunity(me.value, id)) ?? [];
 	const communityIds = [...others, ...form.value.communityIds];
 	if (!communityIds.length) {
@@ -240,8 +248,17 @@ useShortcut('escape', () => reset(), 'Cancelar la edición', () => !!editingId.v
 			<LnxInput v-model="form.email" type="email">
 				Email
 			</LnxInput>
-			<LnxInput v-model="form.cif">
-				CIF
+			<LnxInput v-model="form.cif" placeholder="B23000003">
+				NIF/CIF
+			</LnxInput>
+			<LnxInput v-model="form.fiscalName" placeholder="Como figura en sus facturas">
+				Razón social
+			</LnxInput>
+			<LnxInput v-model="form.address" class="wide">
+				Domicilio fiscal
+			</LnxInput>
+			<LnxInput v-model="form.iban" class="wide" placeholder="ES00 0000 0000 0000 0000 0000">
+				IBAN para pagarle
 			</LnxInput>
 			<LnxTextarea v-model="form.notes" rows="2" class="wide">
 				Notas
@@ -316,7 +333,7 @@ useShortcut('escape', () => reset(), 'Cancelar la edición', () => !!editingId.v
 						{{ providerCategories[provider.category]?.label }}
 						<template v-if="provider.phone"> · {{ provider.phone }}</template>
 						<template v-if="provider.email"> · {{ provider.email }}</template>
-						<template v-if="provider.cif"> · CIF {{ provider.cif }}</template>
+						<template v-if="provider.cif"> · NIF {{ provider.cif }}</template>
 					</small>
 				</div>
 				<button

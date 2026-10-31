@@ -1,5 +1,6 @@
 import type { Provider, ProviderCategory, ProviderRating } from '@gobernansa/shared/domain/provider.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
+import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, getDocs, increment, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
@@ -11,6 +12,9 @@ export interface ProviderForm {
 	phone: string;
 	email: string;
 	cif: string;
+	fiscalName: string;
+	address: string;
+	iban: string;
 	notes: string;
 	communityIds: string[];
 }
@@ -23,6 +27,17 @@ function currentUid() {
 	return uid;
 }
 
+// What's wrong with the fiscal data, if anything. Both are optional, but checked when given and changed, so a provider
+// saved before they were checked can still be edited
+export function findProviderError(form: ProviderForm, original?: Provider) {
+	if (form.cif.trim() && normalizeTaxId(form.cif) !== normalizeTaxId(original?.cif ?? '') && !isValidNif(form.cif)) {
+		return 'Revisa el NIF/CIF: la letra o el dígito de control no cuadran.';
+	}
+	if (form.iban.trim() && normalizeIban(form.iban) !== original?.iban && !isValidIban(form.iban)) {
+		return 'Revisa el IBAN: no es válido, p. ej. ES91 2100 0418 4502 0005 1332.';
+	}
+}
+
 // Creates the provider when there's no id, as newId: made when its form opened, so sending twice writes it once
 export async function saveProvider(id: string | undefined, form: ProviderForm, newId = doc(providersRef).id) {
 	const uid = currentUid();
@@ -32,7 +47,10 @@ export async function saveProvider(id: string | undefined, form: ProviderForm, n
 		category: form.category,
 		phone: form.phone.trim(),
 		email: form.email.trim(),
-		cif: form.cif.trim(),
+		cif: normalizeTaxId(form.cif),
+		fiscalName: form.fiscalName.trim(),
+		address: form.address.trim(),
+		iban: normalizeIban(form.iban),
 		notes: form.notes.trim(),
 		communityIds: form.communityIds,
 		updatedAt: now,

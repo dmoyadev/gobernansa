@@ -51,6 +51,7 @@ const allTiles: Tile[] = [
 	{ key: 'meetings', title: 'Juntas', icon: 'lucide:gavel', description: 'Convocatorias, asistencia y votaciones', details: 'Convoca juntas, lleva la asistencia, recoge las votaciones y redacta el acta.', sizes: [1, 2], size: 1 },
 	{ key: 'charges', title: 'Recibos y morosidad', icon: 'lucide:receipt-text', description: 'Cuotas, derramas y certificados', details: 'Emite cuotas y derramas, sigue los impagos y genera certificados de pagos.', sizes: [1, 2], size: 1 },
 	{ key: 'budget', title: 'Presupuesto', icon: 'lucide:chart-pie', description: 'Partidas, gastos y reparto', details: 'Reparte el presupuesto en partidas y compara lo previsto con lo gastado.', sizes: [1, 2], size: 1 },
+	{ key: 'payables', title: 'Facturas pendientes', icon: 'lucide:file-clock', description: 'Lo que se debe a proveedores', details: 'Facturas de proveedores por pagar, por vencimiento, con las vencidas destacadas.', sizes: [1, 2], size: 1 },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…', details: 'Vencimientos de inspecciones, revisiones y seguros, con su proveedor y aviso previo.', sizes: [1, 2], size: 1 },
 	{ key: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué', details: 'Quién cambió qué y cuándo en esta comunidad, para revisar o explicar un cambio.', sizes: [1, 2], size: 1 },
 ];
@@ -205,6 +206,7 @@ const goSections = computed(() => [
 	{ key: 'meetings', label: 'Juntas', icon: 'lucide:gavel' },
 	{ key: 'charges', label: 'Recibos y morosidad', icon: 'lucide:receipt-text' },
 	{ key: 'budget', label: 'Presupuesto', icon: 'lucide:chart-pie' },
+	{ key: 'payables', label: 'Facturas pendientes', icon: 'lucide:file-clock' },
 	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
 	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
 	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },
