@@ -174,6 +174,13 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/taxes',
+					name: 'Modelos fiscales',
+					component: async () => import('@/modules/finances/ui/TaxesPage.vue'),
+					meta: { title: 'Modelos fiscales' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/exchange',
 					name: 'Exportar e importar',
 					component: async () => import('@/modules/finances/ui/ExchangePage.vue'),

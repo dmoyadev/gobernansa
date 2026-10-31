@@ -146,7 +146,7 @@ service cloud.firestore {
     }
 
     // Their owners see them, and whoever manages the community keeps them, kept in the community they're in.
-    // The SEPA mandate (mandate) is the owner's account, so only they and the office see it
+    // The SEPA mandate (mandate) is the owner's account and ownerNif their NIF (for the 184), so only they and the office see them
     match /properties/{propertyId} {
       allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || manages(resource.data.communityId));
       allow create: if manages(request.resource.data.communityId)
@@ -364,7 +364,8 @@ service cloud.firestore {
 
       // Contabilidad. Every entry is derived from the charges and invoices but the manual ones, which can't be written
       // in a closed year (one with its fiscalYears doc), nor moved into or out of one. The closing keeps the
-      // regularization and closing entries, the latter opens the next year. The chart doc keeps the accounts added
+      // regularization and closing entries, the latter opens the next year. The chart doc keeps the accounts added.
+      // Incomes from third parties (income, for the 184 and 347) are manual entries too, so they close with the year
       match /journalEntries/{entryId} {
         allow read: if manages(communityId);
         allow create: if manages(communityId) && request.resource.data.year is int

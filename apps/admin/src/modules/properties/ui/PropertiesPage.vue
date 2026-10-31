@@ -171,6 +171,9 @@ function ownerLabel(property: Property) {
 					Email del propietario
 				</LnxInput>
 			</template>
+			<LnxInput v-model="form.ownerNif" placeholder="Para el modelo 184">
+				NIF del propietario
+			</LnxInput>
 			<LnxInput v-model="form.tenantName">
 				Inquilino (si está alquilada)
 			</LnxInput>

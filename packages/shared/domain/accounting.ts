@@ -52,6 +52,33 @@ export interface ManualEntry extends Datable {
 	date: string;
 	concept: string;
 	lines: JournalLine[];
+	// When it records an income from a third party (e.g. renting the roof to a phone company), who paid it, for the
+	// tax returns (184, 347). The amounts are read from the lines, so editing them in the books keeps them right
+	income?: IncomeSource;
+}
+
+// Arrendamiento: rendimiento del capital inmobiliario. Intereses: del capital mobiliario
+export type IncomeKind = 'rental' | 'interest';
+
+export interface IncomeSource {
+	kind: IncomeKind;
+	payer: string;
+	payerNif?: string;
+}
+
+// The income account each kind is credited to, and the withholding the payer kept, debited to 4730
+export const incomeKinds: Record<IncomeKind, { label: string; account: string }> = {
+	rental: { label: 'Arrendamiento (azotea, antena, local…)', account: '7520' },
+	interest: { label: 'Intereses de la cuenta', account: '7690' },
+};
+
+// The gross income (credits to group 7) and the withholding kept by the payer (debits to 4730)
+export function incomeAmounts(entry: Pick<ManualEntry, 'lines'>) {
+	const sum = (match: (item: JournalLine) => boolean, side: 'debit' | 'credit') => entry.lines.filter(match).reduce((total, item) => total + item[side], 0);
+	return {
+		gross: sum(item => item.account.startsWith('7'), 'credit') - sum(item => item.account.startsWith('7'), 'debit'),
+		withholding: sum(item => item.account === '4730', 'debit') - sum(item => item.account === '4730', 'credit'),
+	};
 }
 
 // Cierre del ejercicio, at communities/{communityId}/fiscalYears/{year}. Its closing entry, reversed, opens the next
@@ -88,6 +115,7 @@ export const baseAccounts: Record<string, string> = {
 	4000: 'Proveedores',
 	4100: 'Acreedores por prestación de servicios',
 	4300: 'Propietarios',
+	4730: 'Hacienda Pública, retenciones y pagos a cuenta',
 	4751: 'Hacienda Pública, acreedora por retenciones practicadas',
 	5700: 'Caja',
 	5720: 'Bancos',

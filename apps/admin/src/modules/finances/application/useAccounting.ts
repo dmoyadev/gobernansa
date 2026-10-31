@@ -77,7 +77,7 @@ export async function loadLedgerData(communityId: string, year: number) {
 	};
 }
 
-export type ManualEntryData = Pick<ManualEntry, 'date' | 'concept' | 'lines'>;
+export type ManualEntryData = Pick<ManualEntry, 'date' | 'concept' | 'lines' | 'income'>;
 
 // id made when the form opens (or the entry's when editing), so sending it twice writes one entry
 export async function saveManualEntry(communityId: string, id: string, entry: ManualEntryData, existing?: ManualEntry) {
@@ -87,6 +87,8 @@ export async function saveManualEntry(communityId: string, id: string, entry: Ma
 	const batch = writeBatch(db);
 	batch.set(doc(entriesRef(communityId), id), {
 		...entry,
+		// An income keeps who paid it when its lines are edited in the books
+		...(existing?.income && !entry.income ? { income: existing.income } : {}),
 		year: Number(entry.date.slice(0, 4)),
 		createdAt: existing?.createdAt ?? now,
 		createdBy: existing?.createdBy ?? uid,

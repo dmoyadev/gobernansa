@@ -1,5 +1,6 @@
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
+import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, deleteField, doc, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
@@ -9,7 +10,7 @@ const propertiesRef = collection(db, 'properties');
 
 // What the inputs edit, as typed. The coefficient is a percentage, '' when the deed doesn't say
 export type PropertyForm = Pick<Property, 'name' | 'type' | 'ownerUid'>
-	& Record<'ownerName' | 'ownerEmail' | 'tenantName' | 'tenantEmail' | 'coefficient', string>;
+	& Record<'ownerName' | 'ownerEmail' | 'ownerNif' | 'tenantName' | 'tenantEmail' | 'coefficient', string>;
 
 // All of the community's, live. Sorted by the page, so no index is needed
 export function useProperties(communityId: string) {
@@ -23,6 +24,7 @@ export function toPropertyForm(property?: Property): PropertyForm {
 		ownerUid: property?.ownerUid ?? '',
 		ownerName: property?.ownerName ?? '',
 		ownerEmail: property?.ownerEmail ?? '',
+		ownerNif: property?.ownerNif ?? '',
 		tenantName: property?.tenantName ?? '',
 		tenantEmail: property?.tenantEmail ?? '',
 		coefficient: property?.coefficient?.toString() ?? '',
@@ -45,6 +47,10 @@ export async function saveProperty(communityId: string, id: string | undefined, 
 		throw new Error('el coeficiente debe estar entre 0 y 100.');
 	}
 
+	if (form.ownerNif.trim() && !isValidNif(form.ownerNif)) {
+		throw new Error('el NIF del propietario no es válido.');
+	}
+
 	const batch = writeBatch(db);
 	batch.set(propertyRef, {
 		name,
@@ -52,6 +58,7 @@ export async function saveProperty(communityId: string, id: string | undefined, 
 		ownerUid: form.ownerUid,
 		ownerName: text(form.ownerName),
 		ownerEmail: text(form.ownerEmail.toLowerCase()),
+		ownerNif: text(normalizeTaxId(form.ownerNif)),
 		tenantName: text(form.tenantName),
 		tenantEmail: text(form.tenantEmail.toLowerCase()),
 		coefficient: coefficient ?? deleteField(),

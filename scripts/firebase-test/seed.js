@@ -146,6 +146,10 @@ async function seed() {
 			prop4: { reference: 'GOB-PROP4-20240610', debtorName: 'María Núñez', iban: 'ES7921000813610123456789', signedAt: '2024-06-10', status: 'cancelled' },
 		};
 
+		// Coefficients adding up to 100, and made-up owner NIFs (valid control letters) for the 184
+		const coefficients = { prop1: 20, prop2: 20, prop3: 20, prop4: 20, prop5: 5, prop6: 5, prop7: 10 };
+		const ownerNifs = { prop1: '12345678Z', prop5: '12345678Z', prop2: '87654321X', prop6: '87654321X', prop4: '11111111H' };
+
 		properties.forEach(([id, name, type, ownerUid]) => {
 			const ref = db.collection('properties').doc(id);
 			batch.set(ref, {
@@ -153,6 +157,8 @@ async function seed() {
 				name,
 				type,
 				ownerUid,
+				coefficient: coefficients[id],
+				...(ownerNifs[id] ? { ownerNif: ownerNifs[id] } : {}),
 				...(mandates[id] ? { mandate: mandates[id] } : {}),
 				...getDatableProperties(),
 			});
@@ -411,6 +417,16 @@ async function seed() {
 			date: `${year}-10-31`,
 			concept: 'Comisión de mantenimiento de la cuenta',
 			lines: [{ account: '6260', debit: 1500, credit: 0 }, { account: '5720', debit: 0, credit: 1500 }],
+			...getDatableProperties(),
+		});
+
+		// Ingreso de un tercero: the roof rented to a phone company, which withholds 19 %. For the 184 and the 347
+		batch.set(comm1.collection('journalEntries').doc('income_antenna'), {
+			year,
+			date: `${year}-03-01`,
+			concept: 'Alquiler de la azotea para la antena',
+			income: { kind: 'rental', payer: 'Antenas del Sur S.A.', payerNif: 'A23000011' },
+			lines: [{ account: '5720', debit: 291600, credit: 0 }, { account: '4730', debit: 68400, credit: 0 }, { account: '7520', debit: 0, credit: 360000 }],
 			...getDatableProperties(),
 		});
 	}
