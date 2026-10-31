@@ -2,7 +2,7 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Issue, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import type { Obligation } from '@gobernansa/shared/domain/obligation.ts';
-import { isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { agingOf } from '@gobernansa/shared/domain/arrears.ts';
 import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getCountFromServer, getDocs, limit, query, Timestamp, where } from 'firebase/firestore';
@@ -50,6 +50,8 @@ export interface CommunityStats {
 	soonObligations: number;
 	overdueAmount: number;
 	overdueCharges: number;
+	// Overdue for more than 90 days, the debt that's getting hard to collect
+	overdueOld: number;
 }
 
 // Counts are aggregation queries (1 read per 1000 counted). Only the lists that need a client side check are read
@@ -72,7 +74,7 @@ export async function loadCommunityStats(community: Community): Promise<Communit
 		.map(issueDoc => issueDoc.data() as Issue)
 		.filter(issue => !issue.deletedAt && (issue.status === 'resolved' || issue.status === 'closed') && issue.createdAt && issue.resolvedAt);
 	const obligationStatuses = obligations.docs.map(obligationDoc => obligationStatus(obligationDoc.data() as Obligation, now));
-	const overdueCharges = unpaid.docs.map(chargeDoc => chargeDoc.data() as Charge).filter(charge => isOverdue(charge, now));
+	const aging = agingOf(unpaid.docs.map(chargeDoc => chargeDoc.data() as Charge), now);
 
 	return {
 		community,
@@ -83,7 +85,8 @@ export async function loadCommunityStats(community: Community): Promise<Communit
 		homes: homes.data().count,
 		overdueObligations: obligationStatuses.filter(status => status === 'overdue').length,
 		soonObligations: obligationStatuses.filter(status => status === 'soon').length,
-		overdueAmount: overdueCharges.reduce((sum, charge) => sum + charge.amount, 0),
-		overdueCharges: overdueCharges.length,
+		overdueAmount: aging.total,
+		overdueCharges: aging.count,
+		overdueOld: aging.buckets[2] + aging.buckets[3],
 	};
 }

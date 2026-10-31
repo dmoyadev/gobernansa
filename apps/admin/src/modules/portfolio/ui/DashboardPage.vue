@@ -57,7 +57,8 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 	overdueObligations: total.overdueObligations + row.overdueObligations,
 	soonObligations: total.soonObligations + row.soonObligations,
 	overdueAmount: total.overdueAmount + row.overdueAmount,
-}), { openIssues: 0, resolutionDaysSum: 0, resolvedCount: 0, registered: 0, homes: 0, overdueObligations: 0, soonObligations: 0, overdueAmount: 0 }));
+	overdueOld: total.overdueOld + row.overdueOld,
+}), { openIssues: 0, resolutionDaysSum: 0, resolvedCount: 0, registered: 0, homes: 0, overdueObligations: 0, soonObligations: 0, overdueAmount: 0, overdueOld: 0 }));
 </script>
 
 <template>
@@ -104,6 +105,7 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 			<dt>Recibos vencidos</dt>
 			<dd :class="{ warn: totals.overdueAmount }">
 				{{ formatCents(totals.overdueAmount) }}
+				<small v-if="totals.overdueOld">{{ formatCents(totals.overdueOld) }} a más de 90 días</small>
 			</dd>
 		</div>
 	</dl>

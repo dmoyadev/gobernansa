@@ -272,7 +272,13 @@ function remove(charge: Charge) {
 	</form>
 
 	<section class="card">
-		<h2>Morosidad</h2>
+		<div class="section-head">
+			<h2>Morosidad</h2>
+			<LnxButton :to="`/communities/${id}/arrears`" mode="clear" size="small">
+				<LnxIcon icon="lucide:mail-warning" />
+				Antigüedad y reclamaciones
+			</LnxButton>
+		</div>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
 			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
 		</p>
@@ -415,6 +421,13 @@ function remove(charge: Charge) {
 		text-transform: uppercase;
 		letter-spacing: .04em;
 	}
+}
+
+.section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
 }
 
 .fields {

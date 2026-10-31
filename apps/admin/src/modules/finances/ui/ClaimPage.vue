@@ -1,0 +1,446 @@
+<script setup lang="ts">
+import type { Claim, ClaimChannel, ClaimLevel, DebtCase } from '@gobernansa/shared/domain/arrears.ts';
+import type { Community } from '@gobernansa/shared/domain/community.ts';
+import type { Charge } from '@gobernansa/shared/domain/finance.ts';
+import type { Property } from '@gobernansa/shared/domain/property.ts';
+import { claimChannels, claimLevels, demoBurofaxTracking, nextClaimLevel } from '@gobernansa/shared/domain/arrears.ts';
+import { toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { formatIban } from '@gobernansa/shared/domain/community.ts';
+import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { formatCents } from '@gobernansa/shared/domain/money.ts';
+import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { computed, onMounted, ref } from 'vue';
+import BackButton from '@/app/ux/BackButton.vue';
+import { onRevalidate } from '@/app/ux/navigation.ts';
+import { optimistic, toast } from '@/app/ux/toast.ts';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { loadDebtCase, recordClaim, restoreClaims } from '../application/useArrears.ts';
+import { loadPropertyAccount } from '../application/useFinances.ts';
+
+const props = defineProps<{ id: string; propertyId: string }>();
+
+const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'long' });
+const levelOptions = Object.entries(claimLevels).map(([value, { label }]) => ({ value: value as ClaimLevel, label }));
+const today = ref(new Date());
+
+const community = ref<Community>();
+const property = ref<Property>();
+const charges = ref<Charge[]>([]);
+const debtCase = ref<DebtCase>();
+const level = ref<ClaimLevel>('reminder');
+const loading = ref(true);
+const error = ref<string>();
+
+// Read once, a letter is a picture of the debt the day it's sent. Coming back reads it again
+async function load() {
+	try {
+		const [loadedCommunity, account, loadedCase] = await Promise.all([
+			loadCommunity(props.id),
+			loadPropertyAccount(props.id, props.propertyId),
+			loadDebtCase(props.id, props.propertyId),
+		]);
+		community.value = loadedCommunity;
+		property.value = account.property;
+		charges.value = account.charges;
+		if (!debtCase.value) {
+			level.value = nextClaimLevel(loadedCase?.claims);
+		}
+		debtCase.value = loadedCase;
+		today.value = new Date();
+		error.value = !loadedCommunity || account.property?.communityId !== props.id ? 'No existe esta comunidad o propiedad.' : undefined;
+	} catch (e) {
+		if (community.value) {
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+		} else {
+			error.value = `No se ha podido cargar: ${(e as Error).message}`;
+		}
+	} finally {
+		loading.value = false;
+	}
+}
+
+onMounted(load);
+onRevalidate(load);
+
+const overdue = computed(() => charges.value.filter(charge => isOverdue(charge, today.value)).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis()));
+const total = computed(() => overdue.value.reduce((sum, charge) => sum + charge.amount, 0));
+const lastClaim = computed(() => debtCase.value?.claims.at(-1));
+
+// The letter's text, the same printed and by email
+const letter = computed(() => {
+	const owner = property.value?.ownerName;
+	const days = claimLevels[level.value].days;
+	const previous = lastClaim.value && dateFormat.format(new Date(`${lastClaim.value.date}T00:00`));
+	const intro = {
+		reminder: `Le recordamos que, según la contabilidad de la comunidad, a fecha de hoy figuran pendientes de pago los siguientes recibos de ${property.value?.name}. Es posible que se trate de un olvido: le rogamos que los abone en los próximos ${days} días y, si ya lo ha hecho, que nos lo comunique y disculpe las molestias.`,
+		second: `${previous ? `Pese a nuestro aviso del ${previous}, siguen` : 'Siguen'} pendientes de pago los siguientes recibos de ${property.value?.name}. Le rogamos que regularice la deuda en un plazo de ${days} días para evitar su reclamación por otras vías.`,
+		formal: `Por la presente se le requiere formalmente el pago de la deuda que mantiene con la comunidad por ${property.value?.name}, detallada a continuación, en un plazo de ${days} días naturales desde la recepción de este escrito.`,
+	}[level.value];
+	const warning = level.value === 'formal'
+		? [
+				'Transcurrido dicho plazo sin haberla satisfecho, se someterá a la junta de propietarios la aprobación de la liquidación de la deuda y se iniciará su reclamación judicial por el procedimiento monitorio previsto en el artículo 21 de la Ley de Propiedad Horizontal, en el que se reclamarán además los gastos de este requerimiento, los intereses y las costas que procedan.',
+				'Le recordamos que, conforme al artículo 15.2 de la misma ley, los propietarios que no estén al corriente de pago de las deudas vencidas con la comunidad no tienen derecho a voto en la junta.',
+			]
+		: [];
+	const iban = community.value?.iban;
+	const payment = iban
+		? `Puede abonarlo por transferencia a la cuenta de la comunidad ${formatIban(iban)}${community.value?.bank ? ` (${community.value.bank})` : ''}, indicando como concepto «${property.value?.name}».`
+		: 'Puede abonarlo en la administración de la comunidad.';
+	return { greeting: owner ? `Estimado/a ${owner}:` : 'Estimado/a propietario/a:', intro, warning, payment };
+});
+
+const subject = computed(() => `${claimLevels[level.value].title}: ${property.value?.name} · Comunidad ${community.value?.name}`);
+
+const mailto = computed(() => {
+	const email = property.value?.ownerEmail;
+	if (!email) {
+		return undefined;
+	}
+	const items = overdue.value.map(charge => `- ${charge.concept} (vencido el ${dateFormat.format(charge.dueDate.toDate())}): ${formatCents(charge.amount)}`);
+	const body = [
+		letter.value.greeting,
+		letter.value.intro,
+		[...items, `Total adeudado: ${formatCents(total.value)}`].join('\n'),
+		...letter.value.warning,
+		letter.value.payment,
+		`Atentamente,\nLa administración de la Comunidad de propietarios ${community.value?.name}`,
+	].join('\n\n');
+	return `mailto:${email}?subject=${encodeURIComponent(subject.value)}&body=${encodeURIComponent(body)}`;
+});
+
+// Kept in the case's log, and undone from the toast if the letter wasn't sent after all
+const recording = ref(false);
+async function record(channel: ClaimChannel) {
+	if (!property.value || recording.value) {
+		return;
+	}
+	const claim: Claim = {
+		date: toDateString(new Date()),
+		level: level.value,
+		channel,
+		amount: total.value,
+		...(channel === 'burofax' ? { tracking: demoBurofaxTracking() } : {}),
+	};
+	const previous = debtCase.value;
+	const target = { id: property.value.id, name: property.value.name };
+	recording.value = true;
+	debtCase.value = {
+		...(previous ?? { id: target.id, propertyId: target.id, propertyName: target.name, claims: [] }),
+		id: target.id,
+		status: previous?.status === 'monitorio' ? 'monitorio' : 'claimed',
+		claims: [...previous?.claims ?? [], claim],
+	} as DebtCase;
+	await optimistic(recordClaim(props.id, target, claim, previous), {
+		done: claim.tracking ? `Burofax de prueba registrado: ${claim.tracking}` : `Reclamación registrada (${claimChannels[channel].toLowerCase()})`,
+		failed: 'No se ha podido registrar',
+		revert: async () => {
+			debtCase.value = previous;
+			await restoreClaims(props.id, previous ?? { id: target.id, propertyName: target.name, claims: [], status: 'claimed' }, !!previous);
+		},
+		onError: () => debtCase.value = previous,
+	});
+	recording.value = false;
+}
+
+function printAndRecord() {
+	window.print();
+	void record('letter');
+}
+</script>
+
+<template>
+	<header class="page-header">
+		<BackButton :to="`/communities/${id}/arrears`" label="Volver a morosidad" />
+		<h1>Carta de reclamación</h1>
+		<LnxSelect
+			v-model.convert="level"
+			class="level"
+			aria-label="Nivel"
+			:options="levelOptions"
+			:convert-fn="option => option.value"
+			search-placeholder-text="Buscar..."
+		>
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ claimLevels[value as ClaimLevel].label }}
+			</template>
+		</LnxSelect>
+	</header>
+
+	<section v-if="!error && !loading" class="card send">
+		<p class="hint">
+			<template v-if="lastClaim">
+				Última reclamación: {{ claimLevels[lastClaim.level].label.toLowerCase() }} por {{ claimChannels[lastClaim.channel].toLowerCase() }} el {{ dateFormat.format(new Date(`${lastClaim.date}T00:00`)) }}.
+			</template>
+			<template v-else>
+				Aún no se le ha reclamado.
+			</template>
+			Cada envío queda en el registro de reclamaciones de la propiedad.
+		</p>
+		<p v-if="!overdue.length" class="warning">
+			<LnxIcon icon="lucide:circle-check" />
+			No tiene recibos vencidos: no hay nada que reclamar.
+		</p>
+		<div class="actions">
+			<LnxButton :disabled="!overdue.length" :is-loading="recording" @click="printAndRecord()">
+				<LnxIcon icon="lucide:printer" />
+				Imprimir y registrar carta
+			</LnxButton>
+			<LnxButton v-if="mailto && overdue.length" :href="mailto" mode="outline" @click="record('email')">
+				<LnxIcon icon="lucide:mail" />
+				Enviar por email
+			</LnxButton>
+			<LnxButton v-else mode="outline" disabled :title="overdue.length ? 'El censo no tiene el correo del propietario' : undefined">
+				<LnxIcon icon="lucide:mail" />
+				Enviar por email
+			</LnxButton>
+			<LnxButton mode="outline" :disabled="!overdue.length" :is-loading="recording" @click="record('burofax')">
+				<LnxIcon icon="lucide:stamp" />
+				Enviar por burofax
+				<span class="chip test">Modo de prueba</span>
+			</LnxButton>
+		</div>
+		<p class="hint">
+			El email se abre en tu programa de correo. El burofax es simulado: no se envía nada ni tiene coste, solo se registra con un justificante de prueba hasta contratar un servicio de envío certificado.
+		</p>
+	</section>
+
+	<p v-if="error" class="error" role="alert">
+		{{ error }}
+	</p>
+	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
+		<header>
+			<span class="skeleton-item" style="width: 55%" />
+			<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+		</header>
+		<div class="lines">
+			<span v-for="width in [100, 96, 100, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+		</div>
+	</article>
+	<article v-else-if="community && property" class="sheet ux-appear">
+		<header>
+			<strong>Comunidad de propietarios {{ community.name }}</strong>
+			<span>{{ community.address }}</span>
+			<span v-if="community.cif">CIF {{ community.cif }}</span>
+		</header>
+
+		<address>
+			<strong>{{ property.ownerName || 'Propietario/a' }}</strong>
+			<span>{{ property.name }}</span>
+			<span>{{ community.address }}</span>
+		</address>
+
+		<p class="date">
+			{{ dateFormat.format(today) }}
+		</p>
+
+		<h2>{{ claimLevels[level].title }}</h2>
+
+		<p>{{ letter.greeting }}</p>
+		<p>{{ letter.intro }}</p>
+
+		<table v-if="overdue.length">
+			<thead>
+				<tr>
+					<th>Concepto</th>
+					<th>Tipo</th>
+					<th>Vencimiento</th>
+					<th class="amount">
+						Importe
+					</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr v-for="charge in overdue" :key="charge.id">
+					<td>{{ charge.concept }}</td>
+					<td>{{ chargeTypes[charge.type] }}</td>
+					<td>{{ dateFormat.format(charge.dueDate.toDate()) }}</td>
+					<td class="amount">
+						{{ formatCents(charge.amount) }}
+					</td>
+				</tr>
+			</tbody>
+			<tfoot>
+				<tr>
+					<th colspan="3">
+						Total adeudado
+					</th>
+					<th class="amount">
+						{{ formatCents(total) }}
+					</th>
+				</tr>
+			</tfoot>
+		</table>
+
+		<p v-for="paragraph in letter.warning" :key="paragraph">
+			{{ paragraph }}
+		</p>
+		<p>{{ letter.payment }}</p>
+		<p>Atentamente,</p>
+
+		<footer>
+			<span>La administración de la comunidad</span>
+		</footer>
+	</article>
+</template>
+
+<style lang="scss" scoped>
+.page-header {
+	margin-bottom: var(--lnx-spacing-5);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+
+	h1 {
+		flex: 1;
+		font-size: var(--lnx-font-size-title);
+	}
+
+	.level {
+		min-width: 220px;
+	}
+}
+
+.card {
+	max-width: 210mm;
+	margin: 0 auto var(--lnx-spacing-5);
+	padding: var(--lnx-spacing-5);
+	border: 1px solid var(--color-gray-3);
+	border-radius: var(--lnx-radius-3);
+	background: var(--color-gray-0);
+	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-2);
+}
+
+.chip {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: 999px;
+	font-size: var(--lnx-font-size-small);
+	white-space: nowrap;
+
+	&.test {
+		color: var(--color-gray-7);
+		background: var(--color-gray-2);
+	}
+}
+
+.hint {
+	color: var(--color-gray-6);
+	font-size: var(--lnx-font-size-small);
+}
+
+.warning {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	font-size: var(--lnx-font-size-small);
+	color: var(--color-gray-7);
+}
+
+// An A4 page on screen, the same on paper
+.sheet {
+	max-width: 210mm;
+	min-height: 297mm;
+	margin: 0 auto;
+	padding: 20mm;
+	background: #FFFFFF;
+	color: #000000;
+	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000014;
+	display: flex;
+	flex-direction: column;
+	gap: 6mm;
+	font-size: 11pt;
+	line-height: 1.6;
+
+	> header,
+	address,
+	.lines {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.lines {
+		gap: 2mm;
+	}
+
+	// Where a window envelope shows it
+	address {
+		align-self: flex-end;
+		width: 85mm;
+		font-style: normal;
+	}
+
+	.date {
+		align-self: flex-end;
+	}
+
+	h2 {
+		font-size: 13pt;
+		text-transform: uppercase;
+	}
+
+	p {
+		text-align: justify;
+	}
+
+	> footer {
+		margin-top: 20mm;
+		padding-top: 2mm;
+		width: 70mm;
+		border-top: 1px solid #000000;
+		text-align: center;
+		font-size: 9pt;
+	}
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+
+	th,
+	td {
+		padding: 1.5mm 2mm;
+		border-bottom: 1px solid #CCCCCC;
+		text-align: left;
+	}
+
+	.amount {
+		text-align: right;
+	}
+}
+
+.error {
+	color: var(--color-secondary-accent);
+	font-size: var(--lnx-font-size-small);
+}
+
+@page {
+	size: A4;
+	margin: 20mm;
+}
+
+@media print {
+	.page-header,
+	.send {
+		display: none;
+	}
+
+	.sheet {
+		max-width: none;
+		min-height: auto;
+		padding: 0;
+		box-shadow: none;
+	}
+}
+</style>

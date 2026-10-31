@@ -429,6 +429,36 @@ async function seed() {
 			lines: [{ account: '5720', debit: 291600, credit: 0 }, { account: '4730', debit: 68400, credit: 0 }, { account: '7520', debit: 0, credit: 360000 }],
 			...getDatableProperties(),
 		});
+
+		// Morosidad: Piso 2B owes fees from 40, 120 and 220 days ago, has had two claims and the lawyer's on it
+		const daysAgo = days => new Date(Date.now() - days * 86_400_000);
+		for (const [id, concept, days] of [['debt_1', 'Cuota trimestral 1/4', 220], ['debt_2', 'Cuota trimestral 2/4', 120], ['debt_3', 'Cuota trimestral 3/4', 40]]) {
+			batch.set(comm1.collection('charges').doc(id), {
+				communityId: 'comm1',
+				propertyId: 'prop4',
+				propertyName: 'Piso 2B',
+				ownerUid: 'user4',
+				ownerName: 'María Núñez',
+				type: 'fee',
+				concept: `${concept} ${daysAgo(days).getFullYear()}`,
+				amount: 18000,
+				dueDate: daysAgo(days),
+				paidAt: null,
+				batchId: 'seed-debt',
+				...getDatableProperties(),
+			});
+		}
+		const isoDaysAgo = days => daysAgo(days).toISOString().slice(0, 10);
+		batch.set(comm1.collection('debtCases').doc('prop4'), {
+			propertyId: 'prop4',
+			propertyName: 'Piso 2B',
+			status: 'claimed',
+			claims: [
+				{ date: isoDaysAgo(100), level: 'reminder', channel: 'letter', amount: 36000 },
+				{ date: isoDaysAgo(30), level: 'second', channel: 'burofax', amount: 54000, tracking: 'PRUEBA-BF000123456' },
+			],
+			...getDatableProperties(),
+		});
 	}
 
 	await batch.commit();

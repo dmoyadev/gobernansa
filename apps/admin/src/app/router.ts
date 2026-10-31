@@ -111,6 +111,27 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/arrears',
+					name: 'Gestión de morosidad',
+					component: async () => import('@/modules/finances/ui/ArrearsPage.vue'),
+					meta: { title: 'Gestión de morosidad' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/arrears/:propertyId/claim',
+					name: 'Carta de reclamación',
+					component: async () => import('@/modules/finances/ui/ClaimPage.vue'),
+					meta: { title: 'Carta de reclamación' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/arrears/:propertyId/monitorio',
+					name: 'Procedimiento monitorio',
+					component: async () => import('@/modules/finances/ui/MonitorioPage.vue'),
+					meta: { title: 'Procedimiento monitorio' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/budget',
 					name: 'Presupuesto',
 					component: async () => import('@/modules/finances/ui/BudgetPage.vue'),

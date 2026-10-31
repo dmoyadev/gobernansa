@@ -345,6 +345,12 @@ service cloud.firestore {
         allow delete: if manages(communityId);
       }
 
+      // Reclamaciones of a property's debt, one per property (its id): the claims sent and the monitorio's data. Only the office
+      match /debtCases/{propertyId} {
+        allow read, delete: if manages(communityId);
+        allow create, update: if manages(communityId) && request.resource.data.propertyId == propertyId;
+      }
+
       // Remesas of domiciliated charges (SEPA direct debit), with each debtor's account. Only the office: the owners'
       // mandates are in their properties
       match /remittances/{remittanceId} {
