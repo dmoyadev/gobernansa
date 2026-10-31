@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { Booking } from '@gobernansa/shared/domain/booking.ts';
 import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/community.ts';
-import { getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { bookingTotal, getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getCommonAreas, WEEKDAYS } from '@gobernansa/shared/domain/community.ts';
+import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
+import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
+import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -12,13 +15,17 @@ import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { cancelBooking, restoreBooking, saveCommonAreas, useBookingsOf } from '../application/useBookings.ts';
+import { cancelBooking, restoreBooking, saveCommonAreas, setBookingPaid, setDepositReturned, useBookingsOf, useHeldDeposits } from '../application/useBookings.ts';
 
 const props = defineProps<{ id: string; areaId: string }>();
 
 // Numbers as text, as the inputs give them, so an empty optional one can be told apart
-type BookingForm = Omit<BookingSettings, 'slotMinutes' | 'maxPerWeek' | 'advanceDays' | 'rules'>
-	& { slotMinutes: string; maxPerWeek: string; advanceDays: string; rules: string };
+type BookingForm = Omit<BookingSettings, 'slotMinutes' | 'maxPerWeek' | 'advanceDays' | 'rules' | 'price' | 'deposit'>
+	& { slotMinutes: string; maxPerWeek: string; advanceDays: string; rules: string; price: string; deposit: string };
+
+function centsText(cents?: number) {
+	return cents ? (cents / 100).toFixed(2).replace('.', ',') : '';
+}
 
 function toForm(booking: BookingSettings): BookingForm {
 	return {
@@ -29,6 +36,8 @@ function toForm(booking: BookingSettings): BookingForm {
 		maxPerWeek: booking.maxPerWeek?.toString() ?? '',
 		advanceDays: booking.advanceDays?.toString() ?? '',
 		rules: booking.rules ?? '',
+		price: centsText(booking.price),
+		deposit: centsText(booking.deposit),
 	};
 }
 
@@ -42,6 +51,8 @@ function fromForm(form: BookingForm): BookingSettings {
 		...(form.maxPerWeek ? { maxPerWeek: Number(form.maxPerWeek) } : {}),
 		...(form.advanceDays ? { advanceDays: Number(form.advanceDays) } : {}),
 		...(form.rules.trim() ? { rules: form.rules.trim() } : {}),
+		...(form.price.trim() ? { price: toCents(form.price) } : {}),
+		...(form.deposit.trim() ? { deposit: toCents(form.deposit) } : {}),
 	};
 }
 
@@ -77,6 +88,11 @@ const formError = ref<string>();
 function save() {
 	if (!form.value!.days.length || form.value!.opens >= form.value!.closes) {
 		formError.value = 'Necesita al menos un día y abrir antes de cerrar.';
+		return;
+	}
+	const { price, deposit } = fromForm(form.value!);
+	if ([price, deposit].some(cents => cents !== undefined && !(cents >= 0))) {
+		formError.value = 'Escribe un precio y una fianza válidos, p. ej. 10,00';
 		return;
 	}
 
@@ -139,11 +155,43 @@ const agenda = computed(() => {
 	return { slots, days, others };
 });
 
+/* Payments and fianzas: the week's bookings that cost something, plus the fianzas still held from other weeks */
+const { data: heldDeposits, error: depositsError } = useHeldDeposits(props.id);
+const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
+
+const paidBookings = computed(() => {
+	const week = weekBookings.value.filter(item => item.areaId === props.areaId && bookingTotal(item));
+	const held = heldDeposits.value.filter(item => item.areaId === props.areaId && !week.some(other => other.id === item.id));
+	return [...week, ...held].sort((a, b) => `${a.date}${a.from}`.localeCompare(`${b.date}${b.from}`));
+});
+
+function togglePaid(booking: Booking) {
+	const paidAt = booking.paidAt ? null : Timestamp.now();
+	const areaName = area.value?.name ?? 'la zona';
+	void optimistic(setBookingPaid(props.id, booking, paidAt, areaName), {
+		done: paidAt ? 'Marcada como pagada' : booking.payment ? 'Pago de prueba anulado' : 'Marcada como pendiente',
+		failed: 'No se ha podido cambiar',
+		revert: () => setBookingPaid(props.id, booking, booking.paidAt ?? null, areaName),
+	});
+}
+
+function toggleDeposit(booking: Booking) {
+	const returnedAt = booking.depositReturnedAt ? null : Timestamp.now();
+	const areaName = area.value?.name ?? 'la zona';
+	void optimistic(setDepositReturned(props.id, booking, returnedAt, areaName), {
+		done: returnedAt ? 'Fianza devuelta' : 'Fianza retenida otra vez',
+		failed: 'No se ha podido cambiar',
+		revert: () => setDepositReturned(props.id, booking, booking.depositReturnedAt ?? null, areaName),
+	});
+}
+
 const bookedCount = computed(() => agenda.value.days.reduce((total, day) => total + day.bookings.filter(Boolean).length, 0) + agenda.value.others.length);
 
 function cancel(booking: Booking) {
+	// Cancelling doesn't give anything back: what was paid is returned by transfer or at the office
+	const paidNote = booking.paidAt && bookingTotal(booking) ? ` Ya pagó ${formatCents(bookingTotal(booking))}: devuélveselo aparte.` : '';
 	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Anular la reserva de ${booking.name} el ${formatDay(booking.date, { weekday: 'long', day: 'numeric', month: 'long' })} a las ${booking.from}?`)) {
+	if (!window.confirm(`¿Anular la reserva de ${booking.name} el ${formatDay(booking.date, { weekday: 'long', day: 'numeric', month: 'long' })} a las ${booking.from}?${paidNote}`)) {
 		return;
 	}
 
@@ -240,7 +288,8 @@ function cancel(booking: Booking) {
 								{{ slot.from }}
 							</th>
 							<td v-for="day in agenda.days" :key="day.date" :class="{ closed: !day.open, past: day.past }">
-								<div v-if="day.bookings[slotIndex]" class="booked" :title="`${day.bookings[slotIndex]!.name} · ${slot.from}–${slot.to}`">
+								<div v-if="day.bookings[slotIndex]" class="booked" :title="`${day.bookings[slotIndex]!.name} · ${slot.from}–${slot.to}${day.bookings[slotIndex]!.paidAt === null ? ' · pendiente de pago' : ''}`">
+									<LnxIcon v-if="day.bookings[slotIndex]!.paidAt === null" icon="lucide:circle-dollar-sign" :size="14" aria-label="Pendiente de pago" />
 									<span class="who">{{ day.bookings[slotIndex]!.name }}</span>
 									<button
 										v-if="!day.past"
@@ -280,6 +329,45 @@ function cancel(booking: Booking) {
 			</div>
 		</section>
 
+		<section v-if="area.booking.price || area.booking.deposit || paidBookings.length" class="card">
+			<h2>Cobros y fianzas</h2>
+			<p class="hint">
+				Las reservas de esta semana que cuestan algo y las fianzas aún sin devolver. Lo cobrado va a «Otros ingresos de gestión» en la contabilidad, y las fianzas a «Fianzas recibidas» hasta que se devuelven.
+			</p>
+			<p v-if="depositsError" class="error" role="alert">
+				No se han podido cargar las fianzas: {{ depositsError.message }}
+			</p>
+			<ul v-if="paidBookings.length" class="payments">
+				<li v-for="booking in paidBookings" :key="booking.id">
+					<span class="what">
+						<span>{{ booking.name }}</span>
+						<small class="tabular">
+							{{ formatDay(booking.date, { weekday: 'short', day: 'numeric', month: 'short' }) }} · {{ booking.from }}–{{ booking.to }}
+							<template v-if="booking.price"> · {{ formatCents(booking.price) }}</template>
+							<template v-if="booking.deposit"> · fianza {{ formatCents(booking.deposit) }}</template>
+						</small>
+					</span>
+					<span v-if="booking.payment" class="chip test" :title="`${describePayment(booking.payment)} · ref. ${booking.payment.id}`">Pago de prueba</span>
+					<span v-if="booking.paidAt" class="chip ok">Pagada el {{ dateFormat.format(booking.paidAt.toDate()) }}</span>
+					<span v-else class="chip debt">Pendiente de pago</span>
+					<span v-if="booking.deposit && booking.paidAt" class="chip" :class="{ ok: booking.depositReturnedAt }">
+						{{ booking.depositReturnedAt ? 'Fianza devuelta' : 'Fianza retenida' }}
+					</span>
+					<span class="item-actions">
+						<LnxButton mode="clear" size="small" @click="togglePaid(booking)">
+							{{ booking.payment ? 'Anular pago de prueba' : booking.paidAt ? 'Marcar pendiente' : 'Marcar pagada' }}
+						</LnxButton>
+						<LnxButton v-if="booking.deposit && booking.paidAt" mode="clear" size="small" @click="toggleDeposit(booking)">
+							{{ booking.depositReturnedAt ? 'Retener fianza' : 'Devolver fianza' }}
+						</LnxButton>
+					</span>
+				</li>
+			</ul>
+			<p v-else class="hint">
+				Nada que cobrar ni devolver esta semana.
+			</p>
+		</section>
+
 		<form ref="formElement" class="card" @submit.prevent="save()">
 			<h2>Configuración</h2>
 			<div class="fields">
@@ -304,6 +392,12 @@ function cancel(booking: Booking) {
 				</LnxInput>
 				<LnxInput v-model="form.advanceDays" type="number" min="1" max="365" placeholder="14">
 					Días de antelación
+				</LnxInput>
+				<LnxInput v-model="form.price" inputmode="decimal" placeholder="Gratis">
+					Precio por franja (€)
+				</LnxInput>
+				<LnxInput v-model="form.deposit" inputmode="decimal" placeholder="Sin fianza">
+					Fianza (€)
 				</LnxInput>
 				<LnxTextarea v-model="form.rules" rows="2" placeholder="Máximo 4 personas. Deja la pista como la encontraste." class="wide">
 					Normas
@@ -546,6 +640,60 @@ td .booked {
 		&:active {
 			scale: .9;
 		}
+	}
+}
+
+.payments {
+	display: flex;
+	flex-direction: column;
+
+	li {
+		padding: var(--lnx-spacing-2) 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
+
+		& + li {
+			border-top: 1px solid var(--color-gray-3);
+		}
+	}
+
+	.what {
+		flex: 1;
+		min-width: 12em;
+		display: flex;
+		flex-direction: column;
+
+		small {
+			color: var(--color-gray-6);
+		}
+	}
+}
+
+.item-actions {
+	display: flex;
+	gap: var(--lnx-spacing-1);
+}
+
+.chip {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: 999px;
+	background: var(--color-gray-2);
+	font-size: var(--lnx-font-size-small);
+	white-space: nowrap;
+
+	&.ok {
+		color: var(--color-primary);
+	}
+
+	&.test {
+		color: var(--color-gray-7);
+	}
+
+	&.debt {
+		color: var(--color-gray-0);
+		background: var(--color-secondary-accent);
 	}
 }
 

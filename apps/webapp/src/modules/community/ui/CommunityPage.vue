@@ -118,6 +118,24 @@ function formatDate(document: CommunityDocument) {
 			</p>
 		</section>
 
+		<section>
+			<h2>Tus cuentas</h2>
+			<ul class="list">
+				<li>
+					<RouterLink class="row" to="/neighborhood/charges">
+						<span class="icon">
+							<LnxIcon icon="lucide:receipt-euro" :size="20" />
+						</span>
+						<span class="body">
+							<small>{{ userCommunity?.onlinePayments ? 'Pendientes, pago online y justificantes' : 'Pendientes, pagados y justificantes' }}</small>
+							<strong>Mis recibos</strong>
+						</span>
+						<LnxIcon class="chevron" icon="lucide:chevron-right" :size="16" />
+					</RouterLink>
+				</li>
+			</ul>
+		</section>
+
 		<section id="contacts">
 			<h2>Contactos</h2>
 			<ul class="list">

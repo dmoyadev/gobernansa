@@ -1,4 +1,5 @@
 import type { CustomAccount, FiscalYearClosing, JournalLine, ManualEntry } from '@gobernansa/shared/domain/accounting.ts';
+import type { Booking } from '@gobernansa/shared/domain/booking.ts';
 import type { Budget, Charge, Expense } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
@@ -43,15 +44,16 @@ function data<T>(snapshot: DocumentSnapshot) {
  * Everything the year's books are made from, read once with one where() per query: the charges due, paid or still
  * unpaid (a returned one may be from an earlier year), the invoices dated (not by their budget's year, which may be
  * another) or paid in the year, the manual entries, this year's closing and the previous one (its opening), the
- * budget, the census and the added accounts
+ * budget, the census and the added accounts, and the bookings paid or whose fianza was returned in the year
  */
 export async function loadLedgerData(communityId: string, year: number) {
 	const from = Timestamp.fromDate(new Date(year, 0, 1));
 	const to = Timestamp.fromDate(new Date(year + 1, 0, 1));
 	const charges = collection(db, 'communities', communityId, 'charges');
 	const expenses = collection(db, 'communities', communityId, 'expenses');
+	const bookings = collection(db, 'communities', communityId, 'bookings');
 	// ponytail: charges due and paid in the year are read twice, a charge's year (or a ledger cache) would halve it
-	const [due, paid, unpaid, dated, settled, manual, closing, previous, budget, properties, chart] = await Promise.all([
+	const [due, paid, unpaid, dated, settled, manual, closing, previous, budget, properties, chart, booked, returned] = await Promise.all([
 		getDocs(query(charges, where('dueDate', '>=', from), where('dueDate', '<', to))),
 		getDocs(query(charges, where('paidAt', '>=', from), where('paidAt', '<', to))),
 		getDocs(query(charges, where('paidAt', '==', null))),
@@ -63,11 +65,14 @@ export async function loadLedgerData(communityId: string, year: number) {
 		getDoc(doc(db, 'communities', communityId, 'budgets', String(year))),
 		getDocs(query(collection(db, 'properties'), where('communityId', '==', communityId))),
 		getDoc(chartRef(communityId)),
+		getDocs(query(bookings, where('paidAt', '>=', from), where('paidAt', '<', to))),
+		getDocs(query(bookings, where('depositReturnedAt', '>=', from), where('depositReturnedAt', '<', to))),
 	]);
 	const unique = <T extends { id: string }>(lists: T[][]) => [...new Map(lists.flat().map(item => [item.id, item])).values()];
 	return {
 		charges: unique([docs<Charge>(due), docs<Charge>(paid), docs<Charge>(unpaid)]),
 		expenses: unique([docs<Expense>(dated), docs<Expense>(settled)]),
+		bookings: unique([docs<Booking>(booked), docs<Booking>(returned)]),
 		manual: docs<ManualEntry>(manual),
 		closing: data<FiscalYearClosing>(closing),
 		previous: data<FiscalYearClosing>(previous),

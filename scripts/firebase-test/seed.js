@@ -87,7 +87,13 @@ async function seed() {
 				{ id: 'piscina', name: 'Piscina', icon: 'lucide:waves-ladder' },
 				{ id: 'jardin', name: 'Jardín', icon: 'lucide:trees' },
 				{ id: 'padel', name: 'Pista de pádel', icon: 'lucide:volleyball', booking: { days: [1, 2, 3, 4, 5, 6, 7], opens: '09:00', closes: '22:00', slotMinutes: 90, maxPerWeek: 3, rules: 'Máximo 4 personas.' } },
+				// Paid booking: 15 € per slot and a 50 € fianza, given back after
+				{ id: 'sala', name: 'Sala común', icon: 'lucide:sofa', booking: { days: [5, 6, 7], opens: '10:00', closes: '22:00', slotMinutes: 240, maxPerWeek: 1, price: 1500, deposit: 5000 } },
 			],
+			// Mirrors the areas' price and fianza, as the admin platform saves them, for the rules
+			bookingFees: { sala: { price: 1500, deposit: 5000 } },
+			// Neighbours pay their charges and bookings from the app with the test checkout (4242 4242 4242 4242)
+			onlinePayments: 'test',
 			monthlyVotes: 5,
 			// Made-up data: the IBAN is the usual example one
 			cif: 'H23123458',

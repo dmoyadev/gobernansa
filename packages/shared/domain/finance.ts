@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
+import type { PaymentRef } from './payment.ts';
 import type { Property } from './property.ts';
 import type { ReturnReason } from './sepa.ts';
 import { splitByCoefficient } from './property.ts';
@@ -29,6 +30,8 @@ export interface Charge extends Datable {
 	returns?: ChargeReturn[];
 	// The bank movement it was paid with, when reconciled
 	bankMovementId?: string;
+	// Paid by the owner from the app, removed when the office marks it unpaid again
+	payment?: PaymentRef;
 }
 
 export interface ChargeReturn {

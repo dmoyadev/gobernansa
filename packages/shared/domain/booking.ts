@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { BookableArea } from './community.ts';
+import type { PaymentRef } from './payment.ts';
 
 // At communities/{communityId}/bookings, stored as `${areaId}_${date}_${from}` so a slot can only be booked once
 export interface Booking {
@@ -13,6 +14,19 @@ export interface Booking {
 	uid: string;
 	name: string;
 	createdAt: Timestamp;
+	// In cents, copied from the area when booked. Older bookings and free areas lack them
+	price?: number;
+	deposit?: number;
+	// null while it's owed, only when it costs something. payment when it was paid from the app
+	paidAt?: Timestamp | null;
+	payment?: PaymentRef;
+	// null while the fianza is held
+	depositReturnedAt?: Timestamp | null;
+}
+
+// What the neighbour pays when booking, the price and the fianza
+export function bookingTotal(booking: Pick<Booking, 'price' | 'deposit'>) {
+	return (booking.price ?? 0) + (booking.deposit ?? 0);
 }
 
 export function bookingId(areaId: string, date: string, from: string) {

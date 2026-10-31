@@ -6,7 +6,7 @@ import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { chargeTypes, feeBatchId, feePeriodicities, payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 
@@ -121,15 +121,37 @@ export async function issueCharges(communityId: string, { type, concept, dueDate
 // paidAt is given, so undoing puts back the exact date it had
 export async function setChargePaid(communityId: string, charge: Charge, paidAt: Timestamp | null) {
 	const paid = !!paidAt;
+	const uid = signedUid();
+	// A payment from the app marked unpaid is reverted: the charge drops it, the payment stays marked so. Undoing it
+	// (paid again, with the charge as it was) brings it back
+	const revert = !paid && !!charge.payment;
 	const batch = writeBatch(db);
 	batch.update(doc(chargesRef(communityId), charge.id), {
 		paidAt,
+		...(charge.payment ? { payment: paid ? charge.payment : deleteField() } : {}),
 		updatedAt: serverTimestamp(),
-		updatedBy: signedUid(),
+		updatedBy: uid,
 	});
+	if (charge.payment) {
+		batch.update(doc(db, 'communities', communityId, 'payments', charge.payment.id), paid
+			? { revertedAt: deleteField(), revertedBy: deleteField() }
+			: { revertedAt: serverTimestamp(), revertedBy: uid });
+	}
 	logActivity(batch, communityId, {
 		area: 'finance',
-		summary: `Marcó «${charge.concept}» de ${charge.propertyName} como ${paid ? 'pagado' : 'pendiente'}`,
+		summary: `Marcó «${charge.concept}» de ${charge.propertyName} como ${paid ? 'pagado' : 'pendiente'}${revert ? ', anulando su pago de prueba' : ''}`,
+		link: `/communities/${communityId}/charges`,
+	});
+	await batch.commit();
+}
+
+// Whether neighbours can pay from the app. Only the test mode exists for now, off removes the field
+export async function saveOnlinePayments(communityId: string, mode: 'test' | null) {
+	const batch = writeBatch(db);
+	batch.update(doc(db, 'communities', communityId), { onlinePayments: mode ?? deleteField(), updatedAt: serverTimestamp(), updatedBy: signedUid() });
+	logActivity(batch, communityId, {
+		area: 'finance',
+		summary: mode ? 'Activó los pagos online de los vecinos en modo de prueba' : 'Desactivó los pagos online de los vecinos',
 		link: `/communities/${communityId}/charges`,
 	});
 	await batch.commit();

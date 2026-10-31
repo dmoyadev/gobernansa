@@ -1,7 +1,8 @@
 import type { Datable } from './audit.ts';
+import type { Booking } from './booking.ts';
 import type { Budget, Charge, Expense } from './finance.ts';
 import type { Property } from './property.ts';
-import { toDateString } from './booking.ts';
+import { bookingTotal, toDateString } from './booking.ts';
 import { payableAmount } from './finance.ts';
 
 /*
@@ -117,6 +118,7 @@ export const baseAccounts: Record<string, string> = {
 	4300: 'Propietarios',
 	4730: 'Hacienda Pública, retenciones y pagos a cuenta',
 	4751: 'Hacienda Pública, acreedora por retenciones practicadas',
+	5600: 'Fianzas recibidas a corto plazo',
 	5700: 'Caja',
 	5720: 'Bancos',
 	6220: 'Reparaciones y conservación',
@@ -164,6 +166,8 @@ export interface LedgerInput {
 	charges: Charge[];
 	// Those dated or paid in the year, or more
 	expenses: Expense[];
+	// Paid bookings of common areas, those paid or whose fianza was returned in the year, or more
+	bookings?: Booking[];
 	manual: ManualEntry[];
 	budget?: Pick<Budget, 'items' | 'reserveOpening'>;
 	properties: Pick<Property, 'id' | 'name' | 'ownerName'>[];
@@ -190,6 +194,7 @@ const kindOrder: EntryKind[] = ['opening', 'charge', 'invoice', 'collection', 'p
  *   bank does, since the charge no longer keeps when it was collected
  * - factura recibida: the partida's expense (or the fondo de reserva when paid from it) a proveedor and retenciones
  * - pago: proveedor a bancos (or caja), older invoices without paidAt were paid on their date
+ * - reserva pagada: bancos a otros ingresos de gestión, and the fianza to fianzas recibidas until it's given back
  * plus the opening (the previous closing, or else the fund's opening balance from the budget), the manual entries,
  * and the regularization and closing once the year is closed
  */
@@ -251,6 +256,17 @@ export function buildLedger(input: LedgerInput): Ledger {
 		const paidAt = expense.paidAt === undefined ? expense.date : expense.paidAt;
 		if (paidAt && payable > 0) {
 			add({ id: `payment-${expense.id}`, date: day(paidAt), concept: `Pago ${what}`, kind: 'payment', lines: [line(creditor, payable), line(expense.paymentMethod === 'cash' ? '5700' : '5720', 0, payable)] });
+		}
+	}
+
+	for (const booking of input.bookings ?? []) {
+		const what = `Reserva ${booking.date} ${booking.from} · ${booking.name}`;
+		const deposit = booking.deposit ?? 0;
+		if (booking.paidAt) {
+			add({ id: `booking-${booking.id}`, date: day(booking.paidAt), concept: what, kind: 'collection', lines: [line('5720', bookingTotal(booking)), line('7590', 0, booking.price ?? 0), line('5600', 0, deposit)] });
+			if (booking.depositReturnedAt) {
+				add({ id: `deposit-${booking.id}`, date: day(booking.depositReturnedAt), concept: `Devolución de fianza ${what}`, kind: 'return', lines: [line('5600', deposit), line('5720', 0, deposit)] });
+			}
 		}
 	}
 

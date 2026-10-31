@@ -102,6 +102,19 @@ export const routes: Array<RouteRecordRaw> = [
 						props: true,
 					},
 					{
+						path: 'charges',
+						name: 'Mis recibos',
+						component: async () => import('@/modules/finances/ui/ChargesPage.vue'),
+						meta: { title: 'Mis recibos' },
+					},
+					{
+						path: 'charges/:id/receipt',
+						name: 'Justificante de pago',
+						component: async () => import('@/modules/finances/ui/ReceiptPage.vue'),
+						meta: { title: 'Justificante de pago' },
+						props: true,
+					},
+					{
 						path: 'bookings',
 						name: 'Reservas',
 						component: async () => import('@/modules/bookings/ui/BookingsPage.vue'),

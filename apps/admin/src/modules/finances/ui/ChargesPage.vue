@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
+import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
@@ -13,7 +15,8 @@ import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
-import { deleteCharge, issueCharges, loadPropertyCharges, restoreCharge, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { deleteCharge, issueCharges, loadPropertyCharges, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -180,6 +183,44 @@ function togglePaid(charge: Charge) {
 	});
 }
 
+// Online payments by the neighbours, read once with the community
+const onlinePayments = ref<Community['onlinePayments'] | null>();
+const paymentsOptions = [
+	{ value: 'off', label: 'Desactivados' },
+	{ value: 'test', label: 'Modo de prueba' },
+];
+
+function loadPaymentsMode() {
+	return loadCommunity(props.id)
+		.then(community => onlinePayments.value = community?.onlinePayments ?? null)
+		.catch((e: Error) => actionError.value = `No se ha podido cargar la comunidad: ${e.message}`);
+}
+
+void loadPaymentsMode();
+onRevalidate(loadPaymentsMode);
+
+const paymentsMode = computed({
+	get: () => onlinePayments.value ? 'test' : 'off',
+	set: value => setPaymentsMode(value === 'test' ? 'test' : null),
+});
+
+function setPaymentsMode(next: 'test' | null) {
+	const previous = onlinePayments.value;
+	if (next === previous) {
+		return;
+	}
+	onlinePayments.value = next;
+	void optimistic(saveOnlinePayments(props.id, next), {
+		done: next ? 'Pagos online en modo de prueba' : 'Pagos online desactivados',
+		failed: 'No se ha podido cambiar',
+		revert: async () => {
+			onlinePayments.value = previous;
+			await saveOnlinePayments(props.id, previous ?? null);
+		},
+		onError: () => onlinePayments.value = previous,
+	});
+}
+
 function remove(charge: Charge) {
 	// eslint-disable-next-line no-alert
 	if (!window.confirm(`¿Borrar «${charge.concept}» de ${charge.propertyName}?`)) {
@@ -273,6 +314,36 @@ function remove(charge: Charge) {
 
 	<section class="card">
 		<div class="section-head">
+			<h2>
+				Pagos online de los vecinos
+				<span v-if="onlinePayments" class="chip test">Modo de prueba</span>
+			</h2>
+		</div>
+		<p class="hint">
+			Los vecinos pagan sus recibos y las reservas de pago desde la app. En modo de prueba no se mueve dinero ni tiene coste: solo se aceptan las tarjetas de prueba (4242 4242 4242 4242) y un Bizum simulado. Para cobrar de verdad hará falta contratar una pasarela (Redsys, Stripe…).
+		</p>
+		<div class="fields">
+			<span v-if="onlinePayments === undefined" class="skeleton-item" style="height: 40px" />
+			<LnxSelect
+				v-else
+				v-model.convert="paymentsMode"
+				:options="paymentsOptions"
+				:convert-fn="option => option.value"
+				search-placeholder-text="Buscar..."
+			>
+				Pagos online
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ paymentsOptions.find(option => option.value === value)?.label }}
+				</template>
+			</LnxSelect>
+		</div>
+	</section>
+
+	<section class="card">
+		<div class="section-head">
 			<h2>Morosidad</h2>
 			<LnxButton :to="`/communities/${id}/arrears`" mode="clear" size="small">
 				<LnxIcon icon="lucide:mail-warning" />
@@ -360,6 +431,7 @@ function remove(charge: Charge) {
 								<small class="tabular">
 									{{ chargeTypes[charge.type] }} · vence {{ dateFormat.format(charge.dueDate.toDate()) }}
 									<template v-if="charge.paidAt"> · pagado el {{ dateFormat.format(charge.paidAt.toDate()) }}</template>
+									<template v-if="charge.payment"> · <span class="chip test" :title="`${describePayment(charge.payment)} · ref. ${charge.payment.id}`">Pago de prueba</span></template>
 									<template v-else-if="isOverdue(charge)"> · <span class="debt">vencido</span></template>
 									<template v-if="charge.remittanceId"> · domiciliado</template>
 									<template v-else-if="!charge.paidAt && charge.returns?.length"> · <span class="debt">devuelto ({{ charge.returns.at(-1)!.reason }})</span></template>
@@ -368,7 +440,7 @@ function remove(charge: Charge) {
 							<strong class="tabular">{{ formatCents(charge.amount) }}</strong>
 							<div class="item-actions">
 								<LnxButton mode="clear" size="small" @click="togglePaid(charge)">
-									{{ charge.paidAt ? 'Marcar pendiente' : 'Marcar pagado' }}
+									{{ charge.payment ? 'Anular pago de prueba' : charge.paidAt ? 'Marcar pendiente' : 'Marcar pagado' }}
 								</LnxButton>
 								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
 									<LnxIcon icon="lucide:trash-2" />
@@ -528,6 +600,13 @@ button.what {
 
 	&.ok {
 		color: var(--color-primary);
+	}
+
+	&.test {
+		color: var(--color-gray-7);
+		font-weight: normal;
+		text-transform: none;
+		letter-spacing: normal;
 	}
 
 	&.debt {

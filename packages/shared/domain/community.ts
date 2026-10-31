@@ -27,6 +27,10 @@ export interface Community extends Datable {
 	sepaSuffix?: string;
 	// Connection to the bank's feed of movements. Only in test mode for now, with simulated movements
 	bankFeed?: { mode: 'demo'; connectedAt: Timestamp; syncedAt?: Timestamp };
+	// Neighbours paying their charges and bookings from the app. Only in test mode for now (see payment.ts), off when missing
+	onlinePayments?: 'test';
+	// Each bookable area's price and deposit, by area id, kept with the areas so the rules can check what a booking pays
+	bookingFees?: Record<string, BookingFee>;
 
 	contacts?: CommunityContact[];
 	documents?: CommunityDocument[];
@@ -66,6 +70,21 @@ export interface BookableArea {
 	advanceDays?: number;
 	// Shown before booking, e.g. "Máximo 4 personas"
 	rules?: string;
+	// In cents, per slot. Paid when booking, online or at the office. The fianza is given back after the booking
+	price?: number;
+	deposit?: number;
+}
+
+export interface BookingFee {
+	price: number;
+	deposit: number;
+}
+
+// Those of the areas that charge something, as kept in the community for the rules
+export function getBookingFees(areas: CommonArea[]) {
+	return Object.fromEntries(areas.flatMap(({ id, booking }) => booking?.price || booking?.deposit
+		? [[id, { price: booking.price ?? 0, deposit: booking.deposit ?? 0 }]]
+		: [])) as Record<string, BookingFee>;
 }
 
 export type ContactType = 'admin' | 'president' | 'janitor' | 'insurance' | 'elevator' | 'cleaning' | 'gardening' | 'other';

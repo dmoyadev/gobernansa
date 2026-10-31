@@ -2,7 +2,7 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Obligation } from '@gobernansa/shared/domain/obligation.ts';
 import type { CommunityForm } from '../domain/communityForm.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
+import { getBookingFees, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { arrayUnion, collection, doc, FieldValue, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { providersRef } from '@/modules/providers/application/useProviders.ts';
@@ -34,9 +34,12 @@ export async function duplicateCommunity(id: string, newId: string, form: Commun
 	// The form's empty fields come as deleteField(), only valid when merging, and a new document has nothing to remove
 	const fields = Object.fromEntries(Object.entries(fromCommunityForm(form)).filter(([, value]) => !(value instanceof FieldValue)));
 
+	const commonAreas = getCommonAreas(source);
 	batch.set(communityRef, withoutUndefined({
 		...fields,
-		commonAreas: getCommonAreas(source),
+		commonAreas,
+		// What the rules check a booking's price against, kept along with the areas
+		bookingFees: getBookingFees(commonAreas),
 		...audit,
 	}));
 

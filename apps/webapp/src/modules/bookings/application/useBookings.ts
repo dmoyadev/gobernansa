@@ -1,10 +1,13 @@
 import type { Booking } from '@gobernansa/shared/domain/booking.ts';
+import type { BookingFee } from '@gobernansa/shared/domain/community.ts';
 import type { Ref } from 'vue';
+import type { Checkout } from '@/modules/finances/application/useMyCharges.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { bookingId } from '@gobernansa/shared/domain/booking.ts';
-import { collection, deleteDoc, doc, getFirestore, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { bookingId, bookingTotal } from '@gobernansa/shared/domain/booking.ts';
+import { collection, deleteDoc, doc, getFirestore, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useCollection } from 'vuefire';
+import { preparePayment } from '@/modules/finances/application/useMyCharges.ts';
 
 // Equality filters only, so no composite index is needed
 export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) {
@@ -24,19 +27,49 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 		? query(bookingsRef.value, where('uid', '==', user.value.id), where('areaId', '==', areaId.value))
 		: null));
 
-	async function book(slot: { areaId: string; date: string; from: string; to: string }) {
+	// An area with a price or fianza is booked owed (paidAt null), or paid at once with the test checkout
+	async function book(slot: { areaId: string; date: string; from: string; to: string }, { price, deposit }: BookingFee, checkout?: Checkout) {
 		if (!user.value || !communityId.value) {
 			throw new Error('The user must be signed in to book');
 		}
 
-		// Its id is the slot, so the rules turn down a second booking of it (a create on an existing document is an update)
-		await setDoc(doc(db, 'communities', communityId.value, 'bookings', bookingId(slot.areaId, slot.date, slot.from)), {
+		const id = bookingId(slot.areaId, slot.date, slot.from);
+		const total = price + deposit;
+		const booking = {
 			...slot,
 			communityId: communityId.value,
 			uid: user.value.id,
 			name: user.value.name || '',
 			createdAt: serverTimestamp(),
-		});
+			...(price ? { price } : {}),
+			...(deposit ? { deposit, depositReturnedAt: null } : {}),
+			...(total ? { paidAt: null } : {}),
+		};
+		// Its id is the slot, so the rules turn down a second booking of it (a create on an existing document is an update)
+		const ref = doc(db, 'communities', communityId.value, 'bookings', id);
+		if (!total || !checkout) {
+			await setDoc(ref, booking);
+			return;
+		}
+
+		const payment = preparePayment(db, communityId.value, user.value.id, total, { bookingId: id }, checkout);
+		const batch = writeBatch(db);
+		batch.set(ref, { ...booking, paidAt: serverTimestamp(), payment: payment.payment });
+		batch.set(payment.ref, payment.data);
+		await batch.commit();
+	}
+
+	// One booked owed, paid later from the app
+	async function pay(booking: Booking, checkout: Checkout) {
+		if (!user.value || !communityId.value) {
+			throw new Error('The user must be signed in to pay');
+		}
+
+		const payment = preparePayment(db, communityId.value, user.value.id, bookingTotal(booking), { bookingId: booking.id }, checkout);
+		const batch = writeBatch(db);
+		batch.update(doc(db, 'communities', communityId.value, 'bookings', booking.id), { paidAt: serverTimestamp(), payment: payment.payment });
+		batch.set(payment.ref, payment.data);
+		await batch.commit();
 	}
 
 	async function cancel(booking: Booking) {
@@ -47,5 +80,5 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 		await deleteDoc(doc(db, 'communities', communityId.value, 'bookings', booking.id));
 	}
 
-	return { dayBookings, myBookings, book, cancel };
+	return { dayBookings, myBookings, book, pay, cancel };
 }
