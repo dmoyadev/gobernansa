@@ -11,7 +11,7 @@ import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { loadCertificate } from '../application/useFinances.ts';
+import { loadPropertyAccount } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string; propertyId: string }>();
 
@@ -28,10 +28,10 @@ const error = ref<string>();
 // the last one meanwhile
 async function load() {
 	try {
-		const [loadedCommunity, certificate] = await Promise.all([loadCommunity(props.id), loadCertificate(props.id, props.propertyId)]);
+		const [loadedCommunity, certificate] = await Promise.all([loadCommunity(props.id), loadPropertyAccount(props.id, props.propertyId)]);
 		community.value = loadedCommunity;
 		property.value = certificate.property;
-		unpaid.value = certificate.unpaid;
+		unpaid.value = certificate.charges.filter(charge => !charge.paidAt);
 		today.value = new Date();
 		// A property of another community would be certified against charges that aren't its own
 		error.value = !loadedCommunity || certificate.property?.communityId !== props.id ? 'No existe esta comunidad o propiedad.' : undefined;

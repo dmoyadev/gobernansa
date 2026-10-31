@@ -1,5 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
+import type { Property } from './property.ts';
+import { splitByCoefficient } from './property.ts';
 
 // Recibos and derramas, one per property, at communities/{communityId}/charges. Owners see theirs. Amounts in cents (see money.ts)
 export interface Charge extends Datable {
@@ -16,8 +18,10 @@ export interface Charge extends Datable {
 	amount: number;
 	dueDate: Timestamp;
 	paidAt: Timestamp | null;
-	// The charges of the same derrama or batch of fees share it
+	// The charges of the same derrama or batch of fees share it. The year's fees from the budget share feeBatchId(year)
 	batchId?: string;
+	// The part of the amount that goes to the fondo de reserva, in the fees from the budget
+	reserve?: number;
 }
 
 export const chargeTypes: Record<Charge['type'], string> = {
@@ -35,6 +39,86 @@ export interface Budget extends Datable {
 	id: string;
 	year: number;
 	items: BudgetItem[];
+	// Aportación al fondo de reserva, collected with the fees on top of the items. Older budgets lack these
+	reserve?: number;
+	// What the fund had when the year began, carried over by the admin
+	reserveOpening?: number;
+	// How the year's fees were issued, so the rest are issued the same way
+	fees?: FeePlan;
+}
+
+// LPH art. 9.1.f: the fund must be at least 10 % of the last ordinary budget
+export const MIN_RESERVE_PERCENT = 10;
+
+export function minReserve(ordinary: number) {
+	return Math.ceil(ordinary * MIN_RESERVE_PERCENT / 100);
+}
+
+// Months each fee covers
+export type FeeMonths = 1 | 2 | 3 | 6 | 12;
+export const feePeriodicities: Record<FeeMonths, string> = {
+	1: 'Mensual',
+	2: 'Bimestral',
+	3: 'Trimestral',
+	6: 'Semestral',
+	12: 'Anual',
+};
+
+export interface FeePlan {
+	months: FeeMonths;
+	// 'YYYY-MM-DD', the next ones fall on the same day every `months` months
+	firstDue: string;
+	// Cuota fija per fee instead of the coefficient's share (e.g. garages), by property id
+	overrides: Record<string, number>;
+}
+
+export function feeBatchId(year: number) {
+	return `fees-${year}`;
+}
+
+// In parts that differ at most by a cent, the first ones get the extra cents
+function splitEvenly(cents: number, parts: number) {
+	return Array.from({ length: parts }, (_, index) => Math.floor(cents / parts) + (index < cents % parts ? 1 : 0));
+}
+
+const monthNames = new Intl.DateTimeFormat('es', { month: 'long' });
+
+/**
+ * The year's fees: the budget plus the reserve, split evenly between the periods and each period between the properties
+ * (fixed ones first, the rest by coefficient), so everything adds up to the cent. Each fee carries its part of the reserve.
+ * The ids depend only on the year, the periodicity, the period and the property, so issuing again never duplicates
+ */
+export function planFees<T extends Pick<Property, 'id' | 'coefficient'>>(year: number, ordinary: number, reserve: number, properties: T[], plan: FeePlan) {
+	const count = 12 / plan.months;
+	const totals = splitEvenly(ordinary + reserve, count);
+	const reserves = splitEvenly(reserve, count);
+	const [firstYear, firstMonth, firstDay] = plan.firstDue.split('-').map(Number);
+	const fixed = properties.filter(property => plan.overrides[property.id] !== undefined);
+	const byCoefficient = properties.filter(property => plan.overrides[property.id] === undefined);
+	const fixedTotal = fixed.reduce((sum, property) => sum + plan.overrides[property.id], 0);
+
+	return totals.map((total, index) => {
+		const month = firstMonth - 1 + index * plan.months;
+		// The 31st falls on the last day of shorter months
+		const dueDate = new Date(firstYear, month, Math.min(firstDay, new Date(firstYear, month + 1, 0).getDate()), 23, 59, 59);
+		const concept = plan.months === 12
+			? `Cuota anual ${year}`
+			: plan.months === 1
+				? `Cuota ${monthNames.format(dueDate)} ${dueDate.getFullYear()}`
+				: `Cuota ${feePeriodicities[plan.months].toLowerCase()} ${index + 1}/${count} ${year}`;
+		const shares = [
+			...fixed.map(property => ({ property, cents: plan.overrides[property.id] })),
+			...splitByCoefficient(Math.max(total - fixedTotal, 0), byCoefficient),
+		].filter(share => share.cents > 0);
+		// The reserve in proportion to each fee
+		const reserveShares = splitByCoefficient(Math.min(reserves[index], total), shares.map(share => ({ coefficient: share.cents })));
+		return {
+			concept,
+			dueDate,
+			total,
+			shares: shares.map((share, i) => ({ ...share, reserve: reserveShares[i].cents, id: `${feeBatchId(year)}-${plan.months}m-${index + 1}-${share.property.id}` })),
+		};
+	});
 }
 
 // Partida, e.g. "Limpieza" or "Ascensor"
@@ -71,6 +155,8 @@ export interface Expense extends Datable {
 	// null while it's owed. Missing in older expenses, taken as paid
 	paidAt?: Timestamp | null;
 	paymentMethod?: PaymentMethod;
+	// Paid from the fondo de reserva, e.g. an extraordinary repair
+	fromReserve?: boolean;
 }
 
 export type VatRate = 0 | 4 | 10 | 21;

@@ -1,9 +1,9 @@
-import type { Budget, BudgetItem, Charge, Expense } from '@gobernansa/shared/domain/finance.ts';
+import type { Budget, BudgetItem, Charge, Expense, FeePlan } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { chargeTypes, payableAmount } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, feeBatchId, feePeriodicities, payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
@@ -73,7 +73,8 @@ export interface ChargeIssue {
 	type: Charge['type'];
 	concept: string;
 	dueDate: Timestamp;
-	shares: { property: Property; cents: number }[];
+	// reserve: the part of it for the fondo de reserva
+	shares: { property: Property; cents: number; reserve?: number }[];
 	// Made beforehand, one per share: issuing again after a failure rewrites the same charges instead of duplicating them
 	batchId: string;
 	ids: string[];
@@ -88,7 +89,7 @@ export async function issueCharges(communityId: string, { type, concept, dueDate
 	// ponytail: past 499 properties the run is split in several batches, a failure halfway leaves the first ones issued
 	for (let start = 0; start < shares.length; start += CHARGES_PER_BATCH) {
 		const batch = writeBatch(db);
-		for (const [index, { property, cents }] of shares.slice(start, start + CHARGES_PER_BATCH).entries()) {
+		for (const [index, { property, cents, reserve }] of shares.slice(start, start + CHARGES_PER_BATCH).entries()) {
 			batch.set(doc(chargesRef(communityId), ids[start + index]), {
 				communityId,
 				propertyId: property.id,
@@ -101,6 +102,7 @@ export async function issueCharges(communityId: string, { type, concept, dueDate
 				dueDate,
 				paidAt: null,
 				batchId,
+				...(reserve ? { reserve } : {}),
 				createdAt: now,
 				createdBy: uid,
 				updatedAt: now,
@@ -156,8 +158,8 @@ export async function restoreCharge(communityId: string, { id, ...charge }: Char
 	await batch.commit();
 }
 
-// What the certificate needs, read once
-export async function loadCertificate(communityId: string, propertyId: string) {
+// What the certificate and the statement need, read once: the property and every charge it has had
+export async function loadPropertyAccount(communityId: string, propertyId: string) {
 	const [property, charges] = await Promise.all([
 		getDoc(doc(propertiesRef, propertyId)),
 		getDocs(query(chargesRef(communityId), where('propertyId', '==', propertyId))),
@@ -171,7 +173,7 @@ export async function loadCertificate(communityId: string, propertyId: string) {
 	}
 	return {
 		property: found,
-		unpaid: charges.docs.map(charge => ({ ...charge.data(), id: charge.id }) as Charge).filter(charge => !charge.paidAt),
+		charges: charges.docs.map(charge => ({ ...charge.data(), id: charge.id }) as Charge),
 	};
 }
 
@@ -179,20 +181,28 @@ export function useBudget(communityId: string, year: MaybeRefOrGetter<number>) {
 	return useDocument<Budget>(computed(() => budgetRef(communityId, toValue(year))));
 }
 
-export async function saveBudget(communityId: string, year: number, items: BudgetItem[], exists: boolean) {
+export interface BudgetData {
+	items: BudgetItem[];
+	reserve: number;
+	reserveOpening: number;
+}
+
+export async function saveBudget(communityId: string, year: number, { items, reserve, reserveOpening }: BudgetData, exists: boolean) {
 	const uid = signedUid();
 	const now = serverTimestamp();
 	const batch = writeBatch(db);
 	batch.set(budgetRef(communityId, year), {
 		year,
 		items,
+		reserve,
+		reserveOpening,
 		updatedAt: now,
 		updatedBy: uid,
 		...(exists ? {} : { createdAt: now, createdBy: uid }),
 	}, { merge: true });
 	logActivity(batch, communityId, {
 		area: 'finance',
-		summary: `Guardó el presupuesto de ${year}: ${formatCents(items.reduce((sum, item) => sum + item.amount, 0))} en ${items.length} partidas`,
+		summary: `Guardó el presupuesto de ${year}: ${formatCents(items.reduce((sum, item) => sum + item.amount, 0))} en ${items.length} partidas${reserve ? ` y ${formatCents(reserve)} al fondo de reserva` : ''}`,
 		link: `/communities/${communityId}/budget`,
 	});
 	await batch.commit();
@@ -203,7 +213,7 @@ export function useExpenses(communityId: string, year: MaybeRefOrGetter<number>)
 }
 
 export type ExpenseData = Pick<Expense, 'itemId' | 'concept' | 'amount' | 'date' | 'provider' | 'invoiceNumber' | 'base' | 'vatRate' | 'vat'
-	| 'withholdingRate' | 'withholding' | 'withholdingType' | 'dueDate' | 'paidAt' | 'paymentMethod'>;
+	| 'withholdingRate' | 'withholding' | 'withholdingType' | 'dueDate' | 'paidAt' | 'paymentMethod' | 'fromReserve'>;
 
 // id made when the form opens, so sending it twice writes one expense. Fields left out aren't written
 export async function addExpense(communityId: string, id: string, data: ExpenseData) {
@@ -269,4 +279,63 @@ export async function restoreExpense(communityId: string, { id, ...expense }: Ex
 		link: `/communities/${communityId}/budget`,
 	});
 	await batch.commit();
+}
+
+// The year's expenses once, for the fondo de reserva's balance
+export async function loadExpenses(communityId: string, year: number) {
+	const snapshot = await getDocs(query(expensesRef(communityId), where('year', '==', year)));
+	return snapshot.docs.map(expense => ({ ...expense.data(), id: expense.id }) as Expense);
+}
+
+// The fees already issued from the year's budget, paid or not, once
+export async function loadFees(communityId: string, year: number) {
+	const snapshot = await getDocs(query(chargesRef(communityId), where('batchId', '==', feeBatchId(year))));
+	return snapshot.docs.map(charge => ({ ...charge.data(), id: charge.id }) as Charge);
+}
+
+// The plan is kept in the budget first, then each period is issued with only the fees still missing: retrying after a
+// failure, or after adding a property, issues what's left and never touches what was already issued (or paid)
+export async function issueFees(communityId: string, year: number, plan: FeePlan, periods: Omit<ChargeIssue, 'type' | 'batchId'>[]) {
+	const batch = writeBatch(db);
+	batch.set(budgetRef(communityId, year), { fees: plan, updatedAt: serverTimestamp(), updatedBy: signedUid() }, { merge: true });
+	logActivity(batch, communityId, {
+		area: 'finance',
+		summary: `Generó las cuotas de ${year} del presupuesto: ${feePeriodicities[plan.months].toLowerCase()}, desde el ${plan.firstDue.split('-').reverse().join('/')}`,
+		link: `/communities/${communityId}/fees`,
+	});
+	await batch.commit();
+	// Read again right before writing: a fee paid or issued elsewhere since the page loaded must not be overwritten unpaid
+	const issued = new Set((await loadFees(communityId, year)).map(fee => fee.id));
+	for (const period of periods) {
+		const missing = period.ids.flatMap((id, index) => issued.has(id) ? [] : [{ id, share: period.shares[index] }]);
+		if (missing.length) {
+			await issueCharges(communityId, { ...period, shares: missing.map(({ share }) => share), ids: missing.map(({ id }) => id), type: 'fee', batchId: feeBatchId(year) });
+		}
+	}
+}
+
+// Annulling a run, e.g. issued with the wrong periodicity. Only those not paid
+export async function deleteCharges(communityId: string, charges: Charge[], label: string) {
+	await writeCharges(communityId, charges, `Anuló ${label}: ${charges.length} recibos por ${formatCents(charges.reduce((sum, charge) => sum + charge.amount, 0))}`);
+}
+
+// Undoes deleteCharges: the same charges again, with their ids and the data they had
+export async function restoreCharges(communityId: string, charges: Charge[], label: string) {
+	await writeCharges(communityId, charges, `Restauró ${label}: ${charges.length} recibos`, true);
+}
+
+async function writeCharges(communityId: string, charges: Charge[], summary: string, restore = false) {
+	const uid = signedUid();
+	for (let start = 0; start < charges.length; start += CHARGES_PER_BATCH) {
+		const batch = writeBatch(db);
+		for (const { id, ...charge } of charges.slice(start, start + CHARGES_PER_BATCH)) {
+			if (restore) {
+				batch.set(doc(chargesRef(communityId), id), { ...charge, updatedAt: serverTimestamp(), updatedBy: uid });
+			} else {
+				batch.delete(doc(chargesRef(communityId), id));
+			}
+		}
+		logActivity(batch, communityId, { area: 'finance', summary, link: `/communities/${communityId}/fees` });
+		await batch.commit();
+	}
 }

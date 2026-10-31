@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Expense, PaymentMethod, VatRate } from '@gobernansa/shared/domain/finance.ts';
 import type { ExpenseData } from '../application/useFinances.ts';
-import { invoiceAmounts, isOverdue, paymentMethods, vatRates, withholdings } from '@gobernansa/shared/domain/finance.ts';
+import { invoiceAmounts, isOverdue, MIN_RESERVE_PERCENT, minReserve, paymentMethods, vatRates, withholdings } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
@@ -33,6 +33,8 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 // The items being edited, amounts as typed. Reset whenever the saved budget or the year changes, except after a failed
 // save: the budget going back to what it was would wipe what was typed
 const items = ref<{ id: string; name: string; amount: string }[]>([]);
+// The fondo de reserva, as typed
+const reserve = ref({ contribution: '', opening: '' });
 const unsaved = ref(false);
 watch(year, () => {
 	unsaved.value = false;
@@ -41,8 +43,23 @@ watch(budget, (saved) => {
 	if (unsaved.value) {
 		return;
 	}
-	items.value = (saved?.items ?? []).map(item => ({ id: item.id, name: item.name, amount: (item.amount / 100).toFixed(2).replace('.', ',') }));
+	items.value = (saved?.items ?? []).map(item => ({ id: item.id, name: item.name, amount: typedCents(item.amount) }));
+	reserve.value = { contribution: saved?.reserve ? typedCents(saved.reserve) : '', opening: saved?.reserveOpening ? typedCents(saved.reserveOpening) : '' };
 }, { immediate: true });
+
+function typedCents(cents: number) {
+	return (cents / 100).toFixed(2).replace('.', ',');
+}
+
+// What the items add up to as typed, for the reserve's minimum while editing
+const typedOrdinary = computed(() => items.value.reduce((sum, item) => sum + (toCents(item.amount || '0') || 0), 0));
+const typedReserve = computed(() => toCents(reserve.value.contribution || '0'));
+const reservePercent = computed(() => typedOrdinary.value ? Math.round(typedReserve.value * 1000 / typedOrdinary.value) / 10 : 0);
+const reserveShort = computed(() => typedOrdinary.value > 0 && !(typedReserve.value >= minReserve(typedOrdinary.value)));
+
+function proposeReserve() {
+	reserve.value.contribution = typedCents(minReserve(typedOrdinary.value));
+}
 
 function addItem() {
 	// Its own id, so renaming an item keeps its expenses
@@ -58,13 +75,21 @@ function save() {
 		budgetError.value = `Revisa la partida «${invalid.name || 'sin nombre'}»: necesita nombre e importe, p. ej. 1.250,00`;
 		return;
 	}
+	const contribution = toCents(reserve.value.contribution || '0');
+	const opening = toCents(reserve.value.opening || '0');
+	if (Number.isNaN(contribution) || contribution < 0 || Number.isNaN(opening)) {
+		budgetError.value = 'Revisa los importes del fondo de reserva, p. ej. 1.250,00';
+		return;
+	}
 
 	const typed = items.value.map(item => ({ ...item }));
+	const typedFund = { ...reserve.value };
 	const savedYear = year.value;
-	const previous = budget.value?.items;
+	const saved = budget.value;
+	const previous = saved ? { items: saved.items, reserve: saved.reserve ?? 0, reserveOpening: saved.reserveOpening ?? 0 } : undefined;
 	unsaved.value = false;
 	budgetError.value = undefined;
-	void optimistic(saveBudget(props.id, savedYear, parsed, !!budget.value), {
+	void optimistic(saveBudget(props.id, savedYear, { items: parsed, reserve: contribution, reserveOpening: opening }, !!budget.value), {
 		done: 'Presupuesto guardado',
 		failed: 'No se ha podido guardar',
 		// A new one has nothing to go back to
@@ -72,6 +97,7 @@ function save() {
 		onError: () => {
 			unsaved.value = true;
 			items.value = typed;
+			reserve.value = typedFund;
 		},
 	});
 }
@@ -96,8 +122,9 @@ const comparison = computed(() => {
 const spentTotal = computed(() => expenses.value.reduce((sum, expense) => sum + expense.amount, 0));
 const itemNames = computed(() => Object.fromEntries(savedItems.value.map(item => [item.id, item.name])));
 
-// Each property's share of the budget
-const shares = computed(() => splitByCoefficient(budgetTotal.value, properties.value)
+// Each property's share of the budget, with the fondo de reserva
+const yearTotal = computed(() => budgetTotal.value + (budget.value?.reserve ?? 0));
+const shares = computed(() => splitByCoefficient(yearTotal.value, properties.value)
 	.sort((a, b) => a.property.name.localeCompare(b.property.name, 'es', { numeric: true })));
 
 // New expense, or supplier invoice: the base and its taxes give what it costs and what's paid to the provider
@@ -120,6 +147,7 @@ function emptyExpense() {
 		dueDate: '',
 		paymentMethod: 'transfer' as PaymentMethod,
 		paid: false,
+		fromReserve: false,
 	};
 }
 
@@ -165,6 +193,7 @@ function submitExpense() {
 		dueDate: typed.dueDate ? toDueDate(typed.dueDate) : undefined,
 		paidAt: typed.paid ? Timestamp.now() : null,
 		paymentMethod: typed.paymentMethod,
+		fromReserve: typed.fromReserve || undefined,
 	};
 	// Cleared at once, ready for the next one. If it fails it's back as typed, with the same id
 	expenseForm.value = emptyExpense();
@@ -250,6 +279,26 @@ function remove(expense: Expense) {
 		</TransitionGroup>
 		<p v-else class="hint">
 			Aún no hay presupuesto para {{ year }}.
+		</p>
+
+		<h2>Fondo de reserva</h2>
+		<div class="fields">
+			<LnxInput v-model="reserve.contribution" inputmode="decimal" placeholder="600,00">
+				Aportación anual (€)
+			</LnxInput>
+			<LnxInput v-model="reserve.opening" inputmode="decimal" placeholder="3.500,00">
+				Saldo a 1 de enero (€)
+			</LnxInput>
+		</div>
+		<p v-if="reserveShort" class="warning">
+			<LnxIcon icon="lucide:triangle-alert" />
+			Es el {{ reservePercent.toLocaleString('es') }} % del presupuesto ordinario. La ley exige al menos el {{ MIN_RESERVE_PERCENT }} % ({{ formatCents(minReserve(typedOrdinary)) }}).
+			<LnxButton mode="clear" size="small" @click="proposeReserve()">
+				Poner el mínimo
+			</LnxButton>
+		</p>
+		<p v-else-if="typedReserve > 0" class="hint tabular">
+			{{ reservePercent.toLocaleString('es') }} % del presupuesto ordinario. Se cobra con las cuotas: <RouterLink :to="`/communities/${id}/fees`">ver saldo y cuotas</RouterLink>.
 		</p>
 
 		<footer class="form-actions">
@@ -410,6 +459,9 @@ function remove(expense: Expense) {
 			<LnxCheckbox v-model="expenseForm.paid" class="paid">
 				Ya está pagada
 			</LnxCheckbox>
+			<LnxCheckbox v-model="expenseForm.fromReserve" class="paid">
+				Se paga del fondo de reserva
+			</LnxCheckbox>
 		</div>
 		<p v-if="formAmounts" class="hint tabular">
 			IVA {{ formatCents(formAmounts.vat) }}<template v-if="formAmounts.withholding">
@@ -456,6 +508,7 @@ function remove(expense: Expense) {
 						<template v-if="expense.invoiceNumber"> · Fra. {{ expense.invoiceNumber }}</template>
 						<template v-if="expense.base !== undefined"> · base {{ formatCents(expense.base) }} + IVA {{ expense.vatRate }} %</template>
 						<template v-if="expense.withholding"> · retención {{ expense.withholdingRate }} %</template>
+						<template v-if="expense.fromReserve"> · fondo de reserva</template>
 					</small>
 				</div>
 				<div class="cost">
@@ -476,7 +529,7 @@ function remove(expense: Expense) {
 
 	<section class="card">
 		<h2>Reparto por coeficiente</h2>
-		<table v-if="shares.length && budgetTotal">
+		<table v-if="shares.length && yearTotal">
 			<thead>
 				<tr>
 					<th>Propiedad</th>
@@ -484,7 +537,7 @@ function remove(expense: Expense) {
 						Coeficiente
 					</th>
 					<th class="amount">
-						Anual
+						Anual{{ budget?.reserve ? ', con fondo' : '' }}
 					</th>
 					<th class="amount">
 						Mensual

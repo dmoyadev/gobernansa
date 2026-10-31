@@ -335,7 +335,8 @@ service cloud.firestore {
         }
       }
 
-      // Recibos and derramas. Owners see theirs
+      // Recibos and derramas. Owners see theirs. The year's fees from the budget share batchId fees-{year} and carry
+      // their part for the fondo de reserva (reserve)
       match /charges/{chargeId} {
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
         allow create, update: if manages(communityId) && request.resource.data.communityId == communityId;
@@ -343,7 +344,8 @@ service cloud.firestore {
       }
 
       // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes
-      // and whether they're paid (paidAt null while owed)
+      // and whether they're paid (paidAt null while owed). The budget keeps the fondo de reserva (contribution and
+      // opening balance) and how the year's fees were issued; an expense may be paid from that fund (fromReserve)
       match /budgets/{year} {
         allow read: if inOrManages(communityId);
         allow write: if manages(communityId);

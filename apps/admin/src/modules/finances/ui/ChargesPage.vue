@@ -325,6 +325,16 @@ function remove(charge: Charge) {
 					</span>
 					<span v-else class="chip ok">Al corriente</span>
 					<LnxButton
+						:to="`/communities/${id}/statements/${row.property.id}`"
+						mode="clear"
+						size="small"
+						shape="circle"
+						aria-label="Estado de cuenta"
+						title="Estado de cuenta"
+					>
+						<LnxIcon icon="lucide:scroll-text" />
+					</LnxButton>
+					<LnxButton
 						:to="`/communities/${id}/charges/certificate/${row.property.id}`"
 						mode="clear"
 						size="small"
@@ -459,7 +469,7 @@ function remove(charge: Charge) {
 
 .row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-columns: minmax(0, 1fr) auto auto auto;
 	align-items: center;
 	gap: var(--lnx-spacing-3);
 }

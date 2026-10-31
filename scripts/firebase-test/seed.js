@@ -357,6 +357,9 @@ async function seed() {
 		batch.set(comm1.collection('budgets').doc(String(year)), {
 			year,
 			items: [{ id: 'cleaning', name: 'Limpieza', amount: 480000 }, { id: 'legal', name: 'Asesoría jurídica', amount: 120000 }],
+			// Fondo de reserva: 10 % of the items, and what it had on 1 January
+			reserve: 60000,
+			reserveOpening: 350000,
 			...getDatableProperties(),
 		});
 

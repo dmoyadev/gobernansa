@@ -118,6 +118,27 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/fees',
+					name: 'Cuotas y fondo de reserva',
+					component: async () => import('@/modules/finances/ui/FeesPage.vue'),
+					meta: { title: 'Cuotas y fondo de reserva' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/statements',
+					name: 'Estados de cuenta',
+					component: async () => import('@/modules/finances/ui/StatementsPage.vue'),
+					meta: { title: 'Estados de cuenta' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/statements/:propertyId',
+					name: 'Estado de cuenta',
+					component: async () => import('@/modules/finances/ui/StatementPage.vue'),
+					meta: { title: 'Estado de cuenta' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/payables',
 					name: 'Facturas pendientes',
 					component: async () => import('@/modules/finances/ui/PayablesPage.vue'),
