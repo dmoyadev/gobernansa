@@ -361,6 +361,28 @@ service cloud.firestore {
         allow read, write: if manages(communityId);
       }
 
+      // Contabilidad. Every entry is derived from the charges and invoices but the manual ones, which can't be written
+      // in a closed year (one with its fiscalYears doc), nor moved into or out of one. The closing keeps the
+      // regularization and closing entries, the latter opens the next year. The chart doc keeps the accounts added
+      match /journalEntries/{entryId} {
+        allow read: if manages(communityId);
+        allow create: if manages(communityId) && request.resource.data.year is int
+          && !exists(/databases/$(database)/documents/communities/$(communityId)/fiscalYears/$(string(request.resource.data.year)));
+        allow update: if manages(communityId) && request.resource.data.year is int
+          && !exists(/databases/$(database)/documents/communities/$(communityId)/fiscalYears/$(string(request.resource.data.year)))
+          && !exists(/databases/$(database)/documents/communities/$(communityId)/fiscalYears/$(string(resource.data.year)));
+        allow delete: if manages(communityId)
+          && !exists(/databases/$(database)/documents/communities/$(communityId)/fiscalYears/$(string(resource.data.year)));
+      }
+
+      match /fiscalYears/{year} {
+        allow read, write: if manages(communityId);
+      }
+
+      match /accounting/{docId} {
+        allow read, write: if manages(communityId) && docId == 'chart';
+      }
+
       // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes
       // and whether they're paid (paidAt null while owed) or going in a transfer order (paymentOrderId). The budget
       // keeps the fondo de reserva (contribution and opening balance) and how the year's fees were issued; an expense

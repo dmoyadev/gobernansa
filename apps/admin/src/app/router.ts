@@ -160,6 +160,13 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/accounting',
+					name: 'Contabilidad',
+					component: async () => import('@/modules/finances/ui/AccountingPage.vue'),
+					meta: { title: 'Contabilidad' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/mandates',
 					name: 'Mandatos SEPA',
 					component: async () => import('@/modules/finances/ui/MandatesPage.vue'),

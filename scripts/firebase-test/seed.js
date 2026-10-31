@@ -404,6 +404,15 @@ async function seed() {
 				...getDatableProperties(),
 			});
 		}
+
+		// Asiento manual: a bank fee, the rest of the books are derived from the charges and invoices
+		batch.set(comm1.collection('journalEntries').doc('entry_bank_fee'), {
+			year,
+			date: `${year}-10-31`,
+			concept: 'Comisión de mantenimiento de la cuenta',
+			lines: [{ account: '6260', debit: 1500, credit: 0 }, { account: '5720', debit: 0, credit: 1500 }],
+			...getDatableProperties(),
+		});
 	}
 
 	await batch.commit();
