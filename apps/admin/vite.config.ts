@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
 import mkcert from 'vite-plugin-mkcert';
 import vueDevTools from 'vite-plugin-vue-devtools';
+import pageTexts from './pageTexts.ts';
 
 export default defineConfig({
 	envDir: '../..', // Both apps share the .env files at the root of the repo
@@ -19,5 +20,6 @@ export default defineConfig({
 		}),
 		mkcert(), // Use mkcert for enabling HTTPS in localhost
 		vueDevTools(),
+		pageTexts(), // The texts of the community pages, for its search
 	],
 });

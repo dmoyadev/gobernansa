@@ -8,6 +8,7 @@ import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
@@ -35,7 +36,13 @@ const views = {
 	chart: 'Plan de cuentas',
 } as const;
 type View = keyof typeof views;
-const view = ref<View>('journal');
+// The view in the address, so a search result opens the right one
+const route = useRoute();
+const router = useRouter();
+const view = computed<View>({
+	get: () => (Object.keys(views) as View[]).find(key => key === route.query.view) ?? 'journal',
+	set: key => void router.replace({ query: { ...route.query, view: key } }),
+});
 
 /* Data: read once per year and kept while the page lives, read again when coming back */
 
