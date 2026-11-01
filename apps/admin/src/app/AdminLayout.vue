@@ -4,6 +4,7 @@ import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { financeMove } from '@/modules/finances/sections.ts';
 import FinanceNav from '@/modules/finances/ui/FinanceNav.vue';
 import FinanceTabs from '@/modules/finances/ui/FinanceTabs.vue';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
@@ -38,9 +39,20 @@ useSearchHighlight(useTemplateRef('content'));
 
 // Finance pages (meta.finance, their own key or their parent's) have their nav beside them, mounted while moving between them
 const finance = computed(() => access.value === 'granted' && !!route.meta.finance);
+// Which way the page moves between two of them, for the transition (interactions.scss): a section's tabs sideways, otherwise down
+// or up the nav. Set before the old page is captured
+const router = useRouter();
+router.beforeEach((to, from) => {
+	const [next, previous] = [to, from].map(page => page.meta.finance as string | undefined);
+	const move = next && previous && next !== previous ? financeMove(previous, next) : undefined;
+	if (move) {
+		document.documentElement.dataset.financeMove = move;
+	} else {
+		delete document.documentElement.dataset.financeMove;
+	}
+});
 
 // G then a letter goes to each section, as in other tools
-const router = useRouter();
 const SECTIONS = [
 	{ to: '/', label: 'Comunidades', icon: 'lucide:building-2', combo: 'g c' },
 	{ to: '/dashboard', label: 'Panel', icon: 'lucide:chart-no-axes-column', combo: 'g d' },

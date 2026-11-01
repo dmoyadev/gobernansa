@@ -29,6 +29,11 @@ const section = computed(() => route.path === `${base.value}/${current.value}` ?
 	scrollbar-width: none;
 	// Fading at the end when it doesn't fit, so it shows there's more
 	mask-image: linear-gradient(to right, #000 85%, transparent);
+}
+
+// Still while moving between its own tabs; between sections it goes with the page
+:global(html[data-finance-move="forward"]) .finance-tabs,
+:global(html[data-finance-move="back"]) .finance-tabs {
 	view-transition-name: finance-tabs;
 }
 

@@ -8,6 +8,11 @@
 	--press-scale: .97;
 }
 
+// The scrollbar's room is kept on short pages too, so the page doesn't widen and shift when it isn't there
+html {
+	scrollbar-gutter: stable;
+}
+
 /* Text */
 
 h1, h2, h3, h4, legend, dt {
@@ -152,6 +157,15 @@ a, button, summary, label, [role="menuitem"], [role="option"], [role="tab"] {
 	view-transition-name: topbar;
 }
 
+// The finance nav (FinanceNav.vue) is shown live, not crossfaded with a picture of it: its marker glides on its own
+::view-transition-old(finance-nav) {
+	display: none;
+}
+
+::view-transition-new(finance-nav) {
+	animation: none;
+}
+
 ::view-transition-group(*) {
 	animation-duration: .28s;
 	animation-timing-function: var(--ease-out);
@@ -175,6 +189,41 @@ html[data-navigation="back"] {
 	}
 }
 
+// Between finance pages (AdminLayout): down or up the nav as the sections are ordered in it, sideways between a section's tabs
+html[data-finance-move="down"] {
+	&::view-transition-old(root) {
+		animation-name: vt-out-up;
+	}
+
+	&::view-transition-new(root) {
+		animation-name: vt-in-up;
+	}
+}
+
+html[data-finance-move="up"] {
+	&::view-transition-old(root) {
+		animation-name: vt-out-down;
+	}
+
+	&::view-transition-new(root) {
+		animation-name: vt-in-down;
+	}
+}
+
+html[data-finance-move="back"] {
+	&::view-transition-old(root) {
+		animation-name: vt-out-back;
+	}
+
+	&::view-transition-new(root) {
+		animation-name: vt-in-back;
+	}
+}
+
+@keyframes vt-out-up { to { opacity: 0; translate: 0 -10px; } }
+@keyframes vt-in-up { from { opacity: 0; translate: 0 20px; } }
+@keyframes vt-out-down { to { opacity: 0; translate: 0 10px; } }
+@keyframes vt-in-down { from { opacity: 0; translate: 0 -20px; } }
 @keyframes vt-out { to { opacity: 0; translate: -12px 0; } }
 @keyframes vt-in { from { opacity: 0; translate: 16px 0; } }
 @keyframes vt-out-back { to { opacity: 0; translate: 12px 0; } }
