@@ -32,13 +32,51 @@ export interface Charge extends Datable {
 	bankMovementId?: string;
 	// Paid by the owner from the app, removed when the office marks it unpaid again
 	payment?: PaymentRef;
+	// Entregas a cuenta, in the order they were recorded. paidAt is set when they reach the amount, otherwise it's the day
+	// the rest was paid. None while it's domiciliated: the remittance debits what they left
+	collections?: ChargeCollection[];
+	// Their sum, so the debt can be summed on the server and the rules know what's left, and their years, so each year's books find them
+	collected?: number;
+	collectionYears?: number[];
+	// A recibo de intereses de demora (batchId INTEREST_BATCH_ID): the charges it's for, and the day it counts until
+	interest?: { chargeIds: string[]; to: string };
 }
+
+export interface ChargeCollection {
+	// To undo that one
+	id: string;
+	amount: number;
+	date: Timestamp;
+	method: CollectionMethod;
+	note?: string;
+}
+
+export type CollectionMethod = 'cash' | 'transfer' | 'card' | 'other';
+export const collectionMethods: Record<CollectionMethod, string> = {
+	cash: 'Efectivo',
+	transfer: 'Transferencia',
+	card: 'Tarjeta',
+	other: 'Otro',
+};
+
+// What's left to pay of it, or what was left at `at` (the collections before then)
+export function outstanding(charge: Pick<Charge, 'amount' | 'paidAt' | 'collections'>, at?: Date) {
+	const before = (date: Timestamp) => !at || date.toMillis() < at.getTime();
+	if (charge.paidAt && before(charge.paidAt)) {
+		return 0;
+	}
+	return charge.amount - (charge.collections ?? []).filter(collection => before(collection.date)).reduce((sum, collection) => sum + collection.amount, 0);
+}
+
+export const INTEREST_BATCH_ID = 'interest';
 
 export interface ChargeReturn {
 	remittanceId: string;
 	reason: ReturnReason;
 	// 'YYYY-MM-DD'
 	date: string;
+	// What was debited, what the entregas a cuenta had left. Older ones debited the whole amount
+	amount?: number;
 }
 
 export const chargeTypes: Record<Charge['type'], string> = {

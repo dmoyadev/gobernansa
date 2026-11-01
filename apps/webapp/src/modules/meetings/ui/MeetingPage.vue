@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import type { AgendaItem, MeetingAttendance, VoteChoice } from '@gobernansa/shared/domain/meeting.ts';
+import type { MeetingNotice, SignerRole } from '@gobernansa/shared/domain/minutes.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
+import type { Timestamp } from 'firebase/firestore';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { attendanceStatus, isApproved, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
+import { dissentDeadline, minutesHash, noticeKinds, signerRoles } from '@gobernansa/shared/domain/minutes.ts';
 import { formatCoefficient } from '@gobernansa/shared/domain/property.ts';
+import SignaturePad from '@gobernansa/shared/ui/SignaturePad.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
@@ -15,7 +19,7 @@ const props = defineProps<{ id: string }>();
 
 const { user } = useAuth();
 const { userProperties } = useUserProperties();
-const { meeting, loading, attendance, ballots, answerAttendance, vote } = useMeeting(() => props.id);
+const { meeting, loading, attendance, ballots, minutes, callNotice, minutesNotice, answerAttendance, vote, signMinutes, markNotice, dissent } = useMeeting(() => props.id);
 
 const votableItems = computed(() => meeting.value?.agenda.filter(item => item.votable) ?? []);
 const canVote = computed(() => !!meeting.value?.votingOpen && meeting.value.status !== 'cancelled' && !user.value?.blocked);
@@ -72,6 +76,60 @@ function results(item: AgendaItem) {
 	const tally = tallyVotes(ballots.value, item.id);
 	return { tally, approved: isApproved(tally) };
 }
+
+/* Acta */
+const roles = Object.keys(signerRoles) as SignerRole[];
+const dayFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'long' });
+const dateTimeFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeStyle: 'short' });
+const formatDay = (timestamp: Timestamp) => dayFormat.format(timestamp.toDate());
+
+// Their slot while it's unsigned
+const myRole = computed(() => {
+	const current = minutes.value;
+	return current && !current.closedAt ? roles.find(role => current[role].uid === user.value?.id && !current.signatures[role]) : undefined;
+});
+const signature = ref('');
+
+function sign() {
+	void run('sign', async () => signMinutes(myRole.value!, signature.value), 'No se ha podido firmar el acta. Inténtalo de nuevo.');
+}
+
+// Computed again from what's stored, so a copy changed by hand would show
+const verified = ref(false);
+watch(() => minutes.value?.hash, async () => {
+	const current = minutes.value;
+	verified.value = !!current?.hash && await minutesHash(current) === current.hash;
+}, { immediate: true });
+
+/* Notices */
+const notices = computed(() => [callNotice.value, minutesNotice.value].filter(notice => !!notice));
+
+// Opening the meeting marks them read, once
+const marked = new Set<string>();
+watch(notices, (loaded) => {
+	for (const notice of loaded) {
+		if (!notice.readAt && !marked.has(notice.id)) {
+			marked.add(notice.id);
+			// eslint-disable-next-line no-console
+			markNotice(notice, 'readAt').catch(console.error);
+		}
+	}
+}, { immediate: true });
+
+function acknowledge(notice: MeetingNotice) {
+	void run(`receipt_${notice.id}`, async () => markNotice(notice, 'receivedAt'), 'No se ha podido acusar recibo. Inténtalo de nuevo.');
+}
+
+function canDissent(notice: MeetingNotice) {
+	return Date.now() < dissentDeadline(notice).getTime();
+}
+
+function onDissent(notice: MeetingNotice, item: AgendaItem) {
+	// eslint-disable-next-line no-alert
+	if (window.confirm(`¿Manifestar tu discrepancia con «${item.title}»? No se puede deshacer.`)) {
+		void run(`dissent_${item.id}`, async () => dissent(notice, item.id), 'No se ha podido registrar tu discrepancia. Inténtalo de nuevo.');
+	}
+}
 </script>
 
 <template>
@@ -112,9 +170,85 @@ function results(item: AgendaItem) {
 						</dt>
 						<dd>
 							<a :href="meeting.link" target="_blank" rel="noopener">Unirse a la junta</a>
+							<small v-if="!meeting.place" class="hint">Las juntas solo en línea están pendientes de regulación general en la LPH.</small>
 						</dd>
 					</div>
 				</dl>
+			</section>
+
+			<section v-if="myRole" class="panel sign">
+				<h2>Firmar acta</h2>
+				<p>Constas como {{ signerRoles[myRole].toLowerCase() }} de la junta. Revisa el acta y firma con el dedo o el ratón.</p>
+				<SignaturePad v-model="signature" />
+				<LnxButton size="small" :is-loading="busy === 'sign'" :disabled="!!busy || !signature || !!user?.blocked" @click="sign()">
+					<LnxIcon icon="lucide:signature" :size="16" />
+					Firmar acta
+				</LnxButton>
+				<small class="hint">Firma electrónica simple: se guarda tu trazo con tu cuenta y la hora del servidor.</small>
+			</section>
+
+			<section v-if="minutes">
+				<h2>Acta</h2>
+				<div class="panel act">
+					<p class="text">
+						{{ minutes.text }}
+					</p>
+					<div class="signatures">
+						<figure v-for="role in roles" :key="role">
+							<SignaturePad v-if="minutes.signatures[role]" :model-value="minutes.signatures[role].path" readonly />
+							<p v-else class="hint">
+								Pendiente de firma
+							</p>
+							<figcaption>
+								<strong>{{ signerRoles[role] }}: {{ minutes[role].name }}</strong>
+								<small v-if="minutes.signatures[role]">Firmó el {{ formatDay(minutes.signatures[role].signedAt) }}</small>
+							</figcaption>
+						</figure>
+					</div>
+					<p v-if="minutes.hash" class="hash">
+						<LnxIcon :icon="verified ? 'lucide:shield-check' : 'lucide:shield'" :size="16" />
+						<span>Huella SHA-256 <code>{{ minutes.hash }}</code>{{ verified ? '. Coincide con el texto y las firmas.' : '' }}</span>
+					</p>
+				</div>
+			</section>
+
+			<section v-for="notice in notices" :key="notice.id" class="panel notice-panel">
+				<h2>{{ noticeKinds[notice.kind] }} notificada</h2>
+				<p>Te la notificamos el {{ formatDay(notice.sentAt) }}.</p>
+				<p v-if="notice.receivedAt" class="done">
+					<LnxIcon icon="lucide:check" :size="16" />
+					Acusaste recibo el {{ formatDay(notice.receivedAt) }}.
+				</p>
+				<template v-else>
+					<LnxButton size="small" :is-loading="busy === `receipt_${notice.id}`" :disabled="!!busy" @click="acknowledge(notice)">
+						<LnxIcon icon="lucide:mail-check" :size="16" />
+						Acuso recibo
+					</LnxButton>
+					<small class="hint">Confirma que la has recibido. Queda como prueba de la entrega.</small>
+				</template>
+
+				<div v-if="notice.kind === 'minutes' && notice.absent" class="dissent">
+					<p>
+						No asististe ni te representaron. Si no estás de acuerdo con algún acuerdo, dilo antes del {{ dateTimeFormat.format(dissentDeadline(notice)) }}:
+						si no, tu voto cuenta a favor (art. 17.8 LPH).
+					</p>
+					<div v-for="item in meeting.agenda.filter(entry => notice.items.includes(entry.id))" :key="item.id" class="dissent-item">
+						<span>{{ item.title }}</span>
+						<small v-if="notice.dissent[item.id]">Discrepancia registrada el {{ formatDay(notice.dissent[item.id]!) }}</small>
+						<small v-else-if="notice.recordedDissent?.[item.id]">La administración anotó tu discrepancia, recibida el {{ formatDay(notice.recordedDissent[item.id]!.receivedOn) }}</small>
+						<LnxButton
+							v-else-if="canDissent(notice)"
+							size="small"
+							mode="outline"
+							:is-loading="busy === `dissent_${item.id}`"
+							:disabled="!!busy"
+							@click="onDissent(notice, item)"
+						>
+							Manifestar mi discrepancia
+						</LnxButton>
+					</div>
+					<small v-if="!canDissent(notice)" class="hint">El plazo terminó el {{ dateTimeFormat.format(dissentDeadline(notice)) }}.</small>
+				</div>
 			</section>
 
 			<section v-if="meeting.status === 'convened'" class="panel attendance">
@@ -313,11 +447,99 @@ h2 {
 		&::first-letter {
 			text-transform: uppercase;
 		}
+
+		.hint {
+			display: block;
+			font-size: var(--lnx-font-size-small);
+		}
 	}
 }
 
-.attendance {
+.attendance,
+.sign,
+.notice-panel {
 	gap: var(--lnx-spacing-3);
+}
+
+.act {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-4);
+
+	.text {
+		color: var(--color-gray-8);
+		line-height: 1.5;
+		white-space: pre-line;
+	}
+}
+
+.signatures {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+	gap: var(--lnx-spacing-4);
+
+	figure {
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		gap: var(--lnx-spacing-1);
+	}
+
+	figcaption {
+		padding-top: var(--lnx-spacing-1);
+		border-top: 1px solid var(--color-gray-3);
+		display: flex;
+		flex-direction: column;
+		font-size: var(--lnx-font-size-small);
+
+		small {
+			color: var(--color-gray-6);
+		}
+	}
+}
+
+.hash {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
+	color: var(--color-gray-6);
+	font-size: var(--lnx-font-size-small);
+
+	code {
+		overflow-wrap: anywhere;
+	}
+}
+
+.done {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	color: var(--color-primary);
+}
+
+.dissent {
+	padding-top: var(--lnx-spacing-3);
+	border-top: 1px solid var(--color-gray-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
+
+	p {
+		color: var(--color-gray-8);
+		line-height: 1.5;
+	}
+}
+
+.dissent-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
+
+	small {
+		color: var(--color-gray-6);
+	}
 }
 
 .choices {

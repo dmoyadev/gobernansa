@@ -3,10 +3,12 @@ import type { Claim, ClaimChannel, ClaimLevel, DebtCase } from '@gobernansa/shar
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import { claimChannels, claimLevels, demoBurofaxTracking, nextClaimLevel } from '@gobernansa/shared/domain/arrears.ts';
+import type { MailDraft } from '@/modules/mail/application/mail.ts';
+import { claimChannels, claimLevels, demoBurofaxTracking, formatRate, interestOwed, nextClaimLevel } from '@gobernansa/shared/domain/arrears.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
-import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
+import { isEmail } from '@gobernansa/shared/domain/mail.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
@@ -14,6 +16,8 @@ import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { communityLine, MAIL_MODE, mailOutcome } from '@/modules/mail/application/mail.ts';
+import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
 import { loadDebtCase, recordClaim, restoreClaims } from '../application/useArrears.ts';
 import { loadPropertyAccount } from '../application/useFinances.ts';
 
@@ -63,7 +67,17 @@ onMounted(load);
 onRevalidate(load);
 
 const overdue = computed(() => charges.value.filter(charge => isOverdue(charge, today.value)).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis()));
-const total = computed(() => overdue.value.reduce((sum, charge) => sum + charge.amount, 0));
+const total = computed(() => overdue.value.reduce((sum, charge) => sum + outstanding(charge), 0));
+// Until today, when the community applies them
+const interest = computed(() => {
+	const settings = community.value?.lateInterest;
+	if (!settings) {
+		return undefined;
+	}
+	const owed = interestOwed(charges.value, settings, today.value);
+	return { ...owed, settings, byCharge: new Map(owed.items.map(item => [item.charge.id, item.amount])) };
+});
+const claimed = computed(() => total.value + (interest.value?.total ?? 0));
 const lastClaim = computed(() => debtCase.value?.claims.at(-1));
 
 // The letter's text, the same printed and by email
@@ -82,35 +96,57 @@ const letter = computed(() => {
 				'Le recordamos que, conforme al artículo 15.2 de la misma ley, los propietarios que no estén al corriente de pago de las deudas vencidas con la comunidad no tienen derecho a voto en la junta.',
 			]
 		: [];
+	const owed = interest.value;
+	const interestNote = owed?.total
+		? `A la deuda se suman ${formatCents(owed.total)} de intereses de demora hasta hoy, al ${formatRate(owed.settings.rate)} anual sobre lo pendiente de cada recibo${owed.settings.graceDays ? ` desde ${owed.settings.graceDays} días después de su vencimiento` : ' desde su vencimiento'}, según lo acordado por la comunidad.`
+		: undefined;
 	const iban = community.value?.iban;
 	const payment = iban
 		? `Puede abonarlo por transferencia a la cuenta de la comunidad ${formatIban(iban)}${community.value?.bank ? ` (${community.value.bank})` : ''}, indicando como concepto «${property.value?.name}».`
 		: 'Puede abonarlo en la administración de la comunidad.';
-	return { greeting: owner ? `Estimado/a ${owner}:` : 'Estimado/a propietario/a:', intro, warning, payment };
+	return { greeting: owner ? `Estimado/a ${owner}:` : 'Estimado/a propietario/a:', intro, interestNote, warning, payment };
 });
 
 const subject = computed(() => `${claimLevels[level.value].title}: ${property.value?.name} · Comunidad ${community.value?.name}`);
+
+// The letter as an email, the same queued in the outbox or opened in the user's own mail app
+const emailBlocks = computed(() => [
+	letter.value.greeting,
+	letter.value.intro,
+	overdue.value.map(charge => `${charge.concept} (vencido el ${dateFormat.format(charge.dueDate.toDate())}): ${formatCents(outstanding(charge))}${interest.value?.byCharge.get(charge.id) ? ` más ${formatCents(interest.value.byCharge.get(charge.id)!)} de intereses` : ''}`),
+	`Total adeudado: ${formatCents(claimed.value)}`,
+	...(letter.value.interestNote ? [letter.value.interestNote] : []),
+	...letter.value.warning,
+	letter.value.payment,
+	`Atentamente,\nLa administración de la Comunidad de propietarios ${community.value?.name}`,
+]);
 
 const mailto = computed(() => {
 	const email = property.value?.ownerEmail;
 	if (!email) {
 		return undefined;
 	}
-	const items = overdue.value.map(charge => `- ${charge.concept} (vencido el ${dateFormat.format(charge.dueDate.toDate())}): ${formatCents(charge.amount)}`);
-	const body = [
-		letter.value.greeting,
-		letter.value.intro,
-		[...items, `Total adeudado: ${formatCents(total.value)}`].join('\n'),
-		...letter.value.warning,
-		letter.value.payment,
-		`Atentamente,\nLa administración de la Comunidad de propietarios ${community.value?.name}`,
-	].join('\n\n');
+	const body = emailBlocks.value.map(block => Array.isArray(block) ? block.map(item => `- ${item}`).join('\n') : block).join('\n\n');
 	return `mailto:${email}?subject=${encodeURIComponent(subject.value)}&body=${encodeURIComponent(body)}`;
 });
 
-// Kept in the case's log, and undone from the toast if the letter wasn't sent after all
+function sendByEmail() {
+	void record('email', {
+		to: property.value!.ownerEmail!,
+		communityId: props.id,
+		kind: 'claim',
+		link: `/communities/${props.id}/arrears/${props.propertyId}/claim`,
+		subject: subject.value,
+		title: claimLevels[level.value].title,
+		blocks: emailBlocks.value,
+		footer: [communityLine(community.value ?? {}), community.value?.cif ? `CIF ${community.value.cif}` : ''],
+	});
+}
+
+// Kept in the case's log, and undone from the toast if the letter wasn't sent after all. One emailed for real can't be,
+// in demo mode nothing went out
 const recording = ref(false);
-async function record(channel: ClaimChannel) {
+async function record(channel: ClaimChannel, mail?: MailDraft) {
 	if (!property.value || recording.value) {
 		return;
 	}
@@ -118,7 +154,7 @@ async function record(channel: ClaimChannel) {
 		date: toDateString(new Date()),
 		level: level.value,
 		channel,
-		amount: total.value,
+		amount: claimed.value,
 		...(channel === 'burofax' ? { tracking: demoBurofaxTracking() } : {}),
 	};
 	const previous = debtCase.value;
@@ -130,13 +166,19 @@ async function record(channel: ClaimChannel) {
 		status: previous?.status === 'monitorio' ? 'monitorio' : 'claimed',
 		claims: [...previous?.claims ?? [], claim],
 	} as DebtCase;
-	await optimistic(recordClaim(props.id, target, claim, previous), {
-		done: claim.tracking ? `Burofax de prueba registrado: ${claim.tracking}` : `Reclamación registrada (${claimChannels[channel].toLowerCase()})`,
+	await optimistic(recordClaim(props.id, target, claim, previous, mail), {
+		done: claim.tracking
+			? `Burofax de prueba registrado: ${claim.tracking}`
+			: mail
+				? `Reclamación registrada; ${mailOutcome(mail.to)}`
+				: `Reclamación registrada (${claimChannels[channel].toLowerCase()})`,
 		failed: 'No se ha podido registrar',
-		revert: async () => {
-			debtCase.value = previous;
-			await restoreClaims(props.id, previous ?? { id: target.id, propertyName: target.name, claims: [], status: 'claimed' }, !!previous);
-		},
+		revert: mail && MAIL_MODE !== 'demo'
+			? undefined
+			: async () => {
+				debtCase.value = previous;
+				await restoreClaims(props.id, previous ?? { id: target.id, propertyName: target.name, claims: [], status: 'claimed' }, !!previous);
+			},
 		onError: () => debtCase.value = previous,
 	});
 	recording.value = false;
@@ -188,11 +230,13 @@ function printAndRecord() {
 				<LnxIcon icon="lucide:printer" />
 				Imprimir y registrar carta
 			</LnxButton>
-			<LnxButton v-if="mailto && overdue.length" :href="mailto" mode="outline" @click="record('email')">
-				<LnxIcon icon="lucide:mail" />
-				Enviar por email
-			</LnxButton>
-			<LnxButton v-else mode="outline" disabled :title="overdue.length ? 'El censo no tiene el correo del propietario' : undefined">
+			<LnxButton
+				mode="outline"
+				:disabled="!overdue.length || !isEmail(property?.ownerEmail)"
+				:is-loading="recording"
+				:title="overdue.length && !isEmail(property?.ownerEmail) ? 'El censo no tiene el correo del propietario' : undefined"
+				@click="sendByEmail()"
+			>
 				<LnxIcon icon="lucide:mail" />
 				Enviar por email
 			</LnxButton>
@@ -201,9 +245,14 @@ function printAndRecord() {
 				Enviar por burofax
 				<span class="chip test">Modo de prueba</span>
 			</LnxButton>
+			<LnxButton v-if="mailto && overdue.length" :href="mailto" mode="clear" @click="record('email')">
+				<LnxIcon icon="lucide:external-link" />
+				Abrir en mi correo
+			</LnxButton>
 		</div>
+		<MailModeNote v-if="isEmail(property?.ownerEmail)" />
 		<p class="hint">
-			El email se abre en tu programa de correo. El burofax es simulado: no se envía nada ni tiene coste, solo se registra con un justificante de prueba hasta contratar un servicio de envío certificado.
+			«Abrir en mi correo» la prepara en tu programa de correo. El burofax es simulado: no se envía nada ni tiene coste, solo se registra con un justificante de prueba hasta contratar un servicio de envío certificado.
 		</p>
 	</section>
 
@@ -248,7 +297,10 @@ function printAndRecord() {
 					<th>Tipo</th>
 					<th>Vencimiento</th>
 					<th class="amount">
-						Importe
+						Pendiente
+					</th>
+					<th v-if="interest?.total" class="amount">
+						Intereses
 					</th>
 				</tr>
 			</thead>
@@ -258,22 +310,41 @@ function printAndRecord() {
 					<td>{{ chargeTypes[charge.type] }}</td>
 					<td>{{ dateFormat.format(charge.dueDate.toDate()) }}</td>
 					<td class="amount">
-						{{ formatCents(charge.amount) }}
+						{{ formatCents(outstanding(charge)) }}<template v-if="charge.collections?.length">
+							<br><small>de {{ formatCents(charge.amount) }}</small>
+						</template>
+					</td>
+					<td v-if="interest?.total" class="amount">
+						{{ formatCents(interest.byCharge.get(charge.id) ?? 0) }}
 					</td>
 				</tr>
 			</tbody>
 			<tfoot>
+				<tr v-if="interest?.total">
+					<th colspan="3">
+						Subtotal
+					</th>
+					<th class="amount">
+						{{ formatCents(total) }}
+					</th>
+					<th class="amount">
+						{{ formatCents(interest.total) }}
+					</th>
+				</tr>
 				<tr>
 					<th colspan="3">
 						Total adeudado
 					</th>
-					<th class="amount">
-						{{ formatCents(total) }}
+					<th class="amount" :colspan="interest?.total ? 2 : 1">
+						{{ formatCents(claimed) }}
 					</th>
 				</tr>
 			</tfoot>
 		</table>
 
+		<p v-if="letter.interestNote">
+			{{ letter.interestNote }}
+		</p>
 		<p v-for="paragraph in letter.warning" :key="paragraph">
 			{{ paragraph }}
 		</p>

@@ -1,4 +1,4 @@
-import type { BankMovement, MatchCandidate, MovementData } from '@gobernansa/shared/domain/bank.ts';
+import type { BankMovement, GatewayPayment, MatchCandidate, MovementData } from '@gobernansa/shared/domain/bank.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
 import type { PaymentOrder, Remittance } from '@gobernansa/shared/domain/sepa.ts';
@@ -51,6 +51,20 @@ export async function loadBankMovements(communityId: string, since: string) {
 }
 
 /**
+ * The online payments made since `since` ('YYYY-MM-DD'), once, for the gateway's payouts. One where() on their date:
+ * the reconciled and reverted ones are left out in the browser
+ */
+export async function loadGatewayPayments(communityId: string, since: string) {
+	const snapshot = await getDocs(query(collection(db, 'communities', communityId, 'payments'), where('createdAt', '>=', Timestamp.fromDate(new Date(`${since}T00:00`)))));
+	return snapshot.docs.map(payment => ({ ...payment.data(), id: payment.id }) as GatewayPayment);
+}
+
+// The documents a match points to: a payout's are the payments it carried
+function matchedRef(communityId: string, kind: 'charges' | 'expenses' | 'payout', id: string) {
+	return doc(db, 'communities', communityId, kind === 'payout' ? 'payments' : kind, id);
+}
+
+/**
  * Only those not imported before, by their deterministic ids: those already there are left as they are, reconciled or
  * not. One read of what's there since the statement's first day. Resolves to those added
  */
@@ -96,7 +110,8 @@ export async function removeMovements(communityId: string, movements: BankMoveme
 
 /**
  * Reconciles a movement with what it paid or collected, marked paid on the movement's day, in one batch: charges and
- * invoices point back to it, a remittance is collected and a payment order executed. Resolves to the movement as it's now
+ * invoices point back to it, a remittance is collected and a payment order executed. A payout's payments only point back
+ * to it, they were paid the day the neighbour paid. Resolves to the movement as it's now
  */
 export async function matchMovement(communityId: string, movement: BankMovement, candidate: MatchCandidate, documents: { remittances: Remittance[]; orders: PaymentOrder[] }) {
 	const uid = signedUid();
@@ -124,7 +139,9 @@ export async function matchMovement(communityId: string, movement: BankMovement,
 
 	const batch = writeBatch(db);
 	for (const id of candidate.ids) {
-		batch.update(doc(db, 'communities', communityId, candidate.kind, id), { paidAt: at, bankMovementId: movement.id, updatedAt: serverTimestamp(), updatedBy: uid });
+		batch.update(matchedRef(communityId, candidate.kind, id), candidate.kind === 'payout'
+			? { bankMovementId: movement.id }
+			: { paidAt: at, bankMovementId: movement.id, updatedAt: serverTimestamp(), updatedBy: uid });
 	}
 	markMovement(batch);
 	logActivity(batch, communityId, {
@@ -167,12 +184,15 @@ export async function unmatchMovement(communityId: string, movement: BankMovemen
 	}
 
 	const batch = writeBatch(db);
-	if (match.kind === 'charges' || match.kind === 'expenses') {
+	if (match.kind === 'charges' || match.kind === 'expenses' || match.kind === 'payout') {
 		// Those deleted since can't be updated, and those paid otherwise since keep it
-		const documents = await Promise.all(match.ids.map(async id => getDoc(doc(db, 'communities', communityId, match.kind, id))));
+		const kind = match.kind;
+		const documents = await Promise.all(match.ids.map(async id => getDoc(matchedRef(communityId, kind, id))));
 		for (const document of documents) {
 			if (document.exists() && document.data().bankMovementId === movement.id) {
-				batch.update(document.ref, { paidAt: null, bankMovementId: deleteField(), updatedAt: serverTimestamp(), updatedBy: uid });
+				batch.update(document.ref, kind === 'payout'
+					? { bankMovementId: deleteField() }
+					: { paidAt: null, bankMovementId: deleteField(), updatedAt: serverTimestamp(), updatedBy: uid });
 			}
 		}
 	}

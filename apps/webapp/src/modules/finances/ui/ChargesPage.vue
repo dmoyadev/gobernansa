@@ -3,7 +3,7 @@ import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Checkout } from '../application/useMyCharges.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
-import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
@@ -23,8 +23,8 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 
 // Overdue first, then by due date
 const pending = computed(() => [...unpaid.value].sort((a, b) => Number(isOverdue(b)) - Number(isOverdue(a)) || a.dueDate.toMillis() - b.dueDate.toMillis()));
-const pendingTotal = computed(() => pending.value.reduce((sum, charge) => sum + charge.amount, 0));
-const overdueTotal = computed(() => pending.value.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + charge.amount, 0));
+const pendingTotal = computed(() => pending.value.reduce((sum, charge) => sum + outstanding(charge), 0));
+const overdueTotal = computed(() => pending.value.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + outstanding(charge), 0));
 const loading = computed(() => unpaid.pending.value && !unpaid.value.length);
 const loadError = computed(() => unpaid.error.value);
 
@@ -137,11 +137,14 @@ function transferConcept(charge: Charge) {
 							<template v-else>Vence el {{ dateFormat.format(charge.dueDate.toDate()) }}</template>
 							<template v-if="charge.remittanceId"> · se cobra por domiciliación</template>
 						</small>
+						<RouterLink v-if="charge.collections?.length" class="collected tabular" :to="`/neighborhood/charges/${charge.id}/receipt`">
+							Pagado a cuenta {{ formatCents(charge.amount - outstanding(charge)) }} de {{ formatCents(charge.amount) }}
+						</RouterLink>
 					</span>
 					<span class="side">
-						<strong class="tabular">{{ formatCents(charge.amount) }}</strong>
+						<strong class="tabular">{{ formatCents(outstanding(charge)) }}</strong>
 						<LnxButton
-							v-if="canPay && !charge.remittanceId && charge.amount > 0"
+							v-if="canPay && !charge.remittanceId && outstanding(charge) > 0"
 							size="small"
 							:disabled="!!paying"
 							@click="paying = charge; justPaid = undefined"
@@ -158,7 +161,7 @@ function transferConcept(charge: Charge) {
 
 		<TestCheckout
 			v-if="paying"
-			:amount="paying.amount"
+			:amount="outstanding(paying)"
 			:concept="`${paying.concept} · ${paying.propertyName}`"
 			:pay="pay"
 			@cancel="paying = undefined"
@@ -329,6 +332,12 @@ section {
 
 		.test {
 			color: #7a5a00;
+		}
+
+		.collected {
+			align-self: flex-start;
+			color: var(--color-primary);
+			font-size: var(--lnx-font-size-small);
 		}
 	}
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Draft, NoticeTone } from '@gobernansa/shared/application/writing.ts';
 import type { Event } from '@gobernansa/shared/domain/event.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
@@ -6,6 +7,7 @@ import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
+import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
 import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
@@ -14,7 +16,7 @@ import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { optimistic } from '@/app/ux/toast.ts';
+import { optimistic, toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 
@@ -62,6 +64,39 @@ function recentSince() {
 
 function sortBroadcasts(broadcasts: Broadcast[]) {
 	return broadcasts.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+}
+
+// A first version of the title and the description from a few points, to edit before sending
+const tones: { value: NoticeTone; label: string }[] = [
+	{ value: 'info', label: 'Informativo' },
+	{ value: 'urgent', label: 'Urgente' },
+	{ value: 'reminder', label: 'Recordatorio' },
+];
+const draft = ref({ points: '', tone: 'info' as NoticeTone });
+// While it's written, what it's doing
+const drafting = ref<string>();
+const drafted = ref<Draft['source']>();
+
+async function writeDraft() {
+	// eslint-disable-next-line no-alert
+	if ((form.value.title.trim() || form.value.description.trim()) && !window.confirm('¿Sustituir el título y la descripción por el borrador?')) {
+		return;
+	}
+	drafting.value = 'Redactando…';
+	try {
+		const { draftNotice } = await import('@gobernansa/shared/application/writing.ts');
+		const result = await draftNotice(draft.value.points, draft.value.tone, (status) => {
+			drafting.value = status;
+		});
+		form.value.title = result.title;
+		form.value.description = result.body;
+		drafted.value = result.source;
+	} catch {
+		// Its code couldn't load, e.g. offline
+		toast('No se ha podido redactar, revisa la conexión', { tone: 'error' });
+	} finally {
+		drafting.value = undefined;
+	}
 }
 
 const formError = ref<string>();
@@ -260,6 +295,33 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 			</LnxTextarea>
 		</div>
 
+		<details class="draft">
+			<summary>
+				<LnxIcon icon="lucide:pen-line" :size="16" />
+				Redactar a partir de unos puntos
+			</summary>
+			<p class="hint">
+				Sugerencias y redacción automática: escribe lo esencial y se rellenan el título y la descripción para que los revises. No se envía nada a ningún sitio.
+			</p>
+			<LnxTextarea v-model="draft.points" rows="3" placeholder="Un punto por línea, por ejemplo:&#10;corte de agua el martes de 9:00 a 14:00&#10;obras en la red general">
+				Puntos clave
+			</LnxTextarea>
+			<fieldset class="tones">
+				<legend>Tono</legend>
+				<label v-for="tone in tones" :key="tone.value">
+					<input v-model="draft.tone" type="radio" class="sr-only" name="tone" :value="tone.value">
+					<span>{{ tone.label }}</span>
+				</label>
+			</fieldset>
+			<footer class="form-actions">
+				<WritingSource v-if="drafted && !drafting" :source="drafted" />
+				<LnxButton type="button" mode="outline" :is-loading="!!drafting" :disabled="!draft.points.trim()" @click="writeDraft()">
+					<LnxIcon icon="lucide:file-pen-line" />
+					{{ drafting ?? 'Redactar' }}
+				</LnxButton>
+			</footer>
+		</details>
+
 		<fieldset class="communities" :aria-busy="loading && !communities.length">
 			<legend>Comunidades</legend>
 			<p v-if="error" class="error" role="alert">
@@ -401,6 +463,62 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 .check {
 	min-height: 32px;
 	justify-content: center;
+}
+
+.draft {
+	padding: var(--lnx-spacing-3);
+	border-radius: var(--lnx-radius-3);
+	background: var(--color-gray-1);
+
+	&[open] {
+		display: flex;
+		flex-direction: column;
+		gap: var(--lnx-spacing-3);
+	}
+
+	summary {
+		display: flex;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
+		color: var(--color-primary);
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		cursor: pointer;
+	}
+}
+
+.tones {
+	border: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+
+	legend {
+		margin-bottom: var(--lnx-spacing-1);
+		font-size: var(--lnx-font-size-small);
+	}
+
+	span {
+		display: inline-flex;
+		padding: 4px var(--lnx-spacing-3);
+		border: 1px solid var(--color-gray-3);
+		border-radius: var(--lnx-radius-5);
+		background: var(--color-gray-0);
+		color: var(--color-gray-7);
+		font-size: var(--lnx-font-size-small);
+		cursor: pointer;
+	}
+
+	input:checked + span {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+		font-weight: var(--lnx-font-weight-bold);
+	}
+
+	input:focus-visible + span {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 2px;
+	}
 }
 
 .skeleton-row {

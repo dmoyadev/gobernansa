@@ -31,6 +31,8 @@ export interface Community extends Datable {
 	onlinePayments?: 'test';
 	// Each bookable area's price and deposit, by area id, kept with the areas so the rules can check what a booking pays
 	bookingFees?: Record<string, BookingFee>;
+	// Intereses de demora on overdue charges, off when missing (see arrears.ts)
+	lateInterest?: LateInterest;
 
 	contacts?: CommunityContact[];
 	documents?: CommunityDocument[];
@@ -78,6 +80,13 @@ export interface BookableArea {
 export interface BookingFee {
 	price: number;
 	deposit: number;
+}
+
+export interface LateInterest {
+	// Yearly, in hundredths of a percent: 325 is 3,25 %
+	rate: number;
+	// Days after the due date before it starts to accrue
+	graceDays: number;
 }
 
 // Those of the areas that charge something, as kept in the community for the rules

@@ -72,6 +72,11 @@ export function hasSlotContent(slot?: Slot, slotProps: any = {}): boolean {
 	});
 }
 
+// '1 propiedad', '3 propiedades'
+export function plural(count: number, one: string, many: string) {
+	return `${count} ${count === 1 ? one : many}`;
+}
+
 export function scrollTop() {
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }

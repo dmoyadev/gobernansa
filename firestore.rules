@@ -117,7 +117,7 @@ service cloud.firestore {
       return !('card' in payment) || (payment.card.keys().hasOnly(['brand', 'last4']) && payment.card.brand is string && payment.card.last4.matches('[0-9]{4}'));
     }
 
-    // A charge or booking paid from the app points to its payment, written in the same request by the same neighbour, of exactly what was owed
+    // A charge or booking paid from the app points to its payment, written in the same request by the same neighbour, of exactly what was left to pay
     function paidOnline(communityId, payment, field, id, amount) {
       let written = getAfter(/databases/$(database)/documents/communities/$(communityId)/payments/$(payment.id)).data;
       return payment.keys().hasOnly(['id', 'mode', 'method', 'card'])
@@ -187,11 +187,16 @@ service cloud.firestore {
     // Their owners see them, and whoever manages the community keeps them, kept in the community they're in.
     // The SEPA mandate (mandate) is the owner's account and ownerNif their NIF (for the 184), so only they and the office see them
     match /properties/{propertyId} {
+      // The owner's phone (ownerPhone) as the census has it
+      function isPropertyData(data) {
+        return data.get('coefficient', 0) is number
+          && data.get('ownerPhone', '') is string && data.get('ownerPhone', '').size() <= 40;
+      }
+
       allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || manages(resource.data.communityId));
-      allow create: if manages(request.resource.data.communityId)
-        && request.resource.data.get('coefficient', 0) is number;
+      allow create: if manages(request.resource.data.communityId) && isPropertyData(request.resource.data);
       allow update: if manages(resource.data.communityId) && request.resource.data.communityId == resource.data.communityId
-        && request.resource.data.get('coefficient', 0) is number;
+        && isPropertyData(request.resource.data);
       allow delete: if manages(resource.data.communityId);
     }
 
@@ -276,11 +281,105 @@ service cloud.firestore {
       allow delete: if manages(resource.data.communityId);
     }
 
+    // Partes de trabajo: the link a provider opens without an account to see an issue's job and report back. The token in
+    // the id is the only credential, so one can be got by id but they can't be listed. The administration keeps it in the
+    // issue's private/admin document
+    match /workOrders/{token} {
+      // The provider's next step with its visit date, note and photos (Cloudinary only), added to the history one at a time.
+      // Accepting only comes first, rescheduling is allowed, and rejecting or finishing ends it. Signed in or not
+      function isProviderReport() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let photos = after.get('photos', []);
+        return changedOnly(['status', 'scheduledAt', 'photos', 'history', 'updatedAt'])
+          && after.updatedAt == request.time
+          && before.status in ['sent', 'accepted', 'scheduled']
+          && (after.status in ['rejected', 'scheduled', 'done'] || (after.status == 'accepted' && before.status == 'sent'))
+          && after.history.size() == before.history.size() + 1
+          && after.history.size() <= 20
+          // An empty range is an error, not []
+          && (before.history.size() == 0 || after.history[0:before.history.size()] == before.history)
+          && isStep(after.history[before.history.size()], before, after)
+          && photos is list
+          && photos.size() <= 10
+          && (photos.size() == 0 || (photos.join(' ').matches('https://res[.]cloudinary[.]com/[^ ]{1,300}( https://res[.]cloudinary[.]com/[^ ]{1,300})*')
+            && photos.join(' ').split(' ').size() == photos.size()));
+      }
+
+      // The step added: the new status, the provider's note and, only when scheduling, the visit date
+      function isStep(step, before, after) {
+        return step.keys().hasOnly(['at', 'status', 'note', 'scheduledAt'])
+          && step.at is timestamp
+          && step.status == after.status
+          && step.get('note', '') is string
+          && step.get('note', '').size() <= 2000
+          && ((after.status == 'scheduled' && after.scheduledAt is timestamp && step.get('scheduledAt', null) == after.scheduledAt)
+            || (after.status != 'scheduled' && !('scheduledAt' in step) && after.get('scheduledAt', null) == before.get('scheduledAt', null)));
+      }
+
+      allow get: if true;
+      allow create: if manages(request.resource.data.communityId)
+        && token.matches('[A-Za-z0-9_-]{22,64}')
+        && request.resource.data.keys().hasOnly(['communityId', 'issueId', 'community', 'issue', 'expectedAt', 'contact', 'provider', 'status', 'history', 'createdAt', 'createdBy', 'updatedAt', 'revokedAt'])
+        && request.resource.data.status == 'sent'
+        && request.resource.data.history == []
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.revokedAt == null;
+      // Once revoked nobody can change it. The administration revokes it or brings its expected date up to the issue's
+      allow update: if resource.data.revokedAt == null && (isProviderReport()
+        || (manages(resource.data.communityId)
+          && changedOnly(['revokedAt', 'updatedAt'])
+          && request.resource.data.revokedAt == request.time
+          && request.resource.data.updatedAt == request.time)
+        || (manages(resource.data.communityId)
+          && changedOnly(['expectedAt', 'updatedAt'])
+          && (request.resource.data.expectedAt == null || request.resource.data.expectedAt is timestamp)
+          && request.resource.data.updatedAt == request.time));
+      allow delete: if manages(resource.data.communityId);
+    }
+
+    // Correo saliente, in the shape of Firebase's Trigger Email extension, which sends each one created once installed (until
+    // then they're only kept). Queued by whoever manages the community, the team's (communityId '') by the team. Never changed
+    // nor removed from the apps: only the extension writes delivery
+    match /mail/{mailId} {
+      // Lists of addresses, joined so one regex checks them all, and split back to as many, so none holds several
+      function isAddresses(addresses) {
+        return addresses is list && (addresses.size() == 0
+          || (addresses.join(' ').matches('[^ @]{1,64}@[^ @]{1,255}( [^ @]{1,64}@[^ @]{1,255})*')
+            && addresses.join(' ').split(' ').size() == addresses.size()));
+      }
+
+      allow read: if manages(resource.data.communityId);
+      allow create: if manages(request.resource.data.communityId)
+        && request.resource.data.keys().hasOnly(['to', 'cc', 'bcc', 'replyTo', 'message', 'communityId', 'kind', 'mode', 'link', 'createdAt', 'createdBy'])
+        && isAddresses(request.resource.data.to)
+        && isAddresses(request.resource.data.get('cc', []))
+        && isAddresses(request.resource.data.get('bcc', []))
+        && request.resource.data.to.size() > 0
+        && request.resource.data.to.size() + request.resource.data.get('cc', []).size() + request.resource.data.get('bcc', []).size() <= 50
+        && request.resource.data.get('replyTo', '') is string && request.resource.data.get('replyTo', '').size() <= 254
+        && request.resource.data.message.keys().hasOnly(['subject', 'text', 'html'])
+        && request.resource.data.message.subject is string && request.resource.data.message.subject.size() > 0 && request.resource.data.message.subject.size() <= 300
+        && request.resource.data.message.text is string && request.resource.data.message.text.size() <= 200000
+        && request.resource.data.message.html is string && request.resource.data.message.html.size() <= 400000
+        && request.resource.data.kind in ['invitation', 'meeting-call', 'meeting-minutes', 'work-order', 'claim']
+        && request.resource.data.mode in ['demo', 'extension']
+        && request.resource.data.link is string && request.resource.data.link.size() <= 300
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+    }
+
     match /communities/{communityId} {
       allow read: if inCommunity(communityId) || manages(communityId);
       // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed
       allow create: if isSuperadmin();
-      allow update: if manages(communityId);
+      // Intereses de demora (lateInterest): the yearly rate in hundredths of a percent, up to 20 %, and the days of grace
+      allow update: if manages(communityId)
+        && (!('lateInterest' in request.resource.data) || (request.resource.data.lateInterest.keys().hasOnly(['rate', 'graceDays'])
+          && request.resource.data.lateInterest.rate is int && request.resource.data.lateInterest.rate > 0 && request.resource.data.lateInterest.rate <= 2000
+          && request.resource.data.lateInterest.graceDays is int && request.resource.data.lateInterest.graceDays >= 0 && request.resource.data.lateInterest.graceDays <= 365));
 
       match /issues/{issueId} {
         allow read: if inOrManages(communityId);
@@ -366,6 +465,11 @@ service cloud.firestore {
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.status != 'draft');
         allow write: if manages(communityId) && request.resource.data.communityId == communityId;
         allow delete: if manages(communityId);
+        // A signer of the acta adds themselves to minutesSigned when signing, for the webapp's list
+        allow update: if inCommunity(communityId)
+          && request.auth.uid in resource.data.get('minutesSigners', [])
+          && changedOnly(['minutesSigned'])
+          && request.resource.data.minutesSigned.toSet() == resource.data.get('minutesSigned', []).toSet().union([request.auth.uid].toSet());
 
         // Each neighbour answers for themselves, with their uid as id
         match /attendance/{uid} {
@@ -394,16 +498,177 @@ service cloud.firestore {
             && ownsWithCoefficient(communityId, request.resource.data.propertyId, request.resource.data.coefficient)
             && isMyName(request.resource.data.get('voterName', ''));
         }
+
+        // The acta (packages/shared/domain/minutes.ts), one per meeting. Whoever manages the community edits its text and
+        // signers until both have signed, which takes off the signatures there were. Each signer signs their own slot, or
+        // whoever manages it signs it for them in person. Then it's sealed with its hash and never changes again.
+        // The signers read it to sign it, the owners once it's sent to them
+        match /minutes/{minutesId} {
+          function signers() {
+            return [resource.data.president.uid, resource.data.secretary.uid];
+          }
+
+          function bothSigned() {
+            return resource.data.signatures.keys().hasAll(['president', 'secretary']);
+          }
+
+          function isSigner(signer) {
+            return signer.keys().hasOnly(['uid', 'name'])
+              && signer.uid is string && signer.uid.size() > 0
+              && signer.name is string && signer.name.size() <= 100;
+          }
+
+          // Firma electrónica simple: the stroke and who was signed in, dated by the server. With get(), as indexing the
+          // other slot, not signed yet, would fail the whole rule
+          function signs(role) {
+            let before = resource.data.signatures;
+            let after = request.resource.data;
+            let signature = after.signatures.get(role, null);
+            return signature != null
+              && !(role in before)
+              && after.signatures.diff(before).affectedKeys().hasOnly([role])
+              && signature.keys().hasOnly(['uid', 'name', 'path', 'signedAt', 'byUid', 'byEmail'])
+              && signature.uid == after[role].uid
+              && signature.name == after[role].name
+              && signature.signedAt == request.time
+              && signature.byUid == request.auth.uid
+              && signature.byEmail == request.auth.token.email
+              && (signature.uid == request.auth.uid || manages(communityId))
+              && signature.path is string
+              && signature.path.size() <= 20000
+              && signature.path.matches('M[0-9]+ [0-9]+( [ML][0-9]+ [0-9]+)*');
+          }
+
+          allow read: if manages(communityId) || (inCommunity(communityId) && (request.auth.uid in signers()
+            || get(/databases/$(database)/documents/communities/$(communityId)/meetings/$(meetingId)).data.get('notifiedAt', {}).get('minutes', null) != null));
+          allow create, update: if manages(communityId)
+            && minutesId == 'record'
+            && (resource == null || (resource.data.closedAt == null && !bothSigned()))
+            && request.resource.data.keys().hasOnly(['communityId', 'meetingId', 'text', 'president', 'secretary', 'signatures', 'hash', 'closedAt', 'updatedAt', 'updatedBy'])
+            && request.resource.data.communityId == communityId
+            && request.resource.data.meetingId == meetingId
+            && request.resource.data.text is string && request.resource.data.text.size() <= 100000
+            && isSigner(request.resource.data.president)
+            && isSigner(request.resource.data.secretary)
+            && request.resource.data.signatures == {}
+            && request.resource.data.hash == ''
+            && request.resource.data.closedAt == null
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.updatedBy == request.auth.uid;
+          allow update: if resource.data.closedAt == null && notBlocked()
+            && changedOnly(['signatures'])
+            && (signs('president') || signs('secretary'));
+          // Sealed once both have signed, by whoever signs last (from the webapp too) or from the admin
+          allow update: if (manages(communityId) || (inCommunity(communityId) && request.auth.uid in signers()))
+            && resource.data.closedAt == null && bothSigned()
+            && changedOnly(['hash', 'closedAt'])
+            && request.resource.data.hash.matches('[0-9a-f]{64}')
+            && request.resource.data.closedAt == request.time;
+        }
+
+        // The convocatoria or the acta sent to each owner (minutes.ts), as {kind}_{uid}, or {kind}_p{propertyId} without an
+        // account. Whoever manages the community sends them and only adds the dissents received outside the app. Each owner reads theirs, marks it read and
+        // acknowledged once and, absent from the meeting, dissents from each voted agreement within 30 days (art. 17.8 LPH)
+        match /notices/{noticeId} {
+          function isMine() {
+            return noticeId in ['call_' + request.auth.uid, 'minutes_' + request.auth.uid] && inCommunity(communityId);
+          }
+
+          function setsOnce(field) {
+            return changedOnly([field]) && resource.data.get(field, null) == null && request.resource.data[field] == request.time;
+          }
+
+          // One agreement at a time, dated by the server: past dissents were dated before, so request.time can only be the one added
+          function dissents() {
+            let added = request.resource.data.dissent.diff(resource.data.dissent);
+            return changedOnly(['dissent'])
+              && resource.data.kind == 'minutes'
+              && resource.data.absent == true
+              && request.time < resource.data.sentAt + duration.value(30, 'd')
+              && added.changedKeys().size() == 0
+              && added.removedKeys().size() == 0
+              && added.addedKeys().size() == 1
+              && added.addedKeys().hasOnly(resource.data.items)
+              && request.time in request.resource.data.dissent.values();
+          }
+
+          // A dissent received by post, burofax or in person, from an owner with an account or without: recorded by the
+          // administration apart from the owner's own, one agreement at a time with the day it arrived, and taken back only by it
+          function recordsDissent() {
+            let before = resource.data.get('recordedDissent', {});
+            let after = request.resource.data.recordedDissent;
+            let changes = after.diff(before);
+            let added = after.values().removeAll(before.values());
+            return changedOnly(['recordedDissent'])
+              && resource.data.kind == 'minutes'
+              && resource.data.absent == true
+              && changes.changedKeys().size() == 0
+              && ((changes.addedKeys().size() == 0 && changes.removedKeys().size() == 1)
+                || (changes.removedKeys().size() == 0
+                  && changes.addedKeys().size() == 1
+                  && changes.addedKeys().hasOnly(resource.data.items)
+                  && added.size() == 1
+                  && added[0].keys().hasOnly(['receivedOn', 'recordedAt', 'recordedBy'])
+                  && added[0].receivedOn is timestamp
+                  && added[0].receivedOn <= request.time
+                  && added[0].recordedAt == request.time
+                  && added[0].recordedBy == request.auth.uid));
+          }
+
+          // Owners get theirs by id, only the administration lists them
+          allow get: if manages(communityId) || isMine();
+          allow list: if manages(communityId);
+          allow create: if manages(communityId)
+            && request.resource.data.keys().hasOnly(['kind', 'uid', 'name', 'email', 'propertyIds', 'propertyNames', 'coefficient', 'absent', 'items', 'app', 'certified', 'sentAt', 'sentBy', 'readAt', 'receivedAt', 'dissent'])
+            && request.resource.data.kind in ['call', 'minutes']
+            && ((request.resource.data.uid != '' && noticeId == request.resource.data.kind + '_' + request.resource.data.uid)
+              || (request.resource.data.uid == '' && noticeId == request.resource.data.kind + '_p' + request.resource.data.propertyIds[0]))
+            && request.resource.data.app == (request.resource.data.uid != '')
+            && request.resource.data.certified.keys().hasOnly(['mode', 'reference'])
+            && request.resource.data.certified.mode == 'test'
+            && request.resource.data.sentAt == request.time
+            && request.resource.data.sentBy == request.auth.uid
+            && request.resource.data.readAt == null
+            && request.resource.data.receivedAt == null
+            && request.resource.data.dissent == {};
+          // Blocked owners too: blocking stops spam, not their rights as owners
+          allow update: if isMine() && (setsOnce('readAt') || setsOnce('receivedAt') || dissents());
+          allow update: if manages(communityId) && recordsDissent();
+        }
       }
 
       // Recibos and derramas. Owners see theirs. The year's fees from the budget share batchId fees-{year} and carry
       // their part for the fondo de reserva (reserve). A domiciliated one points to its remittance and keeps its returns.
       // Those imported from another program (the debt brought when migrating) share batchId import.
       // Owners pay theirs from the app while online payments are in test mode: only the payment, dated by the server,
-      // never one already paid or being domiciliated. The office marking it unpaid again removes the payment
+      // never one already paid or being domiciliated, of what the entregas a cuenta left. The office marking it unpaid
+      // again removes the payment.
+      // Entregas a cuenta (collections, their sum in collected and their years) and a recibo de intereses' charges and
+      // the day it counts until (interest) are the office's. Each entrega is added last, so the last one is checked
       match /charges/{chargeId} {
+        function isCollection(item) {
+          return item.keys().hasOnly(['id', 'amount', 'date', 'method', 'note'])
+            && item.id is string && item.id.size() <= 40
+            && item.amount is int && item.amount > 0
+            && item.date is timestamp
+            && item.method in ['cash', 'transfer', 'card', 'other']
+            && item.get('note', '') is string && item.get('note', '').size() <= 200;
+        }
+
+        function isChargeData(charge) {
+          let collections = charge.get('collections', []);
+          let collected = charge.get('collected', 0);
+          return collections is list && collections.size() <= 100
+            && (collections.size() == 0 || isCollection(collections[collections.size() - 1]))
+            && collected is int && collected >= 0 && collected <= charge.amount
+            && charge.get('collectionYears', []) is list && charge.get('collectionYears', []).size() <= 100
+            && (!('interest' in charge) || (charge.interest.keys().hasOnly(['chargeIds', 'to'])
+              && charge.interest.chargeIds is list && charge.interest.chargeIds.size() <= 500
+              && charge.interest.to is string && charge.interest.to.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')));
+        }
+
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
-        allow create, update: if manages(communityId) && request.resource.data.communityId == communityId;
+        allow create, update: if manages(communityId) && request.resource.data.communityId == communityId && isChargeData(request.resource.data);
         allow update: if inCommunity(communityId) && notBlocked()
           && resource.data.ownerUid == request.auth.uid
           && resource.data.paidAt == null
@@ -412,13 +677,14 @@ service cloud.firestore {
           && request.resource.data.paidAt == request.time
           && request.resource.data.updatedAt == request.time
           && request.resource.data.updatedBy == request.auth.uid
-          && paidOnline(communityId, request.resource.data.payment, 'chargeId', chargeId, resource.data.amount);
+          && paidOnline(communityId, request.resource.data.payment, 'chargeId', chargeId, resource.data.amount - resource.data.get('collected', 0));
         allow delete: if manages(communityId);
       }
 
       // Pagos online, made by neighbours from the app for one of their charges or bookings, written along with it.
       // Only in test mode (no money moves), with no card number: its brand and last 4 digits at most.
-      // The office can mark one reverted (and undo it), the payment itself is never removed
+      // The office can mark one reverted (and undo it), or reconciled with the gateway's payout in the bank
+      // (bankMovementId), the payment itself is never removed
       match /payments/{paymentId} {
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.uid == request.auth.uid);
         allow create: if inCommunity(communityId) && notBlocked() && testPayments(communityId)
@@ -435,6 +701,9 @@ service cloud.firestore {
             || ('bookingId' in request.resource.data
               && getAfter(/databases/$(database)/documents/communities/$(communityId)/bookings/$(request.resource.data.bookingId)).data.get('payment', {}).get('id', '') == paymentId));
         allow update: if manages(communityId) && changedOnly(['revertedAt', 'revertedBy']) && request.resource.data.get('revertedBy', request.auth.uid) == request.auth.uid;
+        allow update: if manages(communityId) && changedOnly(['bankMovementId'])
+          && (!('bankMovementId' in request.resource.data)
+            || exists(/databases/$(database)/documents/communities/$(communityId)/bankMovements/$(request.resource.data.bankMovementId)));
       }
 
       // Reclamaciones of a property's debt, one per property (its id): the claims sent and the monitorio's data. Only the office

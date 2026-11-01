@@ -11,6 +11,7 @@ import { useCommunityEvents } from '@/modules/events/application/useCommunityEve
 import EventCard from '@/modules/events/ui/EventCard.vue';
 import { issuesFilters } from '@/modules/issues/application/useIssues.ts';
 import { useUserActivity } from '@/modules/issues/application/useUserActivity.ts';
+import InstallApp from '@/shared/ui/InstallApp.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 
@@ -59,6 +60,8 @@ function showMyIssues() {
 				Dar aviso
 			</LnxButton>
 		</div>
+
+		<InstallApp dismissible />
 
 		<section>
 			<header>

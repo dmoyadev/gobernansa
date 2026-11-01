@@ -19,6 +19,7 @@ export interface Payment {
 	communityId: string;
 	mode: 'test';
 	method: OnlinePaymentMethod;
+	// For a charge, what was left of it after any entregas a cuenta
 	amount: number;
 	uid: string;
 	chargeId?: string;

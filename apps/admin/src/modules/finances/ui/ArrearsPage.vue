@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import type { Claim, DebtCase, DebtCaseStatus } from '@gobernansa/shared/domain/arrears.ts';
-import { agingBuckets, agingOf, claimChannels, claimLevels, debtCaseStatus } from '@gobernansa/shared/domain/arrears.ts';
-import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import type { LateInterest } from '@gobernansa/shared/domain/community.ts';
+import type { Charge } from '@gobernansa/shared/domain/finance.ts';
+import { agingBuckets, agingOf, claimChannels, claimLevels, debtCaseStatus, formatRate, interestOwed, SUGGESTED_INTEREST_RATE } from '@gobernansa/shared/domain/arrears.ts';
+import { toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { outstanding } from '@gobernansa/shared/domain/finance.ts';
+import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
+import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
+import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
+import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { optimistic } from '@/app/ux/toast.ts';
-import { loadDebtCases, removeClaim, restoreClaims, setDebtCaseStatus } from '../application/useArrears.ts';
-import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { optimistic, toast } from '@/app/ux/toast.ts';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { issueInterestCharge, loadDebtCases, loadInterestCharges, removeClaim, restoreClaims, saveLateInterest, setDebtCaseStatus } from '../application/useArrears.ts';
+import { deleteCharge, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -35,16 +42,125 @@ async function loadCases() {
 onMounted(loadCases);
 onRevalidate(loadCases);
 
+/* Intereses de demora: the community's setting and, while on, every recibo de intereses already issued, read once */
+const settings = ref<LateInterest | null>();
+const interestCharges = ref<Charge[]>([]);
+const interestError = ref<string>();
+const interestForm = ref({ enabled: false, rate: '', graceDays: '' });
+
+function resetInterestForm() {
+	interestForm.value = {
+		enabled: !!settings.value,
+		rate: ((settings.value?.rate ?? SUGGESTED_INTEREST_RATE) / 100).toFixed(2).replace('.', ','),
+		graceDays: String(settings.value?.graceDays ?? 0),
+	};
+}
+
+async function loadInterest() {
+	try {
+		const community = await loadCommunity(props.id);
+		settings.value = community?.lateInterest ?? null;
+		interestCharges.value = settings.value ? await loadInterestCharges(props.id) : [];
+		resetInterestForm();
+		interestError.value = undefined;
+	} catch (e) {
+		interestError.value = `No se han podido cargar los intereses de demora: ${(e as Error).message}`;
+	}
+}
+onMounted(loadInterest);
+onRevalidate(loadInterest);
+
+function saveInterest() {
+	const rate = toCents(interestForm.value.rate);
+	const graceDays = Number(interestForm.value.graceDays);
+	const next = interestForm.value.enabled ? { rate, graceDays } : null;
+	if (next && !(rate > 0 && rate <= 2000)) {
+		interestError.value = 'Escribe un interés anual entre 0,01 y 20, p. ej. 3,25';
+		return;
+	}
+	if (next && !(Number.isInteger(graceDays) && graceDays >= 0 && graceDays <= 365)) {
+		interestError.value = 'Los días de gracia van de 0 a 365';
+		return;
+	}
+	const previous = settings.value ?? null;
+	interestError.value = undefined;
+	if (next?.rate === previous?.rate && next?.graceDays === previous?.graceDays) {
+		return;
+	}
+	settings.value = next;
+	if (next && !previous) {
+		loadInterestCharges(props.id)
+			.then(charges => interestCharges.value = charges)
+			.catch((e: Error) => interestError.value = `No se han podido cargar los recibos de intereses: ${e.message}`);
+	}
+	const undo = () => {
+		settings.value = previous;
+		resetInterestForm();
+	};
+	void optimistic(saveLateInterest(props.id, next), {
+		done: next ? 'Intereses de demora guardados' : 'Intereses de demora desactivados',
+		failed: 'No se han podido guardar',
+		revert: async () => {
+			undo();
+			await saveLateInterest(props.id, previous);
+		},
+		onError: undo,
+	});
+}
+
 const now = new Date();
+const today = toDateString(now);
+// Until when the interest is worked out, today unless another day is picked
+const interestTo = ref(today);
+const interestDate = computed(() => new Date(`${interestTo.value || today}T12:00`));
+
 // Those owing something overdue, and those with a claim still open even if they've paid since, to close it
 const rows = computed(() => {
 	const byProperty = Object.groupBy(unpaid.value, charge => charge.propertyId);
-	return properties.value.map(property => ({ property, aging: agingOf(byProperty[property.id] ?? [], now), debtCase: cases.value[property.id] }))
+	const invoiced = Object.groupBy(interestCharges.value, charge => charge.propertyId);
+	return properties.value.map((property) => {
+		const charges = byProperty[property.id] ?? [];
+		return {
+			property,
+			aging: agingOf(charges, now),
+			debtCase: cases.value[property.id],
+			interest: settings.value ? interestOwed([...invoiced[property.id] ?? [], ...charges], settings.value, interestDate.value) : undefined,
+		};
+	})
 		.filter(row => row.aging.count || (row.debtCase && (row.debtCase.status === 'claimed' || row.debtCase.status === 'monitorio')))
 		.sort((a, b) => b.aging.buckets.at(-1)! - a.aging.buckets.at(-1)! || b.aging.total - a.aging.total
 			|| a.property.name.localeCompare(b.property.name, 'es', { numeric: true }));
 });
 const totals = computed(() => agingOf(unpaid.value, now));
+const interestTotal = computed(() => rows.value.reduce((sum, row) => sum + (row.interest?.total ?? 0), 0));
+
+// A charge for the interest a property owes until the day picked. Money: it waits for the server
+const invoicing = ref<string>();
+async function invoiceInterest(row: typeof rows.value[number]) {
+	const interest = row.interest;
+	if (!interest?.total || invoicing.value) {
+		return;
+	}
+	// eslint-disable-next-line no-alert
+	if (!window.confirm(`¿Emitir a ${row.property.name} un recibo de ${formatCents(interest.total)} por los intereses de demora hasta el ${dateFormat.format(interestDate.value)}?`)) {
+		return;
+	}
+	invoicing.value = row.property.id;
+	try {
+		const charge = await issueInterestCharge(props.id, row.property, interest.items.map(item => item.charge.id), interest.total, toDateString(interestDate.value));
+		interestCharges.value = [...interestCharges.value, charge];
+		toast('Recibo de intereses emitido', {
+			undo: async () => {
+				await deleteCharge(props.id, charge);
+				interestCharges.value = interestCharges.value.filter(other => other.id !== charge.id);
+			},
+		});
+	} catch (e) {
+		toast(`No se ha podido emitir: ${(e as Error).message}`, { tone: 'error' });
+	} finally {
+		invoicing.value = undefined;
+	}
+}
 const loading = computed(() => (propertiesPending.value || chargesPending.value || casesLoading.value) && !rows.value.length);
 
 const openId = ref<string>();
@@ -106,6 +222,9 @@ function lastClaim(debtCase?: DebtCase) {
 	<p v-if="casesError" class="error" role="alert">
 		{{ casesError }}
 	</p>
+	<p v-if="interestError" class="error" role="alert">
+		{{ interestError }}
+	</p>
 
 	<section class="card">
 		<h2>Antigüedad de la deuda</h2>
@@ -125,6 +244,11 @@ function lastClaim(debtCase?: DebtCase) {
 				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
 				<strong v-else>{{ rows.filter(row => row.aging.count).length }}</strong>
 			</div>
+			<div v-if="settings">
+				<small>Intereses de demora</small>
+				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 90px" />
+				<strong v-else>{{ formatCents(interestTotal) }}</strong>
+			</div>
 		</div>
 		<ol v-if="!loading && totals.total" class="aging tabular ux-appear">
 			<li v-for="(bucket, index) in agingBuckets" :key="bucket.label" :class="`age-${index}`">
@@ -135,8 +259,39 @@ function lastClaim(debtCase?: DebtCase) {
 		</ol>
 	</section>
 
+	<form class="card" @submit.prevent="saveInterest()">
+		<div class="section-head">
+			<h2>Intereses de demora</h2>
+			<span v-if="settings" class="chip tabular">{{ formatRate(settings.rate) }} anual<template v-if="settings.graceDays"> · {{ settings.graceDays }} días de gracia</template></span>
+			<span v-else-if="settings === null" class="chip">Sin intereses</span>
+		</div>
+		<p class="hint">
+			Interés simple sobre lo que queda por pagar de cada recibo vencido, desde su vencimiento más los días de gracia. Aplícalos solo si lo ha aprobado la junta o lo prevén los estatutos, y comprueba el interés legal del dinero vigente, que fija cada año la Ley de Presupuestos. El {{ formatRate(SUGGESTED_INTEREST_RATE) }} que se propone es solo un punto de partida.
+		</p>
+		<span v-if="settings === undefined" class="skeleton-item" style="height: 40px" />
+		<div v-else class="fields">
+			<LnxCheckbox v-model="interestForm.enabled">
+				Aplicar intereses de demora
+			</LnxCheckbox>
+			<LnxInput v-model="interestForm.rate" inputmode="decimal" placeholder="3,25" :disabled="!interestForm.enabled" required>
+				Interés anual (%)
+			</LnxInput>
+			<LnxInput v-model="interestForm.graceDays" inputmode="numeric" placeholder="0" :disabled="!interestForm.enabled">
+				Días de gracia
+			</LnxInput>
+			<LnxButton type="submit" mode="outline">
+				Guardar
+			</LnxButton>
+		</div>
+	</form>
+
 	<section class="card">
-		<h2>Deudores</h2>
+		<div class="section-head">
+			<h2>Deudores</h2>
+			<DatePicker v-if="settings" v-model="interestTo" class="until" :max="today">
+				Intereses hasta
+			</DatePicker>
+		</div>
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
 				<div class="row">
@@ -161,6 +316,9 @@ function lastClaim(debtCase?: DebtCase) {
 						<th scope="col" class="amount">
 							Total
 						</th>
+						<th v-if="settings" scope="col" class="amount">
+							Intereses
+						</th>
 						<th scope="col">
 							Reclamación
 						</th>
@@ -183,6 +341,9 @@ function lastClaim(debtCase?: DebtCase) {
 							</td>
 							<td class="amount">
 								<strong>{{ formatCents(row.aging.total) }}</strong>
+							</td>
+							<td v-if="row.interest" class="amount" :class="{ muted: !row.interest.total }">
+								{{ row.interest.total ? formatCents(row.interest.total) : '—' }}
 							</td>
 							<td>
 								<span v-if="row.debtCase" class="chip" :class="row.debtCase.status">{{ debtCaseStatus[row.debtCase.status] }}</span>
@@ -213,7 +374,49 @@ function lastClaim(debtCase?: DebtCase) {
 							</td>
 						</tr>
 						<tr v-if="openId === row.property.id" class="detail">
-							<td :colspan="agingBuckets.length + 4">
+							<td :colspan="agingBuckets.length + (settings ? 5 : 4)">
+								<div v-if="row.interest?.items.length" class="interest">
+									<table>
+										<thead>
+											<tr>
+												<th scope="col">
+													Recibo
+												</th>
+												<th scope="col" class="amount">
+													Pendiente
+												</th>
+												<th scope="col">
+													Desde
+												</th>
+												<th scope="col" class="amount">
+													Días
+												</th>
+												<th scope="col" class="amount">
+													Intereses
+												</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr v-for="item in row.interest.items" :key="item.charge.id">
+												<td>{{ item.charge.concept }}</td>
+												<td class="amount">
+													{{ formatCents(outstanding(item.charge)) }}
+												</td>
+												<td>{{ dateFormat.format(new Date(`${item.from}T00:00`)) }}</td>
+												<td class="amount">
+													{{ item.days }}
+												</td>
+												<td class="amount">
+													{{ formatCents(item.amount) }}
+												</td>
+											</tr>
+										</tbody>
+									</table>
+									<LnxButton size="small" mode="outline" :is-loading="invoicing === row.property.id" @click="invoiceInterest(row)">
+										<LnxIcon icon="lucide:receipt-euro" />
+										Generar recibo de intereses ({{ formatCents(row.interest.total) }})
+									</LnxButton>
+								</div>
 								<div v-if="row.debtCase" class="case">
 									<LnxSelect
 										:model-value="row.debtCase.status"
@@ -455,6 +658,33 @@ button.what {
 
 .debt {
 	color: var(--color-secondary-accent);
+}
+
+.section-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
+
+	.until {
+		width: 200px;
+	}
+}
+
+.fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+	align-items: end;
+	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
+}
+
+.interest {
+	margin-bottom: var(--lnx-spacing-4);
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
 }
 
 .case {

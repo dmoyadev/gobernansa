@@ -3,10 +3,10 @@ import type { DebtCase, NotificationMethod } from '@gobernansa/shared/domain/arr
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import { debtCaseStatus, notificationMethods } from '@gobernansa/shared/domain/arrears.ts';
+import { debtCaseStatus, formatRate, interestOwed, notificationMethods } from '@gobernansa/shared/domain/arrears.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
-import { chargeTypes } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
@@ -83,12 +83,21 @@ function pickMeeting(meetingId = '') {
 	}
 }
 
-// The debt the junta liquidated: what was due by its date and is still unpaid
+// The debt the junta liquidated: what was due by its date and is still unpaid, plus its interest until then when the community applies it
 const liquidated = computed(() => {
 	const until = form.value.meetingDate ? new Date(`${form.value.meetingDate}T23:59:59`).getTime() : Date.now();
 	return charges.value.filter(charge => !charge.paidAt && charge.dueDate.toMillis() < until).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis());
 });
-const amount = computed(() => liquidated.value.reduce((sum, charge) => sum + charge.amount, 0));
+const principal = computed(() => liquidated.value.reduce((sum, charge) => sum + outstanding(charge), 0));
+const interest = computed(() => {
+	const settings = community.value?.lateInterest;
+	if (!settings) {
+		return undefined;
+	}
+	const owed = interestOwed(charges.value, settings, form.value.meetingDate ? new Date(`${form.value.meetingDate}T12:00`) : new Date());
+	return owed.total ? { ...owed, settings, byCharge: new Map(owed.items.map(item => [item.charge.id, item.amount])) } : undefined;
+});
+const amount = computed(() => principal.value + (interest.value?.total ?? 0));
 const meetingDate = computed(() => form.value.meetingDate ? dateFormat.format(new Date(`${form.value.meetingDate}T00:00`)) : '____________');
 const juntaName = computed(() => meeting.value ? `junta ${meetingTypes[meeting.value.type].toLowerCase()} de propietarios` : 'junta de propietarios');
 
@@ -256,7 +265,10 @@ function print() {
 						<th>Tipo</th>
 						<th>Vencimiento</th>
 						<th class="amount">
-							Importe
+							Pendiente
+						</th>
+						<th v-if="interest" class="amount">
+							Intereses
 						</th>
 					</tr>
 				</thead>
@@ -266,21 +278,40 @@ function print() {
 						<td>{{ chargeTypes[charge.type] }}</td>
 						<td>{{ dateFormat.format(charge.dueDate.toDate()) }}</td>
 						<td class="amount">
-							{{ formatCents(charge.amount) }}
+							{{ formatCents(outstanding(charge)) }}
+						</td>
+						<td v-if="interest" class="amount">
+							{{ formatCents(interest.byCharge.get(charge.id) ?? 0) }}
 						</td>
 					</tr>
 				</tbody>
 				<tfoot>
+					<tr v-if="interest">
+						<th colspan="3">
+							Subtotal
+						</th>
+						<th class="amount">
+							{{ formatCents(principal) }}
+						</th>
+						<th class="amount">
+							{{ formatCents(interest.total) }}
+						</th>
+					</tr>
 					<tr>
 						<th colspan="3">
 							Total
 						</th>
-						<th class="amount">
+						<th class="amount" :colspan="interest ? 2 : 1">
 							{{ formatCents(amount) }}
 						</th>
 					</tr>
 				</tfoot>
 			</table>
+			<p v-if="interest">
+				Los intereses de demora se calculan al {{ formatRate(interest.settings.rate) }} anual sobre lo pendiente de cada recibo, desde su vencimiento<template v-if="interest.settings.graceDays">
+					más {{ interest.settings.graceDays }} días
+				</template> hasta la fecha de la junta.
+			</p>
 
 			<p>
 				<strong>Segundo.</strong> Que dicho acuerdo fue notificado al deudor
@@ -328,7 +359,9 @@ function print() {
 
 			<p>
 				Le notificamos que la {{ juntaName }} celebrada el {{ meetingDate }} aprobó la liquidación de la deuda que mantiene con la comunidad como propietario/a de {{ property.name }},
-				por un importe de <strong>{{ formatCents(amount) }}</strong>, correspondiente a {{ liquidated.length }} {{ liquidated.length === 1 ? 'recibo vencido e impagado' : 'recibos vencidos e impagados' }}.
+				por un importe de <strong>{{ formatCents(amount) }}</strong>, correspondiente a {{ liquidated.length }} {{ liquidated.length === 1 ? 'recibo vencido e impagado' : 'recibos vencidos e impagados' }}<template v-if="interest">
+					({{ formatCents(principal) }}) y a sus intereses de demora hasta esa fecha ({{ formatCents(interest.total) }})
+				</template>.
 			</p>
 			<p>
 				Se le requiere para que la abone<template v-if="community.iban">

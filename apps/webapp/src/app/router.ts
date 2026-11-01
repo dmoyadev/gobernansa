@@ -38,6 +38,18 @@ export const routes: Array<RouteRecordRaw> = [
 		},
 	},
 
+	// The parte de trabajo a provider opens without an account, the token is their access
+	{
+		path: '/gremio/:token',
+		name: 'Parte de trabajo',
+		component: async () => import('@/modules/workorders/ui/WorkOrderPage.vue'),
+		meta: {
+			title: 'Parte de trabajo',
+			isPublic: true,
+		},
+		props: true,
+	},
+
 	{
 		path: '/',
 		name: 'Tabs',

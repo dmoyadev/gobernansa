@@ -4,6 +4,7 @@ import type { Budget, Charge, Expense } from '@gobernansa/shared/domain/finance.
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
+import { PAYOUT_DAYS } from '@gobernansa/shared/domain/bank.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
@@ -41,21 +42,24 @@ function data<T>(snapshot: DocumentSnapshot) {
 }
 
 /**
- * Everything the year's books are made from, read once with one where() per query: the charges due, paid or still
- * unpaid (a returned one may be from an earlier year), the invoices dated (not by their budget's year, which may be
+ * Everything the year's books are made from, read once with one where() per query: the charges due, paid, with an
+ * entrega a cuenta or still unpaid (a returned one may be from an earlier year), the invoices dated (not by their budget's year, which may be
  * another) or paid in the year, the manual entries, this year's closing and the previous one (its opening), the
- * budget, the census and the added accounts, and the bookings paid or whose fianza was returned in the year
+ * budget, the census and the added accounts, and the bookings paid or whose fianza was returned in the year. Those
+ * paid in the last days of the year before are read too, as the gateway pays in this one those paid online
  */
 export async function loadLedgerData(communityId: string, year: number) {
 	const from = Timestamp.fromDate(new Date(year, 0, 1));
 	const to = Timestamp.fromDate(new Date(year + 1, 0, 1));
+	const paidFrom = Timestamp.fromDate(new Date(year, 0, 1 - PAYOUT_DAYS));
 	const charges = collection(db, 'communities', communityId, 'charges');
 	const expenses = collection(db, 'communities', communityId, 'expenses');
 	const bookings = collection(db, 'communities', communityId, 'bookings');
 	// ponytail: charges due and paid in the year are read twice, a charge's year (or a ledger cache) would halve it
-	const [due, paid, unpaid, dated, settled, manual, closing, previous, budget, properties, chart, booked, returned] = await Promise.all([
+	const [due, paid, partly, unpaid, dated, settled, manual, closing, previous, budget, properties, chart, booked, returned] = await Promise.all([
 		getDocs(query(charges, where('dueDate', '>=', from), where('dueDate', '<', to))),
-		getDocs(query(charges, where('paidAt', '>=', from), where('paidAt', '<', to))),
+		getDocs(query(charges, where('paidAt', '>=', paidFrom), where('paidAt', '<', to))),
+		getDocs(query(charges, where('collectionYears', 'array-contains', year))),
 		getDocs(query(charges, where('paidAt', '==', null))),
 		getDocs(query(expenses, where('date', '>=', from), where('date', '<', to))),
 		getDocs(query(expenses, where('paidAt', '>=', from), where('paidAt', '<', to))),
@@ -65,12 +69,12 @@ export async function loadLedgerData(communityId: string, year: number) {
 		getDoc(doc(db, 'communities', communityId, 'budgets', String(year))),
 		getDocs(query(collection(db, 'properties'), where('communityId', '==', communityId))),
 		getDoc(chartRef(communityId)),
-		getDocs(query(bookings, where('paidAt', '>=', from), where('paidAt', '<', to))),
+		getDocs(query(bookings, where('paidAt', '>=', paidFrom), where('paidAt', '<', to))),
 		getDocs(query(bookings, where('depositReturnedAt', '>=', from), where('depositReturnedAt', '<', to))),
 	]);
 	const unique = <T extends { id: string }>(lists: T[][]) => [...new Map(lists.flat().map(item => [item.id, item])).values()];
 	return {
-		charges: unique([docs<Charge>(due), docs<Charge>(paid), docs<Charge>(unpaid)]),
+		charges: unique([docs<Charge>(due), docs<Charge>(paid), docs<Charge>(partly), docs<Charge>(unpaid)]),
 		expenses: unique([docs<Expense>(dated), docs<Expense>(settled)]),
 		bookings: unique([docs<Booking>(booked), docs<Booking>(returned)]),
 		manual: docs<ManualEntry>(manual),

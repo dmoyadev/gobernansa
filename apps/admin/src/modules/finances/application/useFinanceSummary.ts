@@ -6,7 +6,7 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { feeBatchId, isOverdue, payableAmount, reserveUsed } from '@gobernansa/shared/domain/finance.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getAggregateFromServer, getCountFromServer, getDoc, getDocs, limit, orderBy, query, sum, where } from 'firebase/firestore';
-import { total } from '@/modules/communities/application/useCommunityDashboard.ts';
+import { outstandingTotal } from '@/modules/communities/application/useCommunityDashboard.ts';
 import { budgetRef } from './useFinances.ts';
 
 const DAY = 86_400_000;
@@ -22,13 +22,13 @@ export function nextTaxDeadline(now = new Date()) {
 }
 
 /**
- * The community tile's, once per visit and single-field queries only: the sum of the unpaid charges (1 read per 1000),
- * the unpaid invoices the payables page keeps live (a read each, few) and a count of the movements to reconcile (1 read)
+ * The community tile's, once per visit and single-field queries only: what's left of the unpaid charges (1 read per
+ * 1000), the unpaid invoices the payables page keeps live (a read each, few) and a count of the movements to reconcile (1 read)
  */
 export async function loadTileFigures(communityId: string) {
 	const community = (name: string) => collection(db, 'communities', communityId, name);
 	const [pending, invoices, unreconciled] = await Promise.all([
-		total(query(community('charges'), where('paidAt', '==', null))),
+		outstandingTotal(query(community('charges'), where('paidAt', '==', null))),
 		getDocs(query(community('expenses'), where('paidAt', '==', null))),
 		getCountFromServer(query(community('bankMovements'), where('status', '==', 'pending'))),
 	]);

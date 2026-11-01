@@ -75,12 +75,19 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 			</p>
 		</div>
 
-		<!-- Only gobernança's team creates them, and then assigns them to their administrators -->
-		<LnxButton v-if="user?.role === 'superadmin'" to="/communities/new">
-			<LnxIcon icon="lucide:plus" />
-			Nueva comunidad
-			<Kbd combo="n" />
-		</LnxButton>
+		<div class="actions">
+			<!-- The census of several at once. Administrators only fill in the ones they have -->
+			<LnxButton v-if="user?.role === 'superadmin' || user?.role === 'admin'" mode="outline" to="/communities/import">
+				<LnxIcon icon="lucide:file-spreadsheet" />
+				Importar comunidades
+			</LnxButton>
+			<!-- Only gobernança's team creates them, and then assigns them to their administrators -->
+			<LnxButton v-if="user?.role === 'superadmin'" to="/communities/new">
+				<LnxIcon icon="lucide:plus" />
+				Nueva comunidad
+				<Kbd combo="n" />
+			</LnxButton>
+		</div>
 	</header>
 
 	<p v-if="error" class="error" role="alert">
@@ -175,6 +182,12 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-small);
 	}
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-2);
 }
 
 .search {

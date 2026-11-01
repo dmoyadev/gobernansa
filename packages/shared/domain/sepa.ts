@@ -2,6 +2,7 @@ import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
 import { toDateString } from './booking.ts';
 import { normalizeTaxId } from './fiscal.ts';
+import { formatCents } from './money.ts';
 
 const BIC_REGEX = /^[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/;
 const SUFFIX_REGEX = /^[A-Z0-9]{3}$/;
@@ -97,6 +98,11 @@ export const returnReasons = {
 	BE05: 'Identificador del acreedor incorrecto',
 	SL01: 'Servicios específicos del banco del titular',
 	FF01: 'Formato del fichero no válido',
+	RC01: 'BIC incorrecto',
+	RR01: 'Falta la cuenta o la identificación del titular',
+	RR02: 'Falta el nombre o la dirección del titular',
+	RR03: 'Falta el nombre o la dirección del acreedor',
+	RR04: 'Motivos regulatorios',
 } as const;
 
 export type ReturnReason = keyof typeof returnReasons;
@@ -112,16 +118,16 @@ export function isValidCreditorSuffix(value: string) {
 /**
  * Identificador de acreedor SEPA (AT-02) of a Spanish entity: ES, two check digits, the business code (suffix, '000'
  * unless the bank gave another one) and the NIF. The check digits are ISO 7064 mod 97-10 over the NIF and 'ES00',
- * letters as numbers (A = 10), as in the IBAN. The suffix is left out of them
+ * letters as numbers (A = 10), as in the IBAN. The suffix is left out of them. Other countries' work the same way
  */
-export function creditorId(nif: string, suffix = '000') {
+export function creditorId(nif: string, suffix = '000', country = 'ES') {
 	const id = normalizeTaxId(nif);
-	const digits = Array.from(`${id}ES00`, char => Number.parseInt(char, 36)).join('');
+	const digits = Array.from(`${id}${country}00`, char => Number.parseInt(char, 36)).join('');
 	let rest = 0;
 	for (let start = 0; start < digits.length; start += 7) {
 		rest = Number(`${rest}${digits.slice(start, start + 7)}`) % 97;
 	}
-	return `ES${String(98 - rest).padStart(2, '0')}${suffix}${id}`;
+	return `${country}${String(98 - rest).padStart(2, '0')}${suffix}${id}`;
 }
 
 // Mandate reference, e.g. "GOB-ABC123DEF456-20261031": the property and the day it was made, unique enough per creditor
@@ -298,4 +304,107 @@ export function paymentOrderXml(order: Pick<PaymentOrder, 'reference' | 'executi
 		'</Document>',
 		'',
 	].join('\n');
+}
+
+/* Files from the bank and other programs, read with the browser's XML parser */
+
+const AMOUNT_REGEX = /^(\d{1,9})(?:\.(\d{1,2}))?$/;
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// undefined when it isn't well-formed XML
+export function parseXml(xml: string) {
+	const document = new DOMParser().parseFromString(xml, 'application/xml');
+	return document.getElementsByTagName('parsererror').length ? undefined : document;
+}
+
+// The first element down that path of children, by their name without prefix, e.g. xmlChild(tx, 'Dbtr', 'Nm')
+export function xmlChild(node: Element | null | undefined, ...path: string[]) {
+	return path.reduce<Element | undefined>((current, name) => current && [...current.children].find(child => child.localName === name), node ?? undefined);
+}
+
+export function xmlText(node: Element | null | undefined, ...path: string[]) {
+	return xmlChild(node, ...path)?.textContent?.trim() ?? '';
+}
+
+// Cents of an amount as SEPA writes it, e.g. 1234.5, NaN when it isn't one: two decimals at most, up to 999999999.99
+export function sepaCents(text: string) {
+	const match = AMOUNT_REGEX.exec(text);
+	return match ? Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')) : Number.NaN;
+}
+
+// A debit the bank returned or rejected, as its report gives it
+export interface ReturnedDebit {
+	endToEndId: string;
+	// Cents, when the report says
+	amount?: number;
+	code: string;
+	// 'YYYY-MM-DD', when the report says
+	date?: string;
+}
+
+/**
+ * The debits returned in a bank report: a pain.002 (Payment Status Report, each rejected transaction with TxSts RJCT and
+ * its reason) or a camt.054 notification, or camt.053 statement, whose entries carry the return information (RtrInf).
+ * undefined when it's none of them
+ */
+export function parseReturns(xml: string): ReturnedDebit[] | undefined {
+	const body = parseXml(xml)?.documentElement.firstElementChild;
+	const all = (node: Element, name: string) => [...node.getElementsByTagNameNS('*', name)];
+	const cents = (text: string) => text && !Number.isNaN(sepaCents(text)) ? { amount: sepaCents(text) } : {};
+	const day = (text: string) => ISO_DATE_REGEX.test(text.slice(0, 10)) ? { date: text.slice(0, 10) } : {};
+	if (body?.localName === 'CstmrPmtStsRpt') {
+		const date = day(xmlText(body, 'GrpHdr', 'CreDtTm'));
+		return all(body, 'TxInfAndSts')
+			.filter(tx => (xmlText(tx, 'TxSts') || xmlText(tx.parentElement, 'PmtInfSts')) === 'RJCT')
+			.map(tx => ({
+				endToEndId: xmlText(tx, 'OrgnlEndToEndId'),
+				...cents(xmlText(tx, 'OrgnlTxRef', 'Amt', 'InstdAmt')),
+				code: xmlText(tx, 'StsRsnInf', 'Rsn', 'Cd') || xmlText(tx, 'StsRsnInf', 'Rsn', 'Prtry'),
+				...date,
+			}));
+	}
+	if (body?.localName === 'BkToCstmrDbtCdtNtfctn' || body?.localName === 'BkToCstmrStmt') {
+		return all(body, 'Ntry').flatMap((entry) => {
+			const date = day(xmlText(entry, 'BookgDt', 'Dt') || xmlText(entry, 'BookgDt', 'DtTm') || xmlText(entry, 'ValDt', 'Dt'));
+			const details = all(entry, 'TxDtls');
+			return details.filter(tx => xmlChild(tx, 'RtrInf')).map(tx => ({
+				endToEndId: xmlText(tx, 'Refs', 'EndToEndId'),
+				// The amount first debited, the entry's own when it's the only one
+				...cents(xmlText(tx, 'AmtDtls', 'InstdAmt', 'Amt') || xmlText(tx, 'Amt') || xmlText(tx, 'AmtDtls', 'TxAmt', 'Amt') || (details.length === 1 ? xmlText(entry, 'Amt') : '')),
+				code: xmlText(tx, 'RtrInf', 'Rsn', 'Cd') || xmlText(tx, 'RtrInf', 'Rsn', 'Prtry'),
+				...date,
+			}));
+		});
+	}
+	return undefined;
+}
+
+export interface ReturnMatch {
+	line: ReturnedDebit;
+	remittance?: Remittance;
+	item?: RemittanceItem;
+	// Why it can't be registered, when it can't
+	problem?: string;
+}
+
+// Each returned debit with its remittance's item, by its EndToEndId, and the amount when the report has it
+export function matchReturns(lines: ReturnedDebit[], remittances: Remittance[]): ReturnMatch[] {
+	const items = new Map(remittances.flatMap(remittance => remittance.items.map(item => [item.endToEndId, { remittance, item }])));
+	const seen = new Set<string>();
+	return lines.map((line) => {
+		const found = items.get(line.endToEndId);
+		const problem = !found
+			? 'No está en ninguna remesa'
+			: !Object.hasOwn(returnReasons, line.code)
+					? `Motivo ${line.code || 'sin código'}: regístrala a mano`
+					: line.amount !== undefined && line.amount !== found.item.amount
+						? `El importe no coincide: ${formatCents(line.amount)} en el fichero y ${formatCents(found.item.amount)} en la remesa`
+						: found.item.returned
+							? 'Ya estaba registrada'
+							: found.remittance.status === 'generated'
+								? 'La remesa no está marcada como enviada'
+								: seen.has(line.endToEndId) ? 'Repetida en el fichero' : undefined;
+		seen.add(line.endToEndId);
+		return { line, ...found, ...(problem ? { problem } : {}) };
+	});
 }

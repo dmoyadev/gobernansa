@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { canInstall, install } from '@gobernansa/shared/application/pwa.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
@@ -61,6 +62,7 @@ const SECTIONS = [
 	{ to: '/issues', label: 'Incidencias', icon: 'lucide:inbox', combo: 'g i' },
 	{ to: '/announcements', label: 'Comunicados', icon: 'lucide:megaphone', combo: 'g m' },
 	{ to: '/providers', label: 'Proveedores', icon: 'lucide:hard-hat', combo: 'g p' },
+	{ to: '/mail', label: 'Correo', icon: 'lucide:mail', combo: 'g e' },
 	{ to: '/billing', label: 'Honorarios', icon: 'lucide:receipt-text', combo: 'g f', office: true },
 	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
 ];
@@ -92,6 +94,11 @@ const KEPT_PAGES = 6;
 		</nav>
 
 		<span v-if="user" class="user">{{ user.name || user.email }}</span>
+		<!-- Only while the browser offers it, not once installed -->
+		<LnxButton v-if="canInstall" mode="clear" size="small" title="Instalar gobernança admin como app" @click="install()">
+			<LnxIcon icon="lucide:monitor-down" />
+			Instalar
+		</LnxButton>
 		<LnxButton mode="clear" shape="circle" aria-label="Cerrar sesión" title="Cerrar sesión" @click="logout()">
 			<LnxIcon icon="lucide:log-out" />
 		</LnxButton>

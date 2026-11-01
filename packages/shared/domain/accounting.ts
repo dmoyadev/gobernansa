@@ -2,8 +2,9 @@ import type { Datable } from './audit.ts';
 import type { Booking } from './booking.ts';
 import type { Budget, Charge, Expense } from './finance.ts';
 import type { Property } from './property.ts';
+import { payoutDate } from './bank.ts';
 import { bookingTotal, toDateString } from './booking.ts';
-import { payableAmount } from './finance.ts';
+import { INTEREST_BATCH_ID, outstanding, payableAmount } from './finance.ts';
 
 /*
  * Contabilidad por partida doble of a community. Every entry is derived from the data the office already keeps (charges,
@@ -121,6 +122,7 @@ export const baseAccounts: Record<string, string> = {
 	5600: 'Fianzas recibidas a corto plazo',
 	5700: 'Caja',
 	5720: 'Bancos',
+	5729: 'Pasarela de pago',
 	6220: 'Reparaciones y conservación',
 	6230: 'Servicios de profesionales independientes',
 	6250: 'Primas de seguros',
@@ -162,11 +164,13 @@ function day(timestamp: { toDate: () => Date }) {
 
 export interface LedgerInput {
 	year: number;
-	// Those due, paid or returned in the year, or more: the rest are left out
+	// Those due, paid, returned or with an entrega a cuenta in the year, and those paid online in the last days of the
+	// year before (their payout is in this one), or more: the rest are left out
 	charges: Charge[];
 	// Those dated or paid in the year, or more
 	expenses: Expense[];
-	// Paid bookings of common areas, those paid or whose fianza was returned in the year, or more
+	// Paid bookings of common areas, those paid (online in the last days of the year before too) or whose fianza was
+	// returned in the year, or more
 	bookings?: Booking[];
 	manual: ManualEntry[];
 	budget?: Pick<Budget, 'items' | 'reserveOpening'>;
@@ -188,10 +192,12 @@ const kindOrder: EntryKind[] = ['opening', 'charge', 'invoice', 'collection', 'p
 
 /**
  * The year's journal, deterministic for the same data:
- * - recibo emitido (on its due date): propietario a cuotas ordinarias, derramas or otros ingresos (gastos de devolución),
- *   the part for the fondo de reserva to 113
- * - cobro: bancos a propietario. A direct debit returned is collected and given back on the day of the return, as the
- *   bank does, since the charge no longer keeps when it was collected
+ * - recibo emitido (on its due date): propietario a cuotas ordinarias, derramas, otros ingresos (gastos de devolución)
+ *   or otros ingresos financieros (intereses de demora), the part for the fondo de reserva to 113
+ * - cobro: bancos a propietario, each entrega a cuenta on its date (caja when in cash) and the rest on the day it was
+ *   paid. A direct debit returned is collected and given back on the day of the return, as the bank does, since the
+ *   charge no longer keeps when it was collected. Paid online (a charge or a booking), it goes to the pasarela de pago
+ *   that day and from it to bancos with the gateway's payout of that day's payments
  * - factura recibida: the partida's expense (or the fondo de reserva when paid from it) a proveedor and retenciones
  * - pago: proveedor a bancos (or caja), older invoices without paidAt were paid on their date
  * - reserva pagada: bancos a otros ingresos de gestión, and the fianza to fianzas recibidas until it's given back
@@ -225,21 +231,36 @@ export function buildLedger(input: LedgerInput): Ledger {
 		add({ id: 'opening', date: `${year}-01-01`, concept: 'Saldo inicial del fondo de reserva', kind: 'opening', lines: [line('5720', budget.reserveOpening), line('1130', 0, budget.reserveOpening)] });
 	}
 
+	// What the gateway pays into the bank, by the day the payments were made. collectedTo gives the account a payment goes
+	// to, and notes it for its payout when it was made online
+	const payouts = new Map<string, number>();
+	const collectedTo = (paidAt: { toDate: () => Date }, amount: number, online: boolean) => {
+		if (online) {
+			payouts.set(day(paidAt), (payouts.get(day(paidAt)) ?? 0) + amount);
+		}
+		return online ? '5729' : '5720';
+	};
+
 	for (const charge of input.charges) {
 		const owner = propertyKey(charge.propertyId);
 		if (!names.has(owner)) {
 			names.set(owner, charge.ownerName ? `${charge.propertyName} · ${charge.ownerName}` : charge.propertyName);
 		}
 		const reserve = Math.min(charge.reserve ?? 0, charge.amount);
-		const income = charge.type === 'levy' ? '7010' : charge.batchId?.startsWith('return-') ? '7590' : '7000';
+		const income = charge.type === 'levy' ? '7010' : charge.batchId?.startsWith('return-') ? '7590' : charge.batchId === INTEREST_BATCH_ID ? '7690' : '7000';
 		const what = `${charge.concept} · ${charge.propertyName}`;
 		add({ id: `charge-${charge.id}`, date: day(charge.dueDate), concept: what, kind: 'charge', lines: [line(owner, charge.amount), line(income, 0, charge.amount - reserve), line('1130', 0, reserve)] });
-		if (charge.paidAt) {
-			add({ id: `collection-${charge.id}`, date: day(charge.paidAt), concept: `Cobro ${what}`, kind: 'collection', lines: [line('5720', charge.amount), line(owner, 0, charge.amount)] });
+		for (const { id, date, amount, method } of charge.collections ?? []) {
+			add({ id: `collection-${charge.id}-${id}`, date: day(date), concept: `Entrega a cuenta ${what}`, kind: 'collection', lines: [line(method === 'cash' ? '5700' : '5720', amount), line(owner, 0, amount)] });
 		}
-		for (const [index, { date }] of (charge.returns ?? []).entries()) {
-			add({ id: `return-${charge.id}-${index}-a`, date, concept: `Adeudo domiciliado ${what}`, kind: 'collection', lines: [line('5720', charge.amount), line(owner, 0, charge.amount)] });
-			add({ id: `return-${charge.id}-${index}-b`, date, concept: `Devolución ${what}`, kind: 'return', lines: [line(owner, charge.amount), line('5720', 0, charge.amount)] });
+		if (charge.paidAt) {
+			// What the entregas a cuenta left, none when they paid it all
+			const rest = outstanding({ ...charge, paidAt: null });
+			add({ id: `collection-${charge.id}`, date: day(charge.paidAt), concept: `Cobro ${what}`, kind: 'collection', lines: [line(collectedTo(charge.paidAt, rest, !!charge.payment), rest), line(owner, 0, rest)] });
+		}
+		for (const [index, { date, amount = charge.amount }] of (charge.returns ?? []).entries()) {
+			add({ id: `return-${charge.id}-${index}-a`, date, concept: `Adeudo domiciliado ${what}`, kind: 'collection', lines: [line('5720', amount), line(owner, 0, amount)] });
+			add({ id: `return-${charge.id}-${index}-b`, date, concept: `Devolución ${what}`, kind: 'return', lines: [line(owner, amount), line('5720', 0, amount)] });
 		}
 	}
 
@@ -264,11 +285,15 @@ export function buildLedger(input: LedgerInput): Ledger {
 		const what = `Reserva ${booking.date} ${booking.from} · ${booking.name}`;
 		const deposit = booking.deposit ?? 0;
 		if (booking.paidAt) {
-			add({ id: `booking-${booking.id}`, date: day(booking.paidAt), concept: what, kind: 'collection', lines: [line('5720', bookingTotal(booking)), line('7590', 0, booking.price ?? 0), line('5600', 0, deposit)] });
+			add({ id: `booking-${booking.id}`, date: day(booking.paidAt), concept: what, kind: 'collection', lines: [line(collectedTo(booking.paidAt, bookingTotal(booking), !!booking.payment), bookingTotal(booking)), line('7590', 0, booking.price ?? 0), line('5600', 0, deposit)] });
 			if (booking.depositReturnedAt) {
 				add({ id: `deposit-${booking.id}`, date: day(booking.depositReturnedAt), concept: `Devolución de fianza ${what}`, kind: 'return', lines: [line('5600', deposit), line('5720', 0, deposit)] });
 			}
 		}
+	}
+
+	for (const [paid, amount] of payouts) {
+		add({ id: `payout-${paid}`, date: payoutDate(paid), concept: `Abono de la pasarela de pago, pagos online del ${paid.split('-').reverse().join('/')}`, kind: 'collection', lines: [line('5720', amount), line('5729', 0, amount)] });
 	}
 
 	for (const entry of input.manual) {

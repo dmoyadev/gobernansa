@@ -9,7 +9,7 @@ import {
 	signOut,
 	updatePassword,
 } from 'firebase/auth';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { clearIndexedDbPersistence, doc, getDoc, terminate, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { managesCommunity } from '../domain/user.ts';
@@ -93,6 +93,13 @@ function createAuth() {
 		}
 	}
 
+	// Signed out in another tab, which also stopped this tab's Firestore to clear its copy: started again from /login
+	watch(() => authUser.value?.uid, (uid, before) => {
+		if (before && !uid) {
+			window.location.assign('/login');
+		}
+	});
+
 	watchEffect(() => {
 		if (authUser.value?.uid) {
 			userRef.value = doc(db, 'users', authUser.value.uid);
@@ -144,9 +151,14 @@ function createAuth() {
 	}
 
 	async function logout() {
+		// Firestore's copy of what this user read is removed first, as the device may be shared, along with every tab's.
+		// Changes not sent yet go with it. At most a few seconds, so signing out never waits on a tab that holds it
+		// eslint-disable-next-line no-console
+		const cleared = terminate(db).then(async () => clearIndexedDbPersistence(db)).catch(console.error);
+		await Promise.race([cleared, new Promise(resolve => setTimeout(resolve, 3000))]);
 		await signOut(auth);
 		userRef.value = undefined;
-		// A full reload, so nothing from the previous user stays in memory. Each app has its own /login
+		// A full reload, so nothing from the previous user stays in memory either. Each app has its own /login
 		window.location.assign('/login');
 	}
 

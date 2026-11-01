@@ -1,8 +1,11 @@
 import type { AgendaItem, Meeting, MeetingAttendance, MeetingVote, VoteChoice } from '@gobernansa/shared/domain/meeting.ts';
+import type { MeetingNotice, Minutes, NoticeKind, SignerRole } from '@gobernansa/shared/domain/minutes.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import type { MaybeRefOrGetter } from 'vue';
+import type { MaybeRefOrGetter, Ref } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { collection, doc, getFirestore, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { isFullySigned, MINUTES_ID, minutesHash } from '@gobernansa/shared/domain/minutes.ts';
+import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { arrayUnion, collection, doc, getDocFromServer, getFirestore, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -65,6 +68,18 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 		return held.value ? all : query(all, where('voterId', '==', user.value.id));
 	}));
 
+	// The acta for its signers before it's sent and for every owner after, and the user's notices of it and of the convocatoria.
+	// Only what the rules let them read, as booleans so other changes to the meeting don't listen again
+	const uid = computed(() => user.value?.id);
+	const isSigner = computed(() => !!uid.value && !!meeting.value?.minutesSigners?.includes(uid.value));
+	const callSent = computed(() => !!meeting.value?.notifiedAt?.call);
+	const minutesSent = computed(() => !!meeting.value?.notifiedAt?.minutes);
+	const minutesRef = computed(() => meetingRef.value && (isSigner.value || minutesSent.value) ? doc(meetingRef.value, 'minutes', MINUTES_ID) : null);
+	const minutes = useDocument<Minutes>(minutesRef);
+	const noticeRef = (kind: NoticeKind, isSent: Ref<boolean>) => computed(() => meetingRef.value && uid.value && isSent.value ? doc(meetingRef.value, 'notices', `${kind}_${uid.value}`) : null);
+	const callNotice = useDocument<MeetingNotice>(noticeRef('call', callSent));
+	const minutesNotice = useDocument<MeetingNotice>(noticeRef('minutes', minutesSent));
+
 	function getMe() {
 		if (!meetingRef.value || !user.value) {
 			throw new Error('The meeting and the user must be loaded first');
@@ -98,13 +113,52 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 		});
 	}
 
+	// Their own slot, signed with their account, and marked on the meeting for the list. Sealed if it's the second, from the
+	// server's copy so the signing times are the stored ones. The admin also seals it when it sees it, so if this fails it's left to it
+	async function signMinutes(role: SignerRole, path: string) {
+		const { meetingRef, me } = getMe();
+		const ref = minutesRef.value!;
+		const batch = writeBatch(db);
+		batch.update(ref, {
+			[`signatures.${role}`]: { ...minutes.value![role], path, signedAt: serverTimestamp(), byUid: me.id, byEmail: auth.currentUser?.email ?? '' },
+		});
+		batch.update(meetingRef, { minutesSigned: arrayUnion(me.id) });
+		await batch.commit();
+		const seal = async () => {
+			const current = (await getDocFromServer(ref)).data() as Omit<Minutes, 'id'> | undefined;
+			if (current && !current.closedAt && isFullySigned(current)) {
+				await updateDoc(ref, { hash: await minutesHash(current), closedAt: serverTimestamp() });
+			}
+		};
+		// eslint-disable-next-line no-console
+		await seal().catch(console.error);
+	}
+
+	// readAt or receivedAt, once, by the server's clock
+	async function markNotice(notice: MeetingNotice, field: 'readAt' | 'receivedAt') {
+		const { meetingRef } = getMe();
+		await updateDoc(doc(meetingRef, 'notices', notice.id), { [field]: serverTimestamp() });
+	}
+
+	// Art. 17.8 LPH, one agreement at a time
+	async function dissent(notice: MeetingNotice, itemId: string) {
+		const { meetingRef } = getMe();
+		await updateDoc(doc(meetingRef, 'notices', notice.id), { [`dissent.${itemId}`]: serverTimestamp() });
+	}
+
 	return {
 		meeting,
 		loading: computed(() => !meetingRef.value || meeting.pending.value),
 		attendance,
 		ballots,
+		minutes,
+		callNotice,
+		minutesNotice,
 		answerAttendance,
 		vote,
+		signMinutes,
+		markNotice,
+		dissent,
 	};
 }
 

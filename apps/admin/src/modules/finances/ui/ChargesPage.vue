@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
-import type { Charge } from '@gobernansa/shared/domain/finance.ts';
+import type { Charge, ChargeCollection, CollectionMethod } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { chargeTypes, collectionMethods, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
@@ -15,7 +16,7 @@ import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { deleteCharge, issueCharges, loadPropertyCharges, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { addCollection, deleteCharge, issueCharges, loadPropertyCharges, removeCollection, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -117,8 +118,8 @@ const rows = computed(() => {
 			property,
 			charges,
 			overdueCount: overdue.length,
-			overdueAmount: overdue.reduce((sum, charge) => sum + charge.amount, 0),
-			pendingAmount: charges.reduce((sum, charge) => sum + charge.amount, 0),
+			overdueAmount: overdue.reduce((sum, charge) => sum + outstanding(charge), 0),
+			pendingAmount: charges.reduce((sum, charge) => sum + outstanding(charge), 0),
 		};
 	}).sort((a, b) => b.overdueAmount - a.overdueAmount || b.pendingAmount - a.pendingAmount
 		|| a.property.name.localeCompare(b.property.name, 'es', { numeric: true }));
@@ -155,8 +156,8 @@ async function loadHistory(propertyId: string) {
 onRevalidate(() => history.value && openId.value && loadHistory(openId.value));
 
 // The unpaid ones are live, the history is updated by hand
-function patchHistory(id: string, paidAt: Timestamp | null) {
-	history.value = history.value?.map(charge => charge.id === id ? { ...charge, paidAt } : charge);
+function patchHistory(id: string, changes: Partial<Charge>) {
+	history.value = history.value?.map(charge => charge.id === id ? { ...charge, ...changes } : charge);
 }
 
 function setInHistory(charge: Charge, present: boolean) {
@@ -170,16 +171,80 @@ function setInHistory(charge: Charge, present: boolean) {
 function togglePaid(charge: Charge) {
 	const previous = charge.paidAt;
 	const paidAt = previous ? null : Timestamp.now();
-	patchHistory(charge.id, paidAt);
+	patchHistory(charge.id, { paidAt });
 	void optimistic(setChargePaid(props.id, charge, paidAt), {
 		done: paidAt ? 'Marcado como pagado' : 'Marcado como pendiente',
 		failed: 'No se ha podido cambiar',
 		revert: async () => {
-			patchHistory(charge.id, previous);
+			patchHistory(charge.id, { paidAt: previous });
 			await setChargePaid(props.id, charge, previous);
 		},
-		onError: () => patchHistory(charge.id, previous),
+		onError: () => patchHistory(charge.id, { paidAt: previous }),
 	});
+}
+
+// Paid only by entregas a cuenta: it goes back to pending by undoing one of them
+function paidByCollections(charge: Charge) {
+	return !!charge.paidAt && (charge.collected ?? 0) >= charge.amount;
+}
+
+/* Entregas a cuenta, one charge's form open at a time. Money: it waits for the server */
+const methodOptions = Object.entries(collectionMethods).map(([value, label]) => ({ value: value as CollectionMethod, label }));
+const collecting = ref<{ chargeId: string; id: string; amount: string; date: string; method: CollectionMethod; note: string }>();
+const collectError = ref<string>();
+const savingCollection = ref(false);
+
+function openCollection(charge: Charge) {
+	collectError.value = undefined;
+	collecting.value = collecting.value?.chargeId === charge.id
+		? undefined
+		: { chargeId: charge.id, id: newId(), amount: '', date: toDateString(new Date()), method: 'transfer', note: '' };
+}
+
+async function collect(charge: Charge) {
+	const form = collecting.value;
+	const cents = toCents(form?.amount ?? '');
+	if (!form || savingCollection.value) {
+		return;
+	}
+	if (!(cents > 0) || cents > outstanding(charge)) {
+		collectError.value = `Escribe un importe hasta ${formatCents(outstanding(charge))}, p. ej. 50,00`;
+		return;
+	}
+	const item: ChargeCollection = {
+		id: form.id,
+		amount: cents,
+		date: Timestamp.fromDate(new Date(`${form.date}T12:00`)),
+		method: form.method,
+		...(form.note.trim() ? { note: form.note.trim() } : {}),
+	};
+	savingCollection.value = true;
+	collectError.value = undefined;
+	try {
+		const updated = await addCollection(props.id, charge.id, item);
+		patchHistory(charge.id, updated);
+		collecting.value = undefined;
+		toast(updated.paidAt ? 'Entrega registrada, el recibo queda pagado' : `Entrega registrada, quedan ${formatCents(outstanding(updated))}`, {
+			undo: async () => patchHistory(charge.id, await removeCollection(props.id, charge.id, item)),
+		});
+	} catch (e) {
+		collectError.value = `No se ha podido registrar: ${(e as Error).message}`;
+	} finally {
+		savingCollection.value = false;
+	}
+}
+
+async function uncollect(charge: Charge, item: ChargeCollection) {
+	// eslint-disable-next-line no-alert
+	if (!window.confirm(`¿Deshacer la entrega a cuenta de ${formatCents(item.amount)} del ${dateFormat.format(item.date.toDate())}?`)) {
+		return;
+	}
+	try {
+		patchHistory(charge.id, await removeCollection(props.id, charge.id, item));
+		toast('Entrega deshecha', { undo: async () => patchHistory(charge.id, await addCollection(props.id, charge.id, item)) });
+	} catch (e) {
+		toast(`No se ha podido deshacer: ${(e as Error).message}`, { tone: 'error' });
+	}
 }
 
 // Online payments by the neighbours, read once with the community
@@ -222,7 +287,7 @@ function setPaymentsMode(next: 'test' | null) {
 
 function remove(charge: Charge) {
 	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${charge.concept}» de ${charge.propertyName}?`)) {
+	if (!window.confirm(`¿Borrar «${charge.concept}» de ${charge.propertyName}${charge.collections?.length ? ' con sus entregas a cuenta' : ''}?`)) {
 		return;
 	}
 	// What it had, to put it back as it was
@@ -433,17 +498,76 @@ function remove(charge: Charge) {
 									<template v-else-if="isOverdue(charge)"> · <span class="debt">vencido</span></template>
 									<template v-if="charge.remittanceId"> · domiciliado</template>
 									<template v-else-if="!charge.paidAt && charge.returns?.length"> · <span class="debt">devuelto ({{ charge.returns.at(-1)!.reason }})</span></template>
+									<template v-if="!charge.paidAt && charge.collections?.length"> · quedan {{ formatCents(outstanding(charge)) }}</template>
 								</small>
 							</div>
 							<strong class="tabular">{{ formatCents(charge.amount) }}</strong>
 							<div class="item-actions">
-								<LnxButton mode="clear" size="small" @click="togglePaid(charge)">
-									{{ charge.payment ? 'Anular pago de prueba' : charge.paidAt ? 'Marcar pendiente' : 'Marcar pagado' }}
+								<LnxButton v-if="!charge.paidAt && !charge.remittanceId" mode="clear" size="small" :aria-expanded="collecting?.chargeId === charge.id" @click="openCollection(charge)">
+									Entrega a cuenta
+								</LnxButton>
+								<LnxButton v-if="!paidByCollections(charge)" mode="clear" size="small" @click="togglePaid(charge)">
+									{{ charge.payment ? 'Anular pago de prueba' : charge.paidAt ? 'Marcar pendiente' : charge.collections?.length ? 'Marcar resto pagado' : 'Marcar pagado' }}
 								</LnxButton>
 								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
 									<LnxIcon icon="lucide:trash-2" />
 								</LnxButton>
 							</div>
+							<ul v-if="charge.collections?.length" class="collections tabular">
+								<li v-for="item in charge.collections" :key="item.id">
+									<small>Entrega a cuenta · {{ dateFormat.format(item.date.toDate()) }} · {{ collectionMethods[item.method] }}<template v-if="item.note"> · {{ item.note }}</template></small>
+									<small>{{ formatCents(item.amount) }}</small>
+									<LnxButton
+										v-if="!charge.remittanceId && (!charge.paidAt || paidByCollections(charge))"
+										mode="clear"
+										size="small"
+										shape="circle"
+										aria-label="Deshacer entrega"
+										title="Deshacer entrega"
+										@click="uncollect(charge, item)"
+									>
+										<LnxIcon icon="lucide:undo-2" />
+									</LnxButton>
+								</li>
+							</ul>
+							<form v-if="collecting?.chargeId === charge.id" class="collect" @submit.prevent="collect(charge)">
+								<div class="fields">
+									<LnxInput v-model="collecting.amount" inputmode="decimal" :placeholder="(outstanding(charge) / 100).toFixed(2).replace('.', ',')" required>
+										Importe (€)
+									</LnxInput>
+									<DatePicker v-model="collecting.date" :max="toDateString(new Date())" required>
+										Fecha
+									</DatePicker>
+									<LnxSelect
+										v-model.convert="collecting.method"
+										:options="methodOptions"
+										:convert-fn="option => option.value"
+										search-placeholder-text="Buscar..."
+									>
+										Forma de pago
+										<template #option="{ option }">
+											{{ option.label }}
+										</template>
+										<template #optionInput="{ value }">
+											{{ collectionMethods[value as CollectionMethod] }}
+										</template>
+									</LnxSelect>
+									<LnxInput v-model="collecting.note" maxlength="200">
+										Nota
+									</LnxInput>
+								</div>
+								<footer class="form-actions">
+									<p v-if="collectError" class="error" role="alert">
+										{{ collectError }}
+									</p>
+									<LnxButton mode="clear" size="small" @click="collecting = undefined">
+										Cancelar
+									</LnxButton>
+									<LnxButton type="submit" size="small" :is-loading="savingCollection">
+										Registrar entrega
+									</LnxButton>
+								</footer>
+							</form>
 						</li>
 					</TransitionGroup>
 					<p v-else class="hint">
@@ -661,6 +785,28 @@ button.what {
 .item-actions {
 	display: flex;
 	gap: var(--lnx-spacing-1);
+}
+
+.collections,
+.collect {
+	grid-column: 1 / -1;
+}
+
+.collections li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+	color: var(--color-gray-6);
+}
+
+.collect {
+	padding: var(--lnx-spacing-3);
+	border-radius: var(--lnx-radius-2);
+	background: var(--color-gray-1);
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
 }
 
 .hint {

@@ -3,6 +3,7 @@ import type { IncomeKind, ManualEntry } from '@gobernansa/shared/domain/accounti
 import type { Declarant, Withholding } from '@gobernansa/shared/domain/aeat.ts';
 import { incomeAmounts, incomeKinds } from '@gobernansa/shared/domain/accounting.ts';
 import { attributeIncome, incomeTotals, model184File, model190File, model347File, operations347, provinceCode, quarterReturn, taxDeadlines, THRESHOLD_184, THRESHOLD_347, withholdings } from '@gobernansa/shared/domain/aeat.ts';
+import { checkAeat } from '@gobernansa/shared/domain/fileChecks.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
@@ -17,7 +18,9 @@ import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 import { deleteManualEntry, restoreManualEntry } from '../application/useAccounting.ts';
+import { useFileCheck } from '../application/useFileCheck.ts';
 import { addIncome, addTaxDeadlines, loadTaxData } from '../application/useTaxes.ts';
+import FileCheck from './FileCheck.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -118,8 +121,12 @@ function declarant(): Declarant {
 	};
 }
 
+// Each file is checked before it's downloaded, as the bytes that are saved
+const { check, guard, confirm, dismiss } = useFileCheck();
+watch(year, dismiss);
+
 function download(model: Model, content: Uint8Array<ArrayBuffer>) {
-	downloadFile(`${normalizeTaxId(community.value!.cif!)}-${model}-${year.value}.txt`, content, 'text/plain;charset=iso-8859-1');
+	guard(model, checkAeat(content), () => downloadFile(`${normalizeTaxId(community.value!.cif!)}-${model}-${year.value}.txt`, content, 'text/plain;charset=iso-8859-1'));
 }
 
 function taxIdProblem(nif?: string) {
@@ -382,6 +389,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 			<p class="hint">
 				El desglose por trimestres es informativo: las comunidades de propietarios lo dejan vacío en el fichero.
 			</p>
+			<FileCheck v-if="check?.key === '347'" :issues="check.issues" kind="aeat" :held="!!check.held" @confirm="confirm()" @dismiss="dismiss()" />
 			<footer class="actions">
 				<span class="summary">{{ ready347.length }} declarados · {{ formatCents(total347) }}</span>
 				<LnxButton :disabled="!canDownload || !ready347.length" @click="download347()">
@@ -531,6 +539,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				<p v-if="professionals.length !== ready190.length" class="warning" role="status">
 					{{ professionals.length - ready190.length }} sin NIF válido no van en el fichero: complétalo en la ficha del proveedor.
 				</p>
+				<FileCheck v-if="check?.key === '190'" :issues="check.issues" kind="aeat" :held="!!check.held" @confirm="confirm()" @dismiss="dismiss()" />
 				<footer class="actions">
 					<span class="summary">La suma de los cuatro 111 debe coincidir con el total de retenciones.</span>
 					<LnxButton :disabled="!canDownload || !ready190.length" @click="download190()">
@@ -695,6 +704,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 							</LnxInput>
 						</div>
 					</details>
+					<FileCheck v-if="check?.key === '184'" :issues="check.issues" kind="aeat" :held="!!check.held" @confirm="confirm()" @dismiss="dismiss()" />
 					<footer class="actions">
 						<span class="summary">Los rendimientos se declaran sin gastos deducibles y por el año completo; ajústalo en la Sede si no es así.</span>
 						<LnxButton :disabled="!canDownload || !ready184.length" @click="download184()">

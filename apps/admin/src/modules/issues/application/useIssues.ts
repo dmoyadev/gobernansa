@@ -1,16 +1,26 @@
 import type { ClaimStatus, InsuranceClaim, Issue, IssueComment, IssuePrivate, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import type { Provider } from '@gobernansa/shared/domain/provider.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
+import type { WorkOrder } from '@gobernansa/shared/domain/workOrder.ts';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { claimStatus, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { claimStatus, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { isEmail } from '@gobernansa/shared/domain/mail.ts';
+import { newWorkOrderToken } from '@gobernansa/shared/domain/workOrder.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, deleteField, doc, increment, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { queueMail, WEBAPP_URL, workOrderMail } from '@/modules/mail/application/mail.ts';
 
 function issuesRef(communityId: string) {
 	return collection(db, 'communities', communityId, 'issues');
+}
+
+// The parte de trabajo's page, in the webapp: providers open it without an account
+export function workOrderUrl(token: string) {
+	return `${WEBAPP_URL}/gremio/${token}`;
 }
 
 // Newest first, the same queries as the webapp's so they use its indexes. Live, so neighbours' new ones show up
@@ -60,6 +70,27 @@ export function useIssue(communityId: string, issueId: string) {
 	const allComments = useCollection<IssueComment>(query(collection(issueRef, 'comments'), orderBy('createdAt')));
 	const comments = computed(() => allComments.value.filter(comment => !comment.deletedAt));
 	const title = () => issue.value?.title || 'Incidencia';
+	// The provider's parte de trabajo, by the token kept in the private document. Live, to see their answers as they come
+	const workOrderDoc = useDocument<WorkOrder>(computed(() => adminData.value?.workOrder ? doc(db, 'workOrders', adminData.value.workOrder) : null));
+	// Only the current one, as the listener keeps the last document when the token changes or goes. Undefined while it
+	// loads, so a new link isn't made over one not shown yet
+	const workOrder = computed(() => {
+		const token = adminData.value?.workOrder;
+		if (adminData.pending.value) {
+			return undefined;
+		}
+		if (!token) {
+			return null;
+		}
+		return workOrderDoc.value?.id === token ? workOrderDoc.value : workOrderDoc.pending.value ? undefined : null;
+	});
+
+	// The link stops working. The caller clears the token from the private document in the same batch
+	function addRevoke(batch: ReturnType<typeof writeBatch>) {
+		if (adminData.value?.workOrder) {
+			batch.update(doc(db, 'workOrders', adminData.value.workOrder), { revokedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+		}
+	}
 
 	function newComment(author: User & { id: string }, fields: Pick<IssueComment, 'message'> & Partial<IssueComment>) {
 		return {
@@ -126,7 +157,12 @@ export function useIssue(communityId: string, issueId: string) {
 		} else {
 			batch.update(issueRef, { ...fields, updatedAt: serverTimestamp(), updatedBy: author.id });
 		}
-		batch.set(privateRef, { note, updatedAt: serverTimestamp(), updatedBy: author.id }, { merge: true });
+		// The previous provider's parte de trabajo goes with them
+		const revoke = provider?.id !== issue.value?.provider?.id && !!adminData.value?.workOrder;
+		if (revoke) {
+			addRevoke(batch);
+		}
+		batch.set(privateRef, { note, ...(revoke ? { workOrder: deleteField() } : {}), updatedAt: serverTimestamp(), updatedBy: author.id }, { merge: true });
 		logActivity(batch, communityId, {
 			area: 'issue',
 			summary: provider ? `Asignó «${title()}» a ${provider.name}` : `Quitó el proveedor de «${title()}»`,
@@ -161,6 +197,80 @@ export function useIssue(communityId: string, issueId: string) {
 				: `Abrió un parte al seguro por «${title()}» con ${fields.insurer}`,
 			link,
 		});
+		await batch.commit();
+	}
+
+	/**
+	 * Sends the assigned provider a parte de trabajo: the one place they're made, so whatever goes with sending one goes
+	 * here. A copy of what they need to do the job, without the neighbours' data. Replaces the current one
+	 *
+	 * @returns {Promise<string>} The token, the link's last part
+	 */
+	// With the provider's email (from the directory) the link also goes to them by email
+	async function createWorkOrder(author: User & { id: string }, email?: string) {
+		const current = issue.value;
+		if (!current?.provider) {
+			throw new Error('Assign a provider first');
+		}
+		// Read once, for the address and the administration's contact
+		const community = await loadCommunity(communityId);
+		const office = community?.contacts?.find(contact => contact.type === 'admin');
+		const contact = { name: office?.name || author.name || 'Administración', phone: office?.phone, whatsapp: office?.whatsapp, email: office?.email || author.email };
+		const token = newWorkOrderToken();
+		const copy = {
+			community: { name: community?.name ?? '', address: community?.address ?? '' },
+			issue: {
+				title: current.title,
+				description: current.description || '',
+				category: current.category,
+				location: current.location ? [issueLocationTypes[current.location.type], current.location.reference].filter(Boolean).join(' · ') : '',
+				assets: current.assets ?? [],
+			},
+			expectedAt: current.expectedAt ?? null,
+			contact: Object.fromEntries(Object.entries(contact).filter(([, value]) => value)) as WorkOrder['contact'],
+			provider: current.provider,
+		};
+		const emailed = isEmail(email);
+
+		const batch = writeBatch(db);
+		addRevoke(batch);
+		batch.set(doc(db, 'workOrders', token), {
+			communityId,
+			issueId,
+			...copy,
+			status: 'sent',
+			history: [],
+			createdAt: serverTimestamp(),
+			createdBy: author.id,
+			updatedAt: serverTimestamp(),
+			revokedAt: null,
+		});
+		batch.set(privateRef, { workOrder: token, updatedAt: serverTimestamp(), updatedBy: author.id }, { merge: true });
+		if (emailed) {
+			queueMail(batch, { ...workOrderMail(copy, workOrderUrl(token)), to: email, communityId, kind: 'work-order', link, replyTo: contact.email });
+		}
+		logActivity(batch, communityId, { area: 'issue', summary: `Creó un parte de trabajo de «${title()}» para ${current.provider.name}${emailed ? ' y se lo envió por email' : ''}`, link });
+		await batch.commit();
+		return token;
+	}
+
+	// The issue's expected date to the provider's link, after it changed for the same provider
+	async function updateWorkOrderDate() {
+		const token = adminData.value?.workOrder;
+		if (!token) {
+			return;
+		}
+		const batch = writeBatch(db);
+		batch.update(doc(db, 'workOrders', token), { expectedAt: issue.value?.expectedAt ?? null, updatedAt: serverTimestamp() });
+		logActivity(batch, communityId, { area: 'issue', summary: `Cambió la fecha prevista del parte de trabajo de «${title()}»`, link });
+		await batch.commit();
+	}
+
+	async function revokeWorkOrder(author: User & { id: string }) {
+		const batch = writeBatch(db);
+		addRevoke(batch);
+		batch.set(privateRef, { workOrder: deleteField(), updatedAt: serverTimestamp(), updatedBy: author.id }, { merge: true });
+		logActivity(batch, communityId, { area: 'issue', summary: `Anuló el parte de trabajo de «${title()}»`, link });
 		await batch.commit();
 	}
 
@@ -203,12 +313,16 @@ export function useIssue(communityId: string, issueId: string) {
 	return {
 		issue,
 		adminData,
+		workOrder,
 		comments,
 		loading: issue.pending,
 		error: computed(() => issue.error.value ?? allComments.error.value ?? adminData.error.value),
 		changeStatus,
 		revertStatus,
 		assign,
+		createWorkOrder,
+		updateWorkOrderDate,
+		revokeWorkOrder,
 		saveClaim,
 		reply,
 		setHidden,

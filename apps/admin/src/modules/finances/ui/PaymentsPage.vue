@@ -2,7 +2,9 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
 import type { PaymentOrder, PaymentOrderItem } from '@gobernansa/shared/domain/sepa.ts';
+import type { PaymentOrderData } from '../application/usePaymentOrders.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { checkSepa } from '@gobernansa/shared/domain/fileChecks.ts';
 import { payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
@@ -11,7 +13,7 @@ import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -19,8 +21,10 @@ import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
+import { useFileCheck } from '../application/useFileCheck.ts';
 import { useUnpaidInvoices } from '../application/useFinances.ts';
 import { createPaymentOrder, deletePaymentOrder, loadPaymentOrders, MAX_PAYMENT_ITEMS, setPaymentOrderExecuted } from '../application/usePaymentOrders.ts';
+import FileCheck from './FileCheck.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -96,9 +100,20 @@ const generating = ref(false);
 const openId = ref<string>();
 const formError = ref<string>();
 
-function download(order: Pick<PaymentOrder, 'reference' | 'executionDate' | 'issuedAt' | 'debtor' | 'items'>) {
-	downloadFile(`${order.reference}.xml`, paymentOrderXml(order), 'application/xml');
+// Each file is checked before it's downloaded, key is where the check shows: 'new' or the order's id
+const { check, guard, confirm, dismiss } = useFileCheck();
+
+function download(order: PaymentOrder) {
+	const xml = paymentOrderXml(order);
+	guard(order.id, checkSepa(xml), () => downloadFile(`${order.reference}.xml`, xml, 'application/xml'));
 }
+
+// What was checked is what would be made, so changing it drops a held check
+watch([selected, executionDate], () => {
+	if (check.value?.key === 'new' && check.value.held) {
+		dismiss();
+	}
+});
 
 async function generate() {
 	if (generating.value || !community.value) {
@@ -142,16 +157,20 @@ async function generate() {
 		items,
 		total: selectedTotal.value,
 	};
+	const xml = paymentOrderXml(data);
+	guard('new', checkSepa(xml), async () => save(id, data, xml));
+}
 
+async function save(id: string, data: PaymentOrderData, xml: string) {
 	// Money: it waits for the server before telling it's done
 	generating.value = true;
 	try {
 		await createPaymentOrder(props.id, id, data);
-		download(data);
+		downloadFile(`${data.reference}.xml`, xml, 'application/xml');
 		orders.value = [{ ...data, id, status: 'generated' } as PaymentOrder, ...orders.value];
 		openId.value = id;
 		excluded.value = new Set();
-		toast(`Orden ${reference} generada, súbela a la banca online`);
+		toast(`Orden ${data.reference} generada, súbela a la banca online`);
 	} catch (e) {
 		formError.value = `No se ha podido generar: ${(e as Error).message}`;
 	} finally {
@@ -277,6 +296,15 @@ async function remove(order: PaymentOrder) {
 			</RouterLink>
 		</p>
 
+		<FileCheck
+			v-if="check?.key === 'new'"
+			:issues="check.issues"
+			kind="sepa"
+			:held="!!check.held"
+			confirm-label="Generar igualmente"
+			@confirm="confirm()"
+			@dismiss="dismiss()"
+		/>
 		<footer class="form-actions">
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
@@ -344,6 +372,15 @@ async function remove(order: PaymentOrder) {
 						</LnxButton>
 					</div>
 				</div>
+				<FileCheck
+					v-if="check?.key === order.id"
+					class="item-check"
+					:issues="check.issues"
+					kind="sepa"
+					:held="!!check.held"
+					@confirm="confirm()"
+					@dismiss="dismiss()"
+				/>
 
 				<div v-if="openId === order.id" class="transfers">
 					<p class="hint tabular">
@@ -434,6 +471,10 @@ async function remove(order: PaymentOrder) {
 .list {
 	display: flex;
 	flex-direction: column;
+}
+
+.item-check {
+	margin-top: var(--lnx-spacing-3);
 }
 
 .item {

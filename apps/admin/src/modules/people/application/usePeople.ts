@@ -2,11 +2,14 @@ import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
 import type { WriteBatch } from 'firebase/firestore';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { arrayRemove, arrayUnion, collection, doc, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection } from 'vuefire';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { invitationMail, queueMail } from '@/modules/mail/application/mail.ts';
 
 const usersRef = collection(db, 'users');
 const invitationsRef = collection(db, 'invitations');
@@ -51,18 +54,53 @@ async function commit(communityId: string | undefined, summary: string, change: 
 	await batch.commit();
 }
 
-// Its id is the email in lowercase, as sign-in tokens have it. Fails when that email already has one
-export async function invite({ email, name, role, communityId, communityIds }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds'>, summary?: string) {
-	const id = email.trim().toLowerCase();
-	await commit(communityId, summary ?? `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}`, batch => batch.set(doc(invitationsRef, id), {
-		email: id,
-		name: name.trim(),
-		role,
+// Each community's name, read once per session, so inviting a whole census doesn't read it once per owner
+const communityNames = new Map<string, Promise<string>>();
+async function communityName(communityId: string) {
+	if (!communityNames.has(communityId)) {
+		communityNames.set(communityId, loadCommunity(communityId).then(community => community?.name ?? '', (error: unknown) => {
+			communityNames.delete(communityId);
+			throw error;
+		}));
+	}
+	return communityNames.get(communityId)!;
+}
+
+// The invitation email, with the link to the app they'll use
+async function invitationEmail({ email, name, role, communityId }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId'>) {
+	const community = communityId ? await communityName(communityId) : '';
+	return (batch: WriteBatch) => queueMail(batch, {
+		...invitationMail({ name: name.trim(), email, role }, community, useAuth().user.value?.name || auth.currentUser?.email || ''),
+		to: email,
 		communityId,
-		...(role === 'admin' ? { communityIds: communityIds ?? [] } : {}),
-		invitedBy: auth.currentUser!.uid,
-		invitedAt: serverTimestamp(),
-	}));
+		kind: 'invitation',
+		link: communityId ? `/communities/${communityId}/people` : '/admins',
+	});
+}
+
+// Its id is the email in lowercase, as sign-in tokens have it. Fails when that email already has one. byEmail also queues
+// the invitation email
+export async function invite({ email, name, role, communityId, communityIds }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds'>, summary?: string, byEmail = false) {
+	const id = email.trim().toLowerCase();
+	const mail = byEmail ? await invitationEmail({ email: id, name, role, communityId }) : undefined;
+	await commit(communityId, summary ?? `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}${byEmail ? ' y le envió la invitación por email' : ''}`, (batch) => {
+		batch.set(doc(invitationsRef, id), {
+			email: id,
+			name: name.trim(),
+			role,
+			communityId,
+			...(role === 'admin' ? { communityIds: communityIds ?? [] } : {}),
+			invitedBy: auth.currentUser!.uid,
+			invitedAt: serverTimestamp(),
+		});
+		mail?.(batch);
+	});
+}
+
+// The same email again for a pending one, e.g. invited without it or lost in their inbox
+export async function resendInvitation(invitation: Invitation & { id: string }) {
+	const mail = await invitationEmail({ ...invitation, email: invitation.id });
+	await commit(invitation.communityId, `Volvió a enviar por email la invitación de ${invitation.name}`, mail);
 }
 
 export async function cancelInvitation(email: string, communityId?: string, name = email) {

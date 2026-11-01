@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
+import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
 import { useRevalidated } from '@/app/ux/navigation.ts';
@@ -11,10 +12,6 @@ const year = new Date().getFullYear();
 const dateFormat = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long' });
 
 const { data, error, loading } = useRevalidated(async () => loadSummary(props.id));
-
-function plural(total: number, one: string, many: string) {
-	return `${total} ${total === 1 ? one : many}`;
-}
 
 // Each figure opens the page where it's acted on. alert marks those that need doing. The deadline is worked out again with each reread
 const figures = computed(() => {

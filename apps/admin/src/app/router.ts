@@ -34,6 +34,13 @@ const router = createRouter({
 					component: async () => import('@/modules/communities/ui/CommunityFormPage.vue'),
 					meta: { title: 'Nueva comunidad', superadmin: true },
 				},
+				// The census of several communities: the team creates the new ones, administrators only fill in theirs
+				{
+					path: 'communities/import',
+					name: 'Importar comunidades',
+					component: async () => import('@/modules/properties/ui/CensusImportPage.vue'),
+					meta: { title: 'Importar comunidades', office: true },
+				},
 				{
 					path: 'communities/:id',
 					name: 'Comunidad',
@@ -74,6 +81,13 @@ const router = createRouter({
 					name: 'Propiedades',
 					component: async () => import('@/modules/properties/ui/PropertiesPage.vue'),
 					meta: { title: 'Propiedades', workspace: 'neighbours', page: 'properties' },
+					props: true,
+				},
+				{
+					path: 'communities/:id/import',
+					name: 'Importar censo',
+					component: async () => import('@/modules/properties/ui/CensusImportPage.vue'),
+					meta: { title: 'Importar censo', workspace: 'neighbours', page: 'import' },
 					props: true,
 				},
 				{
@@ -290,6 +304,12 @@ const router = createRouter({
 					name: 'Proveedores',
 					component: async () => import('@/modules/providers/ui/ProvidersPage.vue'),
 					meta: { title: 'Proveedores' },
+				},
+				{
+					path: 'mail',
+					name: 'Correo saliente',
+					component: async () => import('@/modules/mail/ui/MailPage.vue'),
+					meta: { title: 'Correo saliente' },
 				},
 				{
 					path: 'billing',

@@ -33,13 +33,15 @@ import {
 	toMeetingForm,
 	useMeeting,
 } from '../application/useMeetings.ts';
+import MeetingMinutes from './MeetingMinutes.vue';
+import MeetingNotices from './MeetingNotices.vue';
 
 const props = defineProps<{ id: string; meetingId: string }>();
 
 const router = useRouter();
 const isNew = computed(() => props.meetingId === 'new');
-const { meeting, attendance, ballots } = useMeeting(props.id, () => props.meetingId);
-const listenError = computed(() => (meeting.error.value ?? attendance.error.value ?? ballots.error.value)?.message);
+const { meeting, attendance, ballots, minutes, notices } = useMeeting(props.id, () => props.meetingId);
+const listenError = computed(() => (meeting.error.value ?? attendance.error.value ?? ballots.error.value ?? minutes.error.value ?? notices.error.value)?.message);
 // Undefined until it's read, null when it doesn't exist
 const loading = computed(() => !isNew.value && meeting.value === undefined && !listenError.value);
 const { people } = usePeople(props.id);
@@ -234,14 +236,19 @@ function result(item: AgendaItem) {
 
 // The minutes
 
-const minutes = ref<HTMLElement>();
+const composed = ref<HTMLElement>();
 const copied = ref(false);
+
+// Also what the acta to sign starts from
+function composedText() {
+	// innerText keeps the line breaks between paragraphs and items, textContent would run them together
+	// eslint-disable-next-line unicorn/prefer-dom-node-text-content
+	return composed.value!.innerText;
+}
 
 async function copyMinutes() {
 	try {
-		// innerText keeps the line breaks between paragraphs and items, textContent would run them together
-		// eslint-disable-next-line unicorn/prefer-dom-node-text-content
-		await navigator.clipboard.writeText(minutes.value!.innerText);
+		await navigator.clipboard.writeText(composedText());
 		copied.value = true;
 	} catch (e) {
 		toast(`No se ha podido copiar: ${(e as Error).message}`, { tone: 'error' });
@@ -330,6 +337,9 @@ function print() {
 					Enlace para unirse
 				</LnxInput>
 			</div>
+			<p v-if="form.link && !form.place" class="hint">
+				Las juntas solo en línea están pendientes de regulación general en la LPH: por prudencia, indica también un lugar para asistir en persona.
+			</p>
 
 			<h2>Orden del día</h2>
 			<TransitionGroup v-if="form.agenda.length" tag="ol" name="row" class="agenda">
@@ -406,7 +416,8 @@ function print() {
 							Desconvocar
 						</LnxButton>
 					</template>
-					<LnxButton v-else mode="outline" @click="setStatus('convened')">
+					<!-- Not once the acta is sealed: its votes and attendance are what it records -->
+					<LnxButton v-else-if="!minutes?.closedAt" mode="outline" @click="setStatus('convened')">
 						<LnxIcon icon="lucide:rotate-ccw" />
 						Volver a convocada
 					</LnxButton>
@@ -415,6 +426,18 @@ function print() {
 					Los propietarios pueden votar desde la app los puntos que se votan.
 				</p>
 			</section>
+
+			<MeetingNotices
+				v-if="meeting.status === 'convened' || meeting.notifiedAt?.call"
+				class="screen-only"
+				kind="call"
+				:meeting
+				:notices
+				:properties
+				:attendance
+				:ballots
+				:people
+			/>
 
 			<section class="card screen-only">
 				<h2>Asistencia</h2>
@@ -529,7 +552,7 @@ function print() {
 				</details>
 			</section>
 
-			<section class="card">
+			<section v-if="meeting.status !== 'held' || minutes === null" class="card">
 				<header class="minutes-header screen-only">
 					<h2>Acta</h2>
 					<LnxButton mode="outline" size="small" @click="copyMinutes()">
@@ -542,7 +565,7 @@ function print() {
 					</LnxButton>
 				</header>
 
-				<article ref="minutes" class="minutes">
+				<article ref="composed" class="minutes">
 					<h3>Acta de la junta {{ meetingTypes[meeting.type].toLowerCase() }} de propietarios</h3>
 					<p>
 						<strong>Comunidad:</strong> {{ communityName }}<br>
@@ -583,6 +606,20 @@ function print() {
 					</ol>
 				</article>
 			</section>
+
+			<template v-if="meeting.status === 'held'">
+				<MeetingMinutes :meeting :minutes :people :notices :ballots :total :compose="composedText" />
+				<MeetingNotices
+					v-if="minutes?.closedAt"
+					kind="minutes"
+					:meeting
+					:notices
+					:properties
+					:attendance
+					:ballots
+					:people
+				/>
+			</template>
 		</template>
 	</template>
 </template>

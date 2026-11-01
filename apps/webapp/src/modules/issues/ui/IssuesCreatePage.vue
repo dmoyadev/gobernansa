@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import type { IssueSuggestion } from '@gobernansa/shared/application/writing.ts';
 import type { Issue } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
+import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
@@ -51,6 +53,38 @@ const otherPlace = ref<string>();
 const $otherPlace = useTemplateRef('$otherPlace');
 const description = ref('');
 const title = ref('');
+
+// From what's written, a category to switch to (never switched by itself) and what to do in an emergency
+const SUGGEST_DELAY_MS = 700;
+const suggestion = ref<IssueSuggestion>();
+let suggestTimer: ReturnType<typeof setTimeout> | undefined;
+let suggesting: AbortController | undefined;
+
+watch([title, description], ([newTitle, newDescription]) => {
+	clearTimeout(suggestTimer);
+	suggesting?.abort();
+	suggestTimer = setTimeout(async () => {
+		const controller = new AbortController();
+		suggesting = controller;
+		// Nothing if its code can't load, e.g. offline
+		const result = await import('@gobernansa/shared/application/writing.ts')
+			.then(async ({ suggestIssue }) => suggestIssue({ title: newTitle, description: newDescription }, controller.signal))
+			.catch(() => undefined);
+		if (!controller.signal.aborted) {
+			suggestion.value = result;
+		}
+	}, SUGGEST_DELAY_MS);
+});
+
+onUnmounted(() => {
+	clearTimeout(suggestTimer);
+	suggesting?.abort();
+});
+
+const suggestedCategory = computed(() => {
+	const value = suggestion.value?.category;
+	return value && value !== 'other' && value !== category.value?.value ? issuesCategories.find(option => option.value === value) : undefined;
+});
 
 // Changing the category from the last step goes straight back to it
 function chooseCategory(option: Category) {
@@ -342,6 +376,20 @@ async function submit() {
 					Cuéntanos más (opcional)
 				</LnxTextarea>
 
+				<p v-if="suggestion?.hint && suggestion.urgency === 'urgent'" class="urgent" role="alert">
+					<LnxIcon icon="lucide:siren" :size="20" class="urgent-icon" />
+					{{ suggestion.hint }}
+				</p>
+
+				<div v-if="suggestedCategory && suggestion" class="suggestion" role="status">
+					<LnxIcon :icon="suggestedCategory.icon" :size="20" />
+					<span class="value">¿Es de <strong>{{ suggestedCategory.label }}</strong>?</span>
+					<WritingSource :source="suggestion.source" />
+					<LnxButton type="button" mode="link" @click="category = suggestedCategory">
+						Cambiar
+					</LnxButton>
+				</div>
+
 				<div v-if="canUploadMedia" class="media">
 					<span id="media-label">Fotos o vídeos (opcional)</span>
 					<ul class="media-grid" aria-labelledby="media-label">
@@ -613,6 +661,39 @@ header {
 		flex: 1;
 		min-width: 0;
 		overflow-wrap: anywhere;
+	}
+}
+
+.suggestion {
+	margin-top: calc(-1 * var(--lnx-spacing-3));
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+	border-radius: var(--lnx-radius-3);
+	background: var(--color-gray-1);
+	color: var(--color-gray-9);
+
+	.value {
+		flex: 1;
+	}
+}
+
+.urgent {
+	margin-top: calc(-1 * var(--lnx-spacing-3));
+	display: flex;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
+	padding: var(--lnx-spacing-3);
+	border-radius: var(--lnx-radius-3);
+	background: #fee2e2;
+	color: var(--color-gray-9);
+	font-weight: var(--lnx-font-weight-bold);
+
+	.urgent-icon {
+		flex-shrink: 0;
+		color: #dc2626;
 	}
 }
 

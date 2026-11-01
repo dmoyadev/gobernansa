@@ -173,6 +173,9 @@ function ownerLabel(property: Property) {
 			<LnxInput v-model="form.ownerNif" placeholder="Para el modelo 184">
 				NIF del propietario
 			</LnxInput>
+			<LnxInput v-model="form.ownerPhone" type="tel" maxlength="40">
+				Teléfono del propietario
+			</LnxInput>
 			<LnxInput v-model="form.tenantName">
 				Inquilino (si está alquilada)
 			</LnxInput>
@@ -259,8 +262,11 @@ function ownerLabel(property: Property) {
 				</TransitionGroup>
 			</section>
 		</TransitionGroup>
-		<p v-else class="hint">
-			{{ properties.length ? 'Ninguna propiedad coincide.' : 'Aún no hay propiedades.' }}
+		<p v-else-if="properties.length" class="hint">
+			Ninguna propiedad coincide.
+		</p>
+		<p v-else class="hint empty">
+			Aún no hay propiedades. Añádelas una a una o <RouterLink :to="`/communities/${id}/import`">importa el censo</RouterLink> desde Excel o CSV.
 		</p>
 	</section>
 </template>
@@ -437,6 +443,11 @@ h3 {
 	color: var(--color-secondary-accent);
 	font-size: var(--lnx-font-size-small);
 	font-weight: var(--lnx-font-weight-bold);
+}
+
+// A sentence with a link, which a flex row would split around it
+.hint.empty {
+	display: block;
 }
 
 .error {

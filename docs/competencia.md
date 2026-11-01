@@ -15,18 +15,20 @@ Referencia de producto para decidir y priorizar features de gobernança. Antes d
 
 | Área | Admin (`apps/admin`) | Webapp de vecinos (`apps/webapp`) |
 |---|---|---|
-| Acceso | Enlace mágico, contraseña solo como alternativa; roles e invitaciones por email; cada administrador ve solo sus comunidades | Enlace mágico; perfil |
-| Comunidades | Cartera con dashboard y bandeja de entrada, búsqueda de comunidades y vecinos, dashboard personalizable por comunidad, ficha fiscal 3D, propiedades | Página de la comunidad (seguro, horarios de contacto, ficha fiscal) |
-| Incidencias | Crear, gestionar estado, antigüedad | Asistente de alta, comentarios, fotos, votos con cupo mensual, filtros |
-| Juntas | Convocatoria, orden del día, votación, delegaciones y acta (copiar o imprimir) | Ver convocatoria, unirse por enlace, votar y delegar |
-| Finanzas | Página Finanzas por comunidad, agrupada en cobros, gastos, banco y contabilidad. Cobros: cuotas del año desde el presupuesto con fondo de reserva, recibos y derramas, estados de cuenta, mandatos y remesas SEPA (pain.008) con devoluciones, morosidad por antigüedad con cartas, burofax (prueba) y monitorio. Gastos: facturas de proveedores con IVA e IRPF, pendientes de pago y transferencias SEPA (pain.001). Banco: conciliación con Norma 43 o CSV y conexión PSD2 en modo demo. Contabilidad por partida doble (diario, mayor, balances, resultados y cierre), liquidación anual para la junta, modelos 347, 111/115, 190 y 184 con fichero oficial, exportación CSV y ContaPlus, importación de saldos. Despacho: facturas de honorarios con Verifactu en modo de prueba | Mis recibos, justificante imprimible y pago de recibos y reservas con tarjeta o Bizum en modo de prueba |
+| Acceso | Enlace mágico, contraseña solo como alternativa; roles e invitaciones con email de invitación (en el correo saliente, modo de prueba); cada administrador ve solo sus comunidades; instalable como app (PWA) | Enlace mágico; perfil; instalable como app (PWA) con push web, apertura sin conexión y aviso de nueva versión |
+| Comunidades | Cartera con dashboard y bandeja de entrada, búsqueda de comunidades y vecinos, dashboard personalizable por comunidad, ficha fiscal 3D, propiedades. Importación del censo (propiedades, propietarios, coeficientes, teléfonos y mandatos SEPA) y de comunidades desde .xlsx, CSV o pegando celdas, con revisión fila a fila | Página de la comunidad (seguro, horarios de contacto, ficha fiscal) |
+| Incidencias | Crear, gestionar estado, antigüedad; proveedor asignado con parte de trabajo por enlace (el gremio acepta, programa la visita y cierra con notas y fotos sin cuenta); urgencia y gremio sugeridos, resumen del hilo | Asistente de alta con categoría y urgencia sugeridas (con consejo en emergencias), comentarios, fotos, votos con cupo mensual, filtros. Página del parte de trabajo para el gremio |
+| Juntas | Convocatoria, orden del día, votación, delegaciones. Acta firmada por presidente y secretario (firma electrónica simple), sellada con huella SHA-256 y QR e imprimible. Notificación de la convocatoria y del acta a cada propietario con acuse en la app y correo certificado en modo de prueba, discrepancias de ausentes (también recibidas por correo postal) y cómputo del art. 17.8 LPH | Ver convocatoria, unirse por enlace, votar y delegar; firmar el acta como presidente, leerla, acusar recibo y manifestar discrepancia en 30 días |
+| Finanzas | Página Finanzas por comunidad, agrupada en cobros, gastos, banco y contabilidad. Cobros: cuotas del año desde el presupuesto con fondo de reserva, recibos y derramas, entregas a cuenta, estados de cuenta, mandatos y remesas SEPA (pain.008) con devoluciones a mano o importadas (pain.002 y camt.054), morosidad por antigüedad con intereses de demora y su recibo, cartas, burofax (prueba) y monitorio. Gastos: facturas de proveedores con IVA e IRPF, pendientes de pago y transferencias SEPA (pain.001). Banco: conciliación con Norma 43 o CSV, abonos de la pasarela de prueba y conexión PSD2 en modo demo. Contabilidad por partida doble (diario, mayor, balances, resultados y cierre), liquidación anual para la junta, modelos 347, 111/115, 190 y 184 con fichero oficial, exportación CSV y ContaPlus, importación de saldos. Cada fichero (SEPA, AEAT, diario) se comprueba antes de descargarlo y se pueden comprobar los de otros programas. Despacho: facturas de honorarios con Verifactu en modo de prueba | Mis recibos con lo pagado a cuenta, justificante imprimible y pago de lo pendiente de recibos y reservas con tarjeta o Bizum en modo de prueba |
 | Reservas | Zonas comunes con icono y semana de cada zona, precio y fianza, cobros y devolución de fianzas | Reservar zonas comunes, pagando en modo de prueba si tienen precio |
-| Comunicación | Comunicados a varias comunidades, avisos publicados, moderación, actividad | Timeline de eventos, notificaciones push web |
-| Proveedores | Directorio compartido con valoraciones | — |
+| Comunicación | Comunicados a varias comunidades con borrador redactado a partir de unos puntos, avisos publicados, moderación, actividad. Correo saliente: invitaciones, convocatorias, actas, partes de trabajo y reclamaciones quedan en una bandeja con vista previa (modo de prueba), lista para enviarse con la extensión Trigger Email | Timeline de eventos, notificaciones push web |
+| Proveedores | Directorio compartido con valoraciones; parte de trabajo por enlace, WhatsApp o email | Página del parte de trabajo, sin cuenta |
 | Documentos | Enviar documentos a cada vecino por categoría y propiedad | Ver sus documentos en el perfil |
 | Obligaciones | Calendario de obligaciones de la comunidad, exportable al calendario | — |
 
-**Lo que no tenemos y sí tiene la competencia:** cobros y conexión bancaria reales (la pasarela de tarjeta y Bizum, el agregador PSD2, la presentación en la AEAT con certificado, el envío de Verifactu y el burofax solo existen en modo de prueba hasta contratar un proveedor), app en tiendas, IA, importación del censo desde Excel u otros ERP (sí se importan los saldos), firma y envío fehaciente del acta, proveedores asignados a incidencias.
+Las sugerencias y la redacción automática (urgencia y gremio de una incidencia, resumen del hilo, borradores de comunicados, mejora de la redacción del acta) usan los modelos que trae el navegador cuando están disponibles (Chrome) y, si no, reglas y plantillas propias. No envían datos a ningún sitio ni tienen coste.
+
+**Lo que no tenemos y sí tiene la competencia:** cobros, banca y envíos reales: la pasarela de tarjeta y Bizum, el agregador PSD2, la presentación en la AEAT con certificado, el envío de Verifactu, el correo certificado, el burofax y el envío de emails solo existen en modo de prueba hasta contratar un proveedor. Tampoco tenemos app en tiendas (sí PWA instalable), firma cualificada del acta ni recordatorios automáticos por email (necesitan un servidor).
 
 ### Mantenimiento
 
@@ -44,7 +46,7 @@ Referencia de producto para decidir y priorizar features de gobernança. Antes d
 - **Los precios son bajos y transparentes en la franja baja del mercado.** El ERP cloud completo cuesta entre 24 y 36 €/mes (NetFincas), 26 €/mes (Finca3) o desde 0,10 €/unidad/mes (Fynkus). La app del vecino cuesta entre 2 y 4 €/vivienda/año (TusVecinos) o entre 1 y 2 €/vivienda/año (Onzane). Una capa vecinal no puede cobrar caro. Los precios altos solo los sostienen quienes venden servicio humano o fintech: Ciudadela, Supervecina, Matera.
 - **Hay dos cambios regulatorios a la vista.** Las juntas telemáticas siguen pendientes de una reforma de la LPH que está en tramitación en el Congreso (mayo de 2026). Verifactu será obligatorio desde el 01/01/2027 para sociedades y desde el 01/07/2027 para autónomos. Esto afecta a la facturación de honorarios de los despachos, no a la comunidad en sí. Las juntas y las votaciones con validez LPH son una función diferencial pendiente para casi todos.
 - **Los canales colegiales se están cerrando.** CGCAFE/CAFportal distribuye CAFcomunidad (Penta C365) colegio a colegio. IDS (FincasPlus Elite) desarrolla la app oficial del CGCAFE. comunicasa (casavi) ya colabora con el Colegio de Las Palmas. Entrar por los colegios va a ser más difícil.
-- **Recomendación.** Posicionar gobernança como el ERP moderno para despachos pequeños y medianos con la mejor capa vecinal, con un plan gratuito o muy barato para comunidades autogestionadas. gobernança ya tiene juntas con voto y delegación, documentos, push web, recibos y morosidad, y proveedores con valoraciones. Contabilidad, SEPA, conciliación, modelos AEAT y pagos (en modo de prueba) ya existen, así que compite también como ERP. Lo prioritario ahora es: firma y envío del acta, importar el censo, activar los cobros reales, validar los ficheros oficiales, IA ligera y PWA instalable.
+- **Recomendación.** Posicionar gobernança como el ERP moderno para despachos pequeños y medianos con la mejor capa vecinal, con un plan gratuito o muy barato para comunidades autogestionadas. gobernança ya tiene juntas con voto, delegación, acta firmada y notificada con acuse, documentos, PWA instalable con push web, recibos con entregas a cuenta, morosidad con intereses, proveedores con valoraciones y parte de trabajo, importación del censo y sugerencias automáticas sin coste. Contabilidad, SEPA, conciliación, modelos AEAT con comprobación de ficheros y pagos (en modo de prueba) ya existen, así que compite también como ERP. Lo prioritario ahora es activar lo que está en modo de prueba cuando haya ingresos (cobros reales y envío de correo), validar los ficheros oficiales en la Sede y con un banco, y llevar la PWA a las tiendas.
 
 ---
 
@@ -113,7 +115,7 @@ Leyenda de plataformas: W = web, D = escritorio Windows, iOS/And = apps en tiend
 | Neivor | E | MX | 2019 | A medida | No publicado | W, iOS/And | JSF/PrimeFaces heredado | 30/09/2026 | Muy alta |
 | Unitify | B/C (multipaís) | HK | 2024 | Freemium por vivienda | 0 / 1 / 3 €/vivienda/mes | W, Android | Next.js | 30/10/2026 | Alta |
 | Danea Domustudio (TeamSystem) | E | IT | ~1996 | Licencia anual por administrador | 288 / 576 €/año | W/D, iOS | PHP (web), React PWA | 08/09/2026 | Media |
-| **gobernança** | B+C (+A ligero) | ES | 2026 (marzo) | Sin monetizar | — | W (dos apps Vue) | Vue 3 + Firebase (plan gratuito) | — | Alta (desarrollo activo) |
+| **gobernança** | B+C (+A ligero) | ES | 2026 (marzo) | Sin monetizar | — | W (dos apps Vue, instalables como PWA) | Vue 3 + Firebase (plan gratuito) | — | Alta (desarrollo activo) |
 
 ---
 
@@ -123,7 +125,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 
 | Competidor | Multi-com. | Portal vecino | App nativa | Incid. | Reservas | Tablón/notif. | Juntas/voto | Docs | Contab. | Recibos SEPA | Fiscal AEAT | Pagos online | Banca/API | Proveedores | IA |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **gobernança** | ✅ | ✅ | ◐ (webapp + push web) | ✅ (con votos de prioridad) | ✅ | ✅ | ✅ (convocatoria, orden del día, voto, delegación y acta imprimible) | ✅ | ✅ (partida doble, cierre, liquidación anual, exporta a ContaPlus) | ✅ (cuotas desde el presupuesto, remesas pain.008 con devoluciones, transferencias pain.001) | ◐ (347, 111/115, 190 y 184 con fichero oficial, sin presentación telemática; Verifactu de honorarios en modo de prueba) | ◐ (recibos y reservas con fianza, solo en modo de prueba) | ◐ (Norma 43/CSV y conciliación reales; conexión PSD2 en modo demo) | ✅ (directorio compartido con valoraciones, facturas con IVA e IRPF) | ❌ |
+| **gobernança** | ✅ | ✅ | ◐ (PWA instalable con push web y apertura sin conexión; sin app en tiendas) | ✅ (con votos de prioridad, urgencia sugerida y parte de trabajo para el gremio) | ✅ | ✅ | ✅ (convocatoria, voto, delegación, acta firmada y sellada, notificación con acuse y cómputo del art. 17.8) | ✅ | ✅ (partida doble, cierre, liquidación anual, exporta a ContaPlus) | ✅ (cuotas desde el presupuesto, entregas a cuenta, intereses de demora, remesas pain.008 con devoluciones importadas, transferencias pain.001) | ◐ (347, 111/115, 190 y 184 con fichero oficial comprobado, sin presentación telemática; Verifactu de honorarios en modo de prueba) | ◐ (recibos y reservas con fianza, solo en modo de prueba) | ◐ (Norma 43/CSV y conciliación reales, abonos de la pasarela; conexión PSD2 en modo demo) | ✅ (directorio compartido con valoraciones, parte de trabajo sin cuenta, facturas con IVA e IRPF) | ◐ (sugerencias y redacción automática en el navegador, sin coste) |
 | Gesfincas | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ? | ◐ | ✅ | ✅ | ✅ |
 | TucomunidApp | ✅ | ✅ | ? | ✅ | ✅ | ✅ | ✅ | ✅ | ◐ (vía ERP) | ✅ | ? | ◐ | ✅ | ✅ | ? |
 | ADMINET | ✅ | ✅ | ✅ | ✅ | ? | ◐ | ✅ | ✅ | ✅ | ✅ | ◐ | ◐ | ◐ | ◐ | ✅ |
@@ -160,7 +162,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 **Lectura rápida de la matriz:**
 - Las funciones que gobernança ya tiene (incidencias, reservas, tablón, multi-comunidad) son las más comunes del mercado. **No la diferencian por sí solas.**
 - Las reservas faltan o no están documentadas en casi todos los ERP españoles: ADMINET, TAAF, Fynkus, Ciudadela, Finca3, FincasPlus. Ese es el hueco del administrador.
-- Lo que más se repite en la competencia y le falta a gobernança: app en tienda, IA y los cobros y la banca reales (pagos online y PSD2 están en modo de prueba). Contabilidad, remesas SEPA, modelos AEAT, juntas con voto, documentos, push web, morosidad y proveedores **ya existen** en el código.
+- Lo que más se repite en la competencia y le falta a gobernança: app en tienda (la PWA la cubre a medias) y los cobros, la banca y los envíos reales (pagos online, PSD2, correo y burofax están en modo de prueba). Contabilidad, remesas SEPA, modelos AEAT, juntas con acta firmada, documentos, push web, morosidad, proveedores con parte de trabajo y sugerencias automáticas **ya existen** en el código.
 
 ---
 
@@ -384,8 +386,8 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 | **Mobile-first o apps nativas cuidadas** | ResidenciAPP (Expo), TusVecinos, Onzane, TownSq, ComunidadFeliz (RN), Buildium, Superlógica | El vecino espera app con push. Las notas en tienda son una prueba social visible. |
 
 **Observaciones:**
-- **gobernança (Vue 3 + Firebase)** está en el grupo moderno, pero **no tiene app en tienda**. PayHOA demuestra que se puede escalar sin app nativa (más de 6.000 comunidades), aunque en España casi todos los competidores del vecino están en las tiendas. Una PWA con push, o una envoltura tipo Capacitor más adelante, cierra el hueco con poco coste.
-- **IA:** ya está en producción en más de la mitad de los competidores (OCR de facturas, agentes de voz y WhatsApp, Copilot). No tenerla se nota cada vez más en marketing, aunque el valor real para el vecino sigue sin estar demostrado.
+- **gobernança (Vue 3 + Firebase)** está en el grupo moderno y ya es una **PWA instalable** (push web, apertura sin conexión, aviso de nueva versión), pero **no tiene app en tienda**. PayHOA demuestra que se puede escalar sin app nativa (más de 6.000 comunidades), aunque en España casi todos los competidores del vecino están en las tiendas. El siguiente paso es envolver la PWA (TWA en Google Play, Capacitor en la App Store), con el coste de las cuentas de desarrollador.
+- **IA:** ya está en producción en más de la mitad de los competidores (OCR de facturas, agentes de voz y WhatsApp, Copilot). gobernança cubre lo básico sin coste ni envío de datos (clasificar incidencias, resumir hilos, redactar avisos y pulir actas) con los modelos del navegador y, donde no los hay, con reglas y plantillas propias. Un agente conversacional u OCR de facturas necesitaría un modelo en servidor, con coste.
 - **Restricción del plan gratuito de Firebase:** limita lecturas y escrituras y, según cambios recientes de Google, posiblemente también Cloud Storage para buckets nuevos. Esto último **no lo he verificado en este informe**; hay que comprobarlo antes de añadir documentos o fotos a escala. Condiciona funciones como el almacén de documentos o las incidencias con fotos.
 
 ---
@@ -431,7 +433,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 
 | Actor | X | Y | | Actor | X | Y |
 |---|---|---|---|---|---|---|
-| **gobernança (hoy)** | **8** | **8\*** | | Comunix | 3 | 8 |
+| **gobernança (hoy)** | **9** | **8\*** | | Comunix | 3 | 8 |
 | Gesfincas | 10 | 2 | | ResidenciAPP | 5 | 7 |
 | TucomunidApp | 7 | 3 | | Plusvecinos | 5 | 8 |
 | ADMINET | 8 | 2 | | TusVecinos | 6 | 9 |
@@ -454,7 +456,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 **Cuadrantes:**
 - *Amplio y caro u opaco* (arriba a la derecha del eje X, abajo en Y): incumbentes, Ciudadela, C365 y los benchmarks con fintech.
 - *Amplio y accesible:* Onzane, VecinApp, Fynkus, NetFincas, Unitify. **Es el cuadrante más peligroso: amplitud a precio bajo.** Gobernança no puede ganar aquí por número de funciones.
-- *Estrecho y accesible:* Comunix, FincasPlus, Colindar, ResidenciAPP y Plusvecinos. gobernança ha pasado de ahí (6, 8) a *amplio y accesible* (8, 8) con contabilidad, SEPA y AEAT; le faltan los pagos reales, la app en tienda y la IA para llegar a 9-10. La competencia es por precio, y TusVecinos (2 €/vivienda/año) y Onzane Free empujan el precio a cero.
+- *Estrecho y accesible:* Comunix, FincasPlus, Colindar, ResidenciAPP y Plusvecinos. gobernança ha pasado de ahí (6, 8) a *amplio y accesible* (9, 8) con contabilidad, SEPA y AEAT, el cierre legal de la junta, la importación del censo, la PWA y las sugerencias automáticas; le faltan los cobros reales y la app en tienda para llegar a 10. La competencia es por precio, y TusVecinos (2 €/vivienda/año) y Onzane Free empujan el precio a cero.
 - **Hueco:** en el eje X no hay un hueco de amplitud. El hueco está en una **tercera dimensión que la matriz no recoge: calidad de experiencia y fiabilidad**. Casi todos los productos amplios y baratos tienen apps de 2–3,9★. La propuesta defendible es la amplitud de un ERP con la mejor experiencia del mercado y un precio público simple.
 
 ---
@@ -466,33 +468,37 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 > **«El ERP completo para despachos pequeños y medianos, con contabilidad, SEPA, AEAT y banca, y la mejor app del vecino del mercado, más un plan gratuito para comunidades sin administrador.»**
 
 - **Competir de tú a tú con los ERP** (Gesfincas, ADMINET, TAAF, NetFincas, Fynkus): contabilidad por partida doble con cierre, remesas y transferencias SEPA, conciliación Norma 43, modelos 347/111/190/184 y liquidación para la junta ya existen. Un despacho puede llevar una comunidad entera sin otro programa.
-- **Coste de plataforma cero:** todo corre en el navegador. Lo que cuesta dinero (pasarela de tarjeta y Bizum, agregador PSD2, presentación en la AEAT con certificado y envío de Verifactu, burofax) está en modo de prueba y se activa con un proveedor de pago cuando haya ingresos que lo cubran.
+- **Coste de plataforma cero:** todo corre en el navegador. Lo que cuesta dinero (pasarela de tarjeta y Bizum, agregador PSD2, presentación en la AEAT con certificado y envío de Verifactu, correo certificado y burofax, envío de emails) está en modo de prueba de punta a punta y se activa con un proveedor de pago cuando haya ingresos que lo cubran.
 - **Riesgo regulatorio asumido y acotado:** los ficheros AEAT siguen los diseños de registro oficiales, pero hay que validarlos en la Sede antes de venderlos como listos; Verifactu solo afecta a los honorarios del despacho.
 - **Ser neutral frente a los despachos**, al contrario que Ciudadela o Supervecina. gobernança no les quita clientes.
-- **Migrar o convivir:** importar la deuda de cada propiedad desde otro programa y exportar el diario a ContaPlus y a Excel, para entrar aunque el despacho no cambie de ERP el primer día. Falta importar el censo (comunidades, propietarios y coeficientes).
+- **Migrar o convivir:** importar el censo (comunidades, propiedades, propietarios, coeficientes y mandatos SEPA) y la deuda de cada propiedad desde el Excel o CSV de otro programa, y exportar el diario a ContaPlus y a Excel, para entrar aunque el despacho no cambie de ERP el primer día.
 - **Por el lado del vecino,** competir contra el 2,1★ de TucomunidApp y TuAdministrador con un acceso sin fricción (el enlace mágico es una ventaja frente al «no puedo registrarme», que es una queja recurrente) y una experiencia cuidada.
 
 ### 9.2 Huecos funcionales, por prioridad
 
 | Prioridad | Función | Por qué | Referencia |
 |---|---|---|---|
-| P0 | **Cierre legal de la junta**: firma del acta y envío o notificación fehaciente a los propietarios | Convocatoria, orden del día, voto, delegación y acta imprimible ya existen; falta la firma y la prueba de envío | C365, TusVecinos, Plusvecinos (Namirial), VecinApp |
-| P0 | **Importación del censo** (comunidades, propietarios y coeficientes) desde Excel y desde los ERP más comunes, con un asistente | Elimina la barrera de alta del despacho; los saldos de deuda ya se importan | VecinApp, FincasPro (Pasarela) |
-| P0 | **PWA instalable** (el push web ya existe) y email transaccional | Compensa no tener app en tienda; las notas en tienda son la prueba social del sector | Onzane, TownSq |
-| P1 | **Proveedores en incidencias** (asignar desde el directorio, enlace sin cuenta para el gremio) | El directorio con valoraciones ya existe; falta conectarlo al flujo de la incidencia | C365 (portal del gremio sin app), Gesfincas |
-| P1 | **Activar los cobros reales**: pasarela de tarjeta y Bizum (Stripe Connect o Redsys) a una cuenta de la comunidad | Recibos y reservas con fianza ya se pagan de punta a punta en modo de prueba; falta el proveedor y conciliar sus abonos | ResidenciAPP, Onzane, Colindar |
-| P1 | **Validar los ficheros fiscales y bancarios** en la Sede de la AEAT y en un banco real (347, 190, 184, pain.008, pain.001, XDiario de ContaPlus) | Se generan según los diseños oficiales, pero ninguno se ha presentado aún | — |
-| P2 | **IA ligera:** clasificar incidencias, resumir hilos, redactar avisos y actas | Argumento de marketing; coste controlable | Supervecina, VecinApp, Unitify |
+Ya cerrados (01/11/2026): cierre legal de la junta (firma, sellado, notificación con acuse y art. 17.8), importación del censo y de comunidades, PWA instalable, correo saliente en modo de prueba, parte de trabajo para el gremio, sugerencias y redacción automática, comprobación de ficheros, devoluciones SEPA importadas, abonos de la pasarela en la conciliación, entregas a cuenta e intereses de demora. Lo que queda depende sobre todo de contratar proveedores o de un servidor:
+
+| Prioridad | Función | Por qué | Referencia |
+|---|---|---|---|
+| P0 | **Activar los cobros reales**: pasarela de tarjeta y Bizum (Stripe Connect o Redsys) a una cuenta de la comunidad | Recibos, entregas a cuenta y reservas con fianza ya se pagan de punta a punta en modo de prueba, y los abonos de la pasarela ya se concilian; falta el proveedor y un servidor que confirme cada pago | ResidenciAPP, Onzane, Colindar |
+| P0 | **Activar el envío real del correo** (extensión Trigger Email con un proveedor SMTP) | Invitaciones, convocatorias, actas, partes de trabajo y reclamaciones ya quedan en el correo saliente con el formato de la extensión; enviarlos necesita el plan de pago de Firebase | Todos |
+| P1 | **Validar los ficheros fiscales y bancarios** en la Sede de la AEAT y en un banco real (347, 190, 184, pain.008, pain.001, XDiario de ContaPlus) | Se generan según los diseños oficiales y se comprueban antes de descargarlos, pero ninguno se ha presentado aún | — |
+| P1 | **App en tiendas**: envolver la PWA (TWA en Google Play, Capacitor en la App Store) | La PWA ya se instala; las notas en tienda son la prueba social del sector. Las cuentas de desarrollador tienen coste | Onzane, TownSq |
+| P1 | **Notificación fehaciente y firma reales del acta** (correo certificado o burofax de un prestador cualificado, firma avanzada) | La firma electrónica simple, el sellado con huella y el acuse en la app ya existen; el canal certificado está en modo de prueba | C365, Plusvecinos (Namirial), VecinApp |
 | P2 | **Conexión bancaria real** (agregador PSD2) y envío de Verifactu a la AEAT con el certificado del despacho | La conciliación y el registro encadenado ya existen; necesitan un proveedor de pago y un servidor, fuera del plan gratuito | Fynkus, Gesfincas, VecinApp |
-| P3 | **Burofax real**, devoluciones SEPA importadas (camt/pain.002), pagos parciales e intereses de demora | Hoy el burofax es simulado y las devoluciones se meten a mano | ADMINET, TAAF |
+| P2 | **Recordatorios automáticos** (vencimientos de obligaciones y recibos, juntas) por email y push | Necesitan tareas programadas en un servidor; hoy se avisan en el panel y en el calendario exportado | Gesfincas, Onzane |
+| P3 | **Burofax real** | Hoy es simulado, con justificante de prueba | ADMINET, TAAF |
 
 ### 9.3 Diferenciadores defendibles
 
 1. **Experiencia del vecino y fiabilidad:** acceso por enlace mágico y una interfaz estable. Medible en las notas de las tiendas o en el NPS en cuanto haya app o PWA.
 2. **Doble cara con un mismo modelo de datos:** panel de despacho (búsqueda transversal de comunidades y vecinos, dashboard por comunidad, ficha fiscal) y webapp del vecino. Las apps de comunidades autogestionadas no tienen lo primero y los ERP no tienen lo segundo bien hecho.
 3. **ERP y vecino en un solo producto:** los cobros, la contabilidad y los modelos fiscales comparten datos con la app del vecino (sus recibos, pagos y reservas), y se puede convivir con el ERP actual exportando a ContaPlus mientras se migra.
-4. **Precio público y simple** en un mercado donde los líderes no publican precios.
-5. **Ámbito español** (LPH, español, operación local), frente a Unitify, comunicasa y los benchmarks.
+4. **La junta de punta a punta:** convocatoria notificada, voto ponderado y delegación, acta firmada y sellada, acuse de cada propietario y cómputo de los ausentes del art. 17.8 LPH, sin coste.
+5. **Precio público y simple** en un mercado donde los líderes no publican precios.
+6. **Ámbito español** (LPH, español, operación local), frente a Unitify, comunicasa y los benchmarks.
 
 ### 9.4 Riesgos
 
@@ -501,7 +507,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 - **Que un incumbente modernice su app del vecino** (Aareon tiene capital y stack Angular/Ionic) o que haya consolidación (Aareon, Visma, TeamSystem, Cegid).
 - **Monetizar comunidades autogestionadas es difícil:** TusVecinos factura unos 5,8 k€/año con un producto completo.
 - **Recursos:** proyecto de una persona con el plan gratuito de Firebase. Límites de cuota y almacenamiento por confirmar, y un problema de credibilidad ante los despachos (como le pasa a ResidenciAPP, que también es una persona física). Conviene constituir una sociedad o, al menos, publicar un aviso legal completo antes de vender.
-- **Juntas telemáticas sin ley aprobada:** hay que construir el voto con un aviso claro sobre su validez legal.
+- **Juntas telemáticas sin ley aprobada:** hay que construir el voto con un aviso claro sobre su validez legal. El acta lleva firma electrónica simple: sirve como prueba, pero no equivale a una firma cualificada ni a una notificación fehaciente de un prestador de confianza mientras ese canal siga en modo de prueba.
 - **Ficheros oficiales sin validar:** un error en un 347, una remesa o un asiento cuesta la confianza del despacho. Hay que validarlos con la AEAT y con bancos reales antes de venderlos, y vigilar los cambios anuales de diseño de registro.
 
 ### 9.5 Estrategia de precio y go-to-market sugerida (propuesta, a validar)

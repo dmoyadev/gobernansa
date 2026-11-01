@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BankMovement, CsvColumns, MatchCandidate, MovementData, ParsedStatement } from '@gobernansa/shared/domain/bank.ts';
+import type { BankMovement, CsvColumns, GatewayPayment, MatchCandidate, MovementData, ParsedStatement } from '@gobernansa/shared/domain/bank.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { PaymentOrder, Remittance } from '@gobernansa/shared/domain/sepa.ts';
 import { commonConcepts, csvMovements, decodeText, demoMovements, guessColumns, ibanAccount, matchCandidates, movementSources, norma43, parseCsv, parseNorma43, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
@@ -16,7 +16,7 @@ import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { ignoreMovement, importMovements, loadBankMovements, matchMovement, removeMovements, saveBankFeed, unignoreMovement, unmatchMovement } from '../application/useBank.ts';
+import { ignoreMovement, importMovements, loadBankMovements, loadGatewayPayments, matchMovement, removeMovements, saveBankFeed, unignoreMovement, unmatchMovement } from '../application/useBank.ts';
 import { useBudget, useUnpaidCharges, useUnpaidInvoices } from '../application/useFinances.ts';
 import { loadPaymentOrders } from '../application/usePaymentOrders.ts';
 import { loadRemittances } from '../application/useRemittances.ts';
@@ -34,27 +34,29 @@ const DAY_MS = 86_400_000;
 const NORMA43_HEADER_REGEX = /^11\d{18}/;
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
-const kindLabels: Record<MatchCandidate['kind'], string> = { charges: 'Recibo', expenses: 'Factura', remittance: 'Remesa', paymentOrder: 'Orden de pago' };
+const kindLabels: Record<MatchCandidate['kind'], string> = { charges: 'Recibo', expenses: 'Factura', remittance: 'Remesa', paymentOrder: 'Orden de pago', payout: 'Pasarela de pago' };
 
 const { data: unpaidCharges, error: chargesError } = useUnpaidCharges(props.id);
 const { data: unpaidInvoices, error: invoicesError } = useUnpaidInvoices(props.id);
 
-// The community, its movements and the remittances and orders, read once: they only change here
+// The community, its movements, the remittances and orders and the recent online payments, read once: they only change here
 const community = ref<Community>();
 const movements = ref<BankMovement[]>([]);
 const remittances = ref<Remittance[]>([]);
 const orders = ref<PaymentOrder[]>([]);
+const payments = ref<GatewayPayment[]>([]);
 const loading = ref(true);
 const loadError = ref<string>();
 const since = toDateString(new Date(Date.now() - RECENT_DAYS * DAY_MS));
 
 async function load() {
 	try {
-		[community.value, movements.value, remittances.value, orders.value] = await Promise.all([
+		[community.value, movements.value, remittances.value, orders.value, payments.value] = await Promise.all([
 			loadCommunity(props.id),
 			loadBankMovements(props.id, since),
 			loadRemittances(props.id),
 			loadPaymentOrders(props.id),
+			loadGatewayPayments(props.id, since),
 		]);
 		loadError.value = undefined;
 	} catch (e) {
@@ -111,7 +113,7 @@ function accountLabel(key: string) {
 
 /* Suggestions */
 
-const candidates = computed(() => matchCandidates({ charges: unpaidCharges.value, invoices: unpaidInvoices.value, remittances: remittances.value, orders: orders.value }));
+const candidates = computed(() => matchCandidates({ charges: unpaidCharges.value, invoices: unpaidInvoices.value, remittances: remittances.value, orders: orders.value, payments: payments.value }));
 const suggestions = computed(() => suggestMatches(pending.value, candidates.value));
 
 const busyId = ref<string>();
@@ -129,12 +131,14 @@ async function run(id: string, action: () => Promise<void>) {
 	}
 }
 
-// Remittances and orders change status with it, so they're read again after
+// Remittances, orders and payouts' payments change with it, so they're read again after
 async function reloadDocuments(candidate: Pick<MatchCandidate, 'kind'>) {
 	if (candidate.kind === 'remittance') {
 		remittances.value = await loadRemittances(props.id);
 	} else if (candidate.kind === 'paymentOrder') {
 		orders.value = await loadPaymentOrders(props.id);
+	} else if (candidate.kind === 'payout') {
+		payments.value = await loadGatewayPayments(props.id, since);
 	}
 }
 
@@ -213,7 +217,7 @@ const pickedCandidate = computed<MatchCandidate | string | undefined>(() => {
 		return undefined;
 	}
 	const kinds = new Set(chosen.map(candidate => candidate.kind));
-	if (kinds.size > 1 || (chosen.length > 1 && (kinds.has('remittance') || kinds.has('paymentOrder')))) {
+	if (kinds.size > 1 || (chosen.length > 1 && (kinds.has('remittance') || kinds.has('paymentOrder') || kinds.has('payout')))) {
 		return 'Solo se pueden juntar varios recibos o varias facturas.';
 	}
 	if (chosen.length === 1) {
@@ -550,7 +554,7 @@ function downloadSample() {
 			<span class="chip test">Modo de prueba — datos simulados</span>
 		</h2>
 		<p class="hint">
-			Con un agregador bancario (PSD2, de pago) los movimientos llegarían solos cada día. Hasta contratarlo, el banco de pruebas simula movimientos con tus recibos y facturas pendientes, comisiones y alguno que no casa con nada. No se conecta con ningún banco real ni tiene coste.
+			Con un agregador bancario (PSD2, de pago) los movimientos llegarían solos cada día. Hasta contratarlo, el banco de pruebas simula movimientos con tus recibos y facturas pendientes, los abonos de la pasarela de pago de prueba (los pagos online de cada día, dos días después y sin comisión), comisiones y alguno que no casa con nada. No se conecta con ningún banco real ni tiene coste.
 		</p>
 		<p v-if="community && !account" class="warning">
 			<LnxIcon icon="lucide:triangle-alert" />

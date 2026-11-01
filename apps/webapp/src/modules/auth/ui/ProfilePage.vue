@@ -8,6 +8,7 @@ import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
+import InstallApp from '@/shared/ui/InstallApp.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 import { version } from '../../../../package.json';
@@ -310,6 +311,7 @@ async function savePassword() {
 
 		<section>
 			<h2>Ajustes</h2>
+			<InstallApp />
 			<ul class="list">
 				<li>
 					<label class="row">

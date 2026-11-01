@@ -3,6 +3,7 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { assignableRoles, roles } from '@gobernansa/shared/domain/user.ts';
+import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -10,8 +11,10 @@ import Kbd from '@/app/ux/Kbd.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
+import { mailOutcome } from '@/modules/mail/application/mail.ts';
+import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
 import { setBlocked } from '../application/useModeration.ts';
-import { cancelInvitation, invite, removePerson, restoreInvitation, setCommunityAssigned, setRole, usePeople } from '../application/usePeople.ts';
+import { cancelInvitation, invite, removePerson, resendInvitation, restoreInvitation, setCommunityAssigned, setRole, usePeople } from '../application/usePeople.ts';
 
 // A community's neighbours and managers or, without one, the administrators
 const props = defineProps<{ id?: string }>();
@@ -37,6 +40,7 @@ function canEdit(person: User & { id: string }) {
 }
 
 const form = ref({ name: '', email: '', role: scopeRoles[0], communityIds: [] as string[] });
+const byEmail = ref(true);
 const formError = ref<string>();
 const formElement = useTemplateRef<HTMLFormElement>('formElement');
 
@@ -55,8 +59,8 @@ function sendInvitation() {
 	const sent = { ...form.value };
 	formError.value = undefined;
 	form.value = { ...form.value, name: '', email: '', communityIds: [] };
-	void optimistic(invite({ ...sent, email, communityId }), {
-		done: `${sent.name.trim()} invitado`,
+	void optimistic(invite({ ...sent, email, communityId }, undefined, byEmail.value), {
+		done: `${sent.name.trim()} invitado${byEmail.value ? `; ${mailOutcome(email)}` : ''}`,
 		// Sending one over another is an update, which the rules don't allow
 		failed: 'No se ha podido invitar, puede que ese email ya tenga una invitación pendiente',
 		onError: () => {
@@ -118,6 +122,14 @@ function toggleAssigned(person: User & { id: string }, community: Community, ass
 	});
 }
 
+// No undo: the email may be out already
+function resend(invitation: Invitation & { id: string }) {
+	void optimistic(resendInvitation(invitation), {
+		done: `Invitación de ${invitation.name}: ${mailOutcome(invitation.id)}`,
+		failed: 'No se ha podido enviar la invitación',
+	});
+}
+
 function cancel(invitation: Invitation & { id: string }) {
 	void optimistic(cancelInvitation(invitation.id, invitation.communityId, invitation.name), {
 		done: 'Invitación cancelada',
@@ -137,7 +149,7 @@ function cancel(invitation: Invitation & { id: string }) {
 	<form v-if="roleOptions.length" ref="formElement" class="card" @submit.prevent="sendInvitation()">
 		<h2>Invitar <Kbd combo="n" /></h2>
 		<p class="hint">
-			No se envía ningún email: avísale de que entre en gobernança con este email. Su cuenta se crea al entrar por primera vez.
+			Su cuenta se crea la primera vez que entre en gobernança con este email.
 		</p>
 		<div class="fields">
 			<LnxInput v-model="form.name" required>
@@ -170,6 +182,16 @@ function cancel(invitation: Invitation & { id: string }) {
 				<span>{{ community.name || 'Sin nombre' }}</span>
 			</label>
 		</fieldset>
+
+		<div>
+			<LnxCheckbox v-model="byEmail">
+				Enviar invitación por email
+				<template #helper>
+					{{ byEmail ? 'Con el enlace para entrar en la app que usará.' : 'Avísale tú de que entre en gobernança con este email.' }}
+				</template>
+			</LnxCheckbox>
+			<MailModeNote v-if="byEmail" />
+		</div>
 
 		<footer class="form-actions">
 			<p v-if="formError" class="error" role="alert">
@@ -271,6 +293,10 @@ function cancel(invitation: Invitation & { id: string }) {
 				</div>
 				<span class="badge">{{ roles[invitation.role]?.label }}</span>
 				<div v-if="assignableRoles(me, invitation.communityId).includes(invitation.role)" class="person-actions">
+					<LnxButton mode="clear" size="small" @click="resend(invitation)">
+						<LnxIcon icon="lucide:mail" />
+						Reenviar invitación por email
+					</LnxButton>
 					<LnxButton
 						mode="clear"
 						size="small"

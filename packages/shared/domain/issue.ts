@@ -60,6 +60,8 @@ export interface IssueComment extends Datable, Deletable {
 export interface IssuePrivate {
 	note?: string;
 	claim?: InsuranceClaim;
+	// The token of the provider's parte de trabajo (workOrders/{token}), while it isn't revoked
+	workOrder?: string;
 	updatedAt?: Timestamp;
 	updatedBy?: string;
 }

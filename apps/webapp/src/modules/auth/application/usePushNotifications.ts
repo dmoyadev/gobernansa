@@ -1,3 +1,4 @@
+import { activeServiceWorker } from '@gobernansa/shared/application/pwa.ts';
 import { db, firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { deleteToken, getMessaging, getToken, isSupported } from 'firebase/messaging';
@@ -10,7 +11,7 @@ const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
 /**
  * Asks the browser for permission and registers this device in users/{uid}/devices/{token},
  * where whoever sends the notifications (e.g. a test message from the Firebase console) finds it.
- * public/firebase-messaging-sw.js shows them.
+ * The app's service worker (public/sw.js) shows them.
  */
 export function usePushNotifications() {
 	const user = useCurrentUser();
@@ -30,7 +31,7 @@ export function usePushNotifications() {
 
 		// shortcut: without a VAPID key the device gets no token to send to, set VITE_FIREBASE_VAPID_KEY (Firebase console → Cloud Messaging → Web Push certificates)
 		if (VAPID_KEY && user.value && await isSupported()) {
-			token.value = await getToken(getMessaging(firebaseApp), { vapidKey: VAPID_KEY });
+			token.value = await getToken(getMessaging(firebaseApp), { vapidKey: VAPID_KEY, serviceWorkerRegistration: await activeServiceWorker() });
 			await setDoc(doc(db, 'users', user.value.uid, 'devices', token.value), { createdAt: serverTimestamp() });
 		}
 
@@ -41,7 +42,10 @@ export function usePushNotifications() {
 		wanted.value = false;
 		if (token.value && user.value) {
 			await deleteDoc(doc(db, 'users', user.value.uid, 'devices', token.value));
-			await deleteToken(getMessaging(firebaseApp));
+			// deleteToken unsubscribes the worker getToken was last given, and without one it would register Firebase's own
+			const messaging = getMessaging(firebaseApp);
+			await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: await activeServiceWorker() });
+			await deleteToken(messaging);
 			token.value = null;
 		}
 	}

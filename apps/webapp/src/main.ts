@@ -10,6 +10,9 @@ import router from './app/router.ts';
 import { VueFire, VueFireAuth } from 'vuefire';
 import { firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 
+/* Installable app: offline shell, updates and install prompt */
+import { registerServiceWorker } from '@gobernansa/shared/application/pwa.ts';
+
 /* Icons */
 import 'iconify-icon';
 
@@ -32,6 +35,8 @@ app.use(VueFire, {
 		VueFireAuth(),
 	],
 });
+
+registerServiceWorker();
 
 /* Create the router and mount the app */
 router.isReady()

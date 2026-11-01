@@ -176,7 +176,7 @@ export async function returnDebit(communityId: string, remittance: Remittance, i
 	// The mandate is first again only if none of its first debits in this remittance went through
 	const resetsFirst = item.sequence === 'FRST' && property?.mandate?.firstRemittanceId === remittance.id
 		&& !items.some(other => other.chargeId !== item.chargeId && other.propertyId === item.propertyId && other.sequence === 'FRST' && !other.returned);
-	const entry: ChargeReturn = { remittanceId: remittance.id, reason, date };
+	const entry: ChargeReturn = { remittanceId: remittance.id, reason, date, amount: item.amount };
 	const returned = { ...remittance, items: items.map(other => other.chargeId === item.chargeId ? { ...other, returned: { reason, date, ...(fee ? { feeChargeId: fee.id } : {}) } } : other) };
 
 	const batch = writeBatch(db);

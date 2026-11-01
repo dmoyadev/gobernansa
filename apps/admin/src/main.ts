@@ -11,6 +11,9 @@ import { installPrefetch, installViewTransitions } from './app/ux/navigation.ts'
 import { VueFire, VueFireAuth } from 'vuefire';
 import { firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 
+/* Installable app: offline shell, updates and install prompt */
+import { registerServiceWorker } from '@gobernansa/shared/application/pwa.ts';
+
 /* Icons */
 import 'iconify-icon';
 
@@ -27,7 +30,7 @@ import './app/ux/interactions.scss';
 const app = createApp(App as Component);
 app.use(router);
 installViewTransitions(router);
-installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers', '/billing']);
+installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers', '/mail', '/billing']);
 
 app.use(VueFire, {
 	firebaseApp,
@@ -35,6 +38,8 @@ app.use(VueFire, {
 		VueFireAuth(),
 	],
 });
+
+registerServiceWorker();
 
 /* Create the router and mount the app */
 router.isReady()

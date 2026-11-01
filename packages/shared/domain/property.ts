@@ -12,6 +12,8 @@ export interface Property extends Datable {
 	ownerEmail?: string;
 	// Their NIF, for the 184 when the community has income to attribute to its owners
 	ownerNif?: string;
+	// As the census has it, to call them
+	ownerPhone?: string;
 	// Who lives there when it's rented
 	tenantName?: string;
 	tenantEmail?: string;

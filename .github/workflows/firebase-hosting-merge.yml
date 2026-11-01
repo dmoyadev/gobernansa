@@ -20,6 +20,7 @@ jobs:
       VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
       VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
       VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+      VITE_MAIL_MODE: ${{ secrets.VITE_MAIL_MODE }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

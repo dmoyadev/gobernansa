@@ -1,8 +1,10 @@
+import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
 import type { Charge, Expense } from './finance.ts';
+import type { Payment } from './payment.ts';
 import type { PaymentOrder, Remittance } from './sepa.ts';
 import { toDateString } from './booking.ts';
-import { payableAmount } from './finance.ts';
+import { outstanding, payableAmount } from './finance.ts';
 import { normalizeIban } from './fiscal.ts';
 import { toCents } from './money.ts';
 import { sepaText } from './sepa.ts';
@@ -47,7 +49,8 @@ export interface BankMovement extends Datable {
 }
 
 export interface BankMatch {
-	kind: 'charges' | 'expenses' | 'remittance' | 'paymentOrder';
+	// payout: the online payments the gateway paid in together (ids are the payments)
+	kind: 'charges' | 'expenses' | 'remittance' | 'paymentOrder' | 'payout';
 	ids: string[];
 	label: string;
 }
@@ -337,7 +340,7 @@ export function norma43(account: Pick<StatementAccount, 'account' | 'holder' | '
 /* CSV, as most online banking exports it */
 
 // Files from banks and other programs are usually Latin-1, or else UTF-8
-export function decodeText(buffer: ArrayBuffer) {
+export function decodeText(buffer: AllowSharedBufferSource) {
 	try {
 		return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
 	} catch {
@@ -453,6 +456,8 @@ export interface MatchCandidate extends BankMatch {
 	text: string;
 	// 'YYYY-MM-DD', the due or expected date
 	date?: string;
+	// The bank's reference of the payout
+	reference?: string;
 }
 
 const STOP_WORDS = new Set(['del', 'las', 'los', 'por', 'para', 'con', 'una', 'que']);
@@ -496,12 +501,52 @@ function dateOf(timestamp?: { toDate: () => Date }) {
 	return timestamp ? toDateString(timestamp.toDate()) : undefined;
 }
 
+/* Abonos de la pasarela de pago */
+
+// A payment made from the neighbours' app, with what the office does with it: reverted, or reconciled with its payout
+export type GatewayPayment = Pick<Payment, 'id' | 'amount' | 'createdAt'> & { revertedAt?: Timestamp | null; bankMovementId?: string };
+
+// The test gateway pays each day's payments into the community's account two days later, in one transfer and without
+// fees. A real one (Redsys, Stripe) has its own calendar and fee, and would say which payments each payout carries
+export const PAYOUT_DAYS = 2;
+
+function addDays(date: string, days: number) {
+	const day = new Date(`${date}T12:00:00Z`);
+	day.setUTCDate(day.getUTCDate() + days);
+	return day.toISOString().slice(0, 10);
+}
+
+// The day the test gateway pays in the payments made on `day`, both 'YYYY-MM-DD'
+export function payoutDate(day: string) {
+	return addDays(day, PAYOUT_DAYS);
+}
+
 /**
- * What the pending movements can match: unpaid charges not in a remittance, one by one and all of a property
- * together (an owner paying several months at once), remittances not collected yet (what's left after returns),
- * unpaid invoices not in a payment order, and payment orders not executed yet
+ * The payouts already paid in by `today` ('YYYY-MM-DD') of the payments not reconciled yet, one per day of payments.
+ * Reverted payments (the office marked them unpaid) aren't paid out
  */
-export function matchCandidates({ charges, invoices, remittances, orders }: { charges: Charge[]; invoices: Expense[]; remittances: Remittance[]; orders: PaymentOrder[] }) {
+export function gatewayPayouts(payments: GatewayPayment[], today: string) {
+	const live = payments.filter(payment => payment.createdAt && !payment.revertedAt && !payment.bankMovementId);
+	return Array.from(Map.groupBy(live, payment => toDateString(payment.createdAt.toDate())), ([day, group]) => {
+		const date = payoutDate(day);
+		return { date, day, ids: group.map(payment => payment.id), amount: group.reduce((sum, payment) => sum + payment.amount, 0), reference: `PASARELA${date.slice(2).replaceAll('-', '')}` };
+	}).filter(payout => payout.date <= today);
+}
+
+/**
+ * What the pending movements can match: what's left of the unpaid charges not in a remittance, one by one and all of a
+ * property together (an owner paying several months at once), remittances not collected yet (what's left after returns),
+ * unpaid invoices not in a payment order, payment orders not executed yet, and the gateway's payouts of the online
+ * payments, each one covering its day of payments
+ */
+export function matchCandidates({ charges, invoices, remittances, orders, payments = [], today = toDateString(new Date()) }: {
+	charges: Charge[];
+	invoices: Expense[];
+	remittances: Remittance[];
+	orders: PaymentOrder[];
+	payments?: GatewayPayment[];
+	today?: string;
+}) {
 	const free = charges.filter(charge => !charge.paidAt && !charge.remittanceId);
 	const byProperty = Map.groupBy(free, charge => charge.propertyId);
 	const chargeText = (charge: Charge) => `${charge.propertyName} ${charge.ownerName ?? ''} ${charge.concept}`;
@@ -509,7 +554,7 @@ export function matchCandidates({ charges, invoices, remittances, orders }: { ch
 		...free.map((charge): MatchCandidate => ({
 			kind: 'charges',
 			ids: [charge.id],
-			amount: charge.amount,
+			amount: outstanding(charge),
 			label: `«${charge.concept}» de ${charge.propertyName}`,
 			text: chargeText(charge),
 			date: dateOf(charge.dueDate),
@@ -517,7 +562,7 @@ export function matchCandidates({ charges, invoices, remittances, orders }: { ch
 		...[...byProperty.values()].filter(group => group.length > 1).map((group): MatchCandidate => ({
 			kind: 'charges',
 			ids: group.map(charge => charge.id),
-			amount: group.reduce((sum, charge) => sum + charge.amount, 0),
+			amount: group.reduce((sum, charge) => sum + outstanding(charge), 0),
 			label: `${group.length} recibos de ${group[0].propertyName}`,
 			text: group.map(chargeText).join(' '),
 			date: dateOf(group.at(-1)!.dueDate),
@@ -546,6 +591,15 @@ export function matchCandidates({ charges, invoices, remittances, orders }: { ch
 			text: `orden transferencias ${order.reference}`,
 			date: order.executionDate,
 		})),
+		...gatewayPayouts(payments, today).map((payout): MatchCandidate => ({
+			kind: 'payout',
+			ids: payout.ids,
+			amount: payout.amount,
+			label: `Abono de la pasarela: ${payout.ids.length} ${payout.ids.length === 1 ? 'pago online' : 'pagos online'} del ${payout.day.split('-').reverse().join('/')}`,
+			text: `abono pasarela pago liquidacion ${payout.reference}`,
+			date: payout.date,
+			reference: payout.reference,
+		})),
 	];
 	return candidates.filter(candidate => candidate.amount !== 0);
 }
@@ -555,8 +609,9 @@ export function matchCandidates({ charges, invoices, remittances, orders }: { ch
 /**
  * The movements a bank feed would bring in test mode, made up from what's pending so reconciling can be tried: owners
  * paying some charges by transfer, the bank crediting a remittance, transfers to providers, a payment order, the
- * account's fee and a cash deposit nothing matches. The same inputs on the same day give the same movements, so its
- * Norma 43 file and the feed import as the same ones. Amounts already waiting in a pending movement are left out
+ * account's fee, a cash deposit nothing matches, and the test gateway's payouts on their own dates. The same inputs on
+ * the same day give the same movements, so its Norma 43 file and the feed import as the same ones. Amounts already
+ * waiting in a pending movement are left out
  */
 export function demoMovements({ account, today, opening, candidates, waiting }: { account: string; today: string; opening: number; candidates: MatchCandidate[]; waiting: number[] }) {
 	const busy = new Set(waiting);
@@ -578,12 +633,18 @@ export function demoMovements({ account, today, opening, candidates, waiting }: 
 		{ amount: -1200, concept: 'COMISION MANTENIMIENTO CUENTA', commonConcept: '17', reference: `${reference}CO` },
 		{ amount: 3745, concept: 'INGRESO EN EFECTIVO EN OFICINA', commonConcept: '02', reference: `${reference}EF` },
 	];
-	// Spread over the last days, oldest first
-	const base = new Date(`${today}T12:00:00Z`);
+	// Spread over the last days, and the payouts on theirs, oldest first
+	const spread = drafts.map((draft, index) => ({ ...draft, date: addDays(today, -Math.floor((drafts.length - 1 - index) / 2)), reference: draft.reference ?? `${reference}${String(index + 1).padStart(2, '0')}` }));
+	const payouts = candidates.filter(candidate => candidate.kind === 'payout' && !busy.has(candidate.amount)).map(payout => ({
+		amount: payout.amount,
+		concept: `ABONO PASARELA DE PAGO ${payout.reference}`,
+		commonConcept: '12',
+		reference: payout.reference!,
+		date: payout.date!,
+	}));
 	let balance = opening;
-	return drafts.map((draft, position): MovementData => {
-		const day = new Date(base.getTime() - Math.floor((drafts.length - 1 - position) / 2) * 86_400_000).toISOString().slice(0, 10);
+	return [...payouts, ...spread].sort((a, b) => a.date.localeCompare(b.date)).map((draft, position): MovementData => {
 		balance += draft.amount;
-		return { ...draft, concept: sepaText(draft.concept, 76).toUpperCase(), account, date: day, reference: draft.reference ?? `${reference}${String(position + 1).padStart(2, '0')}`, balance, position };
+		return { ...draft, concept: sepaText(draft.concept, 76).toUpperCase(), account, balance, position };
 	});
 }

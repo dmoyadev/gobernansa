@@ -2,7 +2,7 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import { chargeTypes, isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
@@ -52,7 +52,7 @@ onRevalidate(load);
 
 // Charges not yet due don't count against it
 const overdue = computed(() => unpaid.value.filter(charge => isOverdue(charge, today.value)).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis()));
-const overdueTotal = computed(() => overdue.value.reduce((sum, charge) => sum + charge.amount, 0));
+const overdueTotal = computed(() => overdue.value.reduce((sum, charge) => sum + outstanding(charge), 0));
 
 function print() {
 	window.print();
@@ -122,7 +122,9 @@ function print() {
 					<td>{{ chargeTypes[charge.type] }}</td>
 					<td>{{ dateFormat.format(charge.dueDate.toDate()) }}</td>
 					<td class="amount">
-						{{ formatCents(charge.amount) }}
+						{{ formatCents(outstanding(charge)) }}<template v-if="charge.collections?.length">
+							<br><small>de {{ formatCents(charge.amount) }}, con entregas a cuenta</small>
+						</template>
 					</td>
 				</tr>
 			</tbody>

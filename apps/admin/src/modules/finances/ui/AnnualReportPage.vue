@@ -2,6 +2,7 @@
 import type { ReportRow } from '@gobernansa/shared/domain/accounting.ts';
 import { balances, beforeClosing, buildLedger, incomeStatement } from '@gobernansa/shared/domain/accounting.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
@@ -112,7 +113,8 @@ const reserve = computed(() => {
 const treasury = computed(() => {
 	const sums = balances(entries.value);
 	const balance = (key: string) => (sums.get(key)?.debit ?? 0) - (sums.get(key)?.credit ?? 0);
-	return { bank: balance('5720'), cash: balance('5700') };
+	// gateway: paid online, still to be paid in by the gateway
+	return { bank: balance('5720'), cash: balance('5700'), gateway: balance('5729') };
 });
 // The last balance the bank's statement gave, when the movements were imported. Not the test-mode connection's
 const statementBalance = computed(() => (data.value?.movements ?? [])
@@ -128,7 +130,7 @@ const debts = computed(() => {
 	}
 	const end = running.value ? Date.now() : new Date(year.value + 1, 0, 1).getTime();
 	const charges = new Map([...data.value.charges, ...data.value.paidAfter].map(charge => [charge.id, charge]));
-	const owed = [...charges.values()].filter(charge => charge.dueDate.toMillis() < end && (!charge.paidAt || charge.paidAt.toMillis() >= end));
+	const owed = [...charges.values()].filter(charge => charge.dueDate.toMillis() < end && outstanding(charge, new Date(end)) > 0);
 	const properties = new Map(data.value.properties.map(property => [property.id, property]));
 	return Object.entries(Object.groupBy(owed, charge => charge.propertyId)).map(([propertyId, list = []]) => {
 		const property = properties.get(propertyId);
@@ -138,8 +140,8 @@ const debts = computed(() => {
 			name: property?.name ?? list[0].propertyName,
 			owner: property?.ownerName ?? list[0].ownerName ?? '',
 			count: list.length,
-			levies: list.filter(charge => charge.type === 'levy').reduce((sum, charge) => sum + charge.amount, 0),
-			amount: list.reduce((sum, charge) => sum + charge.amount, 0),
+			levies: list.filter(charge => charge.type === 'levy').reduce((sum, charge) => sum + outstanding(charge, new Date(end)), 0),
+			amount: list.reduce((sum, charge) => sum + outstanding(charge, new Date(end)), 0),
 			oldest: oldest.dueDate.toDate(),
 		};
 	}).sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, 'es', { numeric: true }));
@@ -396,6 +398,12 @@ useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !err
 						<td>Caja</td>
 						<td class="amount">
 							{{ formatCents(treasury.cash) }}
+						</td>
+					</tr>
+					<tr v-if="treasury.gateway">
+						<td>Pagos online que la pasarela aún no ha abonado</td>
+						<td class="amount">
+							{{ formatCents(treasury.gateway) }}
 						</td>
 					</tr>
 					<tr v-if="statementBalance">

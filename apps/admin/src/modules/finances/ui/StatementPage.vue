@@ -2,7 +2,8 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import { chargeTypes } from '@gobernansa/shared/domain/finance.ts';
+import { formatRate, interestOwed } from '@gobernansa/shared/domain/arrears.ts';
+import { chargeTypes, collectionMethods, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
@@ -48,14 +49,18 @@ async function load() {
 onMounted(load);
 onRevalidate(load);
 
-// Each charge is a cargo on its due date and its payment an abono on the day it was paid. Those not yet due and unpaid
-// aren't owed yet, so they're left out (the year's fees are issued all at once)
+// Each charge is a cargo on its due date, each entrega a cuenta an abono on its day and the rest an abono on the day it
+// was paid. Those not yet due and unpaid aren't owed yet, so they're left out (the year's fees are issued all at once)
 const notDue = computed(() => charges.value.filter(charge => !charge.paidAt && charge.dueDate.toMillis() > today.value.getTime()));
 const entries = computed(() => {
-	const moves = charges.value.filter(charge => !notDue.value.includes(charge)).flatMap(charge => [
-		{ key: `${charge.id}-c`, date: charge.dueDate.toDate(), concept: charge.concept, type: chargeTypes[charge.type], debit: charge.amount, credit: 0 },
-		...(charge.paidAt ? [{ key: `${charge.id}-p`, date: charge.paidAt.toDate(), concept: `Pago ${charge.concept}`, type: 'Cobro', debit: 0, credit: charge.amount }] : []),
-	]).sort((a, b) => a.date.getTime() - b.date.getTime() || b.debit - a.debit);
+	const moves = charges.value.filter(charge => !notDue.value.includes(charge)).flatMap((charge) => {
+		const rest = outstanding({ ...charge, paidAt: null });
+		return [
+			{ key: `${charge.id}-c`, date: charge.dueDate.toDate(), concept: charge.concept, type: chargeTypes[charge.type], debit: charge.amount, credit: 0 },
+			...(charge.collections ?? []).map(item => ({ key: `${charge.id}-${item.id}`, date: item.date.toDate(), concept: `Entrega a cuenta ${charge.concept}`, type: collectionMethods[item.method], debit: 0, credit: item.amount })),
+			...(charge.paidAt && rest ? [{ key: `${charge.id}-p`, date: charge.paidAt.toDate(), concept: `Pago ${charge.concept}`, type: 'Cobro', debit: 0, credit: rest }] : []),
+		];
+	}).sort((a, b) => a.date.getTime() - b.date.getTime() || b.debit - a.debit);
 	let balance = 0;
 	return moves.map((move) => {
 		balance += move.debit - move.credit;
@@ -75,7 +80,9 @@ const carried = computed(() => year.value === ALL ? 0 : entries.value.findLast(e
 const debits = computed(() => shown.value.reduce((sum, entry) => sum + entry.debit, 0));
 const credits = computed(() => shown.value.reduce((sum, entry) => sum + entry.credit, 0));
 const balance = computed(() => carried.value + debits.value - credits.value);
-const notDueTotal = computed(() => notDue.value.reduce((sum, charge) => sum + charge.amount, 0));
+const notDueTotal = computed(() => notDue.value.reduce((sum, charge) => sum + outstanding(charge), 0));
+// Not charged until its recibo is issued from the arrears page, so out of the balance
+const interest = computed(() => community.value?.lateInterest ? interestOwed(charges.value, community.value.lateInterest, today.value) : undefined);
 
 function print() {
 	window.print();
@@ -203,6 +210,57 @@ function print() {
 		<p v-if="notDue.length" class="note">
 			Además hay {{ notDue.length }} {{ notDue.length === 1 ? 'recibo emitido que aún no ha vencido' : 'recibos emitidos que aún no han vencido' }}, por {{ formatCents(notDueTotal) }}, que no se incluyen.
 		</p>
+
+		<template v-if="interest?.items.length && community.lateInterest">
+			<h3>Intereses de demora a {{ longDate.format(today) }}</h3>
+			<table>
+				<thead>
+					<tr>
+						<th>Recibo</th>
+						<th class="amount">
+							Pendiente
+						</th>
+						<th>Desde</th>
+						<th class="amount">
+							Días
+						</th>
+						<th class="amount">
+							Intereses
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="item in interest.items" :key="item.charge.id">
+						<td>{{ item.charge.concept }}</td>
+						<td class="amount">
+							{{ formatCents(outstanding(item.charge)) }}
+						</td>
+						<td>{{ dateFormat.format(new Date(`${item.from}T00:00`)) }}</td>
+						<td class="amount">
+							{{ item.days }}
+						</td>
+						<td class="amount">
+							{{ formatCents(item.amount) }}
+						</td>
+					</tr>
+				</tbody>
+				<tfoot>
+					<tr>
+						<th colspan="4">
+							Total intereses
+						</th>
+						<th class="amount">
+							{{ formatCents(interest.total) }}
+						</th>
+					</tr>
+				</tfoot>
+			</table>
+			<p class="note">
+				Interés simple del {{ formatRate(community.lateInterest.rate) }} anual sobre lo pendiente de cada recibo vencido<template v-if="community.lateInterest.graceDays">
+					, pasados {{ community.lateInterest.graceDays }} días de su vencimiento
+				</template>. No se suma al saldo hasta que se emita su recibo.
+			</p>
+		</template>
 	</article>
 </template>
 
@@ -253,6 +311,10 @@ function print() {
 		text-align: center;
 		font-size: 15pt;
 		text-transform: uppercase;
+	}
+
+	h3 {
+		font-size: 11pt;
 	}
 
 	.note {

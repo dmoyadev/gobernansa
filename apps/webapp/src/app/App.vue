@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import AppStatus from '@gobernansa/shared/ui/AppStatus.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { RouterView } from 'vue-router';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -16,17 +17,20 @@ const { userCommunity } = useUserCommunity();
 		<RouterView :key="$route.fullPath" />
 	</div>
 
-	<p v-if="viewingAs" class="notice" role="status">
-		<LnxIcon icon="lucide:eye" :size="16" />
-		<span>Viendo «{{ userCommunity?.name }}» como vecino</span>
-		<LnxButton mode="clear" size="small" @click="exitViewAs()">
-			Salir
-		</LnxButton>
-	</p>
-	<p v-else-if="user?.blocked" class="notice" role="status">
-		<LnxIcon icon="lucide:lock" :size="16" />
-		<span>Tu cuenta está bloqueada por la administración: puedes consultar, pero no avisar, comentar, votar ni reservar.</span>
-	</p>
+	<div class="notices">
+		<AppStatus />
+		<p v-if="viewingAs" class="notice" role="status">
+			<LnxIcon icon="lucide:eye" :size="16" />
+			<span>Viendo «{{ userCommunity?.name }}» como vecino</span>
+			<LnxButton mode="clear" size="small" @click="exitViewAs()">
+				Salir
+			</LnxButton>
+		</p>
+		<p v-else-if="user?.blocked" class="notice" role="status">
+			<LnxIcon icon="lucide:lock" :size="16" />
+			<span>Tu cuenta está bloqueada por la administración: puedes consultar, pero no avisar, comentar, votar ni reservar.</span>
+		</p>
+	</div>
 </template>
 
 <style scoped lang="scss">
@@ -34,16 +38,25 @@ const { userCommunity } = useUserCommunity();
 	display: contents;
 
 	&.with-notice {
-		--tab-height: calc(58px + 16px + 64px);
+		--tab-height: calc(58px + max(16px, env(safe-area-inset-bottom)) + 64px);
 	}
 }
 
-.notice {
+// Above the tab bar, which sits above the home indicator when installed
+.notices {
 	z-index: 100;
 	position: fixed;
 	right: var(--lnx-spacing-4);
-	bottom: calc(58px + 16px + var(--lnx-spacing-2));
+	bottom: calc(58px + max(16px, env(safe-area-inset-bottom)) + var(--lnx-spacing-2));
 	left: var(--lnx-spacing-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-2);
+	pointer-events: none;
+}
+
+.notice {
+	pointer-events: auto;
 	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
 	border-radius: var(--lnx-radius-3);
 	background: var(--color-gray-9);

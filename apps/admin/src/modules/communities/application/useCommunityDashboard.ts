@@ -33,6 +33,12 @@ export async function total(source: Query) {
 	return snapshot.data().amount ?? 0;
 }
 
+// What's left of the charges: their sum minus what was collected on account
+export async function outstandingTotal(source: Query) {
+	const snapshot = await getAggregateFromServer(source, { amount: sum('amount'), collected: sum('collected') });
+	return (snapshot.data().amount ?? 0) - (snapshot.data().collected ?? 0);
+}
+
 // Shared while in flight: the widget and the Vecinos tile ask for it at once on the same visit
 const registrations = new Map<string, Promise<{ registered: number; homes: number }>>();
 async function registration(communityId: string) {
@@ -72,7 +78,7 @@ export function dashboardSources(communityId: string) {
 			const [collected, spent, pending, perMonth] = await Promise.all([
 				total(query(community('charges'), where('paidAt', '>=', yearStart))),
 				total(query(community('expenses'), where('year', '==', year))),
-				total(query(community('charges'), where('paidAt', '==', null))),
+				outstandingTotal(query(community('charges'), where('paidAt', '==', null))),
 				Promise.all(months.slice(0, -1).map(async (start, index) => {
 					const [from, to] = [Timestamp.fromDate(start), Timestamp.fromDate(months[index + 1])];
 					const [income, expenses] = await Promise.all([

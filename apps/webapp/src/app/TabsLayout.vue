@@ -56,7 +56,8 @@ const tabs = [
 
 <style>
 :root {
-	--tab-height: calc(58px + 16px) /* nav height + bottom padding */;
+	--tab-bottom: max(16px, env(safe-area-inset-bottom)) /* above the home indicator when installed */;
+	--tab-height: calc(58px + var(--tab-bottom)) /* nav height + bottom padding */;
 }
 </style>
 
@@ -65,7 +66,7 @@ nav {
 	view-transition-name: tab-bar;
 	z-index: 100;
 	position: fixed;
-	bottom: 16px;
+	bottom: var(--tab-bottom);
 	left: 50%;
 	transform: translate(-50%, 0);
 	align-self: center;

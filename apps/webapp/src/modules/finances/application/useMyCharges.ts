@@ -2,6 +2,7 @@ import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { CardSummary, OnlinePaymentMethod, PaymentRef } from '@gobernansa/shared/domain/payment.ts';
 import type { Firestore } from 'firebase/firestore';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { collection, doc, getDoc, getDocs, getFirestore, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useCollection } from 'vuefire';
@@ -48,12 +49,13 @@ export function useMyCharges() {
 			.sort((a, b) => b.paidAt!.toMillis() - a.paidAt!.toMillis());
 	}
 
+	// What's left of it, after any entregas a cuenta
 	async function payCharge(charge: Charge, checkout: Checkout) {
 		if (!communityId.value || !user.value) {
 			throw new Error('The user must be signed in to pay');
 		}
 		const uid = user.value.id;
-		const { ref, data, payment } = preparePayment(db, communityId.value, uid, charge.amount, { chargeId: charge.id }, checkout);
+		const { ref, data, payment } = preparePayment(db, communityId.value, uid, outstanding(charge), { chargeId: charge.id }, checkout);
 		const batch = writeBatch(db);
 		batch.set(ref, data);
 		batch.update(doc(chargesRef(db, communityId.value), charge.id), { paidAt: serverTimestamp(), payment, updatedAt: serverTimestamp(), updatedBy: uid });
@@ -64,7 +66,7 @@ export function useMyCharges() {
 	return { unpaid, loadPaid, payCharge };
 }
 
-// One of the user's charges, for its receipt
+// One of the user's charges, for its receipt or its entregas a cuenta
 export async function loadMyCharge(communityId: string, chargeId: string) {
 	const charge = await getDoc(doc(chargesRef(getFirestore(), communityId), chargeId));
 	return charge.exists() ? { ...charge.data(), id: charge.id } as Charge : undefined;

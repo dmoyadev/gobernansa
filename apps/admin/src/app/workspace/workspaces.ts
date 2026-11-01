@@ -59,7 +59,14 @@ export const workspaces: Record<string, Workspace> = {
 		groups: [{
 			sections: [
 				{ title: 'Vecinos y gestores', icon: 'lucide:users', pages: [{ key: 'people', title: 'Vecinos y gestores', description: 'Cuentas, roles e invitaciones' }] },
-				{ title: 'Propiedades', icon: 'lucide:house', pages: [{ key: 'properties', title: 'Propiedades', description: 'Censo con coeficientes, propietarios e inquilinos' }] },
+				{
+					title: 'Propiedades',
+					icon: 'lucide:house',
+					pages: [
+						{ key: 'properties', title: 'Propiedades', description: 'Censo con coeficientes, propietarios e inquilinos' },
+						{ key: 'import', title: 'Importar censo', description: 'Propiedades, propietarios y coeficientes desde Excel o CSV', icon: 'lucide:file-spreadsheet' },
+					],
+				},
 			],
 		}],
 	}),

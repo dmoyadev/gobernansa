@@ -1,6 +1,7 @@
 import type { Datable } from './audit.ts';
+import type { LateInterest } from './community.ts';
 import type { Charge } from './finance.ts';
-import { isOverdue } from './finance.ts';
+import { INTEREST_BATCH_ID, isOverdue, outstanding } from './finance.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -16,18 +17,78 @@ export function daysOverdue(charge: Pick<Charge, 'dueDate'>, now = new Date()) {
 	return Math.max(0, Math.floor((now.getTime() - charge.dueDate.toMillis()) / DAY_MS));
 }
 
-// The overdue debt in each bucket, in cents
-export function agingOf(charges: Pick<Charge, 'amount' | 'dueDate' | 'paidAt'>[], now = new Date()) {
+// The overdue debt in each bucket, in cents, without what was collected on account
+export function agingOf(charges: Pick<Charge, 'amount' | 'dueDate' | 'paidAt' | 'collections'>[], now = new Date()) {
 	const buckets = agingBuckets.map(() => 0);
 	let count = 0;
 	for (const charge of charges) {
 		if (isOverdue(charge, now)) {
 			const days = daysOverdue(charge, now);
-			buckets[agingBuckets.findIndex(bucket => days <= bucket.maxDays)] += charge.amount;
+			buckets[agingBuckets.findIndex(bucket => days <= bucket.maxDays)] += outstanding(charge);
 			count++;
 		}
 	}
 	return { buckets, total: buckets.reduce((sum, cents) => sum + cents, 0), count };
+}
+
+// Only a starting value, never the law: the interés legal del dinero is set each year by the Ley de Presupuestos
+export const SUGGESTED_INTEREST_RATE = 325;
+
+const rateFormat = new Intl.NumberFormat('es', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// e.g. "3,25 %" from 325
+export function formatRate(rate: number) {
+	return rateFormat.format(rate / 10_000);
+}
+
+// Calendar days, so a change of time doesn't move them
+function dayNumber(date: Date) {
+	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS;
+}
+
+/**
+ * Interés de demora of an unpaid charge, simple and on what was owed each day: from the end of the grace (or the day its
+ * last recibo de intereses counted until, 'YYYY-MM-DD') to `to`, each collection on account stopping what it paid from
+ * accruing. A 365 day year, rounded to the cent. from is the first day counted, 'YYYY-MM-DD'
+ */
+export function chargeInterest(charge: Pick<Charge, 'amount' | 'dueDate' | 'collections'>, { rate, graceDays }: LateInterest, to: Date, invoicedTo?: string) {
+	const start = Math.max(dayNumber(charge.dueDate.toDate()) + graceDays, invoicedTo ? dayNumber(new Date(`${invoicedTo}T00:00`)) : 0);
+	const end = dayNumber(to);
+	const from = new Date(start * DAY_MS).toISOString().slice(0, 10);
+	if (end <= start) {
+		return { from, days: 0, amount: 0 };
+	}
+	let owed = charge.amount;
+	let last = start;
+	let centDays = 0;
+	for (const collection of [...charge.collections ?? []].sort((a, b) => a.date.toMillis() - b.date.toMillis())) {
+		const day = Math.min(Math.max(dayNumber(collection.date.toDate()), start), end);
+		centDays += owed * (day - last);
+		last = day;
+		owed -= collection.amount;
+	}
+	centDays += owed * (end - last);
+	return { from, days: end - start, amount: Math.max(Math.round(centDays * rate / (10_000 * 365)), 0) };
+}
+
+/**
+ * The interest each charge overdue at `to` owes until then. Recibos de intereses (all of them, paid or not, must be among
+ * the charges) say until when each charge was charged already, so it's never charged twice; they accrue none themselves
+ */
+export function interestOwed(charges: Charge[], settings: LateInterest, to = new Date()) {
+	const invoiced = new Map<string, string>();
+	for (const { interest } of charges) {
+		for (const id of interest?.chargeIds ?? []) {
+			if (interest!.to > (invoiced.get(id) ?? '')) {
+				invoiced.set(id, interest!.to);
+			}
+		}
+	}
+	const items = charges.filter(charge => charge.batchId !== INTEREST_BATCH_ID && isOverdue(charge, to))
+		.map(charge => ({ charge, ...chargeInterest(charge, settings, to, invoiced.get(charge.id)) }))
+		.filter(item => item.amount > 0)
+		.sort((a, b) => a.charge.dueDate.toMillis() - b.charge.dueDate.toMillis());
+	return { items, total: items.reduce((sum, item) => sum + item.amount, 0) };
 }
 
 // Reclamación of a property's debt, at communities/{communityId}/debtCases/{propertyId}: every claim sent and, once

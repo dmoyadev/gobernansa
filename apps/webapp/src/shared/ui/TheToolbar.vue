@@ -75,7 +75,7 @@ function goBack() {
 
 <style>
 :root {
-	--toolbar-height: calc(40px + 2 * var(--lnx-spacing-4));
+	--toolbar-height: calc(40px + 2 * var(--lnx-spacing-4) + env(safe-area-inset-top));
 }
 </style>
 
@@ -88,7 +88,8 @@ function goBack() {
 	left: 0;
 	right: 0;
 	height: var(--toolbar-height);
-	padding: 0 var(--lnx-spacing-4);
+	// Clear of the notch and the rounded corners, installed or in landscape
+	padding: env(safe-area-inset-top) max(var(--lnx-spacing-4), env(safe-area-inset-right)) 0 max(var(--lnx-spacing-4), env(safe-area-inset-left));
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-3);

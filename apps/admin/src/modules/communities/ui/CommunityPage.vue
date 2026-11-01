@@ -16,6 +16,7 @@ import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
 import { loadTileFigures } from '@/modules/finances/application/useFinanceSummary.ts';
+import { WEBAPP_URL } from '@/modules/mail/application/mail.ts';
 import { loadCommunity } from '../application/useCommunities.ts';
 import { loadNeighbourFigures } from '../application/useCommunityDashboard.ts';
 import CommunityDashboard from './CommunityDashboard.vue';
@@ -66,7 +67,7 @@ const menuId = useId();
 const dashboard = ref<InstanceType<typeof CommunityDashboard>>();
 
 // The webapp as its neighbours see it, to give them support. The admin signs in there with the same account
-const webappUrl = `${(import.meta.env.VITE_WEBAPP_URL as string | undefined) || 'https://gobernansa.dmoya.dev'}/?viewAs=${props.id}`;
+const webappUrl = `${WEBAPP_URL}/?viewAs=${props.id}`;
 
 const community = ref<Community>();
 const loading = ref(true);

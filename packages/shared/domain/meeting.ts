@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
+import type { NoticeKind } from './minutes.ts';
 
 // Juntas de propietarios, at communities/{communityId}/meetings. Neighbours see them once convened
 export interface Meeting extends Datable {
@@ -15,6 +16,12 @@ export interface Meeting extends Datable {
 	status: MeetingStatus;
 	// While true, owners can vote the votable items from the webapp
 	votingOpen?: boolean;
+	// Who signs the acta (minutes.ts), so the webapp knows they can read it before it's sent
+	minutesSigners?: string[];
+	// Those of them who have signed, so the webapp's list stops asking them to
+	minutesSigned?: string[];
+	// When the convocatoria and the acta were last sent to the owners. The acta can be read by them from then on
+	notifiedAt?: Partial<Record<NoticeKind, Timestamp>>;
 }
 
 export type MeetingStatus = 'draft' | 'convened' | 'held' | 'cancelled';

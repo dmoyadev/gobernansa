@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { IssueSuggestion } from '@gobernansa/shared/application/writing.ts';
 import type { ClaimStatus, IssueComment, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
@@ -8,7 +9,7 @@ import { roles } from '@gobernansa/shared/domain/user.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
@@ -19,14 +20,15 @@ import { loadCommunity } from '@/modules/communities/application/useCommunities.
 import { setBlocked } from '@/modules/people/application/useModeration.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
-import { useIssue } from '../application/useIssues.ts';
+import { useIssue, workOrderUrl } from '../application/useIssues.ts';
 import IssueAge from './IssueAge.vue';
+import WorkOrderPanel from './WorkOrderPanel.vue';
 
 const props = defineProps<{ id: string; issueId: string }>();
 
 const router = useRouter();
 const { user: me } = useAuth();
-const { issue, adminData, comments, loading, error, changeStatus, revertStatus, assign, saveClaim, reply, setHidden, remove, restore } = useIssue(props.id, props.issueId);
+const { issue, adminData, workOrder, comments, loading, error, changeStatus, revertStatus, assign, createWorkOrder, updateWorkOrderDate, revokeWorkOrder, saveClaim, reply, setHidden, remove, restore } = useIssue(props.id, props.issueId);
 // To name who reported it, issues only keep their id
 const { people } = usePeople(props.id);
 const { providers } = useProviders(props.id);
@@ -88,7 +90,15 @@ watch(() => [issue.value?.provider?.id, issue.value?.expectedAt?.toMillis(), adm
 	}
 }, { immediate: true });
 
-const providerOptions = computed(() => [{ value: '', label: 'Sin asignar' }, ...providers.value.map(provider => ({ value: provider.id, label: provider.name }))]);
+// Sugerencias y redacción automática, loaded with the issue. The providers of the trade it suggests come first
+const IssueSuggestions = defineAsyncComponent(async () => import('./IssueSuggestions.vue'));
+const suggestion = ref<IssueSuggestion>();
+const sortedProviders = computed(() => {
+	const trade = suggestion.value?.provider;
+	return trade && trade !== 'other' ? [...providers.value].sort((a, b) => Number(b.category === trade) - Number(a.category === trade)) : providers.value;
+});
+
+const providerOptions = computed(() => [{ value: '', label: 'Sin asignar' }, ...sortedProviders.value.map(provider => ({ value: provider.id, label: provider.name }))]);
 const selectedProvider = computed(() => providers.value.find(provider => provider.id === assignment.value.providerId));
 
 // To send the provider what to fix from their own mail app
@@ -99,7 +109,9 @@ const providerMail = computed(() => {
 	}
 	const where = issue.value.location ? `\nUbicación: ${issueLocationTypes[issue.value.location.type]}${issue.value.location.reference ? `: ${issue.value.location.reference}` : ''}` : '';
 	const when = assignment.value.expectedAt ? `\nFecha prevista: ${new Date(`${assignment.value.expectedAt}T00:00`).toLocaleDateString('es')}` : '';
-	const body = `${issue.value.title}\n\n${issue.value.description || ''}${where}${when}${issue.value.assets?.length ? `\n\nFotos:\n${issue.value.assets.join('\n')}` : ''}`;
+	const token = adminData.value?.workOrder;
+	const link = token ? `\n\nParte de trabajo, para aceptarlo, programar la visita y avisarnos al terminar:\n${workOrderUrl(token)}` : '';
+	const body = `${issue.value.title}\n\n${issue.value.description || ''}${where}${when}${issue.value.assets?.length ? `\n\nFotos:\n${issue.value.assets.join('\n')}` : ''}${link}`;
 	return `mailto:${email}?subject=${encodeURIComponent(`Incidencia: ${issue.value.title}`)}&body=${encodeURIComponent(body)}`;
 });
 
@@ -429,6 +441,8 @@ useEventListener(window, 'keydown', (event) => {
 					</ul>
 				</section>
 
+				<IssueSuggestions :issue :comments @suggest="suggestion = $event" />
+
 				<section class="card">
 					<h2>Historial y mensajes</h2>
 					<TransitionGroup v-if="comments.length" tag="ol" name="comment" class="history">
@@ -579,6 +593,22 @@ useEventListener(window, 'keydown', (event) => {
 							</LnxButton>
 						</footer>
 					</form>
+				</section>
+
+				<section v-if="issue.provider" class="card box">
+					<header class="box-header">
+						<span class="box-icon work-order-icon"><LnxIcon icon="lucide:clipboard-list" :size="18" /></span>
+						<h2>Parte de trabajo</h2>
+					</header>
+					<WorkOrderPanel
+						:issue="issue"
+						:work-order="workOrder"
+						:comments="comments"
+						:provider="assignedProvider"
+						:mail="editingAssignment ? undefined : providerMail"
+						:actions="{ createWorkOrder, updateWorkOrderDate, revokeWorkOrder, reply }"
+						@resolve="setStatus('resolved')"
+					/>
 				</section>
 
 				<section class="card box">
@@ -1101,6 +1131,11 @@ useEventListener(window, 'keydown', (event) => {
 	&.claim-icon {
 		background: #dbeafe;
 		color: #1d4ed8;
+	}
+
+	&.work-order-icon {
+		background: #ccfbf1;
+		color: #0d9488;
 	}
 }
 

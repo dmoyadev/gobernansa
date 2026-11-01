@@ -2,7 +2,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { DashboardData, DashboardSource } from '../application/useCommunityDashboard.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { getIssueAge, issuesCategories } from '@gobernansa/shared/domain/issue.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
@@ -286,7 +286,7 @@ const obligations = computed(() => {
 const overdueCharges = computed(() => (data.unpaidCharges ?? []).filter(charge => isOverdue(charge)));
 
 const delinquency = computed(() => ({
-	amount: overdueCharges.value.reduce((total, charge) => total + charge.amount, 0),
+	amount: overdueCharges.value.reduce((total, charge) => total + outstanding(charge), 0),
 	charges: overdueCharges.value.length,
 	properties: new Set(overdueCharges.value.map(charge => charge.propertyId)).size,
 }));
@@ -295,7 +295,7 @@ const debtors = computed(() => {
 	const byProperty = new Map<string, { name: string; amount: number; charges: number }>();
 	for (const charge of overdueCharges.value) {
 		const debtor = byProperty.get(charge.propertyId) ?? { name: charge.propertyName, amount: 0, charges: 0 };
-		debtor.amount += charge.amount;
+		debtor.amount += outstanding(charge);
 		debtor.charges++;
 		byProperty.set(charge.propertyId, debtor);
 	}

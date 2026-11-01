@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Meeting } from '@gobernansa/shared/domain/meeting.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { meetingStatus, meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { LnxIcon } from 'lnxjs-components';
 import MainLayout from '@/shared/ui/MainLayout.vue';
@@ -6,6 +8,16 @@ import TheHeader from '@/shared/ui/TheHeader.vue';
 import { formatMeetingDate, useMeetings } from '../application/useMeetings.ts';
 
 const { meetings, loading, error } = useMeetings();
+const { user } = useAuth();
+
+// From the meeting itself, so the list reads nothing else
+function minutesHint(meeting: Meeting) {
+	if (meeting.notifiedAt?.minutes) {
+		return 'Acta enviada';
+	}
+	const uid = user.value?.id;
+	return uid && meeting.minutesSigners?.includes(uid) && !meeting.minutesSigned?.includes(uid) ? 'Firma del acta' : undefined;
+}
 </script>
 
 <template>
@@ -25,6 +37,10 @@ const { meetings, loading, error } = useMeetings();
 						<small>{{ formatMeetingDate(meeting.date) }}</small>
 						<strong>{{ meeting.title }}</strong>
 						<small>{{ meetingTypes[meeting.type] }}</small>
+						<small v-if="minutesHint(meeting)" class="hint">
+							<LnxIcon icon="lucide:file-pen-line" :size="14" />
+							{{ minutesHint(meeting) }}
+						</small>
 					</span>
 					<span class="status" :class="meeting.status">{{ meetingStatus[meeting.status] }}</span>
 				</RouterLink>
@@ -94,6 +110,13 @@ const { meetings, loading, error } = useMeetings();
 		strong {
 			color: var(--color-gray-9);
 			font-weight: var(--lnx-font-weight-regular);
+		}
+
+		.hint {
+			display: flex;
+			align-items: center;
+			gap: var(--lnx-spacing-1);
+			color: var(--color-primary);
 		}
 	}
 }

@@ -1,12 +1,12 @@
-import type { Budget, BudgetItem, Charge, Expense, FeePlan } from '@gobernansa/shared/domain/finance.ts';
+import type { Budget, BudgetItem, Charge, ChargeCollection, Expense, FeePlan } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { chargeTypes, feeBatchId, feePeriodicities, payableAmount } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, collectionMethods, feeBatchId, feePeriodicities, outstanding, payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, deleteField, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 
@@ -143,6 +143,83 @@ export async function setChargePaid(communityId: string, charge: Charge, paidAt:
 		link: `/communities/${communityId}/charges`,
 	});
 	await batch.commit();
+}
+
+// The fields entregas a cuenta keep. Paid on the day of the latest one when they reach the amount
+function withCollections(amount: number, collections: ChargeCollection[]) {
+	const collected = collections.reduce((sum, item) => sum + item.amount, 0);
+	const latest = collections.map(item => item.date).sort((a, b) => b.toMillis() - a.toMillis())[0];
+	return {
+		collections,
+		collected,
+		collectionYears: [...new Set(collections.map(item => item.date.toDate().getFullYear()))],
+		paidAt: collected >= amount ? latest : null,
+	};
+}
+
+/**
+ * Entrega a cuenta, in a transaction on the charge as it is now so two at once can't pay it twice over. The collection's
+ * id is made when its form opens: sending it again after a failure finds it already there. Gives the charge back as it's left
+ */
+export async function addCollection(communityId: string, chargeId: string, item: ChargeCollection) {
+	const ref = doc(chargesRef(communityId), chargeId);
+	const uid = signedUid();
+	return runTransaction(db, async (transaction) => {
+		const snapshot = await transaction.get(ref);
+		if (!snapshot.exists()) {
+			throw new Error('el recibo ya no existe');
+		}
+		const charge = { ...snapshot.data(), id: chargeId } as Charge;
+		if (charge.collections?.some(other => other.id === item.id)) {
+			return charge;
+		}
+		if (charge.paidAt || charge.remittanceId) {
+			throw new Error(charge.paidAt ? 'ya está pagado' : 'está en una remesa, que lo cobra');
+		}
+		if (item.amount > outstanding(charge)) {
+			throw new Error(`solo quedan ${formatCents(outstanding(charge))} por cobrar`);
+		}
+		const fields = withCollections(charge.amount, [...charge.collections ?? [], item]);
+		transaction.update(ref, { ...fields, updatedAt: serverTimestamp(), updatedBy: uid });
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Registró una entrega a cuenta de ${formatCents(item.amount)} (${collectionMethods[item.method].toLowerCase()}) en «${charge.concept}» de ${charge.propertyName}${fields.paidAt ? ', que lo deja pagado' : ''}`,
+			link: `/communities/${communityId}/charges`,
+		});
+		return { ...charge, ...fields };
+	});
+}
+
+// Undoes an entrega a cuenta. One paid otherwise (marked by hand or online) is marked pending first, so what that payment covered stays clear
+export async function removeCollection(communityId: string, chargeId: string, item: ChargeCollection) {
+	const ref = doc(chargesRef(communityId), chargeId);
+	const uid = signedUid();
+	return runTransaction(db, async (transaction) => {
+		const snapshot = await transaction.get(ref);
+		if (!snapshot.exists()) {
+			throw new Error('el recibo ya no existe');
+		}
+		const charge = { ...snapshot.data(), id: chargeId } as Charge;
+		const collections = (charge.collections ?? []).filter(other => other.id !== item.id);
+		if (collections.length === (charge.collections ?? []).length) {
+			return charge;
+		}
+		if (charge.paidAt && (charge.collected ?? 0) < charge.amount) {
+			throw new Error('está pagado: márcalo pendiente antes de deshacer la entrega');
+		}
+		// Its remittance debits what the entregas left
+		if (charge.remittanceId) {
+			throw new Error('está en una remesa, que cobra lo que dejaban las entregas');
+		}
+		const fields = withCollections(charge.amount, collections);
+		transaction.update(ref, { ...fields, updatedAt: serverTimestamp(), updatedBy: uid });
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Deshizo la entrega a cuenta de ${formatCents(item.amount)} del ${item.date.toDate().toLocaleDateString('es')} en «${charge.concept}» de ${charge.propertyName}`,
+			link: `/communities/${communityId}/charges`,
+		});
+		return { ...charge, ...fields };
+	});
 }
 
 // Whether neighbours can pay from the app. Only the test mode exists for now, off removes the field

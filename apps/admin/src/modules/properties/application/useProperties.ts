@@ -10,7 +10,7 @@ const propertiesRef = collection(db, 'properties');
 
 // What the inputs edit, as typed. The coefficient is a percentage, '' when the deed doesn't say
 export type PropertyForm = Pick<Property, 'name' | 'type' | 'ownerUid'>
-	& Record<'ownerName' | 'ownerEmail' | 'ownerNif' | 'tenantName' | 'tenantEmail' | 'coefficient', string>;
+	& Record<'ownerName' | 'ownerEmail' | 'ownerNif' | 'ownerPhone' | 'tenantName' | 'tenantEmail' | 'coefficient', string>;
 
 // All of the community's, live. Sorted by the page, so no index is needed
 export function useProperties(communityId: string) {
@@ -25,6 +25,7 @@ export function toPropertyForm(property?: Property): PropertyForm {
 		ownerName: property?.ownerName ?? '',
 		ownerEmail: property?.ownerEmail ?? '',
 		ownerNif: property?.ownerNif ?? '',
+		ownerPhone: property?.ownerPhone ?? '',
 		tenantName: property?.tenantName ?? '',
 		tenantEmail: property?.tenantEmail ?? '',
 		coefficient: property?.coefficient?.toString() ?? '',
@@ -59,6 +60,7 @@ export async function saveProperty(communityId: string, id: string | undefined, 
 		ownerName: text(form.ownerName),
 		ownerEmail: text(form.ownerEmail.toLowerCase()),
 		ownerNif: text(normalizeTaxId(form.ownerNif)),
+		ownerPhone: text(form.ownerPhone),
 		tenantName: text(form.tenantName),
 		tenantEmail: text(form.tenantEmail.toLowerCase()),
 		coefficient: coefficient ?? deleteField(),

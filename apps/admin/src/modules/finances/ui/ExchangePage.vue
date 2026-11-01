@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ImportColumns, ImportRow } from '@gobernansa/shared/domain/exchange.ts';
+import type { FileIssue, FileKind } from '@gobernansa/shared/domain/fileChecks.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { Timestamp } from 'firebase/firestore';
@@ -7,7 +8,8 @@ import { buildLedger, entryKinds, sortedAccounts, toCsv } from '@gobernansa/shar
 import { decodeText, parseCsv } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { csvDate, guessImportColumns, importTemplate, readImport, xdiario } from '@gobernansa/shared/domain/exchange.ts';
-import { chargeTypes, isOverdue, payableAmount, paymentMethods } from '@gobernansa/shared/domain/finance.ts';
+import { checkFile, checkJournalCsv, checkXdiario } from '@gobernansa/shared/domain/fileChecks.ts';
+import { chargeTypes, isOverdue, outstanding, payableAmount, paymentMethods } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
@@ -19,7 +21,9 @@ import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadLedgerData } from '../application/useAccounting.ts';
 import { importCharges, loadBalances, loadImportedIds, loadInvoices, loadProperties, loadYearCharges } from '../application/useExchange.ts';
+import { useFileCheck } from '../application/useFileCheck.ts';
 import { deleteCharges } from '../application/useFinances.ts';
+import FileCheck from './FileCheck.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -46,9 +50,9 @@ interface ExportFile {
 }
 
 const exports: { key: string; group: 'sheets' | 'accounting'; title: string; description: string; yearly?: boolean; run: () => Promise<ExportFile> }[] = [
-	{ key: 'charges', group: 'sheets', title: 'Recibos y derramas', description: 'Cada recibo que vence en el año, con su estado, fecha de pago y devoluciones.', yearly: true, run: exportCharges },
+	{ key: 'charges', group: 'sheets', title: 'Recibos y derramas', description: 'Cada recibo que vence en el año, con su estado, lo cobrado a cuenta, fecha de pago y devoluciones.', yearly: true, run: exportCharges },
 	{ key: 'balances', group: 'sheets', title: 'Saldos por propiedad', description: 'Lo vencido y lo pendiente de cada propiedad a hoy.', run: exportBalances },
-	{ key: 'debtors', group: 'sheets', title: 'Morosos', description: 'Cada recibo vencido sin pagar a hoy, con los días de retraso y el email del propietario.', run: exportDebtors },
+	{ key: 'debtors', group: 'sheets', title: 'Morosos', description: 'Cada recibo vencido sin pagar a hoy, con lo que queda, los días de retraso y el email del propietario.', run: exportDebtors },
 	{ key: 'invoices', group: 'sheets', title: 'Facturas de proveedores', description: 'Las facturas del año con base, IVA, retención, vencimiento y pago.', yearly: true, run: exportInvoices },
 	{ key: 'journal', group: 'accounting', title: 'Libro diario (CSV)', description: 'Una fila por apunte: asiento, fecha, cuenta, concepto, debe y haber.', yearly: true, run: async () => exportJournal('csv') },
 	{ key: 'chart', group: 'accounting', title: 'Plan de cuentas (CSV)', description: 'Las cuentas y subcuentas del año, para darlas de alta antes de importar el diario.', yearly: true, run: async () => exportJournal('chart') },
@@ -59,9 +63,19 @@ const exportGroups = [
 	{ key: 'accounting', title: 'Para otro programa de contabilidad', hint: 'El diario de la contabilidad. El CSV es genérico; el .dbf es la tabla XDiario de ContaPlus, que se importa desde sus utilidades y también leen A3 y otros programas. Da de alta antes las subcuentas del plan de cuentas.' },
 ];
 const busy = ref<string>();
+// The journal is checked before it's downloaded, as the file that's saved
+const { check, guard, confirm, dismiss } = useFileCheck();
+watch(year, dismiss);
 
 function download({ name, content, type }: ExportFile) {
 	downloadFile(name, content, type);
+}
+
+function journalIssues(key: string, content: ExportFile['content']) {
+	if (key === 'xdiario') {
+		return checkXdiario(content as Uint8Array);
+	}
+	return key === 'journal' ? checkJournalCsv(content as string) : undefined;
 }
 
 function csvFile(name: string, rows: (string | number)[][]): ExportFile {
@@ -74,7 +88,13 @@ async function runExport(item: typeof exports[number]) {
 	}
 	busy.value = item.key;
 	try {
-		download(await item.run());
+		const file = await item.run();
+		const issues = journalIssues(item.key, file.content);
+		if (issues) {
+			guard(item.key, issues, () => download(file));
+		} else {
+			download(file);
+		}
 	} catch (e) {
 		toast(`No se ha podido exportar: ${(e as Error).message}`, { tone: 'error' });
 	} finally {
@@ -89,8 +109,8 @@ function chargeStatus(charge: Charge) {
 async function exportCharges() {
 	const charges = await loadYearCharges(props.id, year.value);
 	return csvFile(`recibos-${year.value}`, [
-		['Propiedad', 'Propietario', 'Tipo', 'Concepto', 'Vencimiento', 'Importe', 'Fondo de reserva', 'Estado', 'Fecha de pago', 'Devoluciones', 'Identificador'],
-		...charges.map(charge => [charge.propertyName, charge.ownerName ?? '', chargeTypes[charge.type], charge.concept, day(charge.dueDate), charge.amount, charge.reserve ?? 0, chargeStatus(charge), day(charge.paidAt), String(charge.returns?.length ?? 0), charge.id]),
+		['Propiedad', 'Propietario', 'Tipo', 'Concepto', 'Vencimiento', 'Importe', 'Fondo de reserva', 'Estado', 'Cobrado a cuenta', 'Fecha de pago', 'Devoluciones', 'Identificador'],
+		...charges.map(charge => [charge.propertyName, charge.ownerName ?? '', chargeTypes[charge.type], charge.concept, day(charge.dueDate), charge.amount, charge.reserve ?? 0, chargeStatus(charge), charge.collected ?? 0, day(charge.paidAt), String(charge.returns?.length ?? 0), charge.id]),
 	]);
 }
 
@@ -103,8 +123,8 @@ async function exportBalances() {
 		['Propiedad', 'Tipo', 'Propietario', 'Coeficiente', 'Vencido', 'Por vencer', 'Total pendiente', 'Estado'],
 		...properties.map((property) => {
 			const charges = byProperty[property.id] ?? [];
-			const overdue = charges.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + charge.amount, 0);
-			const total = charges.reduce((sum, charge) => sum + charge.amount, 0);
+			const overdue = charges.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + outstanding(charge), 0);
+			const total = charges.reduce((sum, charge) => sum + outstanding(charge), 0);
 			return [property.name, propertyTypeLabels[property.type], property.ownerName ?? charges[0]?.ownerName ?? '', decimalText(property.coefficient), overdue, total - overdue, total, overdue ? 'Deudor' : 'Al corriente'];
 		}),
 	]);
@@ -117,10 +137,10 @@ async function exportDebtors() {
 	const overdue = unpaid.filter(charge => isOverdue(charge))
 		.sort((a, b) => a.propertyName.localeCompare(b.propertyName, 'es', { numeric: true }) || a.dueDate.toMillis() - b.dueDate.toMillis());
 	return csvFile(`morosos-${today}`, [
-		['Propiedad', 'Propietario', 'Email', 'Tipo', 'Concepto', 'Vencimiento', 'Días de retraso', 'Importe'],
+		['Propiedad', 'Propietario', 'Email', 'Tipo', 'Concepto', 'Vencimiento', 'Días de retraso', 'Pendiente'],
 		...overdue.map((charge) => {
 			const property = byId.get(charge.propertyId);
-			return [charge.propertyName, property?.ownerName ?? charge.ownerName ?? '', property?.ownerEmail ?? '', chargeTypes[charge.type], charge.concept, day(charge.dueDate), String(Math.floor((now - charge.dueDate.toMillis()) / DAY_MS)), charge.amount];
+			return [charge.propertyName, property?.ownerName ?? charge.ownerName ?? '', property?.ownerEmail ?? '', chargeTypes[charge.type], charge.concept, day(charge.dueDate), String(Math.floor((now - charge.dueDate.toMillis()) / DAY_MS)), outstanding(charge)];
 		}),
 	]);
 }
@@ -167,6 +187,25 @@ async function exportJournal(format: 'csv' | 'chart' | 'dbf'): Promise<ExportFil
 		['Asiento', 'Fecha', 'Tipo', 'Concepto', 'Cuenta', 'Nombre de la cuenta', 'Debe', 'Haber'],
 		...ledger.entries.flatMap((entry, index) => entry.lines.map(item => [String(index + 1), csvDate(entry.date), entryKinds[entry.kind], entry.concept, account(item.account)?.code ?? item.account, account(item.account)?.name ?? '', item.debit, item.credit])),
 	]);
+}
+
+/* Comprobar un fichero: one made by another program, or by this one before it's filed */
+
+const checkInput = useTemplateRef('checkInput');
+const checked = ref<{ name: string; kind?: FileKind; label: string; issues: FileIssue[] }>();
+const dragging = ref(false);
+
+async function checkUpload(file?: File) {
+	dragging.value = false;
+	if (file) {
+		checked.value = { name: file.name, ...checkFile(new Uint8Array(await file.arrayBuffer())) };
+	}
+}
+
+function pickCheck(event: Event) {
+	const input = event.target as HTMLInputElement;
+	void checkUpload(input.files?.[0]);
+	input.value = '';
 }
 
 /* Import of the debt and the history of each property */
@@ -285,8 +324,42 @@ async function importDraft() {
 					<LnxIcon :icon="busy === item.key ? 'lucide:loader-circle' : 'lucide:download'" :class="{ spin: busy === item.key }" />
 					Descargar
 				</LnxButton>
+				<FileCheck
+					v-if="check?.key === item.key"
+					class="check"
+					:issues="check.issues"
+					kind="journal"
+					:held="!!check.held"
+					@confirm="confirm()"
+					@dismiss="dismiss()"
+				/>
 			</li>
 		</ul>
+	</section>
+
+	<section
+		class="card drop"
+		:class="{ dragging }"
+		@dragover.prevent="dragging = true"
+		@dragleave="dragging = false"
+		@drop.prevent="checkUpload($event.dataTransfer?.files[0])"
+	>
+		<h2>Comprobar un fichero</h2>
+		<p class="hint">
+			Una remesa (pain.008) u orden de transferencias (pain.001), un modelo 347, 190 o 184 o un diario de ContaPlus, de aquí o de otro programa:
+			se revisan su diseño de registro, totales, NIF, IBAN y fechas. Suéltalo aquí o elígelo; no se guarda ni se envía a ningún sitio.
+		</p>
+		<div class="import-actions">
+			<input ref="checkInput" type="file" accept=".xml,.txt,.dbf,.csv,text/xml,application/xml,text/plain,text/csv" hidden @change="pickCheck">
+			<LnxButton size="small" mode="outline" @click="checkInput?.click()">
+				<LnxIcon icon="lucide:file-search" />
+				Elegir fichero
+			</LnxButton>
+			<span v-if="checked" class="summary">
+				<strong>{{ checked.name }}</strong> · {{ checked.label }}
+			</span>
+		</div>
+		<FileCheck v-if="checked" :issues="checked.issues" :kind="checked.kind" @dismiss="checked = undefined" />
 	</section>
 
 	<section class="card">
@@ -426,8 +499,13 @@ async function importDraft() {
 		padding: var(--lnx-spacing-3) 0;
 		border-top: 1px solid var(--color-gray-3);
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--lnx-spacing-3);
+
+		.check {
+			flex-basis: 100%;
+		}
 
 		div {
 			flex: 1;
@@ -435,6 +513,11 @@ async function importDraft() {
 			flex-direction: column;
 		}
 	}
+}
+
+.drop.dragging {
+	border-style: dashed;
+	border-color: var(--color-primary);
 }
 
 .import-actions {

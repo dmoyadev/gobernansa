@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { chargeTypes } from '@gobernansa/shared/domain/finance.ts';
+import { chargeTypes, collectionMethods, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { loadMyCharge } from '../application/useMyCharges.ts';
@@ -28,7 +28,8 @@ watch(() => user.value?.communityId, async (communityId) => {
 	}
 	try {
 		charge.value = await loadMyCharge(communityId, props.id);
-		error.value = charge.value?.paidAt ? undefined : 'Este recibo no existe o aún no está pagado.';
+		// One partly paid gets the justificante of its entregas a cuenta, with what's left
+		error.value = charge.value?.paidAt || charge.value?.collections?.length ? undefined : 'Este recibo no existe o aún no está pagado.';
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error(e);
@@ -37,6 +38,9 @@ watch(() => user.value?.communityId, async (communityId) => {
 		loading.value = false;
 	}
 }, { immediate: true });
+
+// What the last payment covered, after the entregas a cuenta
+const rest = computed(() => charge.value ? outstanding({ ...charge.value, paidAt: null }) : 0);
 
 function print() {
 	window.print();
@@ -59,14 +63,14 @@ function print() {
 			<span class="skeleton-item skeleton-item--title" style="width: 60%" />
 			<span v-for="width in [80, 70, 75, 50]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
 		</article>
-		<article v-else-if="charge?.paidAt" class="sheet">
+		<article v-else-if="charge" class="sheet">
 			<header>
 				<strong>{{ userCommunity?.name }}</strong>
 				<span v-if="userCommunity?.cif">CIF {{ userCommunity.cif }}</span>
 				<span v-if="userCommunity?.address">{{ userCommunity.address }}</span>
 			</header>
 
-			<h2>Justificante de pago</h2>
+			<h2>{{ charge.paidAt ? 'Justificante de pago' : 'Justificante de entregas a cuenta' }}</h2>
 			<p v-if="charge.payment" class="test">
 				Pago de prueba: tu comunidad está probando los pagos online y no se ha cobrado nada. Este justificante no acredita un pago real.
 			</p>
@@ -88,14 +92,24 @@ function print() {
 					<dt>Vencimiento</dt>
 					<dd>{{ dateFormat.format(charge.dueDate.toDate()) }}</dd>
 				</div>
-				<div>
-					<dt>Fecha de pago</dt>
-					<dd>{{ dateFormat.format(charge.paidAt.toDate()) }}</dd>
+				<div v-for="item in charge.collections ?? []" :key="item.id">
+					<dt>Entrega a cuenta del {{ dateFormat.format(item.date.toDate()) }}</dt>
+					<dd>{{ collectionMethods[item.method] }} · {{ formatCents(item.amount) }}</dd>
 				</div>
-				<div>
-					<dt>Forma de pago</dt>
-					<dd>{{ charge.payment ? `${describePayment(charge.payment)}, online` : 'Registrado por la administración' }}</dd>
-				</div>
+				<template v-if="charge.paidAt">
+					<div>
+						<dt>Fecha de pago</dt>
+						<dd>{{ dateFormat.format(charge.paidAt.toDate()) }}</dd>
+					</div>
+					<div v-if="rest">
+						<dt>Forma de pago</dt>
+						<dd>
+							{{ charge.payment ? `${describePayment(charge.payment)}, online` : 'Registrado por la administración' }}<template v-if="charge.collections?.length">
+								· {{ formatCents(rest) }}
+							</template>
+						</dd>
+					</div>
+				</template>
 				<div>
 					<dt>Referencia</dt>
 					<dd class="ref">
@@ -105,6 +119,10 @@ function print() {
 				<div class="total">
 					<dt>Importe</dt>
 					<dd>{{ formatCents(charge.amount) }}</dd>
+				</div>
+				<div v-if="!charge.paidAt" class="total">
+					<dt>Pendiente</dt>
+					<dd>{{ formatCents(rest) }}</dd>
 				</div>
 			</dl>
 		</article>

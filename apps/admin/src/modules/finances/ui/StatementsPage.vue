@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isOverdue } from '@gobernansa/shared/domain/finance.ts';
+import { isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
@@ -19,8 +19,8 @@ const rows = computed(() => {
 	const byProperty = Object.groupBy(unpaid.value, charge => charge.propertyId);
 	return properties.value.map((property) => {
 		const charges = byProperty[property.id] ?? [];
-		const balance = charges.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + charge.amount, 0);
-		const pending = charges.reduce((sum, charge) => sum + charge.amount, 0) - balance;
+		const balance = charges.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + outstanding(charge), 0);
+		const pending = charges.reduce((sum, charge) => sum + outstanding(charge), 0) - balance;
 		return { property, balance, pending };
 	}).sort((a, b) => a.property.name.localeCompare(b.property.name, 'es', { numeric: true }));
 });
