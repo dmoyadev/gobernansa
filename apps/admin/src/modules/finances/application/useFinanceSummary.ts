@@ -1,5 +1,6 @@
-import type { Budget, Charge, Expense } from '@gobernansa/shared/domain/finance.ts';
+import type { Budget, Expense } from '@gobernansa/shared/domain/finance.ts';
 import type { Remittance } from '@gobernansa/shared/domain/sepa.ts';
+import type { Query } from 'firebase/firestore';
 import { taxDeadlines } from '@gobernansa/shared/domain/aeat.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { feeBatchId, isOverdue, payableAmount, reserveUsed } from '@gobernansa/shared/domain/finance.ts';
@@ -8,7 +9,7 @@ import { collection, getAggregateFromServer, getCountFromServer, getDoc, getDocs
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { total } from '@/modules/communities/application/useCommunityDashboard.ts';
-import { budgetRef, loadExpenses } from './useFinances.ts';
+import { budgetRef } from './useFinances.ts';
 
 const DAY = 86_400_000;
 
@@ -43,32 +44,31 @@ export async function loadTileFigures(communityId: string) {
 }
 
 /**
- * The summary's: the tile's, plus the unpaid charges (a read each, for the debtors and the fund), the budget (1 read),
- * a sum of the year's fees reserve (1 read), the year's expenses (a read each) and the latest remittance (1 read)
+ * The summary's: the tile's, plus the budget (1 read), sums of the year's fees reserve, issued and still unpaid (1 read
+ * each), the expenses paid from the fund (a read each, few) and the latest remittance (1 read). Fixed, whatever the size
+ * of the community: who owes is left to the arrears page, as counting debtors means reading every unpaid charge
  */
 export async function loadSummary(communityId: string) {
 	const community = (name: string) => collection(db, 'communities', communityId, name);
 	const year = new Date().getFullYear();
-	const [tile, charges, budget, issued, expenses, remittances] = await Promise.all([
+	const fees = query(community('charges'), where('batchId', '==', feeBatchId(year)));
+	const reserve = async (source: Query) => (await getAggregateFromServer(source, { reserve: sum('reserve') })).data().reserve ?? 0;
+	const [tile, budget, issued, unpaid, fromReserve, remittances] = await Promise.all([
 		loadTileFigures(communityId),
-		getDocs(query(community('charges'), where('paidAt', '==', null))),
 		getDoc(budgetRef(communityId, year)),
-		getAggregateFromServer(query(community('charges'), where('batchId', '==', feeBatchId(year))), { reserve: sum('reserve') }),
-		loadExpenses(communityId, year),
+		reserve(fees),
+		// Two equalities, merged from single-field indexes
+		reserve(query(fees, where('paidAt', '==', null))),
+		getDocs(query(community('expenses'), where('year', '==', year), where('fromReserve', '==', true))),
 		getDocs(query(community('remittances'), orderBy('issuedAt', 'desc'), limit(1))),
 	]);
 
-	const unpaid = charges.docs.map(charge => charge.data() as Charge);
-	// As the fees page: the opening, what the fees collected for the fund (issued minus those still unpaid) and what was paid from it
-	const unpaidReserve = unpaid.reduce((all, charge) => all + (charge.batchId === feeBatchId(year) ? charge.reserve ?? 0 : 0), 0);
-	const collected = (issued.data().reserve ?? 0) - unpaidReserve;
 	const latest = remittances.docs[0]?.data() as Remittance | undefined;
 	const returned = latest?.items.filter(item => item.returned) ?? [];
 	return {
 		...tile,
-		// Properties with an overdue charge
-		debtors: new Set(unpaid.filter(charge => isOverdue(charge)).map(charge => charge.propertyId)).size,
-		reserve: ((budget.data() as Budget | undefined)?.reserveOpening ?? 0) + collected - reserveUsed(expenses),
+		// As the fees page: the opening, what the fees collected for the fund (issued minus those still unpaid) and what was paid from it
+		reserve: ((budget.data() as Budget | undefined)?.reserveOpening ?? 0) + issued - unpaid - reserveUsed(fromReserve.docs.map(expense => expense.data() as Expense)),
 		remittance: latest && { reference: latest.reference, returned: returned.length, returnedAmount: returned.reduce((all, item) => all + item.amount, 0) },
 	};
 }

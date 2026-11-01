@@ -25,10 +25,10 @@ const figures = computed(() => {
 			key: 'pending',
 			label: 'Pendiente de cobro',
 			icon: 'lucide:receipt-text',
-			to: 'charges',
+			to: 'arrears',
 			value: summary && formatCents(summary.pending),
-			detail: summary && (summary.debtors ? `${plural(summary.debtors, 'propiedad', 'propiedades')} con recibos vencidos` : 'Nadie tiene recibos vencidos'),
-			alert: !!summary?.debtors,
+			detail: summary && (summary.pending ? 'Quién debe y desde cuándo, en Morosidad' : 'Todos los recibos están cobrados'),
+			alert: false,
 		},
 		{
 			key: 'invoices',
