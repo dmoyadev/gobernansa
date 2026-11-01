@@ -1,6 +1,7 @@
 import type { RouteLocationNormalized } from 'vue-router';
 import { createRouter, createWebHistory } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
+import { workspaceTitle } from './workspace/workspaces.ts';
 
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
@@ -354,7 +355,8 @@ function setDocumentTitle(to: RouteLocationNormalized) {
 	const titleSuffix = import.meta.env.MODE !== 'production'
 		? (` ${((import.meta.env.VITE_ENV_NAME as string | undefined) || import.meta.env.MODE).toUpperCase()}`)
 		: '';
-	document.title = `${to.meta?.title ? (`${String(to.meta.title)} | `) : ''}gobernança admin${titleSuffix}`;
+	const title = workspaceTitle(to) ?? to.meta?.title;
+	document.title = `${title ? (`${String(title)} | `) : ''}gobernança admin${titleSuffix}`;
 }
 
 // Only checks there's a session: what its profile may open (`superadmin` pages, each community's) is checked by the layout, and enforced by the security rules

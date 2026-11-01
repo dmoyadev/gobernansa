@@ -76,6 +76,13 @@ export function workspacePage(route: RouteLocationNormalized) {
 	return workspace && { workspace, page: (route.meta.page ?? (workspace.param && route.params[workspace.param])) as string };
 }
 
+// The title of a route that is several pages of a workspace (by its param), as the page it is: "Contactos" rather than the route's
+// fixed one, which pageTexts.ts reads from the route file. Detail pages and the rest keep their own
+export function workspaceTitle(route: RouteLocationNormalized) {
+	const found = route.meta.page ? undefined : workspacePage(route);
+	return found && found.workspace.sectionOf.get(found.page)?.pages.find(page => page.key === found.page)?.title;
+}
+
 // How the page moves from one page of a workspace to another: sideways within a section's tabs (back when to an earlier one),
 // otherwise down or up as their sections are in the nav, the summary first
 export function workspaceMove({ sections, sectionOf }: Workspace, from: string, to: string) {
