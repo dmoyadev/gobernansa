@@ -13,6 +13,7 @@ import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
+import { financeSections } from '@/modules/finances/sections.ts';
 import { loadCommunity } from '../application/useCommunities.ts';
 import CommunityDashboard from './CommunityDashboard.vue';
 import CommunitySearch from './CommunitySearch.vue';
@@ -49,20 +50,9 @@ const allTiles: Tile[] = [
 	{ key: 'notifications', title: 'Avisos', icon: 'lucide:bell', description: 'Avisos y eventos de la comunidad', details: 'Publica avisos y eventos que llegan a todos los vecinos de la comunidad.', sizes: [1, 2], size: 1 },
 	{ key: 'properties', title: 'Propiedades', icon: 'lucide:house', description: 'Censo con coeficientes, propietarios e inquilinos', details: 'Viviendas, locales y garajes con su coeficiente, sus propietarios e inquilinos.', sizes: [1, 2], size: 1 },
 	{ key: 'meetings', title: 'Juntas', icon: 'lucide:gavel', description: 'Convocatorias, asistencia y votaciones', details: 'Convoca juntas, lleva la asistencia, recoge las votaciones y redacta el acta.', sizes: [1, 2], size: 1 },
-	{ key: 'charges', title: 'Recibos y morosidad', icon: 'lucide:receipt-text', description: 'Cuotas, derramas y certificados', details: 'Emite cuotas y derramas, sigue los impagos y genera certificados de pagos.', sizes: [1, 2], size: 1 },
-	{ key: 'arrears', title: 'Gestión de morosidad', icon: 'lucide:mail-warning', description: 'Antigüedad de la deuda, reclamaciones y monitorio', details: 'La deuda de cada moroso por antigüedad, cartas de reclamación por niveles, burofax y el certificado para el procedimiento monitorio.', sizes: [1, 2], size: 1 },
-	{ key: 'budget', title: 'Presupuesto', icon: 'lucide:chart-pie', description: 'Partidas, gastos y reparto', details: 'Reparte el presupuesto en partidas y compara lo previsto con lo gastado.', sizes: [1, 2], size: 1 },
-	{ key: 'fees', title: 'Cuotas y fondo de reserva', icon: 'lucide:calendar-sync', description: 'Cuotas del año desde el presupuesto', details: 'Genera de una vez las cuotas del año por coeficiente y sigue el saldo del fondo de reserva.', sizes: [1, 2], size: 1 },
-	{ key: 'statements', title: 'Estados de cuenta', icon: 'lucide:scroll-text', description: 'Cargos, abonos y saldo por propietario', details: 'El saldo de cada propietario, deudor o al corriente, y su estado de cuenta imprimible.', sizes: [1, 2], size: 1 },
-	{ key: 'remittances', title: 'Remesas de recibos', icon: 'lucide:landmark', description: 'Recibos domiciliados y devoluciones', details: 'Genera el fichero SEPA para cobrar los recibos domiciliados desde el banco y registra las devoluciones.', sizes: [1, 2], size: 1 },
-	{ key: 'mandates', title: 'Mandatos SEPA', icon: 'lucide:file-signature', description: 'Domiciliaciones por propiedad', details: 'Cuenta, titular y referencia del mandato de cada propiedad que paga domiciliado.', sizes: [1, 2], size: 1 },
-	{ key: 'payables', title: 'Facturas pendientes', icon: 'lucide:file-clock', description: 'Lo que se debe a proveedores', details: 'Facturas de proveedores por pagar, por vencimiento, con las vencidas destacadas.', sizes: [1, 2], size: 1 },
-	{ key: 'payments', title: 'Pagos a proveedores', icon: 'lucide:send', description: 'Transferencias SEPA de las facturas', details: 'Genera el fichero SEPA de transferencias para pagar de una vez las facturas pendientes desde el banco.', sizes: [1, 2], size: 1 },
-	{ key: 'bank', title: 'Conciliación bancaria', icon: 'lucide:arrow-left-right', description: 'Extractos y movimientos del banco', details: 'Importa el extracto del banco (Norma 43 o CSV) y concilia cada movimiento con sus recibos, facturas, remesas y pagos.', sizes: [1, 2], size: 1 },
-	{ key: 'accounting', title: 'Contabilidad', icon: 'lucide:book-open-check', description: 'Diario, mayor, balances y cierre', details: 'Asientos por partida doble de recibos, facturas, cobros y pagos, con el diario, el mayor, los balances y el cierre del ejercicio.', sizes: [1, 2], size: 1 },
-	{ key: 'annual-report', title: 'Liquidación del ejercicio', icon: 'lucide:file-chart-column', description: 'Cuentas del año para la junta', details: 'Ingresos y gastos frente al presupuesto, fondo de reserva, saldo en bancos, morosos y presupuesto propuesto, listo para la convocatoria.', sizes: [1, 2], size: 1 },
-	{ key: 'taxes', title: 'Modelos fiscales', icon: 'lucide:file-badge', description: '347, 111, 190 y 184 para la AEAT', details: 'Operaciones con terceros, retenciones a profesionales e ingresos atribuidos a los propietarios, con el fichero para presentarlos en la Sede.', sizes: [1, 2], size: 1 },
-	{ key: 'exchange', title: 'Exportar e importar', icon: 'lucide:arrow-down-up', description: 'Excel, ContaPlus y saldos de otro programa', details: 'Descarga recibos, saldos, morosos, facturas y el diario en CSV o para ContaPlus, e importa la deuda de cada propiedad desde otro programa.', sizes: [1, 2], size: 1 },
+	{ key: 'finances', title: 'Finanzas', icon: 'lucide:wallet', description: 'Cobros, pagos, banco, contabilidad y fiscalidad', details: 'Recibos, remesas y morosidad, facturas y pagos a proveedores, conciliación bancaria, contabilidad, liquidación y modelos de la AEAT.', sizes: [1, 2], size: 2 },
+	{ ...financeSections.get('charges')!, sizes: [1, 2], size: 1 },
+	{ ...financeSections.get('budget')!, sizes: [1, 2], size: 1 },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…', details: 'Vencimientos de inspecciones, revisiones y seguros, con su proveedor y aviso previo.', sizes: [1, 2], size: 1 },
 	{ key: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué', details: 'Quién cambió qué y cuándo en esta comunidad, para revisar o explicar un cambio.', sizes: [1, 2], size: 1 },
 ];
@@ -215,20 +205,9 @@ const goSections = computed(() => [
 	{ key: 'people', label: 'Vecinos y gestores', icon: 'lucide:users' },
 	{ key: 'properties', label: 'Propiedades', icon: 'lucide:house' },
 	{ key: 'meetings', label: 'Juntas', icon: 'lucide:gavel' },
+	{ key: 'finances', label: 'Finanzas', icon: 'lucide:wallet' },
 	{ key: 'charges', label: 'Recibos y morosidad', icon: 'lucide:receipt-text' },
-	{ key: 'arrears', label: 'Gestión de morosidad', icon: 'lucide:mail-warning' },
 	{ key: 'budget', label: 'Presupuesto', icon: 'lucide:chart-pie' },
-	{ key: 'fees', label: 'Cuotas y fondo de reserva', icon: 'lucide:calendar-sync' },
-	{ key: 'statements', label: 'Estados de cuenta', icon: 'lucide:scroll-text' },
-	{ key: 'remittances', label: 'Remesas de recibos', icon: 'lucide:landmark' },
-	{ key: 'mandates', label: 'Mandatos SEPA', icon: 'lucide:file-signature' },
-	{ key: 'payables', label: 'Facturas pendientes', icon: 'lucide:file-clock' },
-	{ key: 'payments', label: 'Pagos a proveedores', icon: 'lucide:send' },
-	{ key: 'bank', label: 'Conciliación bancaria', icon: 'lucide:arrow-left-right' },
-	{ key: 'accounting', label: 'Contabilidad', icon: 'lucide:book-open-check' },
-	{ key: 'annual-report', label: 'Liquidación del ejercicio', icon: 'lucide:file-chart-column' },
-	{ key: 'taxes', label: 'Modelos fiscales', icon: 'lucide:file-badge' },
-	{ key: 'exchange', label: 'Exportar e importar', icon: 'lucide:arrow-down-up' },
 	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
 	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
 	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },

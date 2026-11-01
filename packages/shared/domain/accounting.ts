@@ -254,8 +254,9 @@ export function buildLedger(input: LedgerInput): Ledger {
 		const what = `${expense.concept}${expense.invoiceNumber ? ` · Fra. ${expense.invoiceNumber}` : ''}${expense.provider ? ` · ${expense.provider.name}` : ''}`;
 		add({ id: `invoice-${expense.id}`, date: day(expense.date), concept: what, kind: 'invoice', lines: [line(debit, expense.amount), line(creditor, 0, payable), line('4751', 0, withholding)] });
 		const paidAt = expense.paidAt === undefined ? expense.date : expense.paidAt;
+		// Paid by a transfer order or matched with a bank movement, it left the bank whatever method it was registered with
 		if (paidAt && payable > 0) {
-			add({ id: `payment-${expense.id}`, date: day(paidAt), concept: `Pago ${what}`, kind: 'payment', lines: [line(creditor, payable), line(expense.paymentMethod === 'cash' ? '5700' : '5720', 0, payable)] });
+			add({ id: `payment-${expense.id}`, date: day(paidAt), concept: `Pago ${what}`, kind: 'payment', lines: [line(creditor, payable), line(expense.paymentMethod === 'cash' && !expense.paymentOrderId && !expense.bankMovementId ? '5700' : '5720', 0, payable)] });
 		}
 	}
 

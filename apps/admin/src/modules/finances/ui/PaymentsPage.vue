@@ -6,13 +6,14 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import { paymentOrderStatuses, paymentOrderXml, sepaId } from '@gobernansa/shared/domain/sepa.ts';
+import { paymentOrderStatuses, paymentOrderXml, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -97,16 +98,7 @@ const openId = ref<string>();
 const formError = ref<string>();
 
 function download(order: Pick<PaymentOrder, 'reference' | 'executionDate' | 'issuedAt' | 'debtor' | 'items'>) {
-	const url = URL.createObjectURL(new Blob([paymentOrderXml(order)], { type: 'application/xml' }));
-	const anchor = document.createElement('a');
-	anchor.href = url;
-	anchor.download = `${order.reference}.xml`;
-	anchor.click();
-	setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-function localDateTime(date: Date) {
-	return `${toDateString(date)}T${[date.getHours(), date.getMinutes(), date.getSeconds()].map(part => String(part).padStart(2, '0')).join(':')}`;
+	downloadFile(`${order.reference}.xml`, paymentOrderXml(order), 'application/xml');
 }
 
 async function generate() {
@@ -141,7 +133,7 @@ async function generate() {
 	const data = {
 		reference,
 		executionDate: executionDate.value,
-		issuedAt: localDateTime(now),
+		issuedAt: sepaDateTime(now),
 		debtor: {
 			name: community.value.name,
 			id: `${normalizeTaxId(community.value.cif!)}${community.value.sepaSuffix || '000'}`,
@@ -225,7 +217,7 @@ async function remove(order: PaymentOrder) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Pagos a proveedores</h1>
 		<LnxButton :to="`/communities/${id}/payables`" mode="clear" size="small">
 			<LnxIcon icon="lucide:file-clock" />

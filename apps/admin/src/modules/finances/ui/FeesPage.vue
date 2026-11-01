@@ -192,7 +192,7 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Cuotas y fondo de reserva</h1>
 		<LnxSelect
 			v-model.convert="year"

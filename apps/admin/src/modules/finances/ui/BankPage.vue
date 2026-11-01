@@ -11,6 +11,7 @@ import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -380,18 +381,13 @@ function downloadSample() {
 	}
 	const { today, opening, data } = demoData();
 	const file = norma43({ account: account.value, holder: community.value.name, from: data[0].date, to: today, opening }, data);
-	const url = URL.createObjectURL(new Blob([file], { type: 'text/plain' }));
-	const anchor = document.createElement('a');
-	anchor.href = url;
-	anchor.download = `extracto-ejemplo-${today}.n43`;
-	anchor.click();
-	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	downloadFile(`extracto-ejemplo-${today}.n43`, file, 'text/plain');
 }
 </script>
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Conciliación bancaria</h1>
 		<input ref="fileInput" type="file" accept=".n43,.aeb,.q43,.txt,.csv,text/plain,text/csv" hidden @change="readFile">
 		<LnxButton size="small" @click="fileInput?.click()">

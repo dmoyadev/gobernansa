@@ -129,7 +129,7 @@ function remove(property: Property) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Mandatos SEPA</h1>
 		<LnxButton :to="`/communities/${id}/remittances`" mode="clear" size="small">
 			<LnxIcon icon="lucide:landmark" />

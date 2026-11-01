@@ -9,6 +9,7 @@ import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -431,12 +432,7 @@ function exportCsv() {
 		rows.push(['Cuenta', 'Nombre']);
 		sortedAccounts(accounts.value).forEach(account => rows.push([account.code, account.name]));
 	}
-	const url = URL.createObjectURL(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }));
-	const anchor = document.createElement('a');
-	anchor.href = url;
-	anchor.download = `${views[view.value].toLowerCase().replaceAll(' ', '-')}-${year.value}.csv`;
-	anchor.click();
-	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	downloadFile(`${views[view.value].toLowerCase().replaceAll(' ', '-')}-${year.value}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
 }
 
 const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefined)?.toDate?.());
@@ -444,7 +440,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Contabilidad</h1>
 		<LnxSelect
 			v-model.convert="year"

@@ -9,10 +9,10 @@ import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { renderSVG } from 'uqr';
 import { computed, onMounted, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { annulInvoice, loadBudgetItems, loadInvoice, loadInvoiceRecords, recordInBooks, useOffice } from '../application/useBilling.ts';
-import { downloadXml } from './download.ts';
 
 const props = defineProps<{ invoiceId: string }>();
 
@@ -53,7 +53,7 @@ function print() {
 }
 
 function download(record: VerifactuRecord) {
-	downloadXml(`${record.issuer.nif}-${record.number}-${record.kind}.xml`, suministroXml(record.issuer, [record]));
+	downloadFile(`${record.issuer.nif}-${record.number}-${record.kind}.xml`, suministroXml(record.issuer, [record]), 'application/xml');
 }
 
 const busy = ref(false);

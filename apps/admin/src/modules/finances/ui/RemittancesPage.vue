@@ -5,13 +5,14 @@ import type { Remittance, RemittanceItem, ReturnReason } from '@gobernansa/share
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import { creditorId, remittanceStatuses, remittanceXml, returnReasons, sepaId } from '@gobernansa/shared/domain/sepa.ts';
+import { creditorId, remittanceStatuses, remittanceXml, returnReasons, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -104,16 +105,7 @@ const openId = ref<string>();
 const formError = ref<string>();
 
 function download(remittance: Pick<Remittance, 'reference' | 'collectionDate' | 'issuedAt' | 'creditor' | 'items'>) {
-	const url = URL.createObjectURL(new Blob([remittanceXml(remittance)], { type: 'application/xml' }));
-	const link = document.createElement('a');
-	link.href = url;
-	link.download = `${remittance.reference}.xml`;
-	link.click();
-	setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-function localDateTime(date: Date) {
-	return `${toDateString(date)}T${[date.getHours(), date.getMinutes(), date.getSeconds()].map(part => String(part).padStart(2, '0')).join(':')}`;
+	downloadFile(`${remittance.reference}.xml`, remittanceXml(remittance), 'application/xml');
 }
 
 async function generate() {
@@ -155,7 +147,7 @@ async function generate() {
 	const data = {
 		reference,
 		collectionDate: collectionDate.value,
-		issuedAt: localDateTime(now),
+		issuedAt: sepaDateTime(now),
 		creditor: {
 			name: community.value.name,
 			id: creditorId(community.value.cif!, community.value.sepaSuffix),
@@ -279,7 +271,7 @@ async function confirmReturn(remittance: Remittance, item: RemittanceItem) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Remesas de recibos</h1>
 		<LnxButton :to="`/communities/${id}/mandates`" mode="clear" size="small">
 			<LnxIcon icon="lucide:file-signature" />

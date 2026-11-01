@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
+import { toDateString } from './booking.ts';
 import { normalizeTaxId } from './fiscal.ts';
 
 const BIC_REGEX = /^[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/;
@@ -137,6 +138,11 @@ export function sepaText(value: string, max: number) {
 // Identifiers (MsgId, EndToEndId, MndtId) only letters, digits and dashes, which every bank takes
 export function sepaId(value: string, max = 35) {
 	return value.normalize('NFD').replace(DIACRITICS_REGEX, '').toUpperCase().replace(NON_ID_REGEX, '').slice(0, max);
+}
+
+// CreDtTm, the moment the file was made in local time without zone, e.g. 2026-10-31T09:05:00
+export function sepaDateTime(date: Date) {
+	return `${toDateString(date)}T${[date.getHours(), date.getMinutes(), date.getSeconds()].map(part => String(part).padStart(2, '0')).join(':')}`;
 }
 
 function amount(cents: number) {

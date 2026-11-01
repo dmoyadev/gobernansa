@@ -37,7 +37,7 @@ function print() {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Estados de cuenta</h1>
 		<LnxButton :disabled="loading" @click="print()">
 			<LnxIcon icon="lucide:printer" />

@@ -11,6 +11,7 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -119,12 +120,7 @@ function declarant(): Declarant {
 }
 
 function download(model: Model, content: Uint8Array<ArrayBuffer>) {
-	const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=iso-8859-1' }));
-	const anchor = document.createElement('a');
-	anchor.href = url;
-	anchor.download = `${normalizeTaxId(community.value!.cif!)}-${model}-${year.value}.txt`;
-	anchor.click();
-	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	downloadFile(`${normalizeTaxId(community.value!.cif!)}-${model}-${year.value}.txt`, content, 'text/plain;charset=iso-8859-1');
 }
 
 function taxIdProblem(nif?: string) {
@@ -281,7 +277,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Modelos fiscales</h1>
 		<LnxSelect
 			v-model.convert="year"

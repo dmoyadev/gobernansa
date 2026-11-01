@@ -14,6 +14,7 @@ import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
@@ -61,12 +62,7 @@ const exportGroups = [
 const busy = ref<string>();
 
 function download({ name, content, type }: ExportFile) {
-	const url = URL.createObjectURL(new Blob([content], { type }));
-	const anchor = document.createElement('a');
-	anchor.href = url;
-	anchor.download = name;
-	anchor.click();
-	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	downloadFile(name, content, type);
 }
 
 function csvFile(name: string, rows: (string | number)[][]): ExportFile {
@@ -257,7 +253,7 @@ async function importDraft() {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Exportar e importar</h1>
 		<LnxSelect
 			v-model.convert="year"

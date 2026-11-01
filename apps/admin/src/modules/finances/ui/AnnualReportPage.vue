@@ -180,7 +180,7 @@ useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !err
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Liquidación del ejercicio</h1>
 		<LnxSelect
 			v-model.convert="year"

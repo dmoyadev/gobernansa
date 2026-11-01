@@ -5,9 +5,9 @@ import { brokenLink, recordKinds, suministroXml } from '@gobernansa/shared/domai
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { onMounted, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { loadRecords } from '../application/useBilling.ts';
-import { downloadXml } from './download.ts';
 
 // What one submission to AEAT takes
 const RECORDS_PER_FILE = 1000;
@@ -54,7 +54,7 @@ function downloadYear() {
 	for (const [nif, list] of issuers) {
 		for (let start = 0; start < list.length; start += RECORDS_PER_FILE) {
 			const part = list.length > RECORDS_PER_FILE ? `-${start / RECORDS_PER_FILE + 1}` : '';
-			downloadXml(`verifactu-${nif}-${year.value}${part}.xml`, suministroXml(list[0].issuer, list.slice(start, start + RECORDS_PER_FILE)));
+			downloadFile(`verifactu-${nif}-${year.value}${part}.xml`, suministroXml(list[0].issuer, list.slice(start, start + RECORDS_PER_FILE)), 'application/xml');
 		}
 	}
 }

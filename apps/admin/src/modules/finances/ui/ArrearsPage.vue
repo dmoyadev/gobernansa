@@ -98,7 +98,7 @@ function lastClaim(debtCase?: DebtCase) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
+		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Gestión de morosidad</h1>
 	</header>
 

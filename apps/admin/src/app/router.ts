@@ -97,6 +97,13 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/finances',
+					name: 'Finanzas',
+					component: async () => import('@/modules/finances/ui/FinancesPage.vue'),
+					meta: { title: 'Finanzas' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/charges',
 					name: 'Recibos y morosidad',
 					component: async () => import('@/modules/finances/ui/ChargesPage.vue'),
