@@ -169,10 +169,21 @@ function markPaid(invoice: Expense) {
 		border-top: 1px solid var(--color-gray-3);
 	}
 
-	// Overdue ones stand out with a mark on their edge
+	// Overdue ones stand out with a rounded bar beside them
 	&.late {
-		padding-left: var(--lnx-spacing-3);
-		box-shadow: inset 3px 0 0 var(--color-secondary-accent);
+		position: relative;
+		padding-left: calc(4px + var(--lnx-spacing-3));
+
+		&::before {
+			content: '';
+			position: absolute;
+			top: var(--lnx-spacing-3);
+			bottom: var(--lnx-spacing-3);
+			left: 0;
+			width: 4px;
+			border-radius: 2px;
+			background: var(--color-secondary-accent);
+		}
 	}
 }
 

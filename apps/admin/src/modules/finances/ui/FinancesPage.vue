@@ -132,6 +132,7 @@ const figures = computed(() => {
 }
 
 .figure {
+	position: relative;
 	height: 100%;
 	padding: var(--lnx-spacing-4);
 	border: 1px solid var(--color-gray-3);
@@ -154,9 +155,20 @@ const figures = computed(() => {
 		scale: var(--press-scale);
 	}
 
-	// What needs doing stands out with a mark on its edge
+	// What needs doing stands out with a bar inside it, rounded and clear of the edge
 	&.alert {
-		box-shadow: inset 3px 0 0 var(--color-secondary-accent), 0 1px 2px #0000000A, 0 2px 8px #00000008;
+		padding-left: calc(var(--lnx-spacing-4) + 4px + var(--lnx-spacing-3));
+
+		&::before {
+			content: '';
+			position: absolute;
+			top: var(--lnx-spacing-4);
+			bottom: var(--lnx-spacing-4);
+			left: var(--lnx-spacing-4);
+			width: 4px;
+			border-radius: 2px;
+			background: var(--color-secondary-accent);
+		}
 
 		.value {
 			color: var(--color-secondary-accent);

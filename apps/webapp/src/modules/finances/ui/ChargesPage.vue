@@ -291,8 +291,21 @@ section {
 	color: inherit;
 	text-decoration: none;
 
+	// A rounded bar inside the row, clear of the list's rounded edge
 	&.overdue {
-		box-shadow: inset 3px 0 0 var(--color-secondary-accent);
+		position: relative;
+		padding-left: calc(var(--lnx-spacing-3) * 2 + 4px);
+
+		&::before {
+			content: '';
+			position: absolute;
+			top: var(--lnx-spacing-3);
+			bottom: var(--lnx-spacing-3);
+			left: var(--lnx-spacing-3);
+			width: 4px;
+			border-radius: 2px;
+			background: var(--color-secondary-accent);
+		}
 	}
 
 	.body {

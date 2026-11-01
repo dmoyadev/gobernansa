@@ -1169,7 +1169,7 @@ useEventListener(window, 'keydown', (event) => {
 
 .note {
 	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
-	border-left: 3px solid #f59e0b;
+	border: 1px solid #fde68a;
 	border-radius: var(--lnx-radius-2);
 	background: #fffbeb;
 	color: var(--color-gray-8);
