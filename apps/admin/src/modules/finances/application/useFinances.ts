@@ -19,7 +19,7 @@ function chargesRef(communityId: string) {
 	return collection(db, 'communities', communityId, 'charges');
 }
 
-function budgetRef(communityId: string, year: number) {
+export function budgetRef(communityId: string, year: number) {
 	return doc(db, 'communities', communityId, 'budgets', String(year));
 }
 

@@ -9,7 +9,6 @@ import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -233,7 +232,6 @@ function remove(expense: Expense) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Presupuesto</h1>
 		<LnxSelect
 			v-model.convert="year"

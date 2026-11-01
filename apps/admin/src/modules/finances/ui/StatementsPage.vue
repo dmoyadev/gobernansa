@@ -4,7 +4,6 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
@@ -37,7 +36,6 @@ function print() {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Estados de cuenta</h1>
 		<LnxButton :disabled="loading" @click="print()">
 			<LnxIcon icon="lucide:printer" />

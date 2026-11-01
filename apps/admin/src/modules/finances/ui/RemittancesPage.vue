@@ -11,7 +11,6 @@ import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -271,12 +270,7 @@ async function confirmReturn(remittance: Remittance, item: RemittanceItem) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
-		<h1>Remesas de recibos</h1>
-		<LnxButton :to="`/communities/${id}/mandates`" mode="clear" size="small">
-			<LnxIcon icon="lucide:file-signature" />
-			Mandatos
-		</LnxButton>
+		<h1>Remesas</h1>
 	</header>
 
 	<p class="intro hint">

@@ -12,7 +12,6 @@ import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -217,12 +216,7 @@ async function remove(order: PaymentOrder) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Pagos a proveedores</h1>
-		<LnxButton :to="`/communities/${id}/payables`" mode="clear" size="small">
-			<LnxIcon icon="lucide:file-clock" />
-			Facturas pendientes
-		</LnxButton>
 	</header>
 
 	<p class="intro hint">

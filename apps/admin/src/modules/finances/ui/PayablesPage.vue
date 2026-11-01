@@ -5,7 +5,6 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { optimistic } from '@/app/ux/toast.ts';
 import { setExpensePaid, useUnpaidInvoices } from '../application/useFinances.ts';
 
@@ -34,8 +33,7 @@ function markPaid(invoice: Expense) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
-		<h1>Facturas pendientes de pago</h1>
+		<h1>Facturas pendientes</h1>
 		<LnxButton :to="`/communities/${id}/payments`" mode="clear" size="small">
 			<LnxIcon icon="lucide:send" />
 			Pagar por transferencia

@@ -4,6 +4,8 @@ import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import FinanceNav from '@/modules/finances/ui/FinanceNav.vue';
+import FinanceTabs from '@/modules/finances/ui/FinanceTabs.vue';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 import { useSearchHighlight } from './useSearchHighlight.ts';
 import { shortcutTitle, useShortcut } from './ux/shortcuts.ts';
@@ -32,7 +34,10 @@ const access = computed(() => {
 const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.value.communityId : undefined);
 
 // Search results open their page with the text they matched highlighted
-useSearchHighlight(useTemplateRef('main'));
+useSearchHighlight(useTemplateRef('content'));
+
+// Finance pages (meta.finance, their own key or their parent's) have their nav beside them, mounted while moving between them
+const finance = computed(() => access.value === 'granted' && !!route.meta.finance);
 
 // G then a letter goes to each section, as in other tools
 const router = useRouter();
@@ -65,7 +70,7 @@ const KEPT_PAGES = 6;
 			<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="120" height="40">
 		</RouterLink>
 
-		<nav v-if="access === 'granted' || access === 'forbidden'">
+		<nav v-if="access === 'granted' || access === 'forbidden'" aria-label="Principal">
 			<RouterLink v-for="section in sections" :key="section.to" :to="section.to" :title="shortcutTitle(section.label, section.combo)">
 				<LnxIcon :icon="section.icon" :size="18" />
 				{{ section.label }}
@@ -78,50 +83,55 @@ const KEPT_PAGES = 6;
 		</LnxButton>
 	</header>
 
-	<main ref="main">
-		<!-- Always there, so a page without access in between doesn't throw away the kept ones. The community form isn't
-			kept: each section saves the whole community, and a kept one would write back the others' old values -->
-		<RouterView v-slot="{ Component, route: page }">
-			<KeepAlive :max="KEPT_PAGES" exclude="CommunityFormPage">
-				<component :is="Component" v-if="access === 'granted'" :key="page.path" />
-			</KeepAlive>
-		</RouterView>
+	<!-- The finance nav beside main, not in it: main holds only the page -->
+	<div class="frame" :class="{ finance }">
+		<FinanceNav v-if="finance" />
+		<main ref="content">
+			<FinanceTabs v-if="finance" />
+			<!-- Always there, so a page without access in between doesn't throw away the kept ones. The community form isn't
+				kept: each section saves the whole community, and a kept one would write back the others' old values -->
+			<RouterView v-slot="{ Component, route: page }">
+				<KeepAlive :max="KEPT_PAGES" exclude="CommunityFormPage">
+					<component :is="Component" v-if="access === 'granted'" :key="page.path" />
+				</KeepAlive>
+			</RouterView>
 
-		<p v-if="access === 'loading'" class="status">
-			<span class="skeleton-item" />
-		</p>
-
-		<section v-else-if="access === 'forbidden'" class="status">
-			<LnxIcon icon="lucide:shield-x" :size="40" />
-			<h1>Sin acceso</h1>
-			<p>No tienes permisos para ver esta página.</p>
-			<LnxButton to="/" mode="outline">
-				<LnxIcon icon="lucide:arrow-left" />
-				Volver a comunidades
-			</LnxButton>
-		</section>
-
-		<section v-else-if="access === 'denied'" class="status">
-			<LnxIcon icon="lucide:shield-x" :size="40" />
-			<h1>Sin acceso</h1>
-			<template v-if="managers.length">
-				<p>Tu cuenta no tiene permisos de administración. Si los necesitas, pídeselos a:</p>
-				<ul class="managers">
-					<li v-for="person in managers" :key="person.email">
-						<strong>{{ person.name }}</strong>
-						<a :href="`mailto:${person.email}`">{{ person.email }}</a>
-					</li>
-				</ul>
-			</template>
-			<p v-else>
-				Tu cuenta no tiene permisos de administración. Si crees que es un error, pide acceso al equipo de gobernança.
+			<p v-if="access === 'loading'" class="status">
+				<span class="skeleton-item" />
 			</p>
-			<LnxButton mode="outline" @click="logout()">
-				<LnxIcon icon="lucide:log-out" />
-				Cerrar sesión
-			</LnxButton>
-		</section>
-	</main>
+
+			<section v-else-if="access === 'forbidden'" class="status">
+				<LnxIcon icon="lucide:shield-x" :size="40" />
+				<h1>Sin acceso</h1>
+				<p>No tienes permisos para ver esta página.</p>
+				<LnxButton to="/" mode="outline">
+					<LnxIcon icon="lucide:arrow-left" />
+					Volver a comunidades
+				</LnxButton>
+			</section>
+
+			<section v-else-if="access === 'denied'" class="status">
+				<LnxIcon icon="lucide:shield-x" :size="40" />
+				<h1>Sin acceso</h1>
+				<template v-if="managers.length">
+					<p>Tu cuenta no tiene permisos de administración. Si los necesitas, pídeselos a:</p>
+					<ul class="managers">
+						<li v-for="person in managers" :key="person.email">
+							<strong>{{ person.name }}</strong>
+							<a :href="`mailto:${person.email}`">{{ person.email }}</a>
+						</li>
+					</ul>
+				</template>
+				<p v-else>
+					Tu cuenta no tiene permisos de administración. Si crees que es un error, pide acceso al equipo de gobernança.
+				</p>
+				<LnxButton mode="outline" @click="logout()">
+					<LnxIcon icon="lucide:log-out" />
+					Cerrar sesión
+				</LnxButton>
+			</section>
+		</main>
+	</div>
 
 	<Toaster />
 </template>
@@ -140,7 +150,7 @@ const KEPT_PAGES = 6;
 	box-shadow: 0 1px 0 var(--color-gray-3);
 }
 
-nav {
+.topbar nav {
 	flex: 1;
 	display: flex;
 	gap: var(--lnx-spacing-2);
@@ -182,10 +192,19 @@ nav {
 	text-overflow: ellipsis;
 }
 
-main {
+.frame {
 	max-width: 960px;
 	margin: 0 auto;
 	padding: var(--lnx-spacing-6) var(--lnx-spacing-5) var(--lnx-spacing-8);
+
+	// The nav on the left, the page as wide as the others
+	&.finance {
+		max-width: calc(960px + 220px + var(--lnx-spacing-6));
+		display: grid;
+		grid-template-columns: 220px minmax(0, 1fr);
+		align-items: start;
+		gap: var(--lnx-spacing-6);
+	}
 }
 
 .status {
@@ -218,9 +237,22 @@ main {
 
 // Eight sections don't fit with their names below desktop widths: icons only, the name stays for screen readers
 @media (max-width: 1240px) {
-	nav a {
+	.topbar nav a {
 		padding: var(--lnx-spacing-2);
 		font-size: 0;
+	}
+
+	.frame.finance {
+		grid-template-columns: 180px minmax(0, 1fr);
+		gap: var(--lnx-spacing-5);
+	}
+}
+
+// Below this the page beside the nav gets too narrow for the wide tables: the nav as a strip above it
+@media (max-width: 900px) {
+	.frame.finance {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--lnx-spacing-4);
 	}
 }
 
@@ -230,9 +262,11 @@ main {
 		display: none;
 	}
 
-	main {
+	.frame,
+	.frame.finance {
 		max-width: none;
 		padding: 0;
+		display: block;
 	}
 }
 
@@ -246,7 +280,7 @@ main {
 		width: 96px;
 	}
 
-	nav a {
+	.topbar nav a {
 		padding: var(--lnx-spacing-2);
 		font-size: 0; // Icon only, the label stays for screen readers through the link's text
 	}
@@ -255,7 +289,7 @@ main {
 		display: none;
 	}
 
-	main {
+	.frame {
 		padding: var(--lnx-spacing-5) var(--lnx-spacing-4) var(--lnx-spacing-7);
 	}
 }

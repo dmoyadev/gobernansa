@@ -10,7 +10,6 @@ import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -277,7 +276,6 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Modelos fiscales</h1>
 		<LnxSelect
 			v-model.convert="year"

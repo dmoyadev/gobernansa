@@ -9,7 +9,6 @@ import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -447,7 +446,6 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Contabilidad</h1>
 		<LnxSelect
 			v-model.convert="year"

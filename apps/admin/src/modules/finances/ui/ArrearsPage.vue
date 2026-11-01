@@ -4,7 +4,6 @@ import { agingBuckets, agingOf, claimChannels, claimLevels, debtCaseStatus } fro
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadDebtCases, removeClaim, restoreClaims, setDebtCaseStatus } from '../application/useArrears.ts';
@@ -98,8 +97,7 @@ function lastClaim(debtCase?: DebtCase) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
-		<h1>Gestión de morosidad</h1>
+		<h1>Morosidad</h1>
 	</header>
 
 	<p v-if="propertiesError || chargesError" class="error" role="alert">

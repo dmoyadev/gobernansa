@@ -10,7 +10,6 @@ import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -387,7 +386,6 @@ function downloadSample() {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Conciliación bancaria</h1>
 		<input ref="fileInput" type="file" accept=".n43,.aeb,.q43,.txt,.csv,text/plain,text/csv" hidden @change="readFile">
 		<LnxButton size="small" @click="fileInput?.click()">

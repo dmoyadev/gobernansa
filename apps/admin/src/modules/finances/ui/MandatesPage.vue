@@ -9,7 +9,6 @@ import { creditorId, isValidBic, mandateStatuses, newMandateReference, sepaId } 
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -129,12 +128,7 @@ function remove(property: Property) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Mandatos SEPA</h1>
-		<LnxButton :to="`/communities/${id}/remittances`" mode="clear" size="small">
-			<LnxIcon icon="lucide:landmark" />
-			Remesas
-		</LnxButton>
 	</header>
 
 	<section class="card">

@@ -5,6 +5,7 @@ import type { ComponentPublicInstance } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { contactTypes, documentTypes, getCommonAreas, isWithinSchedule } from '@gobernansa/shared/domain/community.ts';
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
+import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, nextTick, onActivated, onDeactivated, onMounted, ref, useId, watch } from 'vue';
@@ -13,7 +14,8 @@ import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
-import { financeSections } from '@/modules/finances/sections.ts';
+import { loadTileFigures, useFinanceSummary } from '@/modules/finances/application/useFinanceSummary.ts';
+import { financeSectionOf } from '@/modules/finances/sections.ts';
 import { loadCommunity } from '../application/useCommunities.ts';
 import CommunityDashboard from './CommunityDashboard.vue';
 import CommunitySearch from './CommunitySearch.vue';
@@ -50,9 +52,7 @@ const allTiles: Tile[] = [
 	{ key: 'notifications', title: 'Avisos', icon: 'lucide:bell', description: 'Avisos y eventos de la comunidad', details: 'Publica avisos y eventos que llegan a todos los vecinos de la comunidad.', sizes: [1, 2], size: 1 },
 	{ key: 'properties', title: 'Propiedades', icon: 'lucide:house', description: 'Censo con coeficientes, propietarios e inquilinos', details: 'Viviendas, locales y garajes con su coeficiente, sus propietarios e inquilinos.', sizes: [1, 2], size: 1 },
 	{ key: 'meetings', title: 'Juntas', icon: 'lucide:gavel', description: 'Convocatorias, asistencia y votaciones', details: 'Convoca juntas, lleva la asistencia, recoge las votaciones y redacta el acta.', sizes: [1, 2], size: 1 },
-	{ key: 'finances', title: 'Finanzas', icon: 'lucide:wallet', description: 'Cobros, pagos, banco, contabilidad y fiscalidad', details: 'Recibos, remesas y morosidad, facturas y pagos a proveedores, conciliación bancaria, contabilidad, liquidación y modelos de la AEAT.', sizes: [1, 2], size: 2 },
-	{ ...financeSections.get('charges')!, sizes: [1, 2], size: 1 },
-	{ ...financeSections.get('budget')!, sizes: [1, 2], size: 1 },
+	{ key: 'finances', title: 'Finanzas', icon: 'lucide:wallet', description: 'Pendiente de cobro, facturas vencidas y banco', sizes: [1, 2], size: 2 },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…', details: 'Vencimientos de inspecciones, revisiones y seguros, con su proveedor y aviso previo.', sizes: [1, 2], size: 1 },
 	{ key: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué', details: 'Quién cambió qué y cuándo en esta comunidad, para revisar o explicar un cambio.', sizes: [1, 2], size: 1 },
 ];
@@ -100,6 +100,8 @@ const contacts = computed(() => community.value?.contacts ?? []);
 const documents = computed(() => [...(community.value?.documents ?? [])].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
 const commonAreas = computed(() => getCommonAreas(community.value));
 const bookableAreas = computed(() => commonAreas.value.filter(area => area.booking));
+// The same figures as the Finanzas summary, the cheaper ones
+const { data: finances, loading: financesLoading } = useFinanceSummary(async () => loadTileFigures(props.id));
 const missing = computed(() => [
 	!community.value?.cif || !community.value.iban ? 'Datos fiscales' : '',
 	!contacts.value.length ? 'Contactos' : '',
@@ -206,8 +208,7 @@ const goSections = computed(() => [
 	{ key: 'properties', label: 'Propiedades', icon: 'lucide:house' },
 	{ key: 'meetings', label: 'Juntas', icon: 'lucide:gavel' },
 	{ key: 'finances', label: 'Finanzas', icon: 'lucide:wallet' },
-	{ key: 'charges', label: 'Recibos y morosidad', icon: 'lucide:receipt-text' },
-	{ key: 'budget', label: 'Presupuesto', icon: 'lucide:chart-pie' },
+	...['charges', 'budget'].map(key => ({ key, label: financeSectionOf.get(key)!.title, icon: financeSectionOf.get(key)!.icon })),
 	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
 	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
 	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },
@@ -642,7 +643,7 @@ useEventListener(window, 'pointerup', disarm);
 						<LnxIcon v-if="!editing" class="arrow" icon="lucide:arrow-up-right" :size="18" aria-hidden="true" />
 					</header>
 
-					<div v-if="loading && dataKeys.includes(tile.key)" class="body" aria-hidden="true">
+					<div v-if="(loading && dataKeys.includes(tile.key)) || (tile.key === 'finances' && financesLoading)" class="body" aria-hidden="true">
 						<span v-for="width in skeletonLines(tile.size)" :key="width" class="skeleton-item skeleton-item--small" :style="{ width: `${width}%` }" />
 					</div>
 
@@ -717,6 +718,29 @@ useEventListener(window, 'pointerup', disarm);
 								</p>
 							</template>
 						</template>
+					</div>
+
+					<div v-else-if="tile.key === 'finances'" class="body">
+						<p v-if="!finances" class="empty">
+							No se han podido cargar las cifras
+						</p>
+						<p v-else-if="tile.size === 1">
+							<span class="tabular">{{ formatCents(finances.pending) }} pendiente</span>
+						</p>
+						<ul v-else class="lines">
+							<li class="row">
+								<span class="text">Pendiente de cobro</span>
+								<span class="secondary tabular">{{ formatCents(finances.pending) }}</span>
+							</li>
+							<li class="row">
+								<span class="text">Facturas vencidas</span>
+								<span class="secondary tabular">{{ finances.overdueInvoices ? `${finances.overdueInvoices} · ${formatCents(finances.overdueInvoicesAmount)}` : 'Ninguna' }}</span>
+							</li>
+							<li class="row">
+								<span class="text">Movimientos por conciliar</span>
+								<span class="secondary tabular">{{ finances.unreconciled || 'Ninguno' }}</span>
+							</li>
+						</ul>
 					</div>
 
 					<div v-else-if="tile.key === 'settings' && tile.size > 1" class="body">

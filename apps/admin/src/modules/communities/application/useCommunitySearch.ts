@@ -20,6 +20,7 @@ import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { computed, ref, shallowRef, toValue } from 'vue';
 import { findRanges, fold, searchWords } from '@/app/useSearchHighlight.ts';
+import { financeGroups } from '@/modules/finances/sections.ts';
 
 export interface SearchEntry {
 	section: string;
@@ -48,20 +49,8 @@ const sections = [
 	{ path: 'notifications', title: 'Avisos', icon: 'lucide:bell', text: 'Avisos y eventos de la comunidad' },
 	{ path: 'properties', title: 'Propiedades', icon: 'lucide:house', text: 'Censo con coeficientes, propietarios e inquilinos' },
 	{ path: 'meetings', title: 'Juntas', icon: 'lucide:gavel', text: 'Convocatorias, asistencia y votaciones' },
-	{ path: 'charges', title: 'Recibos y morosidad', icon: 'lucide:receipt-text', text: 'Cuotas, derramas y certificados' },
-	{ path: 'arrears', title: 'Gestión de morosidad', icon: 'lucide:mail-warning', text: 'Antigüedad de la deuda, reclamaciones, burofax y monitorio' },
-	{ path: 'budget', title: 'Presupuesto', icon: 'lucide:chart-pie', text: 'Partidas, gastos, facturas y reparto' },
-	{ path: 'fees', title: 'Cuotas y fondo de reserva', icon: 'lucide:calendar-sync', text: 'Cuotas del año desde el presupuesto' },
-	{ path: 'statements', title: 'Estados de cuenta', icon: 'lucide:scroll-text', text: 'Cargos, abonos y saldo por propietario' },
-	{ path: 'remittances', title: 'Remesas de recibos', icon: 'lucide:landmark', text: 'Recibos domiciliados, fichero SEPA y devoluciones' },
-	{ path: 'mandates', title: 'Mandatos SEPA', icon: 'lucide:file-signature', text: 'Domiciliaciones por propiedad' },
-	{ path: 'payables', title: 'Facturas pendientes', icon: 'lucide:file-clock', text: 'Facturas de proveedores por pagar' },
-	{ path: 'payments', title: 'Pagos a proveedores', icon: 'lucide:send', text: 'Transferencias SEPA de las facturas' },
-	{ path: 'bank', title: 'Conciliación bancaria', icon: 'lucide:arrow-left-right', text: 'Extractos (Norma 43 o CSV) y movimientos del banco' },
-	{ path: 'accounting', title: 'Contabilidad', icon: 'lucide:book-open-check', text: 'Diario, mayor, balances y cierre' },
-	{ path: 'annual-report', title: 'Liquidación del ejercicio', icon: 'lucide:file-chart-column', text: 'Cuentas del año para la junta' },
-	{ path: 'taxes', title: 'Modelos fiscales', icon: 'lucide:file-badge', text: '347, 111, 190 y 184 para la AEAT' },
-	{ path: 'exchange', title: 'Exportar e importar', icon: 'lucide:arrow-down-up', text: 'Excel, ContaPlus y saldos de otro programa' },
+	{ path: 'finances', title: 'Finanzas', icon: 'lucide:wallet', text: 'Pendiente de cobro, facturas vencidas, banco, fondo de reserva y plazos' },
+	...financeGroups.flatMap(group => group.sections).flatMap(({ icon, pages }) => pages.map(page => ({ path: page.key, title: page.title, icon: page.icon ?? icon, text: page.description }))),
 	{ path: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', text: 'IEE, ascensor, extintores, seguro…' },
 	{ path: 'activity', title: 'Registro de actividad', icon: 'lucide:history', text: 'Quién cambió qué' },
 	{ path: 'info', title: 'Datos generales', icon: 'lucide:building-2', text: 'Nombre, dirección, CIF, banco e IBAN' },

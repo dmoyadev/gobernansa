@@ -28,7 +28,7 @@ async function docs<T>(source: Query) {
 }
 
 // Sum of amount, 1 read per 1000 summed instead of a read per doc
-async function total(source: Query) {
+export async function total(source: Query) {
 	const snapshot = await getAggregateFromServer(source, { amount: sum('amount') });
 	return snapshot.data().amount ?? 0;
 }

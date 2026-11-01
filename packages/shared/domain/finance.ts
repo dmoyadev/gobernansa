@@ -71,6 +71,11 @@ export function minReserve(ordinary: number) {
 	return Math.ceil(ordinary * MIN_RESERVE_PERCENT / 100);
 }
 
+// What left the fondo de reserva: only what was actually paid from it, an invoice still owed is not yet taken off
+export function reserveUsed(expenses: Pick<Expense, 'fromReserve' | 'paidAt' | 'amount'>[]) {
+	return expenses.reduce((sum, expense) => sum + (expense.fromReserve && expense.paidAt !== null ? expense.amount : 0), 0);
+}
+
 // Months each fee covers
 export type FeeMonths = 1 | 2 | 3 | 6 | 12;
 export const feePeriodicities: Record<FeeMonths, string> = {

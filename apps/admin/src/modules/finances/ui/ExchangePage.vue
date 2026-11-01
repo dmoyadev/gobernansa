@@ -13,7 +13,6 @@ import { propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -253,7 +252,6 @@ async function importDraft() {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Exportar e importar</h1>
 		<LnxSelect
 			v-model.convert="year"

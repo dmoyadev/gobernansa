@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import type { Charge, Expense, FeeMonths, FeePlan } from '@gobernansa/shared/domain/finance.ts';
-import { feeBatchId, feePeriodicities, MIN_RESERVE_PERCENT, minReserve, planFees } from '@gobernansa/shared/domain/finance.ts';
+import { feeBatchId, feePeriodicities, MIN_RESERVE_PERCENT, minReserve, planFees, reserveUsed } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -185,14 +184,12 @@ const opening = computed(() => budget.value?.reserveOpening ?? 0);
 const collected = computed(() => fees.value.reduce((sum, fee) => sum + (fee.paidAt ? fee.reserve ?? 0 : 0), 0));
 const toCollect = computed(() => unpaidFees.value.reduce((sum, fee) => sum + (fee.reserve ?? 0), 0));
 const used = computed(() => expenses.value.filter(expense => expense.fromReserve));
-// Only what was actually paid leaves the fund; an invoice still owed is listed but not yet taken off
-const usedTotal = computed(() => used.value.reduce((sum, expense) => sum + (expense.paidAt === null ? 0 : expense.amount), 0));
+const usedTotal = computed(() => reserveUsed(used.value));
 const balance = computed(() => opening.value + collected.value - usedTotal.value);
 </script>
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Cuotas y fondo de reserva</h1>
 		<LnxSelect
 			v-model.convert="year"

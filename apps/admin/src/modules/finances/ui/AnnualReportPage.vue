@@ -6,7 +6,6 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -180,7 +179,6 @@ useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !err
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/finances`" label="Volver a finanzas" />
 		<h1>Liquidación del ejercicio</h1>
 		<LnxSelect
 			v-model.convert="year"

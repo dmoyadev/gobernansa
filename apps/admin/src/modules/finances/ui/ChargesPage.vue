@@ -10,7 +10,6 @@ import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
@@ -243,8 +242,7 @@ function remove(charge: Charge) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
-		<h1>Recibos y morosidad</h1>
+		<h1>Recibos</h1>
 	</header>
 
 	<form ref="issueForm" class="card" @submit.prevent="issue()">
