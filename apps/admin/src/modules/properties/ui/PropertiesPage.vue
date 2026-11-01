@@ -154,6 +154,7 @@ function ownerLabel(property: Property) {
 				:options="ownerOptions"
 				:convert-fn="option => option.value"
 				search-placeholder-text="Buscar..."
+				placeholder="Sin cuenta en gobernança"
 			>
 				Propietario
 				<template #option="{ option }">

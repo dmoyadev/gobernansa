@@ -157,6 +157,7 @@ function print() {
 				:options="meetingOptions"
 				:convert-fn="option => option.value"
 				search-placeholder-text="Buscar..."
+				placeholder="Otra junta (escribe su fecha)"
 				@update:model-value="pickMeeting"
 			>
 				Junta que aprobó la liquidación

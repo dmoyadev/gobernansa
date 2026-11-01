@@ -390,6 +390,7 @@ function remove(expense: Expense) {
 				:options="providerOptions"
 				:convert-fn="option => option.value"
 				search-placeholder-text="Buscar..."
+				placeholder="Sin proveedor"
 			>
 				Proveedor
 				<template #option="{ option }">
@@ -416,6 +417,7 @@ function remove(expense: Expense) {
 				:options="vatOptions"
 				:convert-fn="option => option.value"
 				search-placeholder-text="Buscar..."
+				placeholder="0 %"
 			>
 				IVA
 				<template #option="{ option }">
@@ -430,6 +432,7 @@ function remove(expense: Expense) {
 				:options="withholdingOptions"
 				:convert-fn="option => option.value"
 				search-placeholder-text="Buscar..."
+				placeholder="Sin retención"
 			>
 				Retención IRPF
 				<template #option="{ option }">
@@ -579,13 +582,6 @@ function remove(expense: Expense) {
 
 	.year {
 		width: 120px;
-
-		/* The selected value sits below a label, and this one has none */
-		:deep(.input-content) {
-			inset: 0;
-			display: flex;
-			align-items: center;
-		}
 	}
 }
 

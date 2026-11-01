@@ -541,6 +541,7 @@ useEventListener(window, 'keydown', (event) => {
 							:options="providerOptions"
 							:convert-fn="option => option.value"
 							search-placeholder-text="Buscar..."
+							placeholder="Sin asignar"
 						>
 							Proveedor
 							<template #option="{ option }">

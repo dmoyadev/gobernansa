@@ -432,7 +432,7 @@ function downloadSample() {
 		</template>
 		<template v-else-if="draft.columns && csvResult">
 			<div class="fields">
-				<LnxSelect v-model.convert="draft.columns.date" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				<LnxSelect v-model.convert="draft.columns.date" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
 					Fecha
 					<template #option="{ option }">
 						{{ option.label }}
@@ -441,7 +441,7 @@ function downloadSample() {
 						{{ columnOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.concept" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				<LnxSelect v-model.convert="draft.columns.concept" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
 					Concepto
 					<template #option="{ option }">
 						{{ option.label }}
@@ -450,7 +450,7 @@ function downloadSample() {
 						{{ columnOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.amount" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				<LnxSelect v-model.convert="draft.columns.amount" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
 					Importe
 					<template #option="{ option }">
 						{{ option.label }}
@@ -459,7 +459,7 @@ function downloadSample() {
 						{{ columnOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.balance" :options="balanceOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				<LnxSelect v-model.convert="draft.columns.balance" :options="balanceOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
 					Saldo
 					<template #option="{ option }">
 						{{ option.label }}
@@ -707,6 +707,7 @@ function downloadSample() {
 							:options="itemOptions"
 							:convert-fn="option => option.value"
 							search-placeholder-text="Buscar..."
+							placeholder="Sin partida"
 						>
 							Partida de {{ ignoreYear }}
 							<template #option="{ option }">

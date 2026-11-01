@@ -221,13 +221,6 @@ function print() {
 
 	.year {
 		width: 120px;
-
-		/* The selected value sits below a label, and this one has none */
-		:deep(.input-content) {
-			inset: 0;
-			display: flex;
-			align-items: center;
-		}
 	}
 }
 

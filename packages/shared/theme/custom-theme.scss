@@ -28,4 +28,32 @@
 	--lnx-font-family-heading: var(--font-family-heading);
 	--lnx-font-family-body: var(--font-family-body);
 	--lnx-font-family-mono: var(--font-family-mono);
+
+	/* One height for fields and buttons, so they line up in a row */
+	--field-height: 32px;
+}
+
+// The library's medium buttons are taller than its inputs
+:is(button, a, router-link).button-size-medium[class] {
+	--lnx-button-size: var(--field-height);
+}
+
+// The library's scoped [data-v] attributes are matched with :not(:root) and [class]
+.input label .input-wrapper input:not(:root) {
+	height: var(--field-height);
+}
+
+// The selected value is placed under a label it assumes is always there: without one it falls below the field.
+// Pinned to the field's bottom instead, which holds with or without label (no select uses helper or error)
+.select .input-content[class] {
+	inset: auto 0 0;
+	height: var(--field-height);
+	display: flex;
+	align-items: center;
+}
+
+// The library hides a selected '' or 0, so those selects show that option's label as placeholder: read as a value.
+// Not while searching, where the placeholder is the search hint
+.select:not(:has(.input-content)) .input label .input-wrapper input:not(:focus)::placeholder {
+	color: var(--color-gray-9);
 }

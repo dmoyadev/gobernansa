@@ -260,11 +260,6 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	> * {
 		width: 220px;
 	}
-
-	/* With no filter the placeholder («Todas») is a real choice, not an empty field */
-	:deep(.select:not(:has(.input-content)) label input::placeholder) {
-		color: var(--color-gray-9);
-	}
 }
 
 .list {
