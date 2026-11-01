@@ -200,10 +200,11 @@ export const paymentMethods: Record<PaymentMethod, string> = {
 	cash: 'Efectivo',
 };
 
-// Each tax rounded on its own, as it's printed on the invoice
+// Each tax rounded on its own, as it's printed on the invoice, half away from zero so a rectificativa with the lines in negative cancels the invoice to the cent
 export function invoiceAmounts(base: number, vatRate: number, withholdingRate: number) {
-	const vat = Math.round(base * vatRate / 100);
-	const withholding = Math.round(base * withholdingRate / 100);
+	const percent = (rate: number) => Math.sign(base) * Math.round(Math.abs(base) * rate / 100);
+	const vat = percent(vatRate);
+	const withholding = percent(withholdingRate);
 	return { vat, withholding, amount: base + vat, payable: base + vat - withholding };
 }
 

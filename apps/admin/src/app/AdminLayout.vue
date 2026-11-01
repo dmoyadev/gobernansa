@@ -13,7 +13,7 @@ const route = useRoute();
 const { user, logout } = useAuth();
 
 // The profile is read after signing in. Missing, unreadable or a neighbour's (they use the webapp), the account can't use the admin.
-// Pages marked `superadmin` are the team's, and each community's are for whoever manages it
+// Pages marked `superadmin` are the team's, `office` ones the administrators' (not managers'), and each community's are for whoever manages it
 const access = computed(() => {
 	if (user.error.value || user.value === null || user.value?.role === 'user') {
 		return 'denied';
@@ -22,7 +22,7 @@ const access = computed(() => {
 		return 'loading';
 	}
 	const { id } = route.params;
-	if ((route.meta.superadmin && user.value.role !== 'superadmin') || (typeof id === 'string' && !managesCommunity(user.value, id))) {
+	if ((route.meta.superadmin && user.value.role !== 'superadmin') || (route.meta.office && user.value.role === 'manager') || (typeof id === 'string' && !managesCommunity(user.value, id))) {
 		return 'forbidden';
 	}
 	return 'granted';
@@ -42,9 +42,10 @@ const SECTIONS = [
 	{ to: '/issues', label: 'Incidencias', icon: 'lucide:inbox', combo: 'g i' },
 	{ to: '/announcements', label: 'Comunicados', icon: 'lucide:megaphone', combo: 'g m' },
 	{ to: '/providers', label: 'Proveedores', icon: 'lucide:hard-hat', combo: 'g p' },
+	{ to: '/billing', label: 'Honorarios', icon: 'lucide:receipt-text', combo: 'g f', office: true },
 	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
 ];
-const sections = computed(() => SECTIONS.filter(section => !section.superadmin || user.value?.role === 'superadmin'));
+const sections = computed(() => SECTIONS.filter(section => (!section.superadmin || user.value?.role === 'superadmin') && (!section.office || user.value?.role !== 'manager')));
 for (const section of SECTIONS) {
 	useShortcut(section.combo, () => {
 		if (sections.value.includes(section) && access.value !== 'loading' && access.value !== 'denied') {
@@ -215,7 +216,7 @@ main {
 	}
 }
 
-// Seven sections don't fit with their names below desktop widths: icons only, the name stays for screen readers
+// Eight sections don't fit with their names below desktop widths: icons only, the name stays for screen readers
 @media (max-width: 1240px) {
 	nav a {
 		padding: var(--lnx-spacing-2);

@@ -143,7 +143,7 @@ function amount(cents: number) {
 	return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
 }
 
-function escapeXml(value: string) {
+export function escapeXml(value: string) {
 	return value.replace(XML_SPECIAL_REGEX, char => XML_ENTITIES[char]);
 }
 

@@ -27,7 +27,7 @@ import './app/ux/interactions.scss';
 const app = createApp(App as Component);
 app.use(router);
 installViewTransitions(router);
-installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers']);
+installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers', '/billing']);
 
 app.use(VueFire, {
 	firebaseApp,

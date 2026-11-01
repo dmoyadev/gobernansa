@@ -141,6 +141,11 @@ service cloud.firestore {
             && paidOnline(communityId, booking.payment, 'bookingId', bookingId, fee.price + fee.deposit)));
     }
 
+    // An administrator's own office, which invoices its fees to the communities they manage
+    function ownsOffice(uid) {
+      return signedIn() && request.auth.uid == uid && me().role in ['admin', 'superadmin'];
+    }
+
     // Counters move one vote or comment at a time (a vote can go from +1 to -1)
     function changesAtMost(field, max) {
       return math.abs(request.resource.data.get(field, 0) - resource.data.get(field, 0)) <= max;
@@ -222,6 +227,27 @@ service cloud.firestore {
         // Along with the provider, by whoever can remove it. Not one by one, the counters would be left wrong
         allow delete: if isSuperadmin()
           || get(/databases/$(database)/documents/providers/$(providerId)).data.createdBy == request.auth.uid;
+      }
+    }
+
+    // The administrator's office: its fiscal data, invoice counters and the end of its Verifactu chain. The team can
+    // read and fix any (support), never their invoices nor records
+    match /offices/{uid} {
+      allow read: if ownsOffice(uid) || isSuperadmin();
+      allow create, update: if ownsOffice(uid) || isSuperadmin();
+
+      // Facturas de honorarios, only to communities they manage. Never removed: corrected with a rectificativa or
+      // annulled in the registry; afterwards only what points to those, and to the expense in the community's books
+      match /invoices/{invoiceId} {
+        allow read: if ownsOffice(uid) || isSuperadmin();
+        allow create: if ownsOffice(uid) && manages(request.resource.data.communityId);
+        allow update: if ownsOffice(uid) && changedOnly(['rectifiedBy', 'annulled', 'expenseId', 'updatedAt', 'updatedBy']);
+      }
+
+      // Registro Verifactu (test mode): each record is chained by its huella to the one before, so it's immutable
+      match /verifactu/{recordId} {
+        allow read: if ownsOffice(uid) || isSuperadmin();
+        allow create: if ownsOffice(uid) && request.resource.data.createdBy == request.auth.uid;
       }
     }
 

@@ -45,6 +45,8 @@ async function resetDatabase() {
 	}
 	if (shouldRun('users')) {
 		await deleteCollection('users');
+		// With their invoices and Verifactu records, or the numbering and the chain would start again over them
+		await deleteCollection('offices');
 	}
 	if (shouldRun('events')) {
 		await deleteCollection('events');
@@ -200,6 +202,21 @@ async function seed() {
 				role,
 				...extra,
 			});
+		});
+
+		// The administrator's office, ready to invoice its fees (Verifactu in test mode). Its chain starts with the first invoice
+		batch.set(db.collection('offices').doc('fincas1'), {
+			nif: 'B12345674',
+			name: 'Fincas Jaén S.L.',
+			address: 'Paseo de la Estación 10, 23008 Jaén',
+			email: 'lynx9011+fincas@gmail.com',
+			iban: 'ES7921000813610123456789',
+			vatRate: 21,
+			withholdingRate: 0,
+			series: 'A',
+			rectSeries: 'R',
+			monthlyFees: { comm1: 15000 },
+			...getDatableProperties(),
 		});
 	}
 
