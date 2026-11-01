@@ -6,12 +6,13 @@ import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
+import { workspaces } from '@/app/workspace/workspaces.ts';
 import { duplicateCommunity } from '../application/duplicateCommunity.ts';
 import { loadCommunity, saveCommunity } from '../application/useCommunities.ts';
 import { findFormError, toCommunityForm, toInputDate } from '../domain/communityForm.ts';
@@ -22,8 +23,9 @@ const route = useRoute();
 // Read again each time the page comes back, as the kept page is reused for any ?from=
 const queryFrom = () => props.id ? undefined : route.query.from as string | undefined;
 const fromId = ref(queryFrom());
-const backTo = computed(() => props.id || fromId.value ? `/communities/${props.id || fromId.value}` : '/');
-const backLabel = computed(() => props.id || fromId.value ? 'Volver a la comunidad' : 'Volver a comunidades');
+// A new one's: an existing one has the nav of its workspace instead
+const backTo = computed(() => fromId.value ? `/communities/${fromId.value}` : '/');
+const backLabel = computed(() => fromId.value ? 'Volver a la comunidad' : 'Volver a comunidades');
 
 const contactTypeOptions = Object.entries(contactTypes).map(([value, { label }]) => ({ value: value as ContactType, label }));
 const documentTypeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({ value: value as CommunityDocument['type'], label }));
@@ -45,6 +47,12 @@ let createId = newId();
 // The form as loaded, to tell whether the admin has changed it
 let pristine = '';
 const isPristine = () => JSON.stringify(form.value) === pristine;
+
+// Leaving it, or moving to another section from the nav, would lose what was typed
+// eslint-disable-next-line no-alert
+const confirmLeave = () => saving.value || isPristine() || window.confirm('¿Descartar los cambios sin guardar?');
+onBeforeRouteLeave(confirmLeave);
+onBeforeRouteUpdate(confirmLeave);
 
 function setForm(next: CommunityForm) {
 	form.value = next;
@@ -148,7 +156,10 @@ async function save() {
 		createId = newId();
 		setForm(toCommunityForm());
 	}
-	void router.push(props.id ? backTo.value : `/communities/${id}`);
+	// An existing one stays on its section, as the other pages of a workspace
+	if (!props.id) {
+		void router.push(`/communities/${id}`);
+	}
 	void optimistic(action, {
 		done: props.id ? 'Guardado' : 'Comunidad creada',
 		failed: 'No se ha podido guardar',
@@ -171,8 +182,9 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 <template>
 	<form ref="formElement" @submit.prevent="save()">
 		<header class="page-header">
-			<BackButton :to="backTo" :label="backLabel" />
-			<h1>{{ id ? (form.name || 'Editar comunidad') : 'Nueva comunidad' }}</h1>
+			<!-- An existing one's has the nav of its workspace instead -->
+			<BackButton v-if="!id" :to="backTo" :label="backLabel" />
+			<h1>{{ id ? workspaces.community.sectionOf.get(section)!.pages[0].title : 'Nueva comunidad' }}</h1>
 		</header>
 
 		<!-- Shaped like the first card: its title and fields -->
@@ -205,7 +217,10 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 			</p>
 
 			<section v-if="section === 'info' || !id" class="card">
-				<h2>Datos generales</h2>
+				<!-- An existing one's sections are named by the page's title -->
+				<h2 v-if="!id">
+					Datos generales
+				</h2>
 				<div class="fields">
 					<LnxInput v-model="form.name" class="wide" required>
 						Nombre
@@ -246,7 +261,9 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 			</section>
 
 			<section v-if="section === 'settings' || !id" class="card">
-				<h2>Configuración de la comunidad</h2>
+				<h2 v-if="!id">
+					Configuración de la comunidad
+				</h2>
 				<p class="hint">
 					Ajustes propios de esta comunidad, que cambian cómo funciona la app para sus vecinos.
 				</p>
@@ -262,7 +279,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 
 			<section v-if="section === 'contacts'" class="card">
 				<header>
-					<h2>Contactos</h2>
 					<LnxButton type="button" mode="outline" size="small" @click="addContact()">
 						<LnxIcon icon="lucide:plus" />
 						Añadir contacto
@@ -346,7 +362,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 
 			<section v-if="section === 'documents'" class="card">
 				<header>
-					<h2>Documentación oficial</h2>
 					<LnxButton type="button" mode="outline" size="small" @click="addDocument()">
 						<LnxIcon icon="lucide:plus" />
 						Añadir documento
@@ -398,7 +413,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 				<p v-if="error" class="error" role="alert">
 					{{ error }}
 				</p>
-				<LnxButton :to="backTo" mode="clear">
+				<LnxButton v-if="!id" :to="backTo" mode="clear">
 					Cancelar
 				</LnxButton>
 				<LnxButton type="submit" :is-loading="saving">

@@ -1,26 +1,26 @@
 <script setup lang="ts">
+import type { Workspace } from './workspaces.ts';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { financeSectionOf } from '../sections.ts';
 
 // The pages of a section with more than one, as tabs above the page. Not on detail pages, they go back to theirs
+const props = defineProps<{ workspace: Workspace; page: string }>();
 const route = useRoute();
 
-const current = computed(() => route.meta.finance as string);
 const base = computed(() => `/communities/${route.params.id as string}`);
-const section = computed(() => route.path === `${base.value}/${current.value}` ? financeSectionOf.get(current.value) : undefined);
+const section = computed(() => route.path === `${base.value}/${props.page}` ? props.workspace.sectionOf.get(props.page) : undefined);
 </script>
 
 <template>
-	<nav v-if="section && section.pages.length > 1" class="finance-tabs" :aria-label="section.title">
-		<RouterLink v-for="page in section.pages" :key="page.key" :to="`${base}/${page.key}`" :aria-current="page.key === current ? 'page' : undefined">
-			{{ page.title }}
+	<nav v-if="section && section.pages.length > 1" class="workspace-tabs" :aria-label="section.title">
+		<RouterLink v-for="item in section.pages" :key="item.key" :to="`${base}/${item.key}`" :aria-current="item.key === page ? 'page' : undefined">
+			{{ item.title }}
 		</RouterLink>
 	</nav>
 </template>
 
 <style lang="scss" scoped>
-.finance-tabs {
+.workspace-tabs {
 	margin-bottom: var(--lnx-spacing-5);
 	overflow-x: auto;
 	display: flex;
@@ -32,9 +32,9 @@ const section = computed(() => route.path === `${base.value}/${current.value}` ?
 }
 
 // Still while moving between its own tabs; between sections it goes with the page
-:global(html[data-finance-move="forward"]) .finance-tabs,
-:global(html[data-finance-move="back"]) .finance-tabs {
-	view-transition-name: finance-tabs;
+:global(html[data-workspace-move="forward"]) .workspace-tabs,
+:global(html[data-workspace-move="back"]) .workspace-tabs {
+	view-transition-name: workspace-tabs;
 }
 
 a {
@@ -58,7 +58,7 @@ a {
 }
 
 @media print {
-	.finance-tabs {
+	.workspace-tabs {
 		display: none;
 	}
 }

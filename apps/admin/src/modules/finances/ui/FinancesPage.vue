@@ -2,14 +2,15 @@
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
-import { loadSummary, nextTaxDeadline, useFinanceSummary } from '../application/useFinanceSummary.ts';
+import { useRevalidated } from '@/app/ux/navigation.ts';
+import { loadSummary, nextTaxDeadline } from '../application/useFinanceSummary.ts';
 
 const props = defineProps<{ id: string }>();
 
 const year = new Date().getFullYear();
 const dateFormat = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long' });
 
-const { data, error, loading } = useFinanceSummary(async () => loadSummary(props.id));
+const { data, error, loading } = useRevalidated(async () => loadSummary(props.id));
 
 function plural(total: number, one: string, many: string) {
 	return `${total} ${total === 1 ? one : many}`;

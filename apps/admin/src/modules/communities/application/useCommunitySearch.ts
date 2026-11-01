@@ -20,7 +20,7 @@ import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { computed, ref, shallowRef, toValue } from 'vue';
 import { findRanges, fold, searchWords } from '@/app/useSearchHighlight.ts';
-import { financeGroups } from '@/modules/finances/sections.ts';
+import { workspaces } from '@/app/workspace/workspaces.ts';
 
 export interface SearchEntry {
 	section: string;
@@ -42,22 +42,18 @@ const NON_ALPHANUMERIC_REGEX = /[^a-z0-9]/g;
 // How long the rest of the community is reused before reading it again
 const CACHE_TTL = 10 * 60 * 1000;
 
-// The pages and sections of a community, findable by their name and what's done there
+// The pages and sections of a community, findable by their name and what's done there: those of its workspaces, then the rest
 const sections = [
-	{ path: 'people', title: 'Vecinos y gestores', icon: 'lucide:users', text: 'Cuentas, roles e invitaciones' },
+	...Object.values(workspaces).flatMap(({ title, summary, sections }) => [
+		...(summary ? [{ path: summary.key, title, icon: summary.icon, text: summary.description }] : []),
+		...sections.flatMap(section => section.pages.map(page => ({ path: page.key, title: page.title, icon: page.icon ?? section.icon, text: page.description }))),
+	]),
 	{ path: 'issues', title: 'Incidencias', icon: 'lucide:message-square-warning', text: 'Estado y respuestas a los vecinos' },
 	{ path: 'notifications', title: 'Avisos', icon: 'lucide:bell', text: 'Avisos y eventos de la comunidad' },
-	{ path: 'properties', title: 'Propiedades', icon: 'lucide:house', text: 'Censo con coeficientes, propietarios e inquilinos' },
 	{ path: 'meetings', title: 'Juntas', icon: 'lucide:gavel', text: 'Convocatorias, asistencia y votaciones' },
-	{ path: 'finances', title: 'Finanzas', icon: 'lucide:wallet', text: 'Pendiente de cobro, facturas vencidas, banco, fondo de reserva y plazos' },
-	...financeGroups.flatMap(group => group.sections).flatMap(({ icon, pages }) => pages.map(page => ({ path: page.key, title: page.title, icon: page.icon ?? icon, text: page.description }))),
 	{ path: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', text: 'IEE, ascensor, extintores, seguro…' },
 	{ path: 'activity', title: 'Registro de actividad', icon: 'lucide:history', text: 'Quién cambió qué' },
-	{ path: 'info', title: 'Datos generales', icon: 'lucide:building-2', text: 'Nombre, dirección, CIF, banco e IBAN' },
-	{ path: 'contacts', title: 'Contactos', icon: 'lucide:phone', text: 'Teléfonos, correos y horarios' },
-	{ path: 'documents', title: 'Documentación oficial', icon: 'lucide:file-text', text: 'Estatutos, normas, seguro y actas' },
 	{ path: 'locations', title: 'Zonas comunes y reservas', icon: 'lucide:map-pin', text: 'Lugares de las incidencias, franjas y normas de reserva' },
-	{ path: 'settings', title: 'Configuración de la comunidad', icon: 'lucide:settings', text: 'Votos por vecino y otros ajustes' },
 ];
 const sectionTitles = Object.fromEntries(sections.map(section => [section.path, section.title]));
 const sectionIcons = Object.fromEntries(sections.map(section => [section.path, section.icon]));

@@ -6,8 +6,6 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { feeBatchId, isOverdue, payableAmount, reserveUsed } from '@gobernansa/shared/domain/finance.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getAggregateFromServer, getCountFromServer, getDoc, getDocs, limit, orderBy, query, sum, where } from 'firebase/firestore';
-import { computed, onMounted, ref, shallowRef } from 'vue';
-import { onRevalidate } from '@/app/ux/navigation.ts';
 import { total } from '@/modules/communities/application/useCommunityDashboard.ts';
 import { budgetRef } from './useFinances.ts';
 
@@ -71,25 +69,4 @@ export async function loadSummary(communityId: string) {
 		reserve: ((budget.data() as Budget | undefined)?.reserveOpening ?? 0) + issued - unpaid - reserveUsed(fromReserve.docs.map(expense => expense.data() as Expense)),
 		remittance: latest && { reference: latest.reference, returned: returned.length, returnedAmount: returned.reduce((all, item) => all + item.amount, 0) },
 	};
-}
-
-// Read again each time the page comes back, showing the last figures meanwhile. A failed reread keeps them
-export function useFinanceSummary<T>(load: () => Promise<T>) {
-	const data = shallowRef<T>();
-	const error = ref<string>();
-
-	async function reload() {
-		try {
-			data.value = await load();
-			error.value = undefined;
-		} catch (e) {
-			if (!data.value) {
-				error.value = (e as Error).message;
-			}
-		}
-	}
-	onMounted(reload);
-	onRevalidate(reload);
-
-	return { data, error, loading: computed(() => !data.value && !error.value) };
 }

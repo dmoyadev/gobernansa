@@ -157,12 +157,12 @@ a, button, summary, label, [role="menuitem"], [role="option"], [role="tab"] {
 	view-transition-name: topbar;
 }
 
-// The finance nav (FinanceNav.vue) is shown live, not crossfaded with a picture of it: its marker glides on its own
-::view-transition-old(finance-nav) {
+// A workspace's nav (WorkspaceNav.vue) is shown live, not crossfaded with a picture of it: its marker glides on its own
+::view-transition-old(workspace-nav) {
 	display: none;
 }
 
-::view-transition-new(finance-nav) {
+::view-transition-new(workspace-nav) {
 	animation: none;
 }
 
@@ -189,8 +189,8 @@ html[data-navigation="back"] {
 	}
 }
 
-// Between finance pages (AdminLayout): down or up the nav as the sections are ordered in it, sideways between a section's tabs
-html[data-finance-move="down"] {
+// Between pages of a workspace (AdminLayout): down or up the nav as the sections are ordered in it, sideways between a section's tabs
+html[data-workspace-move="down"] {
 	&::view-transition-old(root) {
 		animation-name: vt-out-up;
 	}
@@ -200,7 +200,7 @@ html[data-finance-move="down"] {
 	}
 }
 
-html[data-finance-move="up"] {
+html[data-workspace-move="up"] {
 	&::view-transition-old(root) {
 		animation-name: vt-out-down;
 	}
@@ -210,7 +210,7 @@ html[data-finance-move="up"] {
 	}
 }
 
-html[data-finance-move="back"] {
+html[data-workspace-move="back"] {
 	&::view-transition-old(root) {
 		animation-name: vt-out-back;
 	}

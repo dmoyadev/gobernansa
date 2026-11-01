@@ -33,6 +33,20 @@ export async function total(source: Query) {
 	return snapshot.data().amount ?? 0;
 }
 
+// Shared while in flight: the widget and the Vecinos tile ask for it at once on the same visit
+const registrations = new Map<string, Promise<{ registered: number; homes: number }>>();
+async function registration(communityId: string) {
+	let counts = registrations.get(communityId);
+	if (!counts) {
+		counts = Promise.all([
+			getCountFromServer(query(collection(db, 'users'), where('communityId', '==', communityId), where('role', '==', 'user'))),
+			getCountFromServer(query(collection(db, 'properties'), where('communityId', '==', communityId), where('type', '==', 'home'))),
+		]).then(([registered, homes]) => ({ registered: registered.data().count, homes: homes.data().count })).finally(() => registrations.delete(communityId));
+		registrations.set(communityId, counts);
+	}
+	return counts;
+}
+
 // What the widgets read, each once per visit and only when a visible widget needs it.
 // No composite indexes: equality filters only, or a single range filter
 export function dashboardSources(communityId: string) {
@@ -49,13 +63,7 @@ export function dashboardSources(communityId: string) {
 		resolvedIssues: async () => (await docs<Issue>(query(community('issues'), where('resolvedAt', '>=', since), limit(MAX_DOCS))))
 			.filter(issue => !issue.deletedAt && (issue.status === 'resolved' || issue.status === 'closed') && issue.createdAt),
 		newIssues: async () => (await docs<Issue>(query(community('issues'), where('createdAt', '>=', since), limit(MAX_DOCS)))).filter(issue => !issue.deletedAt),
-		registration: async () => {
-			const [registered, homes] = await Promise.all([
-				getCountFromServer(query(collection(db, 'users'), where('communityId', '==', communityId), where('role', '==', 'user'))),
-				getCountFromServer(query(collection(db, 'properties'), where('communityId', '==', communityId), where('type', '==', 'home'))),
-			]);
-			return { registered: registered.data().count, homes: homes.data().count };
-		},
+		registration: async () => registration(communityId),
 		properties: async () => docs<Property>(query(collection(db, 'properties'), where('communityId', '==', communityId), limit(MAX_DOCS))),
 		obligations: async () => docs<Obligation>(community('obligations')),
 		unpaidCharges: async () => docs<Charge>(query(community('charges'), where('paidAt', '==', null))),
@@ -93,3 +101,14 @@ export function dashboardSources(communityId: string) {
 export type DashboardSources = ReturnType<typeof dashboardSources>;
 export type DashboardSource = keyof DashboardSources;
 export type DashboardData = { [K in DashboardSource]?: Awaited<ReturnType<DashboardSources[K]>> };
+
+// The Vecinos tile's: the registration widget's counts, shared with it, plus the properties and the pending invitations
+export async function loadNeighbourFigures(communityId: string) {
+	const count = async (source: Query) => (await getCountFromServer(source)).data().count;
+	const [counts, properties, invitations] = await Promise.all([
+		registration(communityId),
+		count(query(collection(db, 'properties'), where('communityId', '==', communityId))),
+		count(query(collection(db, 'invitations'), where('communityId', '==', communityId))),
+	]);
+	return { ...counts, properties, invitations };
+}

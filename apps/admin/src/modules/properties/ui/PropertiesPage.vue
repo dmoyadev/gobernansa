@@ -4,7 +4,6 @@ import { formatCoefficient, propertyTypeIcons, propertyTypeLabels, totalCoeffici
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
-import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
@@ -121,7 +120,6 @@ function ownerLabel(property: Property) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Propiedades</h1>
 	</header>
 

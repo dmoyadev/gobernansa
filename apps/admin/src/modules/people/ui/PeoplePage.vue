@@ -129,7 +129,8 @@ function cancel(invitation: Invitation & { id: string }) {
 
 <template>
 	<header class="page-header">
-		<BackButton :to="communityId ? `/communities/${communityId}` : '/'" :label="communityId ? 'Volver a la comunidad' : 'Volver a comunidades'" />
+		<!-- A community's has the nav of its workspace instead -->
+		<BackButton v-if="!communityId" to="/" label="Volver a comunidades" />
 		<h1>{{ communityId ? 'Vecinos y gestores' : 'Administradores' }}</h1>
 	</header>
 

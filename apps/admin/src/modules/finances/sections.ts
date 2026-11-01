@@ -1,21 +1,7 @@
-export interface FinancePage {
-	// Its route, /communities/:id/<key>
-	key: string;
-	title: string;
-	description: string;
-	// Its own in search, when not its section's
-	icon?: string;
-}
-
-export interface FinanceSection {
-	title: string;
-	icon: string;
-	// It opens on the first one. With more than one, each is a tab of the section
-	pages: FinancePage[];
-}
+import type { WorkspaceGroup } from '@/app/workspace/workspaces.ts';
 
 // The community's finance pages by what they're for: the groups and sections of the Finanzas nav, and its tabs
-export const financeGroups: { title: string; sections: FinanceSection[] }[] = [
+export const financeGroups: WorkspaceGroup[] = [
 	{
 		title: 'Cobros',
 		sections: [
@@ -75,21 +61,3 @@ export const financeGroups: { title: string; sections: FinanceSection[] }[] = [
 		],
 	},
 ];
-
-// Each page's section, by its key: what a route's meta.finance names
-export const financeSectionOf = new Map(financeGroups.flatMap(group => group.sections).flatMap(section => section.pages.map(page => [page.key, section])));
-
-// The sections as the nav lists them, the summary first
-const sectionOrder = financeGroups.flatMap(group => group.sections);
-
-// How the page moves from one finance page to another: sideways within a section's tabs (back when to an earlier one), otherwise
-// down or up as their sections are in the nav
-export function financeMove(from: string, to: string) {
-	const [previous, next] = [financeSectionOf.get(from), financeSectionOf.get(to)];
-	if (previous && previous === next) {
-		const index = (key: string) => next.pages.findIndex(page => page.key === key);
-		return index(to) < index(from) ? 'back' : 'forward';
-	}
-	const position = (section?: FinanceSection) => section ? sectionOrder.indexOf(section) : -1;
-	return position(next) < position(previous) ? 'up' : 'down';
-}

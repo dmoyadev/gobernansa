@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
-import type { Timestamp } from 'firebase/firestore';
 import type { ComponentPublicInstance } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { contactTypes, documentTypes, getCommonAreas, isWithinSchedule } from '@gobernansa/shared/domain/community.ts';
+import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
+import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
@@ -11,25 +11,27 @@ import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, nextTick, onActivated, onDeactivated, onMounted, ref, useId, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import { onRevalidate } from '@/app/ux/navigation.ts';
+import { onRevalidate, useRevalidated } from '@/app/ux/navigation.ts';
 import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
-import { loadTileFigures, useFinanceSummary } from '@/modules/finances/application/useFinanceSummary.ts';
-import { financeSectionOf } from '@/modules/finances/sections.ts';
+import { workspaces } from '@/app/workspace/workspaces.ts';
+import { loadTileFigures } from '@/modules/finances/application/useFinanceSummary.ts';
 import { loadCommunity } from '../application/useCommunities.ts';
+import { loadNeighbourFigures } from '../application/useCommunityDashboard.ts';
 import CommunityDashboard from './CommunityDashboard.vue';
 import CommunitySearch from './CommunitySearch.vue';
 
 const props = defineProps<{ id: string }>();
 
 const SPACES_REGEX = /\s/g;
-const LAYOUT_KEY = 'gobernansa.admin.communityLayout';
+// v2 since the tiles were merged into workspaces, so everyone gets the new default
+const LAYOUT_KEY = 'gobernansa.admin.communityLayout.v2';
 
 // 1 is one cell of the bento, 2 two side by side and 4 a square of two by two. Bigger tiles show more
 type TileSize = 1 | 2 | 4;
 
 interface Tile {
-	// The page it opens, /communities/:id/<key>: the form of a section or a page of its own
+	// The page it opens, /communities/:id/<key>: a page of its own or the first of a workspace
 	key: string;
 	title: string;
 	icon: string;
@@ -40,25 +42,20 @@ interface Tile {
 	size: TileSize;
 }
 
-// In their default order and size, the general info first and big, then the sections and the pages
+// In their default order and size, the community's data first and big, then its workspaces and the pages filling the rows
 const allTiles: Tile[] = [
-	{ key: 'info', title: 'Datos generales', icon: 'lucide:building-2', description: 'Nombre, dirección, CIF, IBAN y banco', sizes: [1, 2, 4], size: 4 },
-	{ key: 'contacts', title: 'Contactos', icon: 'lucide:phone', description: 'Teléfonos y horarios que ven los vecinos', sizes: [1, 2, 4], size: 2 },
-	{ key: 'documents', title: 'Documentación oficial', icon: 'lucide:file-text', description: 'Estatutos, normas, seguro y actas', sizes: [1, 2, 4], size: 2 },
-	{ key: 'locations', title: 'Zonas comunes y reservas', icon: 'lucide:map-pin', description: 'Lugares de los avisos y zonas que se reservan', sizes: [1, 2, 4], size: 2 },
-	{ key: 'settings', title: 'Configuración de la comunidad', icon: 'lucide:settings-2', description: 'Ajustes propios de esta comunidad, como los votos de sus vecinos', sizes: [1, 2], size: 2 },
-	{ key: 'people', title: 'Vecinos y gestores', icon: 'lucide:users', description: 'Cuentas, roles e invitaciones', details: 'Invita a vecinos y gestores, cambia sus roles y revisa los documentos que suben.', sizes: [1, 2], size: 1 },
-	{ key: 'issues', title: 'Incidencias', icon: 'lucide:message-square-warning', description: 'Estado y respuestas a los vecinos', details: 'Revisa lo que avisan los vecinos, cambia su estado y respóndeles.', sizes: [1, 2], size: 1 },
-	{ key: 'notifications', title: 'Avisos', icon: 'lucide:bell', description: 'Avisos y eventos de la comunidad', details: 'Publica avisos y eventos que llegan a todos los vecinos de la comunidad.', sizes: [1, 2], size: 1 },
-	{ key: 'properties', title: 'Propiedades', icon: 'lucide:house', description: 'Censo con coeficientes, propietarios e inquilinos', details: 'Viviendas, locales y garajes con su coeficiente, sus propietarios e inquilinos.', sizes: [1, 2], size: 1 },
-	{ key: 'meetings', title: 'Juntas', icon: 'lucide:gavel', description: 'Convocatorias, asistencia y votaciones', details: 'Convoca juntas, lleva la asistencia, recoge las votaciones y redacta el acta.', sizes: [1, 2], size: 1 },
+	{ key: 'info', title: 'Comunidad', icon: 'lucide:building-2', description: 'Datos generales, contactos, documentación y configuración', sizes: [1, 2, 4], size: 4 },
+	{ key: 'people', title: 'Vecinos', icon: 'lucide:users', description: 'Propiedades, cuentas e invitaciones', sizes: [1, 2], size: 2 },
 	{ key: 'finances', title: 'Finanzas', icon: 'lucide:wallet', description: 'Pendiente de cobro, facturas vencidas y banco', sizes: [1, 2], size: 2 },
+	{ key: 'issues', title: 'Incidencias', icon: 'lucide:message-square-warning', description: 'Estado y respuestas a los vecinos', details: 'Revisa lo que avisan los vecinos, cambia su estado y respóndeles.', sizes: [1, 2], size: 2 },
+	{ key: 'meetings', title: 'Juntas', icon: 'lucide:gavel', description: 'Convocatorias, asistencia y votaciones', details: 'Convoca juntas, lleva la asistencia, recoge las votaciones y redacta el acta.', sizes: [1, 2], size: 2 },
+	{ key: 'locations', title: 'Zonas comunes y reservas', icon: 'lucide:map-pin', description: 'Lugares de los avisos y zonas que se reservan', sizes: [1, 2, 4], size: 2 },
+	{ key: 'notifications', title: 'Avisos', icon: 'lucide:bell', description: 'Avisos y eventos de la comunidad', details: 'Publica avisos y eventos que llegan a todos los vecinos de la comunidad.', sizes: [1, 2], size: 1 },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', description: 'IEE, ascensor, extintores, seguro…', details: 'Vencimientos de inspecciones, revisiones y seguros, con su proveedor y aviso previo.', sizes: [1, 2], size: 1 },
-	{ key: 'activity', title: 'Registro de actividad', icon: 'lucide:history', description: 'Quién cambió qué', details: 'Quién cambió qué y cuándo en esta comunidad, para revisar o explicar un cambio.', sizes: [1, 2], size: 1 },
 ];
 const tilesByKey = new Map(allTiles.map(tile => [tile.key, tile]));
 // The tiles showing the community's data, skeletons until it's loaded
-const dataKeys = ['info', 'contacts', 'documents', 'locations', 'settings'];
+const dataKeys = ['info', 'locations'];
 const sizeLabels: Record<TileSize, string> = { 1: 'pequeña', 2: 'ancha', 4: 'grande' };
 // Placeholder lines while the community loads, as many as the tile shows and as wide as real ones tend to be
 const SKELETON_WIDTHS = [72, 54, 80, 46, 64, 58];
@@ -96,25 +93,30 @@ useShortcut('e', () => void router.push(`/communities/${props.id}/info`), 'Edita
 
 // What the tiles show, from the community already loaded: no reads of their own
 const contacts = computed(() => community.value?.contacts ?? []);
-// Newest first
-const documents = computed(() => [...(community.value?.documents ?? [])].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
+const documents = computed(() => community.value?.documents ?? []);
 const commonAreas = computed(() => getCommonAreas(community.value));
 const bookableAreas = computed(() => commonAreas.value.filter(area => area.booking));
 // The same figures as the Finanzas summary, the cheaper ones
-const { data: finances, loading: financesLoading } = useFinanceSummary(async () => loadTileFigures(props.id));
-const missing = computed(() => [
-	!community.value?.cif || !community.value.iban ? 'Datos fiscales' : '',
-	!contacts.value.length ? 'Contactos' : '',
-	!documents.value.length ? 'Documentación oficial' : '',
-	!commonAreas.value.length ? 'Zonas comunes' : '',
-].filter(Boolean));
+const { data: finances, loading: financesLoading } = useRevalidated(async () => loadTileFigures(props.id));
+// Counts of the neighbours' pages, 4 reads
+const { data: neighbours, loading: neighboursLoading } = useRevalidated(async () => loadNeighbourFigures(props.id));
+const adoption = computed(() => neighbours.value?.homes ? Math.min(100, Math.round(neighbours.value.registered / neighbours.value.homes * 100)) : undefined);
+
+const summary = computed(() => `${count(contacts.value.length, 'contacto', 'contactos')} · ${count(documents.value.length, 'documento', 'documentos')} · ${count(community.value?.monthlyVotes ?? DEFAULT_MONTHLY_VOTES, 'voto', 'votos')} al mes`);
+// What the community lacks, each opening the section where it's filled in
+const flags = computed(() => {
+	const { cif, iban } = community.value ?? {};
+	return [
+		!cif || !isValidNif(cif) ? { label: cif ? 'CIF no válido' : 'Sin CIF', short: 'CIF', section: 'info' } : undefined,
+		!iban || !isValidIban(iban) ? { label: iban ? 'IBAN no válido' : 'Sin IBAN', short: 'IBAN', section: 'info' } : undefined,
+		!documents.value.some(document => document.type === 'insurance') ? { label: 'Sin póliza del seguro', short: 'póliza del seguro', section: 'documents' } : undefined,
+		!contacts.value.length ? { label: 'Sin contactos', short: 'contactos', section: 'contacts' } : undefined,
+	].filter(flag => !!flag);
+});
+const missing = computed(() => `Por completar: ${flags.value.map(flag => flag.short).join(', ')}`);
 
 function count(total: number, one: string, many: string) {
 	return `${total} ${total === 1 ? one : many}`;
-}
-
-function formatDate(date: Timestamp) {
-	return date.toDate().toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /* Fiscal data */
@@ -202,18 +204,24 @@ function focusSibling(event: KeyboardEvent, items: HTMLElement[], onMove?: () =>
 }
 
 /* "Ir a…" submenu */
+// A section of a workspace by the key of its first page, as the nav names it
+function workspaceSection(workspace: string, key: string) {
+	const { title, icon } = workspaces[workspace].sectionOf.get(key)!;
+	return { key, label: title, icon };
+}
 const goSections = computed(() => [
 	{ key: 'issues', label: 'Incidencias', icon: 'lucide:message-square-warning' },
-	{ key: 'people', label: 'Vecinos y gestores', icon: 'lucide:users' },
-	{ key: 'properties', label: 'Propiedades', icon: 'lucide:house' },
+	workspaceSection('neighbours', 'people'),
+	workspaceSection('neighbours', 'properties'),
 	{ key: 'meetings', label: 'Juntas', icon: 'lucide:gavel' },
-	{ key: 'finances', label: 'Finanzas', icon: 'lucide:wallet' },
-	...['charges', 'budget'].map(key => ({ key, label: financeSectionOf.get(key)!.title, icon: financeSectionOf.get(key)!.icon })),
+	{ key: 'finances', label: workspaces.finances.title, icon: workspaces.finances.summary!.icon },
+	workspaceSection('finances', 'charges'),
+	workspaceSection('finances', 'budget'),
 	{ key: 'obligations', label: 'Obligaciones', icon: 'lucide:calendar-check' },
 	{ key: 'locations', label: 'Zonas comunes', icon: 'lucide:map-pin' },
 	{ key: 'notifications', label: 'Avisos', icon: 'lucide:bell' },
 	{ key: 'activity', label: 'Registro de actividad', icon: 'lucide:history' },
-	{ key: 'info', label: 'Datos de la comunidad', icon: 'lucide:building-2' },
+	workspaceSection('community', 'info'),
 ].map(section => ({ ...section, to: `/communities/${props.id}/${section.key}` })));
 
 const GO_CLOSE_MS = 300;
@@ -331,9 +339,14 @@ function loadLayout(): LayoutItem[] {
 }
 
 const layout = ref(loadLayout());
+// Only what the admin changed, so a new default reaches those who didn't
 watch(layout, (value) => {
 	try {
-		localStorage.setItem(LAYOUT_KEY, JSON.stringify(value));
+		if (JSON.stringify(value) === JSON.stringify(defaultLayout)) {
+			localStorage.removeItem(LAYOUT_KEY);
+		} else {
+			localStorage.setItem(LAYOUT_KEY, JSON.stringify(value));
+		}
 	} catch {
 		// The layout just won't be remembered
 	}
@@ -614,16 +627,34 @@ useEventListener(window, 'pointerup', disarm);
 						empty-text="Aún no hay datos fiscales."
 					>
 						<RouterLink v-if="!editing" class="stretched" :to="`/communities/${id}/info`" aria-label="Editar los datos generales" />
+						<!-- No room for them under the card: how many, in its corner, opening the first -->
+						<RouterLink
+							v-if="tile.size === 2 && flags.length && !editing"
+							class="flag flag-count"
+							:to="`/communities/${id}/${flags[0].section}`"
+							:title="missing"
+							:aria-label="missing"
+						>
+							<LnxIcon icon="lucide:circle-alert" :size="14" aria-hidden="true" />
+							{{ flags.length }} por completar
+						</RouterLink>
 					</CommunityBusinessCard>
 					<div v-if="tile.size === 4" class="card-actions">
 						<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" size="small" @click="copy(label, value)">
 							<LnxIcon :icon="copied === label ? 'lucide:check' : 'lucide:copy'" />
 							{{ copied === label ? 'Copiado' : `Copiar ${label}` }}
 						</LnxButton>
-						<p v-if="missing.length" class="missing">
-							<LnxIcon icon="lucide:circle-dashed" :size="14" aria-hidden="true" />
-							Por completar: {{ missing.join(', ') }}
+						<p class="summary-line tabular">
+							{{ summary }}
 						</p>
+						<ul v-if="flags.length && !editing" class="flags" aria-label="Por completar">
+							<li v-for="flag in flags" :key="flag.label">
+								<RouterLink class="flag" :to="`/communities/${id}/${flag.section}`">
+									<LnxIcon icon="lucide:circle-alert" :size="14" aria-hidden="true" />
+									{{ flag.label }}
+								</RouterLink>
+							</li>
+						</ul>
 					</div>
 				</div>
 
@@ -643,47 +674,44 @@ useEventListener(window, 'pointerup', disarm);
 						<LnxIcon v-if="!editing" class="arrow" icon="lucide:arrow-up-right" :size="18" aria-hidden="true" />
 					</header>
 
-					<div v-if="(loading && dataKeys.includes(tile.key)) || (tile.key === 'finances' && financesLoading)" class="body" aria-hidden="true">
+					<div v-if="(loading && dataKeys.includes(tile.key)) || (tile.key === 'finances' && financesLoading) || (tile.key === 'people' && neighboursLoading)" class="body" aria-hidden="true">
 						<span v-for="width in skeletonLines(tile.size)" :key="width" class="skeleton-item skeleton-item--small" :style="{ width: `${width}%` }" />
 					</div>
 
-					<div v-else-if="tile.key === 'contacts'" class="body">
-						<p v-if="!contacts.length" class="empty">
-							Aún no hay contactos
+					<div v-else-if="tile.key === 'info'" class="body">
+						<p v-if="flags.length" class="flagged">
+							<LnxIcon icon="lucide:circle-alert" :size="14" aria-hidden="true" />
+							{{ missing }}
 						</p>
-						<p v-else-if="tile.size === 1">
-							<span class="tabular">{{ count(contacts.length, 'contacto', 'contactos') }}</span>
+						<p v-else class="tabular">
+							{{ summary }}
 						</p>
-						<ul v-else class="lines">
-							<li v-for="contact in contacts.slice(0, tile.size === 4 ? 6 : 3)" :key="contact.name" :class="{ row: tile.size === 4 }">
-								<span class="text">{{ contact.name }} · {{ contactTypes[contact.type]?.label }}</span>
-								<template v-if="tile.size === 4">
-									<span v-if="contact.phone" class="secondary tabular">{{ contact.phone }}</span>
-									<span v-if="contact.schedule?.length" class="availability" :class="{ available: isWithinSchedule(contact.schedule) }">
-										{{ isWithinSchedule(contact.schedule) ? 'Disponible ahora' : 'Fuera de horario' }}
-									</span>
-								</template>
-							</li>
-							<li v-if="contacts.length > (tile.size === 4 ? 6 : 3)" class="more">
-								y {{ contacts.length - (tile.size === 4 ? 6 : 3) }} más
-							</li>
-						</ul>
 					</div>
 
-					<div v-else-if="tile.key === 'documents'" class="body">
-						<p v-if="!documents.length" class="empty">
-							Aún no hay documentos
+					<div v-else-if="tile.key === 'people'" class="body">
+						<p v-if="!neighbours" class="empty">
+							No se han podido cargar las cifras
 						</p>
-						<p v-else-if="tile.size === 1">
-							<span class="tabular">{{ count(documents.length, 'documento', 'documentos') }}</span>
-						</p>
+						<template v-else-if="tile.size === 1">
+							<p class="tabular">
+								{{ count(neighbours.properties, 'propiedad', 'propiedades') }}
+							</p>
+							<p v-if="adoption !== undefined" class="secondary tabular">
+								{{ adoption }}% de las viviendas en la app
+							</p>
+						</template>
 						<ul v-else class="lines">
-							<li v-for="document in documents.slice(0, tile.size === 4 ? 6 : 3)" :key="document.url" :class="{ row: tile.size === 4 }">
-								<span class="text">{{ document.title }}</span>
-								<span v-if="tile.size === 4" class="secondary tabular">{{ documentTypes[document.type]?.label }} · {{ formatDate(document.date) }}</span>
+							<li class="row">
+								<span class="text">Propiedades</span>
+								<span class="secondary tabular">{{ neighbours.properties }}</span>
 							</li>
-							<li v-if="documents.length > (tile.size === 4 ? 6 : 3)" class="more">
-								y {{ documents.length - (tile.size === 4 ? 6 : 3) }} más
+							<li class="row">
+								<span class="text">Vecinos con cuenta</span>
+								<span class="secondary tabular">{{ neighbours.registered }}{{ adoption !== undefined ? ` · ${adoption}% de las viviendas` : '' }}</span>
+							</li>
+							<li class="row">
+								<span class="text">Invitaciones pendientes</span>
+								<span class="secondary tabular">{{ neighbours.invitations || 'Ninguna' }}</span>
 							</li>
 						</ul>
 					</div>
@@ -741,15 +769,6 @@ useEventListener(window, 'pointerup', disarm);
 								<span class="secondary tabular">{{ finances.unreconciled || 'Ninguno' }}</span>
 							</li>
 						</ul>
-					</div>
-
-					<div v-else-if="tile.key === 'settings' && tile.size > 1" class="body">
-						<p class="lead tabular">
-							{{ community?.monthlyVotes ?? DEFAULT_MONTHLY_VOTES }} votos al mes por vecino
-						</p>
-						<p class="secondary">
-							Con ellos, cada vecino apoya las incidencias que más le importan.
-						</p>
 					</div>
 
 					<div v-else class="body">
@@ -1185,8 +1204,7 @@ useEventListener(window, 'pointerup', disarm);
 	}
 
 	.secondary,
-	.empty,
-	.more {
+	.empty {
 		color: var(--color-gray-6);
 	}
 
@@ -1243,30 +1261,6 @@ useEventListener(window, 'pointerup', disarm);
 			color: var(--color-gray-8);
 		}
 	}
-
-	.availability {
-		flex-shrink: 0;
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		color: var(--color-gray-6);
-
-		&::before {
-			content: '';
-			width: 8px;
-			height: 8px;
-			border-radius: var(--lnx-radius-circle);
-			background: var(--color-gray-4);
-		}
-
-		&.available {
-			color: var(--color-issue-status-resolved);
-
-			&::before {
-				background: var(--color-issue-status-resolved);
-			}
-		}
-	}
 }
 
 // The title's link covers the whole tile, so the tile opens from anywhere and controls can sit above it
@@ -1315,14 +1309,52 @@ useEventListener(window, 'pointerup', disarm);
 	align-items: center;
 	gap: var(--lnx-spacing-2);
 
-	.missing {
+	.summary-line {
 		flex-basis: 100%;
-		display: flex;
-		align-items: center;
-		gap: var(--lnx-spacing-1);
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-small);
 	}
+}
+
+// What's missing, as tinted badges that open where it's filled in
+.flags {
+	flex-basis: 100%;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-1);
+}
+
+.flag {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-4);
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	background: color-mix(in srgb, var(--color-secondary-accent) 12%, var(--color-gray-0));
+	color: color-mix(in srgb, var(--color-secondary-accent), var(--color-gray-9) 35%);
+	font-size: var(--lnx-font-size-small);
+	text-decoration: none;
+
+	&:hover {
+		background: color-mix(in srgb, var(--color-secondary-accent) 20%, var(--color-gray-0));
+	}
+
+	&:active {
+		scale: var(--press-scale);
+	}
+}
+
+// In the card's corner, above its link and tilting with it. The name makes room for it
+.flag-count {
+	position: absolute;
+	top: var(--lnx-spacing-3);
+	right: var(--lnx-spacing-3);
+	z-index: 2;
+	box-shadow: 0 1px 2px #0000000F;
+}
+
+.card-tile:has(.flag-count) :deep(.brand h2) {
+	padding-right: 8.5rem;
 }
 
 // The main tile when small, in the brand colour
@@ -1352,6 +1384,10 @@ useEventListener(window, 'pointerup', disarm);
 
 	.body {
 		margin-top: auto;
+	}
+
+	.flagged {
+		color: var(--color-primary-accent);
 	}
 }
 

@@ -1,7 +1,7 @@
 import type { Router } from 'vue-router';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc } from 'firebase/firestore';
-import { nextTick, onActivated } from 'vue';
+import { computed, nextTick, onActivated, onMounted, ref, shallowRef } from 'vue';
 
 const UPDATE_TIMEOUT_MS = 1500;
 
@@ -94,6 +94,27 @@ export function onRevalidate(refresh: () => unknown) {
 		}
 		first = false;
 	});
+}
+
+// Read again each time the page comes back, showing the last data meanwhile. A failed reread keeps them
+export function useRevalidated<T>(load: () => Promise<T>) {
+	const data = shallowRef<T>();
+	const error = ref<string>();
+
+	async function reload() {
+		try {
+			data.value = await load();
+			error.value = undefined;
+		} catch (e) {
+			if (!data.value) {
+				error.value = (e as Error).message;
+			}
+		}
+	}
+	onMounted(reload);
+	onRevalidate(reload);
+
+	return { data, error, loading: computed(() => !data.value && !error.value) };
 }
 
 // Idempotency key: a new document's id, made when its form opens instead of when it's sent. Sending twice, or again

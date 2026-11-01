@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import type { FinanceSection } from '../sections.ts';
+import type { Workspace, WorkspaceSection } from './workspaces.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useEventListener } from '@/app/ux/shortcuts.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { financeGroups, financeSectionOf } from '../sections.ts';
 
-// Beside every finance page, kept mounted by the layout while moving between them
+// Beside every page of a workspace, kept mounted by the layout while moving between them
+const props = defineProps<{ workspace: Workspace; page: string }>();
+
 const route = useRoute();
 const navId = useId();
 const nav = useTemplateRef('nav');
 
 const communityId = computed(() => route.params.id as string);
-const current = computed(() => route.meta.finance as string);
 const base = computed(() => `/communities/${communityId.value}`);
 
-// A read when entering the finances of a community, the generic name until then or if it fails
+// A read when entering a workspace of a community, the generic name until then or if it fails
 const name = ref<string>();
 watch(communityId, async (id) => {
 	name.value = undefined;
@@ -27,8 +27,8 @@ watch(communityId, async (id) => {
 }, { immediate: true });
 
 // The page itself, or its section when on another tab or a detail page of it
-function ariaCurrent(to: string, section?: FinanceSection) {
-	return route.path === to ? 'page' : section && financeSectionOf.get(current.value) === section ? 'true' : undefined;
+function ariaCurrent(to: string, section?: WorkspaceSection) {
+	return route.path === to ? 'page' : section && props.workspace.sectionOf.get(props.page) === section ? 'true' : undefined;
 }
 
 // One background under the active one, gliding from the last to it rather than one going and another appearing.
@@ -47,7 +47,7 @@ function placeMarker() {
 useEventListener(window, 'resize', placeMarker);
 
 // As a strip on phones, the active one is centred in it. Only the strip scrolls: the window keeps the position going back restores
-watch(current, async () => {
+watch(() => props.page, async () => {
 	await nextTick();
 	const active = nav.value?.querySelector<HTMLElement>('[aria-current]');
 	if (nav.value && active && nav.value.scrollWidth > nav.value.clientWidth) {
@@ -64,7 +64,7 @@ watch(name, async () => {
 </script>
 
 <template>
-	<nav ref="nav" class="finance-nav" aria-label="Finanzas">
+	<nav ref="nav" class="workspace-nav" :aria-label="workspace.title">
 		<span
 			v-if="marker"
 			class="marker"
@@ -76,13 +76,14 @@ watch(name, async () => {
 			<LnxIcon icon="lucide:arrow-left" :size="16" aria-hidden="true" />
 			<span>{{ name || 'Comunidad' }}</span>
 		</RouterLink>
-		<RouterLink :to="`${base}/finances`" :aria-current="ariaCurrent(`${base}/finances`)">
+		<RouterLink v-if="workspace.summary" :to="`${base}/${workspace.summary.key}`" :aria-current="ariaCurrent(`${base}/${workspace.summary.key}`)">
 			<LnxIcon icon="lucide:layout-dashboard" :size="16" aria-hidden="true" />
 			Resumen
 		</RouterLink>
-		<div v-for="(group, index) in financeGroups" :key="group.title" class="group">
-			<span :id="`${navId}-${index}`" class="group-title">{{ group.title }}</span>
-			<ul :aria-labelledby="`${navId}-${index}`">
+		<!-- Headed only when there's more than one -->
+		<div v-for="(group, index) in workspace.groups" :key="index" class="group" :class="{ single: workspace.groups.length === 1 }">
+			<span v-if="workspace.groups.length > 1" :id="`${navId}-${index}`" class="group-title">{{ group.title }}</span>
+			<ul :aria-labelledby="workspace.groups.length > 1 ? `${navId}-${index}` : undefined">
 				<li v-for="section in group.sections" :key="section.title">
 					<RouterLink :to="`${base}/${section.pages[0].key}`" :aria-current="ariaCurrent(`${base}/${section.pages[0].key}`, section)">
 						<LnxIcon :icon="section.icon" :size="16" aria-hidden="true" />
@@ -95,7 +96,7 @@ watch(name, async () => {
 </template>
 
 <style lang="scss" scoped>
-.finance-nav {
+.workspace-nav {
 	position: sticky;
 	top: calc(64px + var(--lnx-spacing-6));
 	max-height: calc(100dvh - 64px - var(--lnx-spacing-6) * 2);
@@ -104,7 +105,7 @@ watch(name, async () => {
 	flex-direction: column;
 	gap: var(--lnx-spacing-1);
 	// Still while the page beside it changes
-	view-transition-name: finance-nav;
+	view-transition-name: workspace-nav;
 }
 
 .marker {
@@ -162,6 +163,10 @@ a {
 .group {
 	margin-top: var(--lnx-spacing-3);
 
+	&.single {
+		margin-top: 0;
+	}
+
 	.group-title {
 		display: block;
 		margin-bottom: var(--lnx-spacing-1);
@@ -184,14 +189,14 @@ a {
 }
 
 @media print {
-	.finance-nav {
+	.workspace-nav {
 		display: none;
 	}
 }
 
 // A strip that scrolls sideways out to the screen's edges, fading at the end so it shows there's more. The groups' names stay for screen readers
 @media (max-width: 900px) {
-	.finance-nav {
+	.workspace-nav {
 		position: relative;
 		top: 0;
 		max-height: none;
@@ -233,7 +238,7 @@ a {
 
 // The page's side padding is smaller on phones
 @media (max-width: 640px) {
-	.finance-nav {
+	.workspace-nav {
 		margin: 0 calc(var(--lnx-spacing-4) * -1);
 		padding: 0 var(--lnx-spacing-4) var(--lnx-spacing-2);
 	}

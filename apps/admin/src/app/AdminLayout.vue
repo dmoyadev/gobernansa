@@ -4,13 +4,13 @@ import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { financeMove } from '@/modules/finances/sections.ts';
-import FinanceNav from '@/modules/finances/ui/FinanceNav.vue';
-import FinanceTabs from '@/modules/finances/ui/FinanceTabs.vue';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 import { useSearchHighlight } from './useSearchHighlight.ts';
 import { shortcutTitle, useShortcut } from './ux/shortcuts.ts';
 import Toaster from './ux/Toaster.vue';
+import WorkspaceNav from './workspace/WorkspaceNav.vue';
+import { workspaceMove, workspacePage } from './workspace/workspaces.ts';
+import WorkspaceTabs from './workspace/WorkspaceTabs.vue';
 
 const route = useRoute();
 const { user, logout } = useAuth();
@@ -37,18 +37,20 @@ const managers = useCommunityManagers(() => user.value?.role === 'user' ? user.v
 // Search results open their page with the text they matched highlighted
 useSearchHighlight(useTemplateRef('content'));
 
-// Finance pages (meta.finance, their own key or their parent's) have their nav beside them, mounted while moving between them
-const finance = computed(() => access.value === 'granted' && !!route.meta.finance);
-// Which way the page moves between two of them, for the transition (interactions.scss): a section's tabs sideways, otherwise down
-// or up the nav. Set before the old page is captured
+// Pages of a workspace (meta.workspace, workspaces.ts) have its nav beside them, mounted while moving between them
+const current = computed(() => access.value === 'granted' ? workspacePage(route) : undefined);
+// Which way the page moves between two of the same workspace, for the transition (interactions.scss): a section's tabs
+// sideways, otherwise down or up the nav. Set before the old page is captured
 const router = useRouter();
 router.beforeEach((to, from) => {
-	const [next, previous] = [to, from].map(page => page.meta.finance as string | undefined);
-	const move = next && previous && next !== previous ? financeMove(previous, next) : undefined;
+	const [next, previous] = [to, from].map(workspacePage);
+	const move = next && previous && next.workspace === previous.workspace && next.page !== previous.page
+		? workspaceMove(next.workspace, previous.page, next.page)
+		: undefined;
 	if (move) {
-		document.documentElement.dataset.financeMove = move;
+		document.documentElement.dataset.workspaceMove = move;
 	} else {
-		delete document.documentElement.dataset.financeMove;
+		delete document.documentElement.dataset.workspaceMove;
 	}
 });
 
@@ -95,11 +97,11 @@ const KEPT_PAGES = 6;
 		</LnxButton>
 	</header>
 
-	<!-- The finance nav beside main, not in it: main holds only the page -->
-	<div class="frame" :class="{ finance }">
-		<FinanceNav v-if="finance" />
+	<!-- The workspace's nav beside main, not in it: main holds only the page -->
+	<div class="frame" :class="{ workspace: current }">
+		<WorkspaceNav v-if="current" :key="current.workspace.title" :workspace="current.workspace" :page="current.page" />
 		<main ref="content">
-			<FinanceTabs v-if="finance" />
+			<WorkspaceTabs v-if="current" :workspace="current.workspace" :page="current.page" />
 			<!-- Always there, so a page without access in between doesn't throw away the kept ones. The community form isn't
 				kept: each section saves the whole community, and a kept one would write back the others' old values -->
 			<RouterView v-slot="{ Component, route: page }">
@@ -210,7 +212,7 @@ const KEPT_PAGES = 6;
 	padding: var(--lnx-spacing-6) var(--lnx-spacing-5) var(--lnx-spacing-8);
 
 	// The nav on the left, the page as wide as the others
-	&.finance {
+	&.workspace {
 		max-width: calc(960px + 220px + var(--lnx-spacing-6));
 		display: grid;
 		grid-template-columns: 220px minmax(0, 1fr);
@@ -254,7 +256,7 @@ const KEPT_PAGES = 6;
 		font-size: 0;
 	}
 
-	.frame.finance {
+	.frame.workspace {
 		grid-template-columns: 180px minmax(0, 1fr);
 		gap: var(--lnx-spacing-5);
 	}
@@ -262,7 +264,7 @@ const KEPT_PAGES = 6;
 
 // Below this the page beside the nav gets too narrow for the wide tables: the nav as a strip above it
 @media (max-width: 900px) {
-	.frame.finance {
+	.frame.workspace {
 		grid-template-columns: minmax(0, 1fr);
 		gap: var(--lnx-spacing-4);
 	}
@@ -275,7 +277,7 @@ const KEPT_PAGES = 6;
 	}
 
 	.frame,
-	.frame.finance {
+	.frame.workspace {
 		max-width: none;
 		padding: 0;
 		display: block;
