@@ -28,11 +28,11 @@ Referencia de producto para decidir y priorizar features de gobernança. Antes d
 
 Las sugerencias y la redacción automática (urgencia y gremio de una incidencia, resumen del hilo, borradores de comunicados, mejora de la redacción del acta) usan los modelos que trae el navegador cuando están disponibles (Chrome) y, si no, reglas y plantillas propias. No envían datos a ningún sitio ni tienen coste.
 
-**Lo que no tenemos y sí tiene la competencia:** cobros, banca y envíos reales: la pasarela de tarjeta y Bizum, el agregador PSD2, la presentación en la AEAT con certificado, el envío de Verifactu, el correo certificado, el burofax y el envío de emails solo existen en modo de prueba hasta contratar un proveedor. Tampoco tenemos app en tiendas (sí PWA instalable), firma cualificada del acta ni recordatorios automáticos por email (necesitan un servidor).
+**Lo que no tenemos y sí tiene la competencia:** cobros, banca y envíos reales: la pasarela de tarjeta y Bizum, el agregador PSD2, la presentación en la AEAT con certificado, el envío de Verifactu, el correo certificado, el burofax y el envío de emails solo existen en modo de prueba hasta contratar un proveedor. Tampoco tenemos app en tiendas (sí PWA instalable), firma cualificada del acta ni recordatorios automáticos por email (necesitan un servidor). Y, más allá de las funciones, faltan las bases para operar con clientes reales: infraestructura, modelo de datos, garantías, monitorización y empresa (sección 9.2).
 
 ### Mantenimiento
 
-- **Al terminar una feature:** actualizar la tabla de estado de arriba, la fila de gobernança en la matriz de funcionalidades (sección 4), sus coordenadas en las matrices (sección 8) si cambian, y quitar o bajar su fila en la tabla de huecos (sección 9.2).
+- **Al terminar una feature:** actualizar la tabla de estado de arriba, la fila de gobernança en la matriz de funcionalidades (sección 4), sus coordenadas en las matrices (sección 8) si cambian, y quitar o bajar su fila en la tabla de huecos (sección 9.2), pasando su identificador a la lista de cerrados con la fecha. Si se cierra un MON o un ROB, también en [fiabilidad.md](fiabilidad.md).
 - **Al cambiar de posicionamiento o precio:** actualizar las secciones 9.1 y 9.5.
 - **Datos de competidores:** caducan rápido (precios, notas en tiendas, versiones). Revisarlos cada 6 meses o antes de una decisión de precio, y cambiar la fecha de corte de arriba. Lo pendiente de verificar está en la sección 10.
 
@@ -474,22 +474,71 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 - **Migrar o convivir:** importar el censo (comunidades, propiedades, propietarios, coeficientes y mandatos SEPA) y la deuda de cada propiedad desde el Excel o CSV de otro programa, y exportar el diario a ContaPlus y a Excel, para entrar aunque el despacho no cambie de ERP el primer día.
 - **Por el lado del vecino,** competir contra el 2,1★ de TucomunidApp y TuAdministrador con un acceso sin fricción (el enlace mágico es una ventaja frente al «no puedo registrarme», que es una queja recurrente) y una experiencia cuidada.
 
-### 9.2 Huecos funcionales, por prioridad
+### 9.2 Huecos, por prioridad
 
-| Prioridad | Función | Por qué | Referencia |
-|---|---|---|---|
-Ya cerrados (01/11/2026): cierre legal de la junta (firma, sellado, notificación con acuse y art. 17.8), importación del censo y de comunidades, PWA instalable, correo saliente en modo de prueba, parte de trabajo para el gremio, sugerencias y redacción automática, comprobación de ficheros, devoluciones SEPA importadas, abonos de la pasarela en la conciliación, entregas a cuenta e intereses de demora. Lo que queda depende sobre todo de contratar proveedores o de un servidor:
+Cada hueco tiene un identificador estable (`FUN-1`, `DAT-2`, `MON-1`…) para referirse a él en conversaciones, issues y commits. Los identificadores no se reutilizan ni se renumeran: al cerrar un hueco, su fila sale de la tabla y su identificador pasa a la lista de cerrados con la fecha.
 
-| Prioridad | Función | Por qué | Referencia |
-|---|---|---|---|
-| P0 | **Activar los cobros reales**: pasarela de tarjeta y Bizum (Stripe Connect o Redsys) a una cuenta de la comunidad | Recibos, entregas a cuenta y reservas con fianza ya se pagan de punta a punta en modo de prueba, y los abonos de la pasarela ya se concilian; falta el proveedor y un servidor que confirme cada pago | ResidenciAPP, Onzane, Colindar |
-| P0 | **Activar el envío real del correo** (extensión Trigger Email con un proveedor SMTP) | Invitaciones, convocatorias, actas, partes de trabajo y reclamaciones ya quedan en el correo saliente con el formato de la extensión; enviarlos necesita el plan de pago de Firebase | Todos |
-| P1 | **Validar los ficheros fiscales y bancarios** en la Sede de la AEAT y en un banco real (347, 190, 184, pain.008, pain.001, XDiario de ContaPlus) | Se generan según los diseños oficiales y se comprueban antes de descargarlos, pero ninguno se ha presentado aún | — |
-| P1 | **App en tiendas**: envolver la PWA (TWA en Google Play, Capacitor en la App Store) | La PWA ya se instala; las notas en tienda son la prueba social del sector. Las cuentas de desarrollador tienen coste | Onzane, TownSq |
-| P1 | **Notificación fehaciente y firma reales del acta** (correo certificado o burofax de un prestador cualificado, firma avanzada) | La firma electrónica simple, el sellado con huella y el acuse en la app ya existen; el canal certificado está en modo de prueba | C365, Plusvecinos (Namirial), VecinApp |
-| P2 | **Conexión bancaria real** (agregador PSD2) y envío de Verifactu a la AEAT con el certificado del despacho | La conciliación y el registro encadenado ya existen; necesitan un proveedor de pago y un servidor, fuera del plan gratuito | Fynkus, Gesfincas, VecinApp |
-| P2 | **Recordatorios automáticos** (vencimientos de obligaciones y recibos, juntas) por email y push | Necesitan tareas programadas en un servidor; hoy se avisan en el panel y en el calendario exportado | Gesfincas, Onzane |
-| P3 | **Burofax real** | Hoy es simulado, con justificante de prueba | ADMINET, TAAF |
+| Grupo | Qué recoge | Dónde |
+|---|---|---|
+| **FUN** | Funciones que tiene la competencia y aquí faltan o están en modo de prueba | Abajo |
+| **INF** | Infraestructura y coste de operar | Abajo |
+| **DAT** | Modelo de datos para clientes reales | Abajo |
+| **GAR** | Garantías sobre los datos | Abajo |
+| **VAL** | Validación oficial y cobertura del mercado | Abajo |
+| **EMP** | Empresa y requisitos legales para poder vender | Abajo |
+| **MON** | Monitorización: ver los fallos antes que el cliente | [fiabilidad.md](fiabilidad.md) |
+| **ROB** | Robustez: evitar los fallos y recuperarse de ellos | [fiabilidad.md](fiabilidad.md) |
+
+**Cerrados:**
+- **01/11/2026, sin identificador:** cierre legal de la junta (firma, sellado, notificación con acuse y art. 17.8), importación del censo y de comunidades, PWA instalable, correo saliente en modo de prueba, parte de trabajo para el gremio, sugerencias y redacción automática, comprobación de ficheros, devoluciones SEPA importadas, abonos de la pasarela en la conciliación, entregas a cuenta e intereses de demora.
+
+#### Funcionales (FUN)
+
+Lo que queda depende sobre todo de contratar proveedores o de un servidor.
+
+| ID | Prioridad | Función | Por qué | Referencia |
+|---|---|---|---|---|
+| FUN-1 | P0 | **Activar los cobros reales**: pasarela de tarjeta y Bizum (Stripe Connect o Redsys) a una cuenta de la comunidad | Recibos, entregas a cuenta y reservas con fianza ya se pagan de punta a punta en modo de prueba, y los abonos de la pasarela ya se concilian; falta el proveedor y un servidor que confirme cada pago (INF-1) | ResidenciAPP, Onzane, Colindar |
+| FUN-2 | P0 | **Activar el envío real del correo** (extensión Trigger Email con un proveedor SMTP) | Invitaciones, convocatorias, actas, partes de trabajo y reclamaciones ya quedan en el correo saliente con el formato de la extensión; enviarlos necesita el plan de pago de Firebase (INF-1) | Todos |
+| FUN-3 | P1 | **App en tiendas**: envolver la PWA (TWA en Google Play, Capacitor en la App Store) | La PWA ya se instala; las notas en tienda son la prueba social del sector. Las cuentas de desarrollador tienen coste | Onzane, TownSq |
+| FUN-4 | P1 | **Notificación fehaciente y firma reales del acta** (correo certificado o burofax de un prestador cualificado, firma avanzada) | La firma electrónica simple, el sellado con huella y el acuse en la app ya existen; el canal certificado está en modo de prueba | C365, Plusvecinos (Namirial), VecinApp |
+| FUN-5 | P2 | **Conexión bancaria real** (agregador PSD2) y envío de Verifactu a la AEAT con el certificado del despacho | La conciliación y el registro encadenado ya existen; necesitan un proveedor de pago y un servidor, fuera del plan gratuito (INF-1) | Fynkus, Gesfincas, VecinApp |
+| FUN-6 | P2 | **Recordatorios automáticos** (vencimientos de obligaciones y recibos, juntas) por email y push | Necesitan tareas programadas en un servidor (INF-1); hoy se avisan en el panel y en el calendario exportado | Gesfincas, Onzane |
+| FUN-7 | P3 | **Burofax real** | Hoy es simulado, con justificante de prueba | ADMINET, TAAF |
+
+#### Para ser una alternativa seria (INF, DAT, GAR, VAL, EMP)
+
+En funciones gobernança ya está a la altura del mercado (sección 8). Lo que falta es lo que hace que un despacho le confíe dinero real y obligaciones legales. Revisado en el código el 02/11/2026.
+
+| ID | Prioridad | Hueco | Situación hoy | Qué hace falta |
+|---|---|---|---|---|
+| INF-1 | P0 | **Plan de pago de Firebase (Blaze) con un servidor mínimo** | Las cuotas del plan gratuito son por proyecto y las comparten todos los clientes: 50.000 lecturas, 20.000 escrituras y 20.000 borrados al día, y 1 GiB guardado. Al agotarse, la app falla para todos hasta que se reinicia la cuota, hacia las 9:00 en la España peninsular. Sin servidor, un pago lo da por bueno el navegador del vecino, y no hay correo, recordatorios ni copias programadas | Pasar a Blaze con el primer cliente real: conserva la misma cuota gratuita y solo cobra lo que la supere. Alerta de presupuesto desde el primer día. Desbloquea FUN-1, FUN-2, FUN-5, FUN-6 y ROB-2 |
+| INF-2 | P1 | **Lecturas por pantalla** | Cada recibo, asiento o movimiento es un documento. Estimación propia: abrir las finanzas de todas las comunidades de un despacho mediano puede leer decenas de miles de documentos | Medir lo que lee cada pantalla (MON-3) y servir los totales desde documentos resumen en vez de leer cada recibo. Con Blaze, cada lectura es coste |
+| DAT-1 | P1 | **Un usuario en varias comunidades** | Cada perfil tiene una sola comunidad (`communityId`) y las reglas dependen de ella | Un propietario con el piso en una comunidad y la plaza de garaje en otra, o un inversor con varias, elige la comunidad activa. Permisos y reglas dejan de depender de una sola comunidad |
+| DAT-2 | P1 | **Despacho con empleados y permisos** | El despacho es una persona: cada administrador tiene su propia lista de comunidades y su ficha (`offices/{uid}`) | Un despacho con varios usuarios que comparten cartera, facturación y ficha, y permisos por función (titular, contable, gestor, solo lectura) |
+| GAR-1 | P2 | **Registro de cambios completo** | Cada comunidad tiene un registro de actividad (quién, cuándo y un resumen) que no se puede editar ni borrar y que se escribe en el mismo lote que el cambio, también al reabrir un ejercicio. Pero las reglas no lo exigen (un cambio hecho fuera de la app no deja rastro), no guarda los valores de antes y después, y no recoge lo que hacen los vecinos, como sus pagos | Que las reglas exijan la entrada de actividad en las escrituras de finanzas y contabilidad, guardar los valores anteriores en lo que mueve dinero y registrar también los pagos de los vecinos |
+| GAR-2 | P2 | **Exportación completa de una comunidad** | Se exportan el diario (ContaPlus, CSV) y los ficheros oficiales | Todos los datos de una comunidad en formatos abiertos: portabilidad del RGPD y respuesta a «¿y si me voy?» |
+| GAR-3 | P1 | **Fotos y documentos privados y en la UE** | Las fotos se suben a Cloudinary con un preset sin firmar (cualquiera con la configuración puede subir) y quedan en URL públicas, probablemente fuera de la UE. Los documentos se guardan dentro de documentos de Firestore (máximo 1 MiB) | Almacenamiento con acceso controlado y alojado en la UE: Cloud Storage con Blaze, o Cloudinary con entrega autenticada y región UE |
+| VAL-1 | P1 | **Validar los ficheros fiscales y bancarios** en la Sede de la AEAT y en un banco real (347, 190, 184, pain.008, pain.001, XDiario de ContaPlus) | Se generan según los diseños oficiales y se comprueban antes de descargarlos, pero ninguno se ha presentado aún | Presentarlos con datos reales del piloto (EMP-4). Los ficheros aceptados pasan a ser casos de prueba (ROB-3) |
+| VAL-2 | P3 | **Territorios forales** | No hay modelos forales (Bizkaia, Gipuzkoa, Álava, Navarra) ni TicketBAI | Sus modelos equivalentes, y TicketBAI para los honorarios del despacho |
+| VAL-3 | P2 | **Idiomas cooficiales** | Todo está en castellano, sin sistema de traducción | Catalán primero (solo Barcelona-Lleida tiene unos 2.400 colegiados), luego gallego y euskera. Como mínimo, la webapp del vecino y las comunicaciones |
+| EMP-1 | P0 | **Sociedad y aviso legal** | La página legal de la webapp no identifica al titular del servicio | Sociedad (o alta de autónomo) con NIF, domicilio y contacto en el aviso legal, como exige la LSSI |
+| EMP-2 | P0 | **Documentación RGPD para el despacho** | No existe | Contrato de encargado del tratamiento (art. 28 RGPD) para firmar con cada despacho, lista de subencargados (hoy Google y Cloudinary; la monitorización propia no añade ninguno) y registro de actividades de tratamiento |
+| EMP-3 | P1 | **Precio, soporte y migración** | No hay precio ni canal de soporte | Precio publicado (sección 9.5), un canal de soporte con tiempo de respuesta comprometido y migración asistida con la importación del censo |
+| EMP-4 | P0 | **Piloto real** | Ningún usuario en producción | 1 o 2 despachos con 5–10 comunidades durante un ejercicio completo: cuotas, remesa, devoluciones, junta, acta, cierre y 347 presentado |
+
+#### Fiabilidad (MON, ROB)
+
+Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md). Sin servicios externos nuevos: los errores se guardan en el propio Firestore y se consultan en un panel del admin. Los P0, antes del piloto (EMP-4):
+
+| ID | Prioridad | Hueco |
+|---|---|---|
+| MON-1 | P0 | Captura de errores propia en el navegador, enviada a Firestore |
+| MON-2 | P0 | Clasificar los errores y decidir cuáles son urgentes |
+| MON-3 | P0 | Aviso cuando se agota la cuota de Firestore y medición de lecturas por pantalla |
+| MON-8 | P0 | Panel de errores en el admin, solo para el equipo |
+| ROB-1 | P0 | Entorno de pruebas separado: hoy las previews de cada PR usan la base de datos de producción |
+| ROB-2 | P0 | Copias de seguridad con restauración ensayada |
 
 ### 9.3 Diferenciadores defendibles
 
@@ -506,9 +555,10 @@ Ya cerrados (01/11/2026): cierre legal de la junta (firma, sellado, notificació
 - **Canal colegial cerrado:** CAFcomunidad (CGCAFE), IDS y comunicasa (Las Palmas).
 - **Que un incumbente modernice su app del vecino** (Aareon tiene capital y stack Angular/Ionic) o que haya consolidación (Aareon, Visma, TeamSystem, Cegid).
 - **Monetizar comunidades autogestionadas es difícil:** TusVecinos factura unos 5,8 k€/año con un producto completo.
-- **Recursos:** proyecto de una persona con el plan gratuito de Firebase. Límites de cuota y almacenamiento por confirmar, y un problema de credibilidad ante los despachos (como le pasa a ResidenciAPP, que también es una persona física). Conviene constituir una sociedad o, al menos, publicar un aviso legal completo antes de vender.
+- **Recursos:** proyecto de una persona con el plan gratuito de Firebase (INF-1), y un problema de credibilidad ante los despachos (como le pasa a ResidenciAPP, que también es una persona física). Conviene constituir una sociedad o, al menos, publicar un aviso legal completo antes de vender (EMP-1).
 - **Juntas telemáticas sin ley aprobada:** hay que construir el voto con un aviso claro sobre su validez legal. El acta lleva firma electrónica simple: sirve como prueba, pero no equivale a una firma cualificada ni a una notificación fehaciente de un prestador de confianza mientras ese canal siga en modo de prueba.
-- **Ficheros oficiales sin validar:** un error en un 347, una remesa o un asiento cuesta la confianza del despacho. Hay que validarlos con la AEAT y con bancos reales antes de venderlos, y vigilar los cambios anuales de diseño de registro.
+- **Ficheros oficiales sin validar (VAL-1):** un error en un 347, una remesa o un asiento cuesta la confianza del despacho. Hay que validarlos con la AEAT y con bancos reales antes de venderlos, y vigilar los cambios anuales de diseño de registro.
+- **Fiabilidad operativa:** hoy un fallo solo lo ve quien lo sufre (MON-1), no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1), no hay copias de seguridad (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1, MON-3). Un despacho que pierde un día de trabajo o un dato no vuelve.
 
 ### 9.5 Estrategia de precio y go-to-market sugerida (propuesta, a validar)
 
