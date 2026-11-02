@@ -1,3 +1,4 @@
+import { addToTrail, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { reactive } from 'vue';
 
 export interface Toast {
@@ -11,6 +12,7 @@ export interface Toast {
 const DURATION_MS = 4000;
 const UNDO_DURATION_MS = 7000;
 const ERROR_DURATION_MS = 9000;
+const FAILED_PREFIX = /^No se han? podido /;
 
 export const toasts = reactive<Toast[]>([]);
 let lastId = 0;
@@ -47,13 +49,15 @@ export async function undo(id = toasts.findLast(item => item.undo)?.id) {
 		toast('Deshecho');
 	} catch (error) {
 		toast(`No se ha podido deshacer: ${(error as Error).message}`, { tone: 'error' });
+		reportError(error, { source: 'action', action: 'Deshacer' });
 	}
 	return true;
 }
 
 // Optimistic: Firestore shows local writes in its listeners at once, so the page doesn't wait for the server. The toast
 // tells it's done straight away; if the server rejects it the change goes back by itself and the toast becomes the error.
-// Never rejects: resolves to whether the server took it, for what can only follow then
+// Never rejects: resolves to whether the server took it, for what can only follow then. Failures are reported, with the
+// action as their context
 export async function optimistic(action: Promise<unknown>, { done, failed, revert, onError }: {
 	done?: string;
 	failed: string;
@@ -61,6 +65,8 @@ export async function optimistic(action: Promise<unknown>, { done, failed, rever
 	onError?: (error: Error) => void;
 }) {
 	const id = done ? toast(done, { undo: revert && (async () => action.then(revert)) }) : undefined;
+	// By what it does, not what it says when it fails: 'No se ha podido anotar el voto' is 'anotar el voto'
+	addToTrail('acción', done ?? failed.replace(FAILED_PREFIX, ''));
 	try {
 		await action;
 		return true;
@@ -69,6 +75,7 @@ export async function optimistic(action: Promise<unknown>, { done, failed, rever
 			dismiss(id);
 		}
 		toast(`${failed}: ${(error as Error).message}`, { tone: 'error' });
+		reportError(error, { source: 'action', action: failed });
 		onError?.(error as Error);
 		return false;
 	}

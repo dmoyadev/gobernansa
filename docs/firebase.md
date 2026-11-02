@@ -21,6 +21,19 @@ The first time each of these queries runs, Firestore logs an error in the browse
 
 Comments are ordered by date only, so they need no index.
 
+The admin's **Errores** page (only the team) orders the errors by when they were last seen, and each filter needs its own index. Firestore merges them when several filters are on:
+
+| Feature | Index |
+| --- | --- |
+| Errores, by status (the page opens on the pending ones) | Composite on `errors`: `status` ascending, `lastSeen` descending |
+| Errores, by app | Composite on `errors`: `app` ascending, `lastSeen` descending |
+| Errores, by type | Composite on `errors`: `code` ascending, `lastSeen` descending |
+| Errores, new in a release | Composite on `errors`: `firstRelease` ascending, `lastSeen` descending |
+| Errores, the urgent ones first | Served by the status and type indexes; if Firestore asks for its own, composite on `errors`: `status` ascending, `code` ascending, `lastSeen` descending |
+| Errores → Limpiar caducadas | Single field on the `samples` **collection group**: `expiresAt` ascending (Firestore → Indexes → Single field → Add exemption, collection ID `samples`, scope "Collection group") |
+
+Samples expire 30 days after they're taken (`expiresAt`), and **Limpiar caducadas** removes them, along with the errors resolved or ignored that went 180 days without coming back. If Firestore's TTL turns out to work on the free plan, a TTL policy on the `samples` collection group's `expiresAt` field (Firestore → Time-to-live) removes them on its own; its deletes count against the daily quota too.
+
 ## 3. Cloudinary (issue photos and videos)
 
 Cloud Storage needs the paid plan, so uploads go to Cloudinary, where the existing issue media already is.

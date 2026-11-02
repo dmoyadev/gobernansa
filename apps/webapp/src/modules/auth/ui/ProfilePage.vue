@@ -2,6 +2,7 @@
 import type { UserDocument } from '../domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { propertyTypeIcons, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
+import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
 import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
@@ -47,8 +48,7 @@ async function upload(event: Event) {
 		await uploadDocument(file, category.value, propertyId.value ?? selectedProperty.value?.id);
 		adding.value = false;
 	} catch (error) {
-		// eslint-disable-next-line no-console
-		console.error(error);
+		reportError(error, { action: 'Subir el documento' });
 		documentsError.value = 'No se ha podido subir. Revisa tu conexión e inténtalo de nuevo.';
 	} finally {
 		uploading.value = false;
@@ -60,8 +60,7 @@ async function open(document: UserDocument) {
 	try {
 		await openDocument(document);
 	} catch (error) {
-		// eslint-disable-next-line no-console
-		console.error(error);
+		reportError(error, { action: 'Abrir el documento' });
 		documentsError.value = 'No se ha podido abrir. Revisa tu conexión e inténtalo de nuevo.';
 	}
 }
@@ -76,8 +75,7 @@ async function remove(document: UserDocument) {
 	try {
 		await deleteDocument(document);
 	} catch (error) {
-		// eslint-disable-next-line no-console
-		console.error(error);
+		reportError(error, { action: 'Eliminar el documento' });
 		documentsError.value = 'No se ha podido eliminar. Revisa tu conexión e inténtalo de nuevo.';
 	}
 }
@@ -112,8 +110,7 @@ async function togglePush() {
 	try {
 		await (push.enabled.value ? push.disable() : push.enable());
 	} catch (error) {
-		// eslint-disable-next-line no-console
-		console.error(error);
+		reportError(error, { action: 'Cambiar los avisos' });
 		pushError.value = true;
 	} finally {
 		pushBusy.value = false;
@@ -397,8 +394,9 @@ async function savePassword() {
 			Cerrar sesión
 		</LnxButton>
 
+		<!-- So the user can tell support which one they have -->
 		<p class="version">
-			gobernança v{{ version }}
+			gobernança v{{ version }} · {{ RELEASE }}
 		</p>
 	</MainLayout>
 </template>

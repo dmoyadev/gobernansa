@@ -2,6 +2,7 @@
 import type { Issue, IssueComment } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, toRef } from 'vue';
@@ -30,8 +31,7 @@ async function send() {
 		await addComment(text);
 		message.value = '';
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Enviar el comentario' });
 		error.value = 'No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.';
 	} finally {
 		sending.value = false;
@@ -48,8 +48,7 @@ async function remove(comment: IssueComment) {
 	try {
 		await deleteComment(comment);
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Eliminar el comentario' });
 		error.value = 'No se ha podido eliminar. Revisa tu conexión e inténtalo de nuevo.';
 	}
 }

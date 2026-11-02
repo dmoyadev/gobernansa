@@ -13,6 +13,9 @@ import { firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 /* Installable app: offline shell, updates and install prompt */
 import { registerServiceWorker } from '@gobernansa/shared/application/pwa.ts';
 
+/* Errors sent to Firestore, for the admin's Errores page */
+import { installMonitoring, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
+
 /* Icons */
 import 'iconify-icon';
 
@@ -27,6 +30,7 @@ import 'lnxjs-components/dist/base.css';
 import '@gobernansa/shared/theme/custom-theme.scss';
 
 const app = createApp(App as Component);
+installMonitoring(app, router, 'webapp');
 app.use(router);
 
 app.use(VueFire, {
@@ -43,7 +47,4 @@ router.isReady()
 	.then(async () => {
 		app.mount('#app');
 	})
-	.catch((error) => {
-	// eslint-disable-next-line no-console
-		console.error(error);
-	});
+	.catch((error: unknown) => reportError(error, { source: 'router' }));

@@ -5,6 +5,7 @@ import type { MaybeRefOrGetter, Ref } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { isFullySigned, MINUTES_ID, minutesHash } from '@gobernansa/shared/domain/minutes.ts';
 import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { arrayUnion, collection, doc, getDocFromServer, getFirestore, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
@@ -130,8 +131,13 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 				await updateDoc(ref, { hash: await minutesHash(current), closedAt: serverTimestamp() });
 			}
 		};
-		// eslint-disable-next-line no-console
-		await seal().catch(console.error);
+		// The last two signers can seal it at once, and the rules take only one: that's not a failure
+		await seal().catch(async (error: unknown) => {
+			const sealed = await getDocFromServer(ref).then(snapshot => !!snapshot.get('closedAt'), () => false);
+			if (!sealed) {
+				reportError(error, { action: 'Sellar el acta' });
+			}
+		});
 	}
 
 	// readAt or receivedAt, once, by the server's clock

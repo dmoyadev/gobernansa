@@ -2,6 +2,7 @@
 import { canInstall, install } from '@gobernansa/shared/application/pwa.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
+import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -64,6 +65,7 @@ const SECTIONS = [
 	{ to: '/providers', label: 'Proveedores', icon: 'lucide:hard-hat', combo: 'g p' },
 	{ to: '/mail', label: 'Correo', icon: 'lucide:mail', combo: 'g e' },
 	{ to: '/billing', label: 'Honorarios', icon: 'lucide:receipt-text', combo: 'g f', office: true },
+	{ to: '/errors', label: 'Errores', icon: 'lucide:bug', combo: 'g r', superadmin: true },
 	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
 ];
 const sections = computed(() => SECTIONS.filter(section => (!section.superadmin || user.value?.role === 'superadmin') && (!section.office || user.value?.role !== 'manager')));
@@ -86,14 +88,18 @@ const KEPT_PAGES = 6;
 			<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="120" height="40">
 		</RouterLink>
 
-		<nav v-if="access === 'granted' || access === 'forbidden'" aria-label="Principal">
+		<nav v-if="access === 'granted' || access === 'forbidden'" aria-label="Principal" :class="{ crowded: sections.length > 8 }">
 			<RouterLink v-for="section in sections" :key="section.to" :to="section.to" :title="shortcutTitle(section.label, section.combo)">
 				<LnxIcon :icon="section.icon" :size="18" />
 				{{ section.label }}
 			</RouterLink>
 		</nav>
 
-		<span v-if="user" class="user">{{ user.name || user.email }}</span>
+		<!-- With the version, so the user can tell support which one they have -->
+		<span v-if="user" class="user">
+			<span>{{ user.name || user.email }}</span>
+			<small>Versión {{ RELEASE }}</small>
+		</span>
 		<!-- Only while the browser offers it, not once installed -->
 		<LnxButton v-if="canInstall" mode="clear" size="small" title="Instalar gobernança admin como app" @click="install()">
 			<LnxIcon icon="lucide:monitor-down" />
@@ -205,12 +211,26 @@ const KEPT_PAGES = 6;
 }
 
 .user {
+	min-width: 0;
 	margin-left: auto;
-	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
+	line-height: 1.3;
 	white-space: nowrap;
-	text-overflow: ellipsis;
+
+	> * {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	small {
+		color: var(--color-gray-5);
+		font-size: var(--lnx-font-size-legal);
+	}
 }
 
 .frame {
@@ -253,6 +273,14 @@ const KEPT_PAGES = 6;
 		color: var(--color-primary);
 		font-size: var(--lnx-font-size-small);
 		overflow-wrap: anywhere;
+	}
+}
+
+// The team's nine sections need a wider screen to keep their names, the user's name and the version beside them
+@media (max-width: 1600px) {
+	.topbar nav.crowded a {
+		padding: var(--lnx-spacing-2);
+		font-size: 0;
 	}
 }
 

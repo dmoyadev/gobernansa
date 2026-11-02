@@ -28,6 +28,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # The version each build shows and reports its errors with, sortable: build date and time (UTC) and commit
+      - run: echo "VITE_RELEASE=$(date -u +%Y.%m.%d-%H%M)-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
       - run: npm ci && npx eslint . && npm run build
       # Rules go first so the new app finds the rules it needs, and a rules file that doesn't compile stops both
       - uses: google-github-actions/auth@v2

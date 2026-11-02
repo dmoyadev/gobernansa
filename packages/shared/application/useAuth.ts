@@ -14,6 +14,7 @@ import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { managesCommunity } from '../domain/user.ts';
 import { auth, db } from '../infrastructure/firebase.ts';
+import { reportError } from '../infrastructure/monitoring.ts';
 
 const VIEW_AS_KEY = 'viewAs';
 
@@ -111,8 +112,7 @@ function createAuth() {
 	// Without a profile, it's their first sign-in: the profile is created from the invitation sent to their email, if there's one
 	watch(() => !!userRef.value && !userData.pending.value && userData.value === null, async (withoutProfile) => {
 		if (withoutProfile && authUser.value) {
-			// eslint-disable-next-line no-console
-			await acceptInvitation(authUser.value).catch(console.error);
+			await acceptInvitation(authUser.value).catch((error: unknown) => reportError(error, { action: 'Aceptar la invitación' }));
 		}
 	});
 

@@ -4,6 +4,7 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
 import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
 import { WORK_ORDER_LIMITS, workOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { Timestamp } from 'firebase/firestore';
@@ -90,8 +91,7 @@ async function send(status: WorkOrderStatus) {
 		photos.value.forEach(photo => URL.revokeObjectURL(photo.preview));
 		photos.value = [];
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Responder a la orden de trabajo' });
 		failed.value = true;
 	} finally {
 		sending.value = undefined;

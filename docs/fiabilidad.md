@@ -34,14 +34,14 @@ A cambio:
 
 | ID | Prioridad | Qué | Coste | Depende de | Estado |
 |---|---|---|---|---|---|
-| MON-1 | P0 | Captura de errores en el navegador y envío a Firestore | 0 €; cuota de escrituras acotada | — | Pendiente |
-| MON-2 | P0 | Clasificar los errores y decidir cuáles son urgentes | 0 € | MON-1 | Pendiente |
-| MON-3 | P0 | Aviso cuando se agota la cuota de Firestore y medición de lecturas por pantalla | 0 € | MON-1 | Pendiente |
+| MON-1 | P0 | Captura de errores en el navegador y envío a Firestore | 0 €; cuota de escrituras acotada | — | 02/11/2026 |
+| MON-2 | P0 | Clasificar los errores y decidir cuáles son urgentes | 0 € | MON-1 | 02/11/2026 |
+| MON-3 | P0 | Aviso cuando se agota la cuota de Firestore y medición de lecturas por pantalla | 0 € | MON-1 | 02/11/2026 |
 | MON-4 | P1 | Registro de las operaciones que mueven dinero o generan ficheros oficiales | 0 € | — | Pendiente |
 | MON-5 | P1 | Disponibilidad: comprobar las dos webs después de cada despliegue | 0 € | — | Pendiente |
 | MON-6 | P2 | Rendimiento real por pantalla, con las APIs del navegador | 0 €; cuota acotada | MON-1 | Pendiente |
 | MON-7 | P1 | Rutina de revisión y guía de respuesta | 0 € | MON-8 | Pendiente |
-| MON-8 | P0 | Panel de errores en el admin, solo para el equipo | 0 €; lecturas al abrirlo | MON-1 | Pendiente |
+| MON-8 | P0 | Panel de errores en el admin, solo para el equipo | 0 €; lecturas al abrirlo | MON-1 | 02/11/2026 |
 | MON-9 | P1 | Avisos de errores nuevos: dentro del admin ya; en el móvil con INF-1 | 0 € | MON-8 | Pendiente |
 | MON-10 | P2 | Traducir los errores al código original sin publicarlo | 0 € | MON-1 | Pendiente |
 | ROB-1 | P0 | Entorno de pruebas separado de producción | 0 € (segundo proyecto gratuito) | — | Pendiente |
@@ -116,13 +116,13 @@ CI
 - `installMonitoring(app, router, appName)`: la llaman los dos `main.ts` justo después de `createApp`;
 - `reportError(error, contexto)`: la usa el resto del código.
 
-Con emuladores o en local solo escribe en la consola.
+En local contra el proyecto real solo escribe en la consola. Con los emuladores envía al emulador, para poder probar el panel.
 
 **Dónde se engancha:**
 - `app.config.errorHandler`, para los errores de los componentes de Vue;
 - `window` `error` y `unhandledrejection`, para los errores de JavaScript y las promesas sin `catch`;
 - `router.onError`, para los fallos al navegar;
-- `vite:preloadError`, para la pantalla que no carga tras un despliegue. Recarga una vez, guardando en `sessionStorage` que ya lo ha intentado para no entrar en bucle; si vuelve a fallar, se informa;
+- `vite:preloadError`, para la pantalla que no carga tras un despliegue. Recarga, guardando en `sessionStorage` cuándo lo ha hecho para no entrar en bucle; si vuelve a fallar, se informa. Solo al ir a una pantalla (no cuando el admin la carga por adelantado), solo si es una parte que no se ha descargado (no una que falla al ejecutarse) y como mucho una vez cada 10 minutos;
 - el `catch` de `optimistic()` y de `undo()` en el admin, que cubre de una vez las 67 acciones que ya pasan por ahí. La acción va como contexto (su texto `failed`, por ejemplo «No se ha podido generar la remesa»);
 - en la webapp, los `console.error`, que pasan a ser `reportError(error, contexto)`.
 
@@ -154,20 +154,21 @@ Un mismo fallo que sale 300 veces es un solo grupo. La huella son 16 caracteres 
 - la app;
 - el tipo: `js`, `firebase:<código>` o `carga`;
 - el mensaje normalizado: los números, identificadores, emails y textos entre comillas se cambian por marcadores;
-- el nombre del primer fichero propio de la pila, sin el hash que le pone Vite (`IssuesPage-a1b2c3.js` → `IssuesPage.js`).
+- el nombre del primer fichero propio de la pila, sin el hash que le pone Vite (`IssuesPage-a1b2c3.js` → `IssuesPage.js`);
+- la acción del admin o de la página, si la hay. Los errores de Firebase salen de su propio código, así que sin ella todos los `permission-denied` de una app serían un solo grupo.
 
 **Límite.** Los nombres minificados de las funciones cambian en cada versión, por eso la huella usa el fichero, que Vite nombra a partir del componente o la página. Si aun así dos grupos son el mismo fallo, el panel permite fusionarlos (`mergedInto`).
 
 ### 3.4 Envío y presupuesto de cuota
 
 **Un lote por error,** con el grupo y, si toca, una muestra:
-- **El grupo:** `set` con `merge`, que suma con `increment` a `count`, pone `lastSeen` con la hora del servidor y añade la versión y la ruta a sus listas, con tope.
+- **El grupo:** un `update` que suma con `increment` a `count`, pone `lastSeen` con la hora del servidor y añade la versión y la ruta a sus listas, con tope. La primera vez que alguien ve el fallo, las reglas lo rechazan porque el grupo aún no existe, y entonces se crea. Si el grupo tiene las listas llenas, se envían solo los contadores.
 - **La muestra:** solo la primera vez que ese fallo aparece en la sesión, y solo si sale en el muestreo (`errorSampleRate`, por defecto 1). Cuando hay muestra, el grupo también suma 1 a `sessions`.
 
-Son 1 o 2 escrituras por error, y ninguna lectura: las reglas de creación no llaman a `me()`.
+Son 1 o 2 escrituras por error, y ninguna lectura: las reglas de creación no llaman a `me()`. Los envíos salen de uno en uno: el `update` que las reglas rechazan la primera vez reinicia la conexión de escritura de Firestore, y lo que iba con él se vuelve a enviar.
 
 **Límites en el navegador:**
-- como mucho un envío por huella cada 10 minutos. Lo que pase entretanto se acumula y se suma de golpe en el siguiente envío (`increment(n)`);
+- como mucho un envío por huella cada 10 minutos. Lo que pase entretanto se acumula y se suma de golpe en el siguiente envío (`increment(n)`), o al ocultarse la página;
 - como mucho 20 envíos por sesión.
 
 **Sin conexión.** No hace falta una cola propia: la caché persistente de Firestore que ya usa la app guarda las escrituras pendientes y las envía al volver.
@@ -181,7 +182,7 @@ Son 1 o 2 escrituras por error, y ninguna lectura: las reglas de creación no ll
 ### 3.5 Datos y reglas
 
 **`errors/{huella}`, el grupo:**
-- `app`, `kind` (`js`, `firebase` o `carga`), `code` y `message` (normalizado);
+- `app`, `kind` (`js`, `firebase` o `carga`), `code` (el de Firebase, o `js` y `carga` para los demás, para filtrar todos con un solo campo), `message` (normalizado) y `file` (el primer fichero propio de la pila);
 - `firstSeen`, `lastSeen`, `count` y `sessions`;
 - `releases` y `routes`, como mucho 20 cada una;
 - `status` (`new`, `resolved` o `ignored`), `resolvedAt`, `resolvedBy`, `resolvedIn` y `note`;
@@ -204,7 +205,7 @@ Son 1 o 2 escrituras por error, y ninguna lectura: las reglas de creación no ll
   - `count` solo puede subir, y como mucho 100 de una vez;
   - no se toca `status`;
   - en la muestra, el `uid` es el de la sesión, y las fechas, del servidor.
-- **Sin sesión** (la pantalla de entrada y el parte de trabajo del gremio): crear con límites más estrictos y sin `uid`, o no informar. Recomendación: permitirlo acotado y vigilarlo (ROB-8).
+- **Sin sesión** (la pantalla de entrada y el parte de trabajo del gremio): crear con límites más estrictos y sin `uid`, o no informar. Decidido: no se informa. Lo que falla antes de restaurar la sesión espera en memoria y se envía en cuanto la hay.
 - **Las reglas no pueden contar cuántas escrituras hace un usuario al día:** los topes están en el navegador. Quien manipule su navegador podría saltárselos, como puede escribir en cualquier otra colección que las reglas le permitan. App Check (ROB-8) lo cierra.
 
 ### 3.6 Retención y privacidad
@@ -214,7 +215,7 @@ Son 1 o 2 escrituras por error, y ninguna lectura: las reglas de creación no ll
   - **b)** un botón «Limpiar caducadas» en el panel;
   - **c)** que el panel las limpie solo, una vez al día, al abrirse.
 
-  Recomendación: a), y b) si TTL no está disponible en el plan gratuito.
+  Recomendación: a), y b) si TTL no está disponible en el plan gratuito. Hecho: b), que además borra los grupos antiguos del punto siguiente; la política TTL se puede añadir en la consola cuando se compruebe ([firebase.md](firebase.md)).
 - **Grupos:** los resueltos se conservan para detectar que vuelven. Los resueltos o ignorados que lleven 180 días sin repetirse se borran desde el panel.
 - **Privacidad:** no hay terceros nuevos. Hay que añadir a la página legal que se guardan errores técnicos con el identificador del usuario durante 30 días, para corregir fallos.
 
@@ -284,6 +285,7 @@ Recomendación: C al principio y A cuando un fallo no se entienda con el rastro.
 | `invalid-argument` y errores de JavaScript | Un fallo del código | Grupo nuevo; urgente si vuelve después de resolverlo |
 | `unavailable`, `deadline-exceeded`, sin conexión | La conexión del usuario | No se envía; solo cuenta para el rastro |
 | Errores de extensiones del navegador | Nada que ver con la app | Se descartan (pilas de `chrome-extension://` y similares) |
+| Avisos de la propia app que una página lanza para mostrarlos (`new Error('el NIF del propietario no es válido.')`) | Un dato mal escrito, no un fallo | No se envía; solo cuenta para el rastro |
 
 **Urgente** quiere decir que el grupo sale primero en el panel y cuenta para los avisos (MON-9).
 
@@ -294,7 +296,7 @@ Recomendación: C al principio y A cuando un fallo no se entienda con el rastro.
 **Qué.** Saber el día en que se agota la cuota y que el usuario vea por qué no funciona la app, en lugar de errores sueltos. Y saber antes qué pantallas la gastan.
 
 **Cómo.**
-- **Aviso al agotarse.** Cuando un error trae el código `resource-exhausted`, las dos apps muestran un aviso fijo: «El servicio ha alcanzado su límite diario y vuelve hacia las 9:00». El error queda pendiente de enviar hasta que se reinicie la cuota.
+- **Aviso al agotarse.** Cuando un error trae el código `resource-exhausted`, las dos apps muestran un aviso fijo: «El servicio ha alcanzado su límite diario y vuelve hacia las 9:00». Firestore no hace fallar las lecturas ni las escrituras con la cuota agotada, las reintenta: solo lo escribe en su registro, y de ahí se detecta (`onLog`). El error queda pendiente de enviar hasta que se reinicie la cuota, al día siguiente en hora del Pacífico.
 - **Lecturas por pantalla (INF-2).** En desarrollo, un contador suma los documentos de cada lectura que no viene de la caché (`snapshot.metadata.fromCache`) y los escribe en la consola por ruta. No escribe nada en Firestore. Opcionalmente, durante el piloto, una muestra de las sesiones suma esas lecturas en un documento por día y app (una escritura por sesión).
 - **Revisión semanal** del uso diario en la consola de Firebase (Firestore → Uso) mientras dure el piloto.
 - **Con Blaze (INF-1):** alertas de presupuesto de Google Cloud (son gratis) a un importe bajo.

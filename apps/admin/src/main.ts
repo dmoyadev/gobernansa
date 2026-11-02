@@ -14,6 +14,9 @@ import { firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 /* Installable app: offline shell, updates and install prompt */
 import { registerServiceWorker } from '@gobernansa/shared/application/pwa.ts';
 
+/* Errors sent to Firestore, for the admin's Errores page */
+import { installMonitoring, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
+
 /* Icons */
 import 'iconify-icon';
 
@@ -28,6 +31,7 @@ import '@gobernansa/shared/theme/custom-theme.scss';
 import './app/ux/interactions.scss';
 
 const app = createApp(App as Component);
+installMonitoring(app, router, 'admin');
 app.use(router);
 installViewTransitions(router);
 installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers', '/mail', '/billing']);
@@ -46,7 +50,4 @@ router.isReady()
 	.then(async () => {
 		app.mount('#app');
 	})
-	.catch((error) => {
-	// eslint-disable-next-line no-console
-		console.error(error);
-	});
+	.catch((error: unknown) => reportError(error, { source: 'router' }));

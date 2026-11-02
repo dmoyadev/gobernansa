@@ -3,6 +3,7 @@ import type { OnlinePaymentMethod } from '@gobernansa/shared/domain/payment.ts';
 import type { Checkout } from '../application/useMyCharges.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { checkTestCard, onlinePaymentMethods, TEST_CARD } from '@gobernansa/shared/domain/payment.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { ref, watch } from 'vue';
 
@@ -64,8 +65,7 @@ async function submit() {
 		cvc.value = '';
 		await props.pay({ method: 'card', card: check.card });
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Pagar el recibo' });
 		error.value = 'No se ha podido registrar el pago. Inténtalo de nuevo.';
 	} finally {
 		busy.value = false;

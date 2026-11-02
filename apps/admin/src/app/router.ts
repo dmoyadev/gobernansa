@@ -349,6 +349,13 @@ const router = createRouter({
 					meta: { title: 'Factura de honorarios', office: true },
 					props: true,
 				},
+				// The failures the apps report (MON-8), for the team
+				{
+					path: 'errors',
+					name: 'Errores',
+					component: async () => import('@/modules/errors/ui/ErrorsPage.vue'),
+					meta: { title: 'Errores', superadmin: true },
+				},
 				{
 					path: 'admins',
 					name: 'Administradores',

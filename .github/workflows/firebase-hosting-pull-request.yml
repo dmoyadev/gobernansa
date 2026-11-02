@@ -30,6 +30,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # The version each build shows and reports its errors with, sortable: build date and time (UTC) and commit
+      - run: echo "VITE_RELEASE=$(date -u +%Y.%m.%d-%H%M)-$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> "$GITHUB_ENV"
       - run: npm ci && npx eslint . && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

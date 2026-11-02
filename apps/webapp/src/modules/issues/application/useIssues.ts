@@ -1,5 +1,6 @@
 import type { Issue, IssuesFilters, IssueSortingField } from '@gobernansa/shared/domain/issue.ts';
 import type { CollectionReference, DocumentData, QueryConstraint } from 'firebase/firestore';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { addDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where } from 'firebase/firestore';
 import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
@@ -179,8 +180,7 @@ function createIssues() {
 			issues.value.push(...newIssues);
 		} catch (e) {
 			// e.g. a filter whose index is missing, Firestore logs the link to create it
-			// eslint-disable-next-line no-console
-			console.error(e);
+			reportError(e, { action: 'Cargar las incidencias' });
 			if (requestId === lastRequestId) {
 				error.value = e;
 				hasMore.value = false;

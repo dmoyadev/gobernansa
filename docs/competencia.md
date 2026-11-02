@@ -9,7 +9,7 @@ Referencia de producto para decidir y priorizar features de gobernança. Antes d
 
 1. **Si ya la tenemos** (tabla de abajo) o si está en la competencia: la [matriz de funcionalidades](#4-matriz-de-funcionalidades) dice quién la tiene y cómo de bien.
 2. **Si encaja con el posicionamiento** (sección 9.1): ERP completo para despachos pequeños y medianos (contabilidad, SEPA, AEAT y banca incluidos) con la mejor capa vecinal del mercado, más un plan gratuito para comunidades autogestionadas. Lo que cuesta dinero (pasarela de pago, agregador bancario, presentación en la AEAT, burofax) existe en modo de prueba hasta activar un proveedor.
-3. **Su prioridad** en la [tabla de huecos](#92-huecos-funcionales-por-prioridad) y qué competidor sirve de referencia.
+3. **Su prioridad** en la [tabla de huecos](#92-huecos-por-prioridad) y qué competidor sirve de referencia.
 
 ### Estado de gobernança (revisado en el código el 01/11/2026)
 
@@ -490,6 +490,7 @@ Cada hueco tiene un identificador estable (`FUN-1`, `DAT-2`, `MON-1`…) para re
 | **ROB** | Robustez: evitar los fallos y recuperarse de ellos | [fiabilidad.md](fiabilidad.md) |
 
 **Cerrados:**
+- **02/11/2026:** MON-1, MON-2, MON-3 y MON-8. Los errores de las dos apps llegan al propio Firestore agrupados, con la versión, la pantalla y lo que hizo el usuario antes; los urgentes salen primero en la página «Errores» del admin, solo para el equipo; y las dos apps avisan cuando se agota la cuota.
 - **01/11/2026, sin identificador:** cierre legal de la junta (firma, sellado, notificación con acuse y art. 17.8), importación del censo y de comunidades, PWA instalable, correo saliente en modo de prueba, parte de trabajo para el gremio, sugerencias y redacción automática, comprobación de ficheros, devoluciones SEPA importadas, abonos de la pasarela en la conciliación, entregas a cuenta e intereses de demora.
 
 #### Funcionales (FUN)
@@ -513,7 +514,7 @@ En funciones gobernança ya está a la altura del mercado (sección 8). Lo que f
 | ID | Prioridad | Hueco | Situación hoy | Qué hace falta |
 |---|---|---|---|---|
 | INF-1 | P0 | **Plan de pago de Firebase (Blaze) con un servidor mínimo** | Las cuotas del plan gratuito son por proyecto y las comparten todos los clientes: 50.000 lecturas, 20.000 escrituras y 20.000 borrados al día, y 1 GiB guardado. Al agotarse, la app falla para todos hasta que se reinicia la cuota, hacia las 9:00 en la España peninsular. Sin servidor, un pago lo da por bueno el navegador del vecino, y no hay correo, recordatorios ni copias programadas | Pasar a Blaze con el primer cliente real: conserva la misma cuota gratuita y solo cobra lo que la supere. Alerta de presupuesto desde el primer día. Desbloquea FUN-1, FUN-2, FUN-5, FUN-6 y ROB-2 |
-| INF-2 | P1 | **Lecturas por pantalla** | Cada recibo, asiento o movimiento es un documento. Estimación propia: abrir las finanzas de todas las comunidades de un despacho mediano puede leer decenas de miles de documentos | Medir lo que lee cada pantalla (MON-3) y servir los totales desde documentos resumen en vez de leer cada recibo. Con Blaze, cada lectura es coste |
+| INF-2 | P1 | **Lecturas por pantalla** | Cada recibo, asiento o movimiento es un documento. Estimación propia: abrir las finanzas de todas las comunidades de un despacho mediano puede leer decenas de miles de documentos. En desarrollo, la consola ya muestra lo que lee cada pantalla (MON-3) | Medir las pantallas que más leen y servir los totales desde documentos resumen en vez de leer cada recibo. Con Blaze, cada lectura es coste |
 | DAT-1 | P1 | **Un usuario en varias comunidades** | Cada perfil tiene una sola comunidad (`communityId`) y las reglas dependen de ella | Un propietario con el piso en una comunidad y la plaza de garaje en otra, o un inversor con varias, elige la comunidad activa. Permisos y reglas dejan de depender de una sola comunidad |
 | DAT-2 | P1 | **Despacho con empleados y permisos** | El despacho es una persona: cada administrador tiene su propia lista de comunidades y su ficha (`offices/{uid}`) | Un despacho con varios usuarios que comparten cartera, facturación y ficha, y permisos por función (titular, contable, gestor, solo lectura) |
 | GAR-1 | P2 | **Registro de cambios completo** | Cada comunidad tiene un registro de actividad (quién, cuándo y un resumen) que no se puede editar ni borrar y que se escribe en el mismo lote que el cambio, también al reabrir un ejercicio. Pero las reglas no lo exigen (un cambio hecho fuera de la app no deja rastro), no guarda los valores de antes y después, y no recoge lo que hacen los vecinos, como sus pagos | Que las reglas exijan la entrada de actividad en las escrituras de finanzas y contabilidad, guardar los valores anteriores en lo que mueve dinero y registrar también los pagos de los vecinos |
@@ -533,10 +534,6 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 
 | ID | Prioridad | Hueco |
 |---|---|---|
-| MON-1 | P0 | Captura de errores propia en el navegador, enviada a Firestore |
-| MON-2 | P0 | Clasificar los errores y decidir cuáles son urgentes |
-| MON-3 | P0 | Aviso cuando se agota la cuota de Firestore y medición de lecturas por pantalla |
-| MON-8 | P0 | Panel de errores en el admin, solo para el equipo |
 | ROB-1 | P0 | Entorno de pruebas separado: hoy las previews de cada PR usan la base de datos de producción |
 | ROB-2 | P0 | Copias de seguridad con restauración ensayada |
 
@@ -558,7 +555,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 - **Recursos:** proyecto de una persona con el plan gratuito de Firebase (INF-1), y un problema de credibilidad ante los despachos (como le pasa a ResidenciAPP, que también es una persona física). Conviene constituir una sociedad o, al menos, publicar un aviso legal completo antes de vender (EMP-1).
 - **Juntas telemáticas sin ley aprobada:** hay que construir el voto con un aviso claro sobre su validez legal. El acta lleva firma electrónica simple: sirve como prueba, pero no equivale a una firma cualificada ni a una notificación fehaciente de un prestador de confianza mientras ese canal siga en modo de prueba.
 - **Ficheros oficiales sin validar (VAL-1):** un error en un 347, una remesa o un asiento cuesta la confianza del despacho. Hay que validarlos con la AEAT y con bancos reales antes de venderlos, y vigilar los cambios anuales de diseño de registro.
-- **Fiabilidad operativa:** hoy un fallo solo lo ve quien lo sufre (MON-1), no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1), no hay copias de seguridad (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1, MON-3). Un despacho que pierde un día de trabajo o un dato no vuelve.
+- **Fiabilidad operativa:** los errores ya llegan al panel del equipo, pero no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1), no hay copias de seguridad (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1), aunque ahora las dos apps lo avisan. Un despacho que pierde un día de trabajo o un dato no vuelve.
 
 ### 9.5 Estrategia de precio y go-to-market sugerida (propuesta, a validar)
 

@@ -1,4 +1,5 @@
 import { DEFAULT_MONTHLY_VOTES, getVotingMonth } from '@gobernansa/shared/domain/issue.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { collectionGroup, getCountFromServer, getFirestore, query, where } from 'firebase/firestore';
 import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
@@ -86,8 +87,7 @@ function createUserActivity() {
 		fetchedAt = Date.now();
 		// Each one fails on its own, e.g. while its index is missing, and its stat shows empty
 		const results = await Promise.allSettled([fetchIssues(uid, communityId), fetchVotes(uid)]);
-		// eslint-disable-next-line no-console
-		results.forEach(result => result.status === 'rejected' && console.error(result.reason));
+		results.forEach(result => result.status === 'rejected' && reportError(result.reason, { action: 'Contar las incidencias y los votos' }));
 	}
 
 	watch([() => user.value?.uid, () => userCommunity.value?.id], fetch, { immediate: true });

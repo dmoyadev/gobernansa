@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { LnxIcon } from 'lnxjs-components';
 import { applyUpdate, online, updateReady } from '../application/pwa.ts';
+import { quotaExhausted } from '../infrastructure/monitoring.ts';
 </script>
 
 <template>
 	<!-- Each app places it. Read out as they appear -->
 	<div class="app-status" aria-live="polite">
+		<!-- Fixed until the page is loaded again: until then every screen fails, so it says why -->
+		<p v-if="quotaExhausted" class="pill">
+			<LnxIcon icon="lucide:circle-alert" :size="16" />
+			El servicio ha alcanzado su límite diario y vuelve hacia las 9:00
+		</p>
 		<p v-if="!online" class="pill">
 			<LnxIcon icon="lucide:wifi-off" :size="16" />
 			Sin conexión

@@ -2,6 +2,7 @@
 import type { IssueStatus, IssueVote } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getIssueStep, getVotingMonth, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
@@ -64,8 +65,7 @@ async function run(action: () => Promise<unknown>, errorMessage: string) {
 	try {
 		await action();
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: errorMessage });
 		actionError.value = errorMessage;
 	}
 }

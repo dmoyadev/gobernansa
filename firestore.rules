@@ -371,6 +371,90 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
+    // Errores de las apps (MON-1, docs/fiabilidad.md): one group per failure, by its fingerprint, and samples of who hit it.
+    // Anyone signed in reports them, in a set shape and without reading their profile (no me()), so a failing screen costs
+    // no extra reads. How often is capped by the browser, the rules can't count it. Only the team reads and manages them
+    match /errors/{errorId} {
+      // At most 20 releases and 20 screens, the first ones seen
+      function hasGroupLists(group) {
+        return group.releases is list && group.releases.size() <= 20 && group.releases.join(' ').size() <= 20 * 41
+          && group.routes is list && group.routes.size() <= 20 && group.routes.join(' ').size() <= 20 * 81;
+      }
+
+      allow read, delete: if isSuperadmin();
+      allow create: if signedIn()
+        && errorId.matches('[0-9a-f]{16}')
+        && request.resource.data.keys().hasOnly(['app', 'kind', 'code', 'message', 'file', 'count', 'sessions', 'firstSeen', 'lastSeen', 'firstRelease', 'lastRelease', 'releases', 'routes', 'status'])
+        && request.resource.data.app in ['admin', 'webapp']
+        && request.resource.data.kind in ['js', 'firebase', 'carga']
+        && request.resource.data.code is string && request.resource.data.code.size() <= 60
+        && request.resource.data.message is string && request.resource.data.message.size() <= 500
+        && request.resource.data.file is string && request.resource.data.file.size() <= 100
+        && request.resource.data.count is int && request.resource.data.count >= 1 && request.resource.data.count <= 100
+        && request.resource.data.sessions in [0, 1]
+        && request.resource.data.firstSeen == request.time
+        && request.resource.data.lastSeen == request.time
+        && request.resource.data.firstRelease is string && request.resource.data.firstRelease.size() <= 40
+        && request.resource.data.lastRelease == request.resource.data.firstRelease
+        && request.resource.data.releases == [request.resource.data.firstRelease]
+        && hasGroupLists(request.resource.data)
+        && request.resource.data.status == 'new';
+      // Seen again: the counters only go up, at most 100 at a time, and the lists only grow, the new release being this one.
+      // The team resolves, ignores, reopens and merges them. Checked in this order so a report never reads the profile
+      allow update: if (signedIn()
+          && changedOnly(['count', 'sessions', 'lastSeen', 'lastRelease', 'releases', 'routes'])
+          && request.resource.data.count is int && request.resource.data.count > resource.data.count && request.resource.data.count <= resource.data.count + 100
+          && request.resource.data.sessions - resource.data.sessions in [0, 1]
+          && request.resource.data.lastSeen == request.time
+          && request.resource.data.lastRelease is string && request.resource.data.lastRelease.size() <= 40
+          && request.resource.data.releases.hasAll(resource.data.releases)
+          && request.resource.data.releases.toSet().difference(resource.data.releases.toSet()).hasOnly([request.resource.data.lastRelease])
+          && request.resource.data.routes.hasAll(resource.data.routes)
+          && hasGroupLists(request.resource.data))
+        || (changedOnly(['status', 'resolvedAt', 'resolvedBy', 'resolvedIn', 'note', 'mergedInto'])
+          && isSuperadmin()
+          && request.resource.data.status in ['new', 'resolved', 'ignored']
+          && (request.resource.data.get('resolvedAt', null) == resource.data.get('resolvedAt', null) || request.resource.data.resolvedAt == request.time)
+          && (request.resource.data.get('resolvedBy', null) == resource.data.get('resolvedBy', null) || request.resource.data.resolvedBy == request.auth.uid)
+          && request.resource.data.get('resolvedIn', '') is string && request.resource.data.get('resolvedIn', '').size() <= 40
+          && request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 1000
+          && request.resource.data.get('mergedInto', '') is string && request.resource.data.get('mergedInto', '') != errorId
+          && (request.resource.data.get('mergedInto', '') == '' || request.resource.data.mergedInto.matches('[0-9a-f]{16}')));
+
+      // Kept 30 days (expiresAt), with the user's session as theirs and the server's time
+      match /samples/{sampleId} {
+        allow read, delete: if isSuperadmin();
+        allow create: if signedIn()
+          && errorId.matches('[0-9a-f]{16}')
+          && request.resource.data.keys().hasOnly(['at', 'expiresAt', 'release', 'app', 'route', 'communityId', 'uid', 'role', 'browser', 'os', 'standalone', 'online', 'message', 'stack', 'trail', 'context'])
+          && request.resource.data.at == request.time
+          && request.resource.data.expiresAt is timestamp && request.resource.data.expiresAt > request.time && request.resource.data.expiresAt < request.time + duration.value(60, 'd')
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.app in ['admin', 'webapp']
+          && request.resource.data.release is string && request.resource.data.release.size() <= 40
+          && request.resource.data.route is string && request.resource.data.route.size() <= 100
+          && request.resource.data.communityId is string && request.resource.data.communityId.size() <= 40
+          && request.resource.data.role is string && request.resource.data.role.size() <= 20
+          && request.resource.data.browser is string && request.resource.data.browser.size() <= 40
+          && request.resource.data.os is string && request.resource.data.os.size() <= 40
+          && request.resource.data.standalone is bool
+          && request.resource.data.online is bool
+          && request.resource.data.message is string && request.resource.data.message.size() <= 500
+          && request.resource.data.stack is string && request.resource.data.stack.size() <= 4096
+          && request.resource.data.trail is list && request.resource.data.trail.size() <= 30 && request.resource.data.trail.join('').size() <= 30 * 160
+          && request.resource.data.context is map && request.resource.data.context.keys().hasOnly(['source', 'action', 'code', 'info'])
+          && request.resource.data.context.source is string && request.resource.data.context.source.size() <= 20
+          && request.resource.data.context.get('action', '') is string && request.resource.data.context.get('action', '').size() <= 200
+          && request.resource.data.context.get('code', '') is string && request.resource.data.context.get('code', '').size() <= 60
+          && request.resource.data.context.get('info', '') is string && request.resource.data.context.get('info', '').size() <= 200;
+      }
+    }
+
+    // The expired samples of every error at once, for the team's Limpiar caducadas
+    match /{path=**}/samples/{sampleId} {
+      allow read: if isSuperadmin();
+    }
+
     match /communities/{communityId} {
       allow read: if inCommunity(communityId) || manages(communityId);
       // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed

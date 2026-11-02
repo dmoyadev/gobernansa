@@ -7,6 +7,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { attendanceStatus, isApproved, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
 import { dissentDeadline, minutesHash, noticeKinds, signerRoles } from '@gobernansa/shared/domain/minutes.ts';
 import { formatCoefficient } from '@gobernansa/shared/domain/property.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import SignaturePad from '@gobernansa/shared/ui/SignaturePad.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
@@ -34,8 +35,7 @@ async function run(key: string, action: () => Promise<unknown>, errorMessage: st
 	try {
 		await action();
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: errorMessage });
 		error.value = errorMessage;
 	} finally {
 		busy.value = undefined;
@@ -110,8 +110,7 @@ watch(notices, (loaded) => {
 	for (const notice of loaded) {
 		if (!notice.readAt && !marked.has(notice.id)) {
 			marked.add(notice.id);
-			// eslint-disable-next-line no-console
-			markNotice(notice, 'readAt').catch(console.error);
+			markNotice(notice, 'readAt').catch((error: unknown) => reportError(error, { action: 'Marcar el aviso como leído' }));
 		}
 	}
 }, { immediate: true });

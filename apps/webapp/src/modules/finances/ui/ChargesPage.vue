@@ -5,6 +5,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -42,8 +43,7 @@ async function showPaid() {
 	try {
 		paid.value = await loadPaid();
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Cargar los recibos pagados' });
 		paidError.value = 'No se han podido cargar los pagados. Inténtalo de nuevo.';
 	} finally {
 		paidLoading.value = false;

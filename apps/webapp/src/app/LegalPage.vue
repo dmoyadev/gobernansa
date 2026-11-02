@@ -37,12 +37,14 @@ import TheToolbar from '@/shared/ui/TheToolbar.vue';
 				<li>Las incidencias, comentarios y votos que hagas.</li>
 				<li>Los documentos que subas a tu perfil.</li>
 				<li>Un identificador de tu dispositivo, solo si activas las notificaciones.</li>
+				<li>Los errores técnicos que te salgan, con tu identificador de usuario y lo que hiciste justo antes en la app, para corregirlos. Se borran a los 30 días.</li>
 			</ul>
 			<h3>Quién puede verlos</h3>
 			<ul>
 				<li>Las incidencias, con sus fotos, las ve toda tu comunidad.</li>
 				<li>Los documentos de tu perfil solo los ves tú.</li>
 				<li>La administración de la comunidad ve lo necesario para gestionarla.</li>
+				<li>Los errores técnicos solo los ve el equipo de gobernança.</li>
 			</ul>
 			<h3>Dónde se guardan</h3>
 			<p>

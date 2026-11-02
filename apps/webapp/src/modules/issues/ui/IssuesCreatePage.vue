@@ -5,6 +5,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
@@ -185,8 +186,7 @@ async function submit() {
 		// Replaced so going back from the new issue doesn't land on the form again
 		await router.replace(`/issues/${id}`);
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Crear la incidencia' });
 		error.value = true;
 	} finally {
 		saving.value = false;

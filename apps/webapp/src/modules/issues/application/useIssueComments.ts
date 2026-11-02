@@ -2,6 +2,7 @@ import type { Issue, IssueComment } from '@gobernansa/shared/domain/issue.ts';
 import type { Ref } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { collection, doc, getFirestore, increment, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed, watch } from 'vue';
 import { useCollection } from 'vuefire';
@@ -28,8 +29,7 @@ export function useIssueComments(issue: Ref<Issue | undefined>) {
 	// Hidden ones are moderated from the admin platform, nobody sees them here
 	const comments = computed(() => allComments.value.filter(comment => !comment.deletedAt && !comment.hiddenAt));
 	// The listener fails silently otherwise, e.g. when the security rules don't allow it
-	// eslint-disable-next-line no-console
-	watch(allComments.error, error => error && console.error(error));
+	watch(allComments.error, error => error && reportError(error, { action: 'Cargar los comentarios' }));
 
 	function setCommentsCount(change: number) {
 		const commentsCount = Math.max(0, (issue.value!.commentsCount ?? 0) + change);

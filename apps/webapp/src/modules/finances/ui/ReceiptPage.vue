@@ -4,6 +4,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { chargeTypes, collectionMethods, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -31,8 +32,7 @@ watch(() => user.value?.communityId, async (communityId) => {
 		// One partly paid gets the justificante of its entregas a cuenta, with what's left
 		error.value = charge.value?.paidAt || charge.value?.collections?.length ? undefined : 'Este recibo no existe o aún no está pagado.';
 	} catch (e) {
-		// eslint-disable-next-line no-console
-		console.error(e);
+		reportError(e, { action: 'Cargar el justificante' });
 		error.value = 'No se ha podido cargar el justificante.';
 	} finally {
 		loading.value = false;
