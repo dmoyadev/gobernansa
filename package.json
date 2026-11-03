@@ -13,8 +13,8 @@
 		"lint": "eslint --fix",
 		"check-typing": "npm run check-typing -w apps/webapp -w apps/admin",
 		"check-deps": "npx taze -r",
-		"seed-firebase": "node ./scripts/firebase-test/seed.js --reset",
-		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js --reset",
+		"seed-firebase": "node ./scripts/firebase-test/seed.js",
+		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js",
 		"start:firebase:emulators": "firebase emulators:start"
 	},
 	"dependencies": {
@@ -28,6 +28,7 @@
 	},
 	"devDependencies": {
 		"@antfu/eslint-config": "^7.7.3",
+		"@inquirer/prompts": "^7.10.1",
 		"@types/node": "^24.19.2",
 		"@vitejs/plugin-vue": "^6.0.10",
 		"eslint": "^9.39.5",
