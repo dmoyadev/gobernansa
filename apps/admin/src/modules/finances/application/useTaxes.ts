@@ -5,7 +5,7 @@ import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { incomeKinds } from '@gobernansa/shared/domain/accounting.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, doc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, documentId, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { saveManualEntry } from './useAccounting.ts';
 
@@ -66,10 +66,13 @@ export async function addIncome(communityId: string, id: string, data: IncomeDat
 
 // Those of the year still missing in the obligations, so adding them again never duplicates nor moves one changed
 export async function addTaxDeadlines(communityId: string, deadlines: TaxDeadline[]) {
+	if (!deadlines.length) {
+		return 0;
+	}
 	const uid = auth.currentUser!.uid;
 	const obligations = collection(db, 'communities', communityId, 'obligations');
-	// A handful per community
-	const existing = new Set((await getDocs(obligations)).docs.map(item => item.id));
+	// Only these (a few a year, 'in' takes up to 30), by id: the obligations grow every year
+	const existing = new Set((await getDocs(query(obligations, where(documentId(), 'in', deadlines.map(deadline => deadline.id))))).docs.map(item => item.id));
 	const missing = deadlines.filter(deadline => !existing.has(deadline.id));
 	if (!missing.length) {
 		return 0;

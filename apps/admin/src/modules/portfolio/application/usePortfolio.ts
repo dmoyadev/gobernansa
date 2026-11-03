@@ -6,6 +6,7 @@ import { agingOf } from '@gobernansa/shared/domain/arrears.ts';
 import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getCountFromServer, getDocs, limit, query, Timestamp, where } from 'firebase/firestore';
+import { remember } from '@/app/ux/navigation.ts';
 
 const DAY = 86_400_000;
 // Resolution times are averaged over this window, older ones say little about how it goes now
@@ -25,16 +26,17 @@ export async function loadInbox(communities: Community[], statuses: IssueStatus[
 		return [];
 	}
 
-	const perCommunity = await Promise.all(communities.map(async (community) => {
+	// One status at a time and kept a few minutes, so ticking one more only reads that one
+	const perCommunity = await Promise.all(communities.flatMap(community => statuses.map(async status => remember(`inbox:${community.id}:${status}`, async () => {
 		const snapshot = await getDocs(query(
 			collection(db, 'communities', community.id, 'issues'),
 			where('deletedAt', '==', null),
-			where('status', 'in', statuses),
+			where('status', '==', status),
 			limit(INBOX_MAX_PER_COMMUNITY),
 		));
 		// From the path: issues reported before communityId existed don't have it
 		return snapshot.docs.map(issueDoc => ({ ...issueDoc.data() as Issue, id: issueDoc.id, communityId: community.id, communityName: community.name }));
-	}));
+	}))));
 	return perCommunity.flat().sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
 }
 
@@ -56,6 +58,10 @@ export interface CommunityStats {
 
 // Counts are aggregation queries (1 read per 1000 counted). Only the lists that need a client side check are read
 export async function loadCommunityStats(community: Community): Promise<CommunityStats> {
+	return remember(`stats:${community.id}`, async () => readCommunityStats(community));
+}
+
+async function readCommunityStats(community: Community): Promise<CommunityStats> {
 	const communityRef = (name: string) => collection(db, 'communities', community.id, name);
 	const now = new Date();
 	const since = Timestamp.fromMillis(now.getTime() - RESOLUTION_WINDOW_DAYS * DAY);

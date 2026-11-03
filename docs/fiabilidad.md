@@ -52,6 +52,7 @@ A cambio:
 | ROB-6 | P1 | Operaciones de dinero que no se pueden duplicar | 0 € | — | Pendiente |
 | ROB-7 | P2 | Dependencias al día | 0 € | — | Pendiente |
 | ROB-8 | P2 | Proteger la cuota de abusos | 0 € la clave; App Check, 10.000 comprobaciones gratis al mes | — | Pendiente |
+| ROB-9 | P0 | Que el uso normal de las dos apps no gaste la cuota diaria | 0 € | — | 02/11/2026 |
 
 **Orden recomendado:**
 1. **Fase 1, lo mínimo útil:** MON-1, MON-2, MON-3 y MON-8. Con eso ya se ven los errores reales de los usuarios, agrupados y con su contexto.
@@ -169,7 +170,7 @@ Son 1 o 2 escrituras por error, y ninguna lectura: las reglas de creación no ll
 
 **Límites en el navegador:**
 - como mucho un envío por huella cada 10 minutos. Lo que pase entretanto se acumula y se suma de golpe en el siguiente envío (`increment(n)`), o al ocultarse la página;
-- como mucho 20 envíos por sesión.
+- como mucho 20 envíos por sesión, y 40 al día por dispositivo (en `localStorage`), para que recargar una y otra vez no empiece de cero.
 
 **Sin conexión.** No hace falta una cola propia: la caché persistente de Firestore que ya usa la app guarda las escrituras pendientes y las envía al volver.
 
@@ -513,6 +514,23 @@ Algunas ya lo cumplen en parte (las cuotas del año comparten `batchId fees-{yea
 - **App Check con reCAPTCHA Enterprise:** primero en modo de solo medir y luego obligatorio en Firestore. Es de Google, pero un producto aparte, con sus propias condiciones. Da 10.000 comprobaciones gratis al mes, pero por defecto cada usuario renueva su token dos veces por hora: cabe en el piloto y después cuesta dinero. Comprobar el precio antes de activarlo.
 
 **Hecho cuando** la clave está restringida y App Check mide sin bloquear a nadie.
+
+### ROB-9 · Uso de la cuota en el día a día (P0)
+
+**Qué.** Que moverse por las apps, aunque sea mucho, no agote las 50.000 lecturas, 20.000 escrituras y 1 GiB del plan gratuito. Revisadas las dos apps el 02/11/2026: no hay bucles de escritura, sondeos ni escrituras por tecla. Lo que gastaba era leer otra vez lo mismo.
+
+**Hecho:**
+- **Volver a una página no lo lee todo otra vez.** El admin guarda las últimas páginas abiertas y antes las releía cada vez que se volvía a ellas. Ahora solo si se ha cambiado algo desde la app desde entonces (cualquier cambio que queda en la actividad de una comunidad) o han pasado más de 5 minutos. Lo que cambian otros llega como mucho en ese tiempo; lo que se ve en directo (incidencias, juntas, recibos pendientes) sigue al momento.
+- **Lo que varias páginas leen igual se comparte durante esos 5 minutos:** la contabilidad del año (miles de lecturas) entre la contabilidad, la liquidación anual y cada exportación, las cifras de cada comunidad en el panel de la cartera y en su inicio, la bandeja por estado y los avisos recientes por comunidad, así que marcar una casilla más solo lee lo nuevo.
+- **Votaciones.** Al celebrarse la junta, el admin guarda el resultado de cada punto en la propia junta, y cada vecino lee eso en lugar de todas las papeletas (puntos × viviendas). Las juntas celebradas antes se completan la próxima vez que el admin abre la junta.
+- **Consultas sin tope que crecían con los años:** los recibos pagados después del cierre en la liquidación de un año antiguo, los movimientos ya importados al subir un extracto antiguo, los plazos de la AEAT, y los recibos pendientes y obligaciones del inicio de la comunidad.
+- **La webapp no vuelve a escuchar** la comunidad, las juntas ni los comentarios cuando cambia otro dato del perfil o de la comunidad.
+- **Documentos:** como mucho 10 por persona, de 1 MB, comprobado en las dos apps.
+
+**Límites que quedan:**
+- **Emitir las cuotas de un año de golpe** son unas 1.200 escrituras por comunidad de 100 viviendas: de 15 comunidades en adelante en el mismo día se pasa de las 20.000. Repartirlas en varios días o emitir por trimestres.
+- **Los documentos dentro de Firestore** comparten el 1 GiB con todo lo demás: unos 1.000 archivos de 1 MB lo llenan. El tope por persona lo comprueban las apps, no las reglas. Con Blaze (INF-1), a Cloud Storage.
+- **"Ver más"** en la cronología de la webapp y en las incidencias y notificaciones del admin vuelve a leer las páginas anteriores. Crece con cada pulsación, pero solo la de quien pulsa.
 
 ---
 

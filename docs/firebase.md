@@ -21,6 +21,10 @@ The first time each of these queries runs, Firestore logs an error in the browse
 
 Comments are ordered by date only, so they need no index.
 
+| Admin feature | Index |
+| --- | --- |
+| Liquidación anual of a closed year, the charges due in it and paid after | Composite on `charges`: `paidAt` ascending, `dueDate` ascending |
+
 The admin's **Errores** page (only the team) orders the errors by when they were last seen, and each filter needs its own index. Firestore merges them when several filters are on:
 
 | Feature | Index |

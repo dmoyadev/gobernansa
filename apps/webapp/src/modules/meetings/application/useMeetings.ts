@@ -21,9 +21,11 @@ const VISIBLE_STATUS: Meeting['status'][] = ['convened', 'held', 'cancelled'];
 export function useMeetings() {
 	const db = getFirestore();
 	const { userCommunity } = useUserCommunity();
+	// The id, so changes to the community don't listen again
+	const communityId = computed(() => userCommunity.value?.id);
 
-	const meetingsRef = computed(() => userCommunity.value
-		? query(communityCollection<Meeting>(db, userCommunity.value.id, 'meetings'), where('status', 'in', VISIBLE_STATUS))
+	const meetingsRef = computed(() => communityId.value
+		? query(communityCollection<Meeting>(db, communityId.value, 'meetings'), where('status', 'in', VISIBLE_STATUS))
 		: null);
 	const allMeetings = useCollection<Meeting>(meetingsRef, { ssrKey: 'meetings' });
 	const meetings = computed(() => [...allMeetings.value].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
@@ -49,29 +51,32 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 	const db = getFirestore();
 	const { user } = useAuth();
 	const { userCommunity } = useUserCommunity();
+	const communityId = computed(() => userCommunity.value?.id);
 
-	const meetingRef = computed(() => userCommunity.value
-		? communityDoc(db, userCommunity.value.id, 'meetings', toValue(meetingId))
+	const meetingRef = computed(() => communityId.value
+		? communityDoc(db, communityId.value, 'meetings', toValue(meetingId))
 		: null);
 	const meeting = useDocument<Meeting>(meetingRef);
 
-	const attendanceRef = computed(() => meetingRef.value && user.value ? doc(meetingRef.value, 'attendance', user.value.id) : null);
+	const uid = computed(() => user.value?.id);
+	const attendanceRef = computed(() => meetingRef.value && uid.value ? doc(meetingRef.value, 'attendance', uid.value) : null);
 	const attendance = useDocument<MeetingAttendance>(attendanceRef);
 
-	// Everyone's once held, for the results. Before, only the user's: a meeting can have hundreds and each one is a read.
-	// A boolean, so other changes to the meeting don't listen to the ballots again
+	// Only the user's: a meeting can have hundreds and each one is a read. Once held the admin keeps the tally on the
+	// meeting (results); everyone's only for a held meeting from before that, until the admin opens it again.
+	// Booleans, so other changes to the meeting don't listen to the ballots again
 	const held = computed(() => meeting.value ? meeting.value.status === 'held' : undefined);
+	const tallied = computed(() => !!meeting.value?.results);
 	const ballots = useCollection<MeetingVote>(computed(() => {
-		if (!meetingRef.value || !user.value || held.value === undefined) {
+		if (!meetingRef.value || !uid.value || held.value === undefined) {
 			return null;
 		}
 		const all = collection(meetingRef.value, 'ballots');
-		return held.value ? all : query(all, where('voterId', '==', user.value.id));
+		return held.value && !tallied.value ? all : query(all, where('voterId', '==', uid.value));
 	}));
 
 	// The acta for its signers before it's sent and for every owner after, and the user's notices of it and of the convocatoria.
 	// Only what the rules let them read, as booleans so other changes to the meeting don't listen again
-	const uid = computed(() => user.value?.id);
 	const isSigner = computed(() => !!uid.value && !!meeting.value?.minutesSigners?.includes(uid.value));
 	const callSent = computed(() => !!meeting.value?.notifiedAt?.call);
 	const minutesSent = computed(() => !!meeting.value?.notifiedAt?.minutes);

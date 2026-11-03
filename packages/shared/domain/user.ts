@@ -50,3 +50,8 @@ export function assignableRoles(user: User | null | undefined, communityId: stri
 	}
 	return [];
 }
+
+// Each person's documents are stored inside Firestore (1 MiB max each) to stay on the free plan, whose 1 GiB is shared by
+// everything. A few per person, so they can't fill it. ponytail: checked by the apps, not the rules; a count on the profile if it's abused
+export const MAX_DOCUMENT_SIZE = 1_000_000;
+export const MAX_DOCUMENTS = 10;

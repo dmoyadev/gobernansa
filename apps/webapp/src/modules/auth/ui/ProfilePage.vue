@@ -14,7 +14,7 @@ import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 import { version } from '../../../../package.json';
 import { usePushNotifications } from '../application/usePushNotifications.ts';
-import { MAX_DOCUMENT_SIZE, useUserDocuments } from '../application/useUserDocuments.ts';
+import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS, useUserDocuments } from '../application/useUserDocuments.ts';
 import { userDocumentCategories } from '../domain/user.ts';
 
 const { user, logout, changePassword } = useAuth();
@@ -40,6 +40,10 @@ async function upload(event: Event) {
 	documentsError.value = undefined;
 	if (file.size > MAX_DOCUMENT_SIZE) {
 		documentsError.value = 'El archivo ocupa más de 1 MB. Prueba a reducirlo o a hacer la foto con menos calidad.';
+		return;
+	}
+	if (documents.value.length >= MAX_DOCUMENTS) {
+		documentsError.value = `Puedes guardar hasta ${MAX_DOCUMENTS} documentos. Borra alguno que ya no necesites para subir otro.`;
 		return;
 	}
 

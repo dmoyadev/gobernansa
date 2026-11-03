@@ -1,11 +1,11 @@
 import type { UserDocument } from '../domain/user.ts';
+import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS } from '@gobernansa/shared/domain/user.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { Bytes, collection, doc, getDoc, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useCollection, useCurrentUser } from 'vuefire';
 
-// shortcut: files are stored inside Firestore documents (1 MiB max each) to stay on the free plan, move them to Cloud Storage for bigger ones
-export const MAX_DOCUMENT_SIZE = 1_000_000;
+export { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS };
 
 /**
  * Documents are listed from users/{uid}/documents, while their content lives in users/{uid}/documentFiles
@@ -33,6 +33,9 @@ export function useUserDocuments() {
 	async function uploadDocument(file: File, category: UserDocument['category'], propertyId?: string) {
 		if (file.size > MAX_DOCUMENT_SIZE) {
 			throw new Error(`The file is bigger than ${MAX_DOCUMENT_SIZE} bytes`);
+		}
+		if (documents.value.length >= MAX_DOCUMENTS) {
+			throw new Error(`There are already ${MAX_DOCUMENTS} documents`);
 		}
 
 		const { documentRef, fileRef } = getRefs();

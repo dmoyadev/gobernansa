@@ -22,6 +22,8 @@ export interface Meeting extends Datable {
 	minutesSigned?: string[];
 	// When the convocatoria and the acta were last sent to the owners. The acta can be read by them from then on
 	notifiedAt?: Partial<Record<NoticeKind, Timestamp>>;
+	// Once held, each votable item's tally, kept by the admin, so neighbours read this instead of every ballot
+	results?: Record<string, Tally[]>;
 }
 
 export type MeetingStatus = 'draft' | 'convened' | 'held' | 'cancelled';

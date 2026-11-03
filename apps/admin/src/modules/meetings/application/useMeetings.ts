@@ -9,7 +9,7 @@ import { isEmail, renderMail } from '@gobernansa/shared/domain/mail.ts';
 import { isApproved, meetingStatus, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
 import { isFullySigned, MINUTES_ID, minutesHash } from '@gobernansa/shared/domain/minutes.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { arrayUnion, collection, deleteField, doc, getDocFromServer, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { arrayUnion, collection, deleteField, doc, getDocFromServer, getDocs, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -91,6 +91,11 @@ export async function saveMeeting(communityId: string, id: string, { date, time,
 		link: link(communityId, meetingRef.id),
 	});
 	await batch.commit();
+}
+
+// The tally of each votable item on the meeting, for the webapp. Not logged: it follows the ballots
+export async function saveResults(meeting: Meeting, results: Meeting['results']) {
+	await updateDoc(doc(meetingsRef(meeting.communityId), meeting.id), { results });
 }
 
 // votingOpen: to bring back how it was when undoing

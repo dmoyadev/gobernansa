@@ -14,7 +14,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
-import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { newId, onRevalidate, remember } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -158,7 +158,6 @@ function send() {
 let latestLoad = 0;
 
 // Once per change of the selection and not live: it reads up to RECENT_PER_COMMUNITY per community
-// ponytail: each toggle re-reads every selected community, cache per community if large portfolios make it costly
 async function loadRecent() {
 	const ids = [...selected.value];
 	if (!ids.length) {
@@ -170,19 +169,20 @@ async function loadRecent() {
 	recentLoading.value = true;
 	recentError.value = undefined;
 	try {
-		const snapshots = await Promise.all(ids.map(async communityId => getDocs(query(
+		// Each community's kept a few minutes, so ticking one more only reads that one
+		const lists = await Promise.all(ids.map(async communityId => remember(`announcements:${communityId}`, async () => (await getDocs(query(
 			eventsRef,
 			where('communityId', '==', communityId),
 			// Same index as the timeline's: communityId and date
 			where('date', '>=', Timestamp.fromMillis(recentSince())),
 			orderBy('date', 'desc'),
 			limit(RECENT_PER_COMMUNITY),
-		))));
+		))).docs.map(snapshot => ({ ...snapshot.data(), id: snapshot.id }) as Event))));
 		if (load !== latestLoad) {
 			return;
 		}
 		const groups = new Map<string, Broadcast>();
-		for (const event of snapshots.flatMap(snapshot => snapshot.docs.map(snapshot => ({ ...snapshot.data(), id: snapshot.id }) as Event))) {
+		for (const event of lists.flat()) {
 			// Only the ones sent from here, each community's own are on its notifications page
 			if (!event.broadcastId) {
 				continue;

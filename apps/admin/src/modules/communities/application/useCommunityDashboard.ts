@@ -71,8 +71,8 @@ export function dashboardSources(communityId: string) {
 		newIssues: async () => (await docs<Issue>(query(community('issues'), where('createdAt', '>=', since), limit(MAX_DOCS)))).filter(issue => !issue.deletedAt),
 		registration: async () => registration(communityId),
 		properties: async () => docs<Property>(query(collection(db, 'properties'), where('communityId', '==', communityId), limit(MAX_DOCS))),
-		obligations: async () => docs<Obligation>(community('obligations')),
-		unpaidCharges: async () => docs<Charge>(query(community('charges'), where('paidAt', '==', null))),
+		obligations: async () => docs<Obligation>(query(community('obligations'), limit(MAX_DOCS))),
+		unpaidCharges: async () => docs<Charge>(query(community('charges'), where('paidAt', '==', null), limit(MAX_DOCS))),
 		// Collected and spent this year and per month, as sums
 		balance: async () => {
 			const [collected, spent, pending, perMonth] = await Promise.all([

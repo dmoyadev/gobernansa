@@ -18,9 +18,12 @@ export function useIssueComments(issue: Ref<Issue | undefined>) {
 	const { user } = useAuth();
 	const { userCommunity } = useUserCommunity();
 
-	// From the user's community, older issues don't have communityId
-	const issueRef = computed(() => issue.value && userCommunity.value
-		? communityDoc(db, userCommunity.value.id, 'issues', issue.value.id)
+	// From the user's community, older issues don't have communityId. By ids, so changes to the issue or the community
+	// don't listen to the comments again
+	const communityId = computed(() => userCommunity.value?.id);
+	const issueId = computed(() => issue.value?.id);
+	const issueRef = computed(() => issueId.value && communityId.value
+		? communityDoc(db, communityId.value, 'issues', issueId.value)
 		: undefined);
 
 	// shortcut: ordered by date only (no composite index needed) and removed ones are left out here, paginate if issues get hundreds of comments

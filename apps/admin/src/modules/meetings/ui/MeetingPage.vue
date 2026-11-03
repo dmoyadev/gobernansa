@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, MeetingVote, VoteChoice } from '@gobernansa/shared/domain/meeting.ts';
+import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, MeetingVote, Tally, VoteChoice } from '@gobernansa/shared/domain/meeting.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { attendanceStatus, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
 import { totalCoefficient } from '@gobernansa/shared/domain/property.ts';
@@ -28,6 +28,7 @@ import {
 	restoreBallot,
 	restoreMeeting,
 	saveMeeting,
+	saveResults,
 	setMeetingStatus,
 	setVotingOpen,
 	toMeetingForm,
@@ -233,6 +234,25 @@ function annulBallot(item: AgendaItem, ballot: MeetingVote) {
 function result(item: AgendaItem) {
 	return describeResult(tallyVotes(ballots.value, item.id), total.value);
 }
+
+// Once held, the tally is kept on the meeting whenever the ballots change, so each neighbour reads one document instead
+// of every ballot. Only when it differs, so its own write doesn't write again. A computed, as the ballots change in place
+const tallies = computed(() => meeting.value?.status === 'held' && !ballots.pending.value
+	? Object.fromEntries(meeting.value.agenda.filter(item => item.votable).map(item => [item.id, tallyVotes(ballots.value, item.id)]))
+	: undefined);
+watch([meeting, tallies], () => {
+	const current = meeting.value;
+	const results = tallies.value;
+	if (!current || !results) {
+		return;
+	}
+	// Field by field: Firestore gives maps back with their keys in another order
+	const same = (a: Tally[], b?: Tally[]) => a.every(entry => b?.some(other => other.choice === entry.choice && other.votes === entry.votes && other.coefficient === entry.coefficient));
+	const saved = current.results ?? {};
+	if (Object.keys(saved).length !== Object.keys(results).length || Object.entries(results).some(([id, tally]) => !same(tally, saved[id]))) {
+		void saveResults(current, results).catch(() => {});
+	}
+});
 
 // The minutes
 

@@ -1,9 +1,12 @@
 import type { Router } from 'vue-router';
+import { changeCount } from '@gobernansa/shared/application/activity.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc } from 'firebase/firestore';
 import { computed, nextTick, onActivated, onMounted, ref, shallowRef } from 'vue';
 
 const UPDATE_TIMEOUT_MS = 1500;
+// What others change shows up after this long at most; what's changed from here, at once
+const REVALIDATE_AFTER_MS = 5 * 60 * 1000;
 
 // Where in the history this page is, kept by the router in each entry's state
 function historyPosition() {
@@ -85,15 +88,35 @@ export function installPrefetch(router: Router, sections: string[]) {
 }
 
 // Pages come back after going elsewhere, kept alive with their data. What a page reads only once is read again
-// then, showing the last one meanwhile: stale while it revalidates. Live listeners never stopped, so they need nothing
+// then, showing the last one meanwhile: stale while it revalidates. Only if something was changed from here since, or
+// it was read over 5 minutes ago, so going back and forth between pages doesn't read everything again each time. Live
+// listeners never stopped, so they need nothing
 export function onRevalidate(refresh: () => unknown) {
 	let first = true;
+	let readAt = Date.now();
+	let readChanges = changeCount();
 	onActivated(() => {
-		if (!first) {
+		if (!first && (changeCount() !== readChanges || Date.now() - readAt > REVALIDATE_AFTER_MS)) {
+			readAt = Date.now();
+			readChanges = changeCount();
 			void refresh();
 		}
 		first = false;
 	});
+}
+
+// What several pages, or the same one opened again, read once: kept here for 5 minutes, or until something is changed
+// from here. A failed read isn't kept
+const remembered = new Map<string, { at: number; changes: number; value: Promise<unknown> }>();
+export async function remember<T>(key: string, load: () => Promise<T>): Promise<T> {
+	const kept = remembered.get(key);
+	if (kept && kept.changes === changeCount() && Date.now() - kept.at <= REVALIDATE_AFTER_MS) {
+		return kept.value as Promise<T>;
+	}
+	const value = load();
+	remembered.set(key, { at: Date.now(), changes: changeCount(), value });
+	value.catch(() => remembered.get(key)?.value === value && remembered.delete(key));
+	return value;
 }
 
 // Read again each time the page comes back, showing the last data meanwhile. A failed reread keeps them

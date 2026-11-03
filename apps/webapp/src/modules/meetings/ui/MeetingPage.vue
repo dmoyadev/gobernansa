@@ -73,7 +73,7 @@ function onVote(item: AgendaItem, property: Property, choice: VoteChoice) {
 }
 
 function results(item: AgendaItem) {
-	const tally = tallyVotes(ballots.value, item.id);
+	const tally = meeting.value?.results?.[item.id] ?? tallyVotes(ballots.value, item.id);
 	return { tally, approved: isApproved(tally) };
 }
 

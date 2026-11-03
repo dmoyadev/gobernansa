@@ -26,6 +26,9 @@ const SENDS = import.meta.env.PROD || import.meta.env.VITE_FIREBASE_EMULATORS ==
 const TRAIL_SIZE = 30;
 const THROTTLE_MS = 10 * 60 * 1000;
 const SESSION_SENDS = 20;
+// Per device and day, so reloading over and over doesn't start the 20 again
+const DAY_SENDS = 40;
+const SENDS_KEY = 'monitoring:sends';
 const SAMPLE_DAYS = 30;
 const RELOADED_KEY = 'monitoring:reloaded';
 const RELOAD_EVERY_MS = 10 * 60 * 1000;
@@ -252,6 +255,13 @@ async function flush(id: string) {
 	if (!SENDS || !group?.unsent || !currentUser || quotaExhausted.value || sends >= SESSION_SENDS) {
 		return;
 	}
+	const today = new Date().toDateString();
+	const sentToday = safely(() => JSON.parse(localStorage.getItem(SENDS_KEY) ?? 'null') as { day: string; count: number } | null);
+	const todayCount = sentToday?.day === today ? sentToday.count : 0;
+	if (todayCount >= DAY_SENDS) {
+		return;
+	}
+	safely(() => localStorage.setItem(SENDS_KEY, JSON.stringify({ day: today, count: todayCount + 1 })));
 
 	clearTimeout(group.timer);
 	group.timer = undefined;

@@ -36,8 +36,9 @@ export async function loadAnnualReportData(communityId: string, year: number, cu
 	const [ledger, community, paidAfter, next, movements] = await Promise.all([
 		loadLedgerData(communityId, year),
 		loadCommunity(communityId),
-		// Nothing is paid after the end of a year still running
-		end.toMillis() > Date.now() ? undefined : getDocs(query(chargesRef(communityId), where('paidAt', '>=', end))),
+		// Nothing is paid after the end of a year still running. Only those due by then, or an old year would read every
+		// charge paid since (a composite index on paidAt and dueDate)
+		end.toMillis() > Date.now() ? undefined : getDocs(query(chargesRef(communityId), where('paidAt', '>=', end), where('dueDate', '<', end))),
 		getDoc(doc(db, 'communities', communityId, 'budgets', String(year + 1))),
 		getDocs(query(collection(db, 'communities', communityId, 'bankMovements'), where('date', '>=', toDateString(since)), where('date', '<=', cutoff))),
 	]);

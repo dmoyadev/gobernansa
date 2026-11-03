@@ -8,6 +8,7 @@ import { PAYOUT_DAYS } from '@gobernansa/shared/domain/bank.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { remember } from '@/app/ux/navigation.ts';
 
 function signedUid() {
 	const uid = auth.currentUser?.uid;
@@ -46,9 +47,14 @@ function data<T>(snapshot: DocumentSnapshot) {
  * entrega a cuenta or still unpaid (a returned one may be from an earlier year), the invoices dated (not by their budget's year, which may be
  * another) or paid in the year, the manual entries, this year's closing and the previous one (its opening), the
  * budget, the census and the added accounts, and the bookings paid or whose fianza was returned in the year. Those
- * paid in the last days of the year before are read too, as the gateway pays in this one those paid online
+ * paid in the last days of the year before are read too, as the gateway pays in this one those paid online.
+ * Thousands of reads, so the books, the annual report and each export share one for a few minutes
  */
 export async function loadLedgerData(communityId: string, year: number) {
+	return remember(`ledger:${communityId}:${year}`, async () => readLedgerData(communityId, year));
+}
+
+async function readLedgerData(communityId: string, year: number) {
 	const from = Timestamp.fromDate(new Date(year, 0, 1));
 	const to = Timestamp.fromDate(new Date(year + 1, 0, 1));
 	const paidFrom = Timestamp.fromDate(new Date(year, 0, 1 - PAYOUT_DAYS));

@@ -66,7 +66,7 @@ function matchedRef(communityId: string, kind: 'charges' | 'expenses' | 'payout'
 
 /**
  * Only those not imported before, by their deterministic ids: those already there are left as they are, reconciled or
- * not. One read of what's there since the statement's first day. Resolves to those added
+ * not. One read of what's there between the statement's first and last days. Resolves to those added
  */
 export async function importMovements(communityId: string, source: BankMovement['source'], data: MovementData[], label: string) {
 	if (!data.length) {
@@ -75,7 +75,8 @@ export async function importMovements(communityId: string, source: BankMovement[
 	const uid = signedUid();
 	const ids = await movementIds(data);
 	const from = data.reduce((min, movement) => movement.date < min ? movement.date : min, data[0].date);
-	const existing = new Set((await getDocs(query(movementsRef(communityId), where('date', '>=', from)))).docs.map(movement => movement.id));
+	const to = data.reduce((max, movement) => movement.date > max ? movement.date : max, data[0].date);
+	const existing = new Set((await getDocs(query(movementsRef(communityId), where('date', '>=', from), where('date', '<=', to)))).docs.map(movement => movement.id));
 	const fresh = data.flatMap((movement, index) => existing.has(ids[index]) ? [] : [{ ...movement, id: ids[index] }]);
 
 	// ponytail: past 499 movements the import is split in several batches, a failure halfway leaves the first ones, importing again adds the rest

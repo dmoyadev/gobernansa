@@ -10,7 +10,7 @@ import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
 import { propertyTypeLabels, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onActivated, ref, shallowReactive, watch } from 'vue';
-import { onRevalidate } from '@/app/ux/navigation.ts';
+import { onRevalidate, remember } from '@/app/ux/navigation.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { dashboardMonths, dashboardSources } from '../application/useCommunityDashboard.ts';
 
@@ -100,7 +100,8 @@ const failed = shallowReactive(new Set<DashboardSource>());
 const requested = new Set<DashboardSource>();
 
 function load(source: DashboardSource) {
-	sources[source]().then(
+	// Kept a few minutes, so going into a section and back doesn't read every widget again
+	remember(`dashboard:${props.communityId}:${source}`, sources[source] as () => Promise<unknown>).then(
 		(value) => {
 			(data as Record<DashboardSource, unknown>)[source] = value;
 			failed.delete(source);

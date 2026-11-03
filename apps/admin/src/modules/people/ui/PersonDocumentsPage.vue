@@ -4,6 +4,7 @@ import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { Timestamp } from 'firebase/firestore';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS } from '@gobernansa/shared/domain/user.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { Bytes, collection, doc, getDoc, orderBy, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
@@ -31,7 +32,6 @@ interface PersonDocument {
 const props = defineProps<{ id: string; uid: string }>();
 
 // Files live inside Firestore documents to stay on the free plan, as the webapp does
-const MAX_DOCUMENT_SIZE = 1_000_000;
 
 const categories: { value: PersonDocument['category']; label: string; icon: string }[] = [
 	{ value: 'deed', label: 'Escrituras', icon: 'lucide:landmark' },
@@ -71,6 +71,10 @@ async function upload() {
 	}
 	if (file.value.size > MAX_DOCUMENT_SIZE) {
 		formError.value = 'El archivo no puede pasar de 1 MB.';
+		return;
+	}
+	if (documents.value.length >= MAX_DOCUMENTS) {
+		formError.value = `Cada vecino puede tener hasta ${MAX_DOCUMENTS} documentos. Borra alguno antes de enviar otro.`;
 		return;
 	}
 

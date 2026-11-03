@@ -16,12 +16,9 @@ function createUserCommunity() {
 	const { user } = useAuth();
 	const db = getFirestore();
 
-	const communityRef = computed(() => {
-		if (!user.value?.communityId) {
-			return null;
-		}
-		return doc(db, 'communities', user.value.communityId);
-	});
+	// The id first: the profile is a new object on each change to it, and a new reference would listen again
+	const communityId = computed(() => user.value?.communityId);
+	const communityRef = computed(() => communityId.value ? doc(db, 'communities', communityId.value) : null);
 
 	const userCommunity = useDocument<Community>(communityRef);
 
