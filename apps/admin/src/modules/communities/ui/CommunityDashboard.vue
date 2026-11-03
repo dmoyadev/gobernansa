@@ -973,18 +973,18 @@ function reset() {
 	.age-3 { background: var(--color-secondary-accent); }
 }
 
-// Figures on the left, chart on the right
+// Figures on the left as wide as they need, chart in the rest
 .split {
 	flex: 1;
 	min-height: 0;
 	display: grid;
-	grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+	grid-template-columns: auto minmax(0, 1fr);
 	gap: var(--lnx-spacing-3);
 }
 
 .facts {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-columns: auto auto;
 	align-content: start;
 	gap: 2px var(--lnx-spacing-2);
 
