@@ -30,8 +30,10 @@ export const obligationTypes: Record<ObligationType, { label: string; icon: stri
 // Days before the due date it starts being warned about
 export const OBLIGATION_WARNING_DAYS = 30;
 
+// Due dates are local midnights, so it counts by day: one due today isn't overdue until tomorrow
 export function obligationStatus(obligation: Pick<Obligation, 'dueAt'>, now = new Date()): 'overdue' | 'soon' | 'ok' {
-	const days = (obligation.dueAt.toMillis() - now.getTime()) / 86_400_000;
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const days = (obligation.dueAt.toMillis() - today.getTime()) / 86_400_000;
 	if (days < 0) {
 		return 'overdue';
 	}
