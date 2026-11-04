@@ -18,7 +18,7 @@ const {
 	fetchIssues,
 } = useIssues();
 
-const hasFilters = computed(() => !!(filters.value.status || filters.value.category || filters.value.createdBy));
+const hasFilters = computed(() => !!(filters.value.status || filters.value.category || filters.value.authorKey));
 
 const $loadMoreTrigger = useTemplateRef('$loadMoreTrigger');
 
@@ -52,7 +52,7 @@ onUnmounted(() => {
 		<IssuesFilters
 			v-model:status="filters.status"
 			v-model:category="filters.category"
-			v-model:created-by="filters.createdBy"
+			v-model:author-key="filters.authorKey"
 		/>
 
 		<ul class="issues">

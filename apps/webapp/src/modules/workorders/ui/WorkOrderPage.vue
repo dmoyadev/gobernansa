@@ -2,7 +2,7 @@
 import type { WorkOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
-import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
+import { DEFAULT_ISSUE_CATEGORIES, findIssueCategory } from '@gobernansa/shared/domain/issue.ts';
 import { WORK_ORDER_LIMITS, workOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
@@ -23,7 +23,10 @@ const dayFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full' });
 const visitFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle: 'short' });
 const stepFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
 
-const category = computed(() => issuesCategories.find(option => option.value === workOrder.value?.issue.category));
+const category = computed(() => {
+	const value = workOrder.value?.issue.category;
+	return typeof value === 'string' ? findIssueCategory(DEFAULT_ISSUE_CATEGORIES, value) : value;
+});
 const history = computed(() => [...workOrder.value?.history ?? []].reverse());
 const mapsLink = computed(() => {
 	const place = [workOrder.value?.community.address, workOrder.value?.community.name].filter(Boolean).join(', ');
@@ -263,7 +266,7 @@ async function send(status: WorkOrderStatus) {
 			<section v-if="!workOrder.revokedAt" class="panel">
 				<h2>
 					<LnxIcon :icon="category?.icon ?? 'lucide:wrench'" :size="16" />
-					{{ category?.label ?? 'Trabajo' }}
+					{{ category?.name ?? 'Trabajo' }}
 				</h2>
 				<p class="description" :class="{ hint: !workOrder.issue.description }">
 					{{ workOrder.issue.description || 'Sin descripción' }}

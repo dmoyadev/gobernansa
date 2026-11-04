@@ -63,6 +63,13 @@ const router = createRouter({
 					props: true,
 				},
 				{
+					path: 'communities/:id/issue-categories',
+					name: 'Categorías de incidencias',
+					component: async () => import('@/modules/issues/ui/IssueCategoriesPage.vue'),
+					meta: { title: 'Categorías de incidencias' },
+					props: true,
+				},
+				{
 					path: 'communities/:id/issues/:issueId',
 					name: 'Incidencia',
 					component: async () => import('@/modules/issues/ui/IssuePage.vue'),

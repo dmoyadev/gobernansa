@@ -50,7 +50,7 @@ export const workspaces: Record<string, Workspace> = {
 				{ title: 'Datos generales', icon: 'lucide:building-2', pages: [{ key: 'info', title: 'Datos generales', description: 'Nombre, dirección, CIF, banco e IBAN' }] },
 				{ title: 'Contactos', icon: 'lucide:phone', pages: [{ key: 'contacts', title: 'Contactos', description: 'Teléfonos, correos y horarios' }] },
 				{ title: 'Documentación oficial', icon: 'lucide:file-text', pages: [{ key: 'documents', title: 'Documentación oficial', description: 'Estatutos, normas, seguro y actas' }] },
-				{ title: 'Configuración', icon: 'lucide:settings-2', pages: [{ key: 'settings', title: 'Configuración de la comunidad', description: 'Votos por vecino y otros ajustes' }] },
+				{ title: 'Configuración', icon: 'lucide:settings-2', pages: [{ key: 'settings', title: 'Configuración de la comunidad', description: 'Votos por propiedad y otros ajustes' }] },
 			],
 		}],
 	}),

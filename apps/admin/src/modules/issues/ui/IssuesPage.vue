@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { CommonArea } from '@gobernansa/shared/domain/community.ts';
-import type { Issue, IssueCategory, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import type { Community } from '@gobernansa/shared/domain/community.ts';
+import type { Issue, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
-import { getIssueAge, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
@@ -33,7 +33,11 @@ function filter(value?: IssueStatus) {
 	max.value = PAGE_SIZE;
 }
 
-const categories = Object.fromEntries(issuesCategories.map(category => [category.value, category]));
+// Its categories and common areas, as neighbours see them. Read once with the page, the defaults and a typed place until then
+const community = ref<Community>();
+loadCommunity(props.id).then(loaded => community.value = loaded, () => {});
+const categories = computed(() => getIssueCategories(community.value));
+const areas = computed(() => community.value && getCommonAreas(community.value));
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
 const thisYear = new Date().getFullYear();
 
@@ -49,23 +53,21 @@ function openedAgo(issue: Issue) {
 
 // Each form brings the new issue's id, so sending it again can't duplicate it
 function emptyForm() {
-	return { id: newId(), title: '', description: '', category: 'maintenance' as IssueCategory, place: '' as '' | keyof typeof issueLocationTypes, reference: '' };
+	return { id: newId(), title: '', description: '', category: categories.value[0]?.id ?? '', place: '' as '' | keyof typeof issueLocationTypes, reference: '' };
 }
 
 const form = ref<ReturnType<typeof emptyForm>>();
 const formElement = ref<HTMLFormElement>();
 
-// Offered as places, as neighbours see them. Read once, when the form first opens; without them it's typed
-const areas = ref<CommonArea[]>();
-
 async function openForm() {
 	form.value ??= emptyForm();
-	if (!areas.value) {
-		areas.value = [];
-		loadCommunity(props.id).then(community => areas.value = getCommonAreas(community), () => areas.value = undefined);
-	}
 	await nextTick();
 	formElement.value?.querySelector<HTMLInputElement>('.fields input')?.focus();
+}
+
+function defaultTitle(categoryId: string) {
+	const category = findIssueCategory(categories.value, categoryId);
+	return category.defaultTitle || category.name;
 }
 
 // The issue is in the local cache at once, so it opens straight away. If the server rejects it, back to the form as it was
@@ -78,7 +80,7 @@ function create() {
 	const { id: issueId, title, description, category, place, reference } = values;
 	const link = `/communities/${props.id}/issues/${issueId}`;
 	void optimistic(createIssue(props.id, me.value!.id, issueId, {
-		title: title.trim() || categories[category]!.defaultTitle,
+		title: title.trim() || defaultTitle(category),
 		description: description.trim(),
 		category,
 		...(place ? { location: { type: place, reference: reference.trim() } } : {}),
@@ -108,6 +110,10 @@ useEventListener(window, 'keydown', (event) => {
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Incidencias</h1>
+		<LnxButton :to="`/communities/${id}/issue-categories`" mode="outline">
+			<LnxIcon icon="lucide:tags" />
+			Categorías
+		</LnxButton>
 		<LnxButton v-if="!form" @click="openForm()">
 			<LnxIcon icon="lucide:plus" />
 			Nueva incidencia
@@ -120,16 +126,16 @@ useEventListener(window, 'keydown', (event) => {
 		<fieldset class="categories">
 			<legend>Categoría</legend>
 			<label
-				v-for="category in issuesCategories"
-				:key="category.value"
-				:style="{ '--cat-color': `var(--color-issue-cat-${category.value}-accent)`, '--cat-color-bg': `var(--color-issue-cat-${category.value})` }"
+				v-for="category in categories"
+				:key="category.id"
+				:style="issueCategoryStyle(category)"
 			>
-				<input v-model="form.category" type="radio" class="sr-only" name="category" :value="category.value">
-				<span><LnxIcon :icon="category.icon" :size="16" />{{ category.label }}</span>
+				<input v-model="form.category" type="radio" class="sr-only" name="category" :value="category.id" required>
+				<span><LnxIcon :icon="category.icon" :size="16" />{{ category.name }}</span>
 			</label>
 		</fieldset>
 		<div class="fields">
-			<LnxInput v-model="form.title" class="wide" :placeholder="categories[form.category]?.defaultTitle">
+			<LnxInput v-model="form.title" class="wide" :placeholder="defaultTitle(form.category)">
 				Título
 			</LnxInput>
 			<fieldset class="chips wide">
@@ -206,18 +212,17 @@ useEventListener(window, 'keydown', (event) => {
 					class="issue ux-row"
 					:to="`/communities/${id}/issues/${issue.id}`"
 					:style="{
-						'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
-						'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
+						...issueCategoryStyle(findIssueCategory(categories, issue.category)),
 						'--status-color': `var(--color-issue-status-${issue.status})`,
 					}"
 				>
 					<span class="tile">
-						<LnxIcon :icon="categories[issue.category]?.icon ?? 'lucide:triangle-alert'" :size="18" />
+						<LnxIcon :icon="findIssueCategory(categories, issue.category).icon" :size="18" />
 					</span>
 					<div class="what">
 						<strong :style="{ viewTransitionName: `issue-${issue.id}` }">{{ issue.title }}</strong>
 						<small>
-							<span class="category">{{ categories[issue.category]?.label ?? 'Sin categoría' }}</span>
+							<span class="category">{{ findIssueCategory(categories, issue.category).name }}</span>
 							<span v-if="issue.location">
 								<LnxIcon icon="lucide:map-pin" :size="12" />
 								{{ issue.location.reference || issueLocationTypes[issue.location.type] }}

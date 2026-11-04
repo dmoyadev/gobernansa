@@ -1,11 +1,12 @@
 import type { Issue, IssuesFilters, IssueSortingField } from '@gobernansa/shared/domain/issue.ts';
 import type { CollectionReference, DocumentData, QueryConstraint } from 'firebase/firestore';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import { addDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where } from 'firebase/firestore';
+import { doc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityCollection, mapFirestoreDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
+import { getAuthorKey } from './authorKey.ts';
 import { invalidateUserActivity } from './useUserActivity.ts';
 
 const PAGE_SIZE = 10;
@@ -57,20 +58,27 @@ export function useCreateIssue() {
 			throw new Error('The user has no community to report the issue to');
 		}
 
-		const { id } = await addDoc(communityCollection(db, communityId, 'issues'), {
+		// Neighbours never know who reported it: the issue only has the author's secret key, and who they are goes to a
+		// document only the administration reads, in the same write
+		const uid = user.value.uid;
+		const issueRef = doc(communityCollection(db, communityId, 'issues'));
+		const batch = writeBatch(db);
+		batch.set(issueRef, {
 			...issue,
 			status: 'open',
 			communityId,
 			votesScore: 0,
 			votesCount: 0,
 			commentsCount: 0,
-			createdBy: user.value.uid,
-			updatedBy: user.value.uid,
+			authorKey: await getAuthorKey(uid),
 			createdAt: serverTimestamp(),
 			updatedAt: serverTimestamp(),
 			// The list only shows issues whose deletedAt is null, a missing field wouldn't match
 			deletedAt: null,
 		});
+		batch.set(doc(issueRef, 'private', 'author'), { uid });
+		await batch.commit();
+		const { id } = issueRef;
 
 		// The list and the user's stats fetch again next time they're shown, so the new issue shows up
 		fetchedAt = 0;
@@ -127,8 +135,8 @@ function createIssues() {
 		if (filters.value.assignedTo) {
 			constraints.push(where('assignedTo', '==', filters.value.assignedTo));
 		}
-		if (filters.value.createdBy) {
-			constraints.push(where('createdBy', '==', filters.value.createdBy));
+		if (filters.value.authorKey) {
+			constraints.push(where('authorKey', '==', filters.value.authorKey));
 		}
 		if (lastDoc.value) {
 			constraints.push(startAfter(lastDoc.value));

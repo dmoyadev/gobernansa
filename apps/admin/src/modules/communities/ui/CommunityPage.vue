@@ -4,7 +4,7 @@ import type { ComponentPublicInstance } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
-import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
+import { DEFAULT_MONTHLY_VOTES, getIssueCategories } from '@gobernansa/shared/domain/issue.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
@@ -563,7 +563,7 @@ useEventListener(window, 'pointerup', disarm);
 		</div>
 	</header>
 
-	<CommunityDashboard ref="dashboard" :community-id="id" />
+	<CommunityDashboard ref="dashboard" :community-id="id" :categories="community && getIssueCategories(community)" />
 
 	<CommunitySearch :community-id="id" :community="community" />
 

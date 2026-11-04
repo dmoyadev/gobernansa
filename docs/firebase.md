@@ -17,7 +17,7 @@ The first time each of these queries runs, Firestore logs an error in the browse
 | Feature | Index |
 | --- | --- |
 | Votes left this month, on the home and issue pages | Composite on the `votes` **collection group**: `voterId` ascending, `votedAt` ascending (Firestore → Indexes → Composite, query scope "Collection group") |
-| "Mis incidencias" filter in the issues list | Composite on `issues`: `createdBy` ascending, `createdAt` descending |
+| "Mis incidencias" filter in the issues list | Composite on `issues`: `authorKey` ascending, `createdAt` descending (the old one on `createdBy` can go) |
 
 Comments are ordered by date only, so they need no index.
 
@@ -126,14 +126,20 @@ contacts[]     { type: admin | president | janitor | insurance | elevator | clea
                  name, phone?, whatsapp?, email?,
                  schedule?: [{ days: [1..7], from: 'HH:MM', to: 'HH:MM' }] }
 documents[]    { type: statutes | regulations | insurance | minutes, title, url, date }
-monthlyVotes   votes each neighbour gets every month, 5 when missing
+monthlyVotes   votes each property gets every month, 5 when missing
+issueCategories[]  { id, name, icon, color: amber | green | cyan | blue | purple | rose | gray, examples?, defaultTitle? },
+                   in the order neighbours see them. The six defaults (DEFAULT_ISSUE_CATEGORIES) when missing
 ```
+
+### Issue categories
+
+Each community has its own, edited from the admin's **Incidencias → Categorías** like the common areas: create, rename, change the icon, color and examples, reorder by dragging and remove (at least one stays). Until it's first saved the community has the six defaults (Mantenimiento, Limpieza, Molestias, Jardinería, Servicios, Otros). Issues keep their category's id, so renaming one renames it on all of them; one that's removed shows with its default name if it was a default, or as **Sin categoría**. The suggestions while reporting only know the defaults, so they only offer one of those the community still has. A parte de trabajo keeps the category's name and icon, as the provider can't read the community.
 
 `schedule` works for any contact (e.g. the janitor's shifts): days are ISO weekdays (1 is Monday, 7 is Sunday) and times are 24 hour and zero padded. Add one entry per shift, e.g. `{ days: [1, 2, 3, 4, 5], from: '08:00', to: '15:00' }` and `{ days: [6], from: '09:00', to: '13:00' }`. The contact then shows its hours and whether it's available now.
 
 ### Monthly votes
 
-Each neighbour gets `monthlyVotes` votes every month (5 by default) to spend on the issues that matter most to them. A vote uses one of the month it's cast in; taking it back that same month gives it back, and votes from past months stay on their issues without using this month's. Until the index above exists, the remaining votes can't be counted: they show as "—" and voting isn't limited.
+Properties vote, not people: each issue has at most one vote per property, cast by its owner (`ownerUid`), so a home with several accounts counts once and an account without a property doesn't vote. Each property gets `monthlyVotes` votes every month (5 by default) to spend on the issues that matter most. An owner of several properties votes with the one selected in their profile, and each has its own votes. A vote uses one of the month it's cast in; taking it back that same month gives it back, and votes from past months stay on their issues without using this month's. The month's votes of the user's properties are read (a few documents, never more than `monthlyVotes` per property) and told apart by property in the app. Until the index above exists, the remaining votes can't be counted: they show as "—" and voting isn't limited.
 
 The limit is checked by the app. Rules can't count documents, so someone calling the API directly could vote past it; enforcing it on the server would need a Cloud Function (paid plan).
 
@@ -142,14 +148,21 @@ The limit is checked by the app. Rules can't count documents, so someone calling
 ```text
 communities/{communityId}/issues/{issueId}
   votesScore, votesCount, commentsCount   counters, written along with each vote or comment
-  votes/{issueId}_{uid}                   { voterId, score: 1 | -1, votedAt }
+  authorKey                               the reporter's secret key, to find their own (see below). No createdBy
+  votes/{issueId}_{propertyId}            { propertyId, voterId (its owner), score: 1 | -1, votedAt }
+  private/author                          { uid }, who reported it, written with it and never changed
   comments/{commentId}                    { type: message | status, message, status?, authorId, authorName, authorRole? }
 users/{uid}                               profile, created from their invitation on the first sign-in
 invitations/{email}                       { email, name, role, communityId, communityIds?, invitedBy, invitedAt }
 users/{uid}/documents/{id}                property documents (listing)
 users/{uid}/documentFiles/{id}            their content, up to 1 MB each
 users/{uid}/devices/{token}               devices with push notifications on
+users/{uid}/keys/issues                   { key }, the secret key of the issues they report, made once and only read by them
 ```
+
+### Who reported an issue
+
+Only the administration knows it. The issue has no `createdBy` and its author's changes aren't signed (`updatedBy`, and `deletedBy` when they remove it): who reported it goes in `private/author`, which only whoever manages the community reads, written in the same batch and never changed. To find their own issues ("Mis incidencias" and the count on the home page) and remove them, the issue carries `authorKey`, 192 random bits made the first time the user needs it and kept in `users/{uid}/keys/issues`, which only they can read. Neighbours see the key but can't tell whose it is. They can tell that two issues share an author, though not who; an issue about a property (`location.type: property`) still says which one, as before.
 
 ## Community management
 
@@ -162,6 +175,7 @@ providers/{id}                                  directory shared by communityIds
 events/{id}                                     notices too: the copies of one sent to several communities share broadcastId
 communities/{c}/issues/{i}                      + provider, expectedAt, resolvedAt, insuranceClaim
   private/admin                                 internal note, insurance claim and the token of the provider's parte de trabajo (workOrder), never readable by neighbours
+  private/author                                who reported it, never readable by neighbours
   comments/{id}                                 + hiddenAt, hiddenBy (hidden by the administration)
 workOrders/{token}                              partes de trabajo, see below
 mail/{id}                                       correo saliente, see below
@@ -182,7 +196,7 @@ What the free plan leaves out, and how it's covered:
 
 - **Due date warnings** (obligations): there's no server to send emails, so they show in the admin (the obligations page and the portfolio dashboard), and each obligation can be added to the admin's own calendar as an `.ics` with its reminder.
 - **PDF certificates and minutes**: printed from the browser ("Guardar como PDF"), the admin hides its frame when printing.
-- **Limits the rules can't count** (bookings per week, monthly issue votes): checked by the app.
+- **Limits the rules can't count** (bookings per week, monthly votes of each property): checked by the app.
 - **Documents sent to a neighbour**: stored in Firestore like their own (up to 1 MB each).
 
 Counts on the portfolio dashboard use aggregation queries, which cost one read per 1000 documents counted.

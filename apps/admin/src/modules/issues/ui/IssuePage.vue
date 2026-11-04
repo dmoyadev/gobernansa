@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { IssueSuggestion } from '@gobernansa/shared/application/writing.ts';
+import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { ClaimStatus, IssueComment, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
-import { claimStatus, getIssueAge, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { claimStatus, findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
@@ -28,13 +29,16 @@ const props = defineProps<{ id: string; issueId: string }>();
 
 const router = useRouter();
 const { user: me } = useAuth();
-const { issue, adminData, workOrder, comments, loading, error, changeStatus, revertStatus, assign, createWorkOrder, updateWorkOrderDate, revokeWorkOrder, saveClaim, reply, setHidden, remove, restore } = useIssue(props.id, props.issueId);
-// To name who reported it, issues only keep their id
+const { issue, adminData, author, workOrder, comments, loading, error, changeStatus, revertStatus, assign, createWorkOrder, updateWorkOrderDate, revokeWorkOrder, saveClaim, reply, setHidden, remove, restore } = useIssue(props.id, props.issueId);
+// To name who reported it, its private author document only keeps their id
 const { people } = usePeople(props.id);
 const { providers } = useProviders(props.id);
 
-const category = computed(() => issuesCategories.find(option => option.value === issue.value?.category));
-const reporter = computed(() => people.value.find(person => person.id === issue.value?.createdBy)?.name);
+// For its categories, the defaults until it's read
+const community = ref<Community>();
+loadCommunity(props.id).then(loaded => community.value = loaded, () => {});
+const category = computed(() => issue.value && findIssueCategory(getIssueCategories(community.value), issue.value.category));
+const reporter = computed(() => people.value.find(person => person.id === author.value?.uid)?.name);
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
 const VIDEO_REGEX = /\/video\//;
 const SPACES_REGEX = /\s+/;
@@ -170,8 +174,8 @@ async function openClaimForm() {
 		return;
 	}
 	claimForm.value = { insurer: '', number: '', status: 'opened', note: '' };
-	const community = await loadCommunity(props.id).catch(() => undefined);
-	const insurer = community?.contacts?.find(contact => contact.type === 'insurance')?.name;
+	const loaded = community.value ?? await loadCommunity(props.id).catch(() => undefined);
+	const insurer = loaded?.contacts?.find(contact => contact.type === 'insurance')?.name;
 	if (insurer && claimForm.value && !claimForm.value.insurer) {
 		claimForm.value.insurer = insurer;
 	}
@@ -315,8 +319,7 @@ useEventListener(window, 'keydown', (event) => {
 		<section
 			class="hero ux-appear"
 			:style="{
-				'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
-				'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
+				...(category && issueCategoryStyle(category)),
 				'--status-color': `var(--color-issue-status-${issue.status})`,
 			}"
 		>
@@ -324,7 +327,7 @@ useEventListener(window, 'keydown', (event) => {
 				<LnxIcon :icon="category?.icon ?? 'lucide:triangle-alert'" :size="28" />
 			</span>
 			<div class="heading">
-				<span class="category">{{ category?.label ?? 'Sin categoría' }}</span>
+				<span class="category">{{ category?.name ?? 'Sin categoría' }}</span>
 				<h1 :style="{ viewTransitionName: `issue-${issue.id}` }">
 					{{ issue.title || 'Incidencia' }}
 				</h1>

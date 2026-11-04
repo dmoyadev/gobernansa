@@ -9,6 +9,7 @@ import { useUserCommunity } from '@/modules/community/application/useUserCommuni
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
 import { useCommunityEvents } from '@/modules/events/application/useCommunityEvents.ts';
 import EventCard from '@/modules/events/ui/EventCard.vue';
+import { getAuthorKey } from '@/modules/issues/application/authorKey.ts';
 import { issuesFilters } from '@/modules/issues/application/useIssues.ts';
 import { useUserActivity } from '@/modules/issues/application/useUserActivity.ts';
 import InstallApp from '@/shared/ui/InstallApp.vue';
@@ -19,15 +20,18 @@ const user = useCurrentUser();
 const { selectedProperty } = useUserProperties();
 const { userCommunity } = useUserCommunity();
 const { events } = useCommunityEvents(3);
-const { issues, votesLeft, monthlyVotes } = useUserActivity();
+const { issues, votingProperty, canVoteAsOwner, votesLeft, monthlyVotes } = useUserActivity();
 const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
 
 // The ones to call when something happens, in the order the community has them
 const quickContacts = computed(() => (userCommunity.value?.contacts ?? []).filter(contact => contact.phone || contact.whatsapp));
 
-function showMyIssues() {
-	issuesFilters.value = { createdBy: user.value?.uid };
+// Already read for the counts, so it's there at once
+async function showMyIssues() {
 	scrollTop();
+	if (user.value) {
+		issuesFilters.value = { authorKey: await getAuthorKey(user.value.uid) };
+	}
 }
 </script>
 
@@ -90,10 +94,11 @@ function showMyIssues() {
 					<strong>
 						{{ votesLeft ?? '—' }}<span class="of">/{{ monthlyVotes }}</span>
 					</strong>
-					<span v-if="votesLeft === 0">Ya has usado tus votos de este mes</span>
-					<span v-else>{{ votesLeft === 1 ? 'Voto disponible' : 'Votos disponibles' }} este mes</span>
+					<span v-if="!canVoteAsOwner">Votan los propietarios, con cada propiedad</span>
+					<span v-else-if="votesLeft === 0">Ya has usado los votos de {{ votingProperty?.name }} este mes</span>
+					<span v-else>{{ votesLeft === 1 ? 'Voto disponible' : 'Votos disponibles' }} de {{ votingProperty?.name }} este mes</span>
 					<!-- Not "new ones": unused votes don't carry over -->
-					<small>Vuelves a tener {{ monthlyVotes }} el {{ votesRenewOn }}</small>
+					<small v-if="canVoteAsOwner">Vuelves a tener {{ monthlyVotes }} el {{ votesRenewOn }}</small>
 				</div>
 			</div>
 		</section>

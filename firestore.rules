@@ -86,6 +86,12 @@ service cloud.firestore {
       );
     }
 
+    // The property is theirs, in the community it's voted in
+    function ownsProperty(communityId, propertyId) {
+      let property = get(/databases/$(database)/documents/properties/$(propertyId)).data;
+      return property.communityId == communityId && property.ownerUid == request.auth.uid;
+    }
+
     // The property is theirs, in the community it's voted in, with the coefficient it has
     function ownsWithCoefficient(communityId, propertyId, coefficient) {
       let property = get(/databases/$(database)/documents/properties/$(propertyId)).data;
@@ -181,6 +187,13 @@ service cloud.firestore {
           && collection in ['documents', 'documentFiles', 'devices'];
         allow read, write: if collection in ['documents', 'documentFiles']
           && manages(get(/databases/$(database)/documents/users/$(uid)).data.communityId);
+        // The secret key of the issues they report (Issue.authorKey): only they read it, so neighbours can't tell whose
+        // issues are. Made once and never changed
+        allow get: if signedIn() && request.auth.uid == uid && collection == 'keys';
+        allow create: if signedIn() && request.auth.uid == uid && collection == 'keys' && id == 'issues'
+          && request.resource.data.keys().hasOnly(['key'])
+          && request.resource.data.key is string
+          && request.resource.data.key.size() >= 32 && request.resource.data.key.size() <= 64;
       }
     }
 
@@ -466,12 +479,20 @@ service cloud.firestore {
           && request.resource.data.lateInterest.graceDays is int && request.resource.data.lateInterest.graceDays >= 0 && request.resource.data.lateInterest.graceDays <= 365));
 
       match /issues/{issueId} {
+        function authorPath() {
+          return /databases/$(database)/documents/communities/$(communityId)/issues/$(issueId)/private/author;
+        }
+
         allow read: if inOrManages(communityId);
 
-        // By neighbours, or by the administration on their behalf
+        // By neighbours, or by the administration on their behalf. Neighbours never know who reported one: the issue only
+        // has the reporter's secret key (authorKey), and who they are goes in private/author in the same batch
         allow create: if (manages(communityId) || (inCommunity(communityId) && notBlocked()))
           && request.resource.data.communityId == communityId
-          && request.resource.data.createdBy == request.auth.uid
+          && !request.resource.data.keys().hasAny(['createdBy', 'updatedBy'])
+          && request.resource.data.get('authorKey', '') is string
+          && request.resource.data.get('authorKey', '').size() <= 64
+          && getAfter(authorPath()).data.uid == request.auth.uid
           && request.resource.data.status == 'open'
           && request.resource.data.votesScore == 0
           && request.resource.data.votesCount == 0
@@ -489,24 +510,27 @@ service cloud.firestore {
             && changedOnly(['status', 'updatedAt', 'updatedBy', 'resolvedAt', 'provider', 'expectedAt', 'insuranceClaim'])
             && request.resource.data.status in ['open', 'in_progress', 'resolved', 'closed']
             && request.resource.data.updatedBy == request.auth.uid)
-          // Removal, by whoever reported it or the administration
-          || ((resource.data.createdBy == request.auth.uid || manages(communityId))
+          // Removal, by whoever reported it (without signing it, so it doesn't tell who) or the administration
+          || ((manages(communityId) || get(authorPath()).data.uid == request.auth.uid)
             && changedOnly(['deletedAt', 'deletedBy'])
-            && request.resource.data.deletedBy == request.auth.uid)
+            && (request.resource.data.get('deletedBy', '') == resource.data.get('deletedBy', '') || request.resource.data.deletedBy == request.auth.uid))
         );
 
-        // One per neighbour and issue, with the id `${issueId}_${uid}`.
+        // Properties vote, not people: one per property and issue, with the id `${issueId}_${propertyId}`, cast by its owner.
         // Dated by the server, so a vote can't be backdated to a past month to skip the monthly limit
         // (the limit itself is checked by the app: rules can't count documents)
         match /votes/{voteId} {
           allow read: if inCommunity(communityId);
           allow create, update: if inCommunity(communityId)
             && notBlocked()
-            && voteId == issueId + '_' + request.auth.uid
+            && request.resource.data.keys().hasOnly(['propertyId', 'voterId', 'score', 'votedAt'])
+            && voteId == issueId + '_' + request.resource.data.propertyId
+            && ownsProperty(communityId, request.resource.data.propertyId)
             && request.resource.data.voterId == request.auth.uid
             && request.resource.data.score in [1, -1]
             && request.resource.data.votedAt == request.time;
-          allow delete: if inCommunity(communityId) && resource.data.voterId == request.auth.uid;
+          // Also by a new owner, the vote is the property's
+          allow delete: if inCommunity(communityId) && ownsProperty(communityId, resource.data.propertyId);
         }
 
         // Messages, and status changes by the administration
@@ -529,9 +553,17 @@ service cloud.firestore {
               && request.resource.data.hiddenBy == request.auth.uid);
         }
 
-        // The internal note and the insurance claim, neighbours never see them
+        // The internal note and the insurance claim (admin) and who reported it (author), neighbours never see them
         match /private/{docId} {
-          allow read, write: if manages(communityId);
+          allow read: if manages(communityId);
+          allow write: if manages(communityId) && docId != 'author';
+          // Written with the issue by whoever reports it, and never changed
+          allow create: if docId == 'author'
+            && inOrManages(communityId)
+            && request.resource.data.keys().hasOnly(['uid'])
+            && request.resource.data.uid == request.auth.uid
+            && !exists(/databases/$(database)/documents/communities/$(communityId)/issues/$(issueId))
+            && existsAfter(/databases/$(database)/documents/communities/$(communityId)/issues/$(issueId));
         }
       }
 

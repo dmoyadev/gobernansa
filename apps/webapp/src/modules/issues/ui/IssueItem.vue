@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import type { Issue } from '@gobernansa/shared/domain/issue.ts';
-import { getIssueStep, issueLifecycle, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { findIssueCategory, getIssueCategories, getIssueStep, issueCategoryStyle, issueLifecycle, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
+import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { openedIssueId } from '../application/useIssues.ts';
 
 const props = defineProps<{
 	issue: Issue;
 }>();
 
-const category = computed(() => issuesCategories.find(category => category.value === props.issue.category));
+const { userCommunity } = useUserCommunity();
+const category = computed(() => findIssueCategory(getIssueCategories(userCommunity.value), props.issue.category));
 const status = computed(() => issueStatus.find(status => status.value === props.issue.status));
 const thumbnail = computed(() => props.issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_128,h_128,f_auto,q_auto/').replace('.mp4', '.jpg').replace('.mov', '.jpg'));
 
@@ -42,8 +44,7 @@ const date = computed(() => {
 		mode="link"
 		class="issue"
 		:style="{
-			'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
-			'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
+			...issueCategoryStyle(category),
 			'--status-color': `var(--color-issue-status-${issue.status})`,
 		}"
 		@click="openedIssueId = issue.id"
@@ -54,7 +55,7 @@ const date = computed(() => {
 			:style="{ '--vt-name': `issue-media-${issue.id}` }"
 		>
 			<img v-if="thumbnail" :src="thumbnail" alt="" width="64" height="64">
-			<LnxIcon v-else :icon="category?.icon || 'lucide:triangle-alert'" :size="26" />
+			<LnxIcon v-else :icon="category.icon" :size="26" />
 			<span
 				v-if="(issue.assets?.length || 0) > 1"
 				class="assets-count"
@@ -65,8 +66,8 @@ const date = computed(() => {
 
 		<div class="body">
 			<span class="category">
-				<LnxIcon v-if="category" :icon="category.icon" :size="12" />
-				{{ category?.label || 'Sin categoría' }}
+				<LnxIcon :icon="category.icon" :size="12" />
+				{{ category.name }}
 			</span>
 			<h3>{{ issue.title }}</h3>
 			<small class="date">

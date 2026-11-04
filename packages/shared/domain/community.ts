@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Datable } from './audit.ts';
+import type { IssueCategory } from './issue.ts';
 import { normalize } from '../utils/helpers.ts';
 
 const NON_PHONE_CHARS_REGEX = /[^\d+]/g;
@@ -37,8 +38,10 @@ export interface Community extends Datable {
 	contacts?: CommunityContact[];
 	documents?: CommunityDocument[];
 
-	// Votes each neighbour gets every month, DEFAULT_MONTHLY_VOTES when missing
+	// Votes each property gets every month, DEFAULT_MONTHLY_VOTES when missing
 	monthlyVotes?: number;
+	// Offered when reporting an issue, in this order. Read it with getIssueCategories(), DEFAULT_ISSUE_CATEGORIES when missing
+	issueCategories?: IssueCategory[];
 
 	// Legacy, the bookable areas now live in commonAreas. Removed the next time the areas are saved
 	bookableAreas?: Omit<BookableArea, 'icon'>[];

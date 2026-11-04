@@ -582,8 +582,8 @@ h2 {
 	flex-shrink: 0;
 	padding: 0 var(--lnx-spacing-2);
 	border-radius: var(--lnx-radius-4);
-	background: var(--color-issue-cat-services);
-	color: var(--color-issue-cat-services-accent);
+	background: var(--color-issue-cat-blue);
+	color: var(--color-issue-cat-blue-accent);
 	font-size: var(--lnx-font-size-small);
 	font-weight: var(--lnx-font-weight-bold);
 }

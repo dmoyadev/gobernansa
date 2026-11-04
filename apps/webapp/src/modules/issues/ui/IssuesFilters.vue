@@ -1,17 +1,34 @@
 <script setup lang="ts">
-import type { IssueCategory, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
-import { issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import type { IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { getIssueCategories, issueCategoryStyle, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
 import { useCurrentUser } from 'vuefire';
+import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
+import { getAuthorKey } from '../application/authorKey.ts';
 
 const status = defineModel<IssueStatus>('status');
-const category = defineModel<IssueCategory>('category');
-const createdBy = defineModel<string>('createdBy');
+const category = defineModel<string>('category');
+const authorKey = defineModel<string>('authorKey');
 
 const user = useCurrentUser();
+const { userCommunity } = useUserCommunity();
 
-const selectedCategory = computed(() => issuesCategories.find(option => option.value === category.value));
+const categories = computed(() => getIssueCategories(userCommunity.value));
+const selectedCategory = computed(() => categories.value.find(option => option.id === category.value));
+
+async function toggleMine() {
+	if (authorKey.value || !user.value) {
+		authorKey.value = undefined;
+		return;
+	}
+	try {
+		authorKey.value = await getAuthorKey(user.value.uid);
+	} catch (e) {
+		reportError(e, { action: 'Filtrar mis incidencias' });
+	}
+}
 </script>
 
 <template>
@@ -46,15 +63,15 @@ const selectedCategory = computed(() => issuesCategories.find(option => option.v
 			<div class="categories-header">
 				<p id="category-filter-label" class="categories-label">
 					Categoría
-					<strong>{{ selectedCategory?.label || 'Todas' }}</strong>
+					<strong>{{ selectedCategory?.name || 'Todas' }}</strong>
 				</p>
 
 				<button
 					type="button"
 					class="mine"
-					:class="{ active: !!createdBy }"
-					:aria-pressed="!!createdBy"
-					@click="createdBy = createdBy ? undefined : user?.uid"
+					:class="{ active: !!authorKey }"
+					:aria-pressed="!!authorKey"
+					@click="toggleMine()"
 				>
 					<LnxIcon icon="lucide:user" :size="14" />
 					Mis incidencias
@@ -63,19 +80,16 @@ const selectedCategory = computed(() => issuesCategories.find(option => option.v
 
 			<div class="tiles">
 				<button
-					v-for="option in issuesCategories"
-					:key="option.value"
+					v-for="option in categories"
+					:key="option.id"
 					type="button"
 					class="tile"
-					:class="{ active: category === option.value }"
-					:aria-pressed="category === option.value"
-					:aria-label="option.label"
-					:title="option.label"
-					:style="{
-						'--cat-color': `var(--color-issue-cat-${option.value}-accent)`,
-						'--cat-color-bg': `var(--color-issue-cat-${option.value})`,
-					}"
-					@click="category = category === option.value ? undefined : option.value"
+					:class="{ active: category === option.id }"
+					:aria-pressed="category === option.id"
+					:aria-label="option.name"
+					:title="option.name"
+					:style="issueCategoryStyle(option)"
+					@click="category = category === option.id ? undefined : option.id"
 				>
 					<LnxIcon :icon="option.icon" :size="20" />
 				</button>

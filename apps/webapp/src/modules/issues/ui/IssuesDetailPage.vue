@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { IssueStatus, IssueVote } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { getIssueStep, getVotingMonth, issueLifecycle, issueLocationTypes, issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { findIssueCategory, getIssueCategories, getIssueStep, getVotingMonth, issueCategoryStyle, issueLifecycle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
+import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useIssue } from '../application/useIssue.ts';
@@ -25,7 +26,8 @@ const {
 	fetch,
 } = useIssue(() => props.id);
 
-const category = computed(() => issuesCategories.find(category => category.value === issue.value?.category));
+const { userCommunity } = useUserCommunity();
+const category = computed(() => issue.value && findIssueCategory(getIssueCategories(userCommunity.value), issue.value.category));
 const status = computed(() => issueStatus.find(status => status.value === issue.value?.status));
 const step = computed(() => issue.value ? getIssueStep(issue.value.status) : 0);
 
@@ -54,7 +56,7 @@ function formatDate(date: Date) {
 
 const router = useRouter();
 const { user } = useAuth();
-const { isManager, isAuthor, myVote, voting, votesLeft, monthlyVotes, canVote, vote, changeStatus, deleteIssue } = useIssueActions(issue);
+const { isManager, isAuthor, votingProperty, canVoteAsOwner, myVote, voting, votesLeft, monthlyVotes, canVote, vote, changeStatus, deleteIssue } = useIssueActions(issue);
 const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
 const actionError = ref<string>();
 const changingStatus = ref<IssueStatus>();
@@ -112,9 +114,8 @@ async function share() {
 <template>
 	<div
 		class="issue-detail"
-		:style="issue && {
-			'--cat-color': `var(--color-issue-cat-${issue.category}-accent)`,
-			'--cat-color-bg': `var(--color-issue-cat-${issue.category})`,
+		:style="issue && category && {
+			...issueCategoryStyle(category),
 			'--status-color': `var(--color-issue-status-${issue.status})`,
 		}"
 	>
@@ -175,7 +176,7 @@ async function share() {
 					<div ref="$titleTop" class="meta">
 						<span class="category">
 							<LnxIcon v-if="category" :icon="category.icon" :size="14" />
-							{{ category?.label || 'Sin categoría' }}
+							{{ category?.name || 'Sin categoría' }}
 						</span>
 						<span class="votes" :class="{ hot: issue.votesScore > 0 }">
 							{{ issue.votesScore }} {{ Math.abs(issue.votesScore) === 1 ? 'voto' : 'votos' }}
@@ -236,6 +237,9 @@ async function share() {
 					<small v-if="user?.blocked" class="hint">
 						Tu cuenta no puede votar ahora mismo.
 					</small>
+					<small v-else-if="!canVoteAsOwner" class="hint">
+						Votan las propiedades, cada una con un voto que da su propietario. Tu cuenta no tiene ninguna en la comunidad.
+					</small>
 					<small v-else-if="votesLeft === 0" class="hint">
 						Ya has usado tus {{ monthlyVotes }} votos de este mes, vuelves a tener {{ monthlyVotes }} el {{ votesRenewOn }}.
 						Si quitas un voto que hayas dado este mes, lo recuperas.
@@ -246,6 +250,9 @@ async function share() {
 							{{ votesLeft === 1 ? 'úsalo' : 'úsalos' }} en lo que más te importe.
 						</template>
 						Pulsa otra vez para quitar tu voto.
+						<template v-if="votingProperty">
+							Votas como {{ votingProperty.name }}.
+						</template>
 					</small>
 				</section>
 
@@ -623,9 +630,9 @@ h2 {
 	}
 
 	&.up.active {
-		border-color: var(--color-issue-cat-maintenance-accent);
+		border-color: var(--color-issue-cat-amber-accent);
 		background: var(--color-issue-vote-hot);
-		color: var(--color-issue-cat-maintenance-accent);
+		color: var(--color-issue-cat-amber-accent);
 	}
 
 	&.down.active {

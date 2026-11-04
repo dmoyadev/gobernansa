@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import type { IssueCategory } from '@gobernansa/shared/domain/issue.ts';
 import type { Timestamp } from 'firebase/firestore';
 import type { DashboardData, DashboardSource } from '../application/useCommunityDashboard.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
-import { getIssueAge, issuesCategories } from '@gobernansa/shared/domain/issue.ts';
+import { findIssueCategory, getIssueAge, getIssueCategories } from '@gobernansa/shared/domain/issue.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
@@ -14,7 +15,8 @@ import { onRevalidate, remember } from '@/app/ux/navigation.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { dashboardMonths, dashboardSources } from '../application/useCommunityDashboard.ts';
 
-const props = defineProps<{ communityId: string }>();
+// The community's categories, the defaults until it has loaded
+const props = defineProps<{ communityId: string; categories?: IssueCategory[] }>();
 
 const DAY = 86_400_000;
 
@@ -199,9 +201,8 @@ const openSummary = computed(() => {
 });
 const ageLegend = ['< 2 días', '< 1 semana', '< 2 semanas', 'Más'];
 
-const categories = computed(() => issuesCategories
-	.map(category => ({ ...category, total: open.value.filter(issue => issue.category === category.value).length }))
-	.filter(category => category.total)
+// Also those of removed categories, as findIssueCategory names them
+const categories = computed(() => Array.from(new Set(open.value.map(issue => issue.category)), id => ({ ...findIssueCategory(props.categories ?? getIssueCategories(), id), total: open.value.filter(issue => issue.category === id).length }))
 	.sort((a, b) => b.total - a.total)
 	.slice(0, 4));
 
@@ -605,8 +606,8 @@ function reset() {
 			<!-- Open issues by category -->
 			<template v-else-if="widget.key === 'categories'">
 				<ul v-if="categories.length" class="meters">
-					<li v-for="category in categories" :key="category.value" :style="{ '--bar': `var(--color-issue-cat-${category.value}-accent)` }">
-						<span class="text">{{ category.label }}</span>
+					<li v-for="category in categories" :key="category.id" :style="{ '--bar': `var(--color-issue-cat-${category.color}-accent)` }">
+						<span class="text">{{ category.name }}</span>
 						<span class="meter">
 							<span :style="{ width: `${percent(category.total, categories[0].total)}%` }" />
 						</span>
@@ -937,7 +938,7 @@ function reset() {
 }
 
 .soon {
-	color: var(--color-issue-cat-maintenance-accent);
+	color: var(--color-issue-cat-amber-accent);
 }
 
 // One line, cut with an ellipsis
@@ -969,7 +970,7 @@ function reset() {
 
 	.age-0 { background: var(--color-gray-4); }
 	.age-1 { background: var(--color-issue-status-open); }
-	.age-2 { background: var(--color-issue-cat-maintenance-accent); }
+	.age-2 { background: var(--color-issue-cat-amber-accent); }
 	.age-3 { background: var(--color-secondary-accent); }
 }
 
@@ -1166,7 +1167,7 @@ function reset() {
 	background: var(--color-issue-status-resolved);
 
 	&.overdue { background: var(--color-secondary-accent); }
-	&.soon { background: var(--color-issue-cat-maintenance-accent); }
+	&.soon { background: var(--color-issue-cat-amber-accent); }
 }
 
 .meters {

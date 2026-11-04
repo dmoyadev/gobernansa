@@ -1,6 +1,6 @@
-import type { Issue, IssueCategory, IssueComment } from '../domain/issue.ts';
+import type { DefaultIssueCategory, Issue, IssueComment } from '../domain/issue.ts';
 import type { ProviderCategory } from '../domain/provider.ts';
-import { issuesCategories, issueStatus } from '../domain/issue.ts';
+import { DEFAULT_ISSUE_CATEGORIES, issueStatus } from '../domain/issue.ts';
 import { providerCategories } from '../domain/provider.ts';
 import { normalize } from '../utils/helpers.ts';
 
@@ -118,8 +118,8 @@ const URGENCY_ORDER = Object.keys(urgencies) as Urgency[];
 const rank = (urgency: Urgency) => URGENCY_ORDER.indexOf(urgency);
 
 export interface IssueSuggestion {
-	// Missing when nothing in the text points to one
-	category?: IssueCategory;
+	// One of the defaults, missing when nothing in the text points to one. Communities that removed it get no suggestion
+	category?: DefaultIssueCategory;
 	provider?: ProviderCategory;
 	urgency: Urgency;
 	reason: string;
@@ -130,7 +130,7 @@ export interface IssueSuggestion {
 
 interface Rule {
 	match: RegExp;
-	category?: IssueCategory;
+	category?: DefaultIssueCategory;
 	provider?: ProviderCategory;
 	urgency?: Urgency;
 	reason?: string;
@@ -210,7 +210,7 @@ function suggestByRules(text: string): Omit<IssueSuggestion, 'source'> | undefin
 const ISSUE_SCHEMA = {
 	type: 'object',
 	properties: {
-		category: { enum: issuesCategories.map(category => category.value) },
+		category: { enum: DEFAULT_ISSUE_CATEGORIES.map(category => category.id) },
 		provider: { enum: Object.keys(providerCategories) },
 		urgency: { enum: URGENCY_ORDER },
 		reason: { type: 'string', maxLength: 100 },
@@ -255,11 +255,11 @@ export async function suggestIssue(text: Pick<Issue, 'title' | 'description'>, s
 		});
 		const answer = JSON.parse(raw) as Record<string, unknown>;
 		const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
-		const valid = issuesCategories.some(category => category.value === answer.category)
+		const valid = DEFAULT_ISSUE_CATEGORIES.some(category => category.id === answer.category)
 			&& typeof answer.provider === 'string' && answer.provider in providerCategories
 			&& URGENCY_ORDER.includes(answer.urgency as Urgency)
 			&& reason && reason.length <= 140;
-		return valid ? { category: answer.category as IssueCategory, provider: answer.provider as ProviderCategory, urgency: answer.urgency as Urgency, reason } : undefined;
+		return valid ? { category: answer.category as DefaultIssueCategory, provider: answer.provider as ProviderCategory, urgency: answer.urgency as Urgency, reason } : undefined;
 	});
 	if (!device) {
 		return { ...rules, source: 'basic' };

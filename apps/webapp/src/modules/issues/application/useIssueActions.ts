@@ -7,12 +7,13 @@ import { collection, doc, getDoc, getFirestore, increment, runTransaction, serve
 import { computed, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { communityDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
+import { getAuthorKey } from './authorKey.ts';
 import { updateListedIssue } from './useIssues.ts';
 import { invalidateUserActivity, useUserActivity } from './useUserActivity.ts';
 
 /**
- * What the user can do on an issue: vote it and, depending on who they are, change its status or remove it.
- * Without a backend, the counters of the issue are kept up to date along with each vote, in the same write.
+ * What the user can do on an issue: vote it with their property and, depending on who they are, change its status or
+ * remove it. Without a backend, the counters of the issue are kept up to date along with each vote, in the same write.
  */
 export function useIssueActions(issue: Ref<Issue | undefined>) {
 	const db = getFirestore();
@@ -20,7 +21,12 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 	const { userCommunity } = useUserCommunity();
 
 	const isManager = computed(() => managesCommunity(user.value, user.value?.communityId));
-	const isAuthor = computed(() => !!user.value && issue.value?.createdBy === user.value.id);
+	// By the author's secret key, the issue doesn't say who reported it
+	const authorKey = ref<string>();
+	watch(() => user.value?.id, async (uid) => {
+		authorKey.value = uid ? await getAuthorKey(uid).catch(() => undefined) : undefined;
+	}, { immediate: true });
+	const isAuthor = computed(() => !!authorKey.value && issue.value?.authorKey === authorKey.value);
 
 	function getIssueRef() {
 		if (!issue.value || !user.value || !userCommunity.value) {
@@ -34,13 +40,17 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 		};
 	}
 
+	/* Votes, a few each month for each property. Its owner casts them with the one they have selected */
+	const { votingProperty, canVoteAsOwner, votesLeft, monthlyVotes, addVotesUsed } = useUserActivity();
+
 	function getVoteRef() {
-		const { issueRef, uid } = getIssueRef();
-		return doc(issueRef, 'votes', `${issueRef.id}_${uid}`);
+		const { issueRef } = getIssueRef();
+		if (!votingProperty.value) {
+			throw new Error('Only owners vote, with one of their properties');
+		}
+		return doc(issueRef, 'votes', `${issueRef.id}_${votingProperty.value.id}`);
 	}
 
-	/* Votes, a few each month */
-	const { votesLeft, monthlyVotes, addVotesUsed } = useUserActivity();
 	const myVote = ref<IssueVote['score'] | 0>(0);
 	// Cast this month, so switching or taking it back doesn't use another of this month's votes
 	const myVoteThisMonth = ref(false);
@@ -50,8 +60,11 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 		return !!vote?.votedAt && vote.votedAt.toMillis() >= getVotingMonth().start.getTime();
 	}
 
-	// Whoever views the community as a neighbour has no vote there, and the rules don't let them read votes
-	watch(() => !!issue.value && !!user.value && !!userCommunity.value && !viewingAs.value, async (ready) => {
+	// Whoever views the community as a neighbour has no vote there, and the rules don't let them read votes.
+	// Read again when they pick another property
+	watch(() => !!issue.value && !!user.value && !!userCommunity.value && !viewingAs.value && votingProperty.value?.id, async (ready) => {
+		myVote.value = 0;
+		myVoteThisMonth.value = false;
 		if (ready) {
 			const vote = (await getDoc(getVoteRef())).data() as IssueVote | undefined;
 			myVote.value = vote?.score ?? 0;
@@ -61,13 +74,14 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 
 	// A new vote, or switching one from a past month, uses one of this month's votes
 	function canVote(score: IssueVote['score']) {
-		return score === myVote.value || myVoteThisMonth.value || votesLeft.value !== 0;
+		return !!votingProperty.value && (score === myVote.value || myVoteThisMonth.value || votesLeft.value !== 0);
 	}
 
 	// Voting the same again takes the vote back, and gives this month's vote back if it was cast this month
 	async function vote(score: IssueVote['score']) {
 		const { issueRef, uid } = getIssueRef();
 		const voteRef = getVoteRef();
+		const propertyId = votingProperty.value!.id;
 		voting.value = true;
 
 		try {
@@ -81,7 +95,7 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 				}
 
 				if (next) {
-					transaction.set(voteRef, { voterId: uid, score: next, votedAt: serverTimestamp() });
+					transaction.set(voteRef, { propertyId, voterId: uid, score: next, votedAt: serverTimestamp() });
 				} else {
 					transaction.delete(voteRef);
 				}
@@ -95,7 +109,7 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 
 			myVote.value = next;
 			myVoteThisMonth.value = !!next;
-			addVotesUsed(used);
+			addVotesUsed(propertyId, used);
 			const changes = {
 				votesScore: issue.value!.votesScore + next - previous,
 				votesCount: issue.value!.votesCount + Number(!!next) - Number(!!previous),
@@ -142,7 +156,8 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 	/* Removal, for whoever reported it and the administration */
 	async function deleteIssue() {
 		const { issueRef, uid } = getIssueRef();
-		await updateDoc(issueRef, { deletedAt: serverTimestamp(), deletedBy: uid });
+		// Its author doesn't sign it, it would tell neighbours who reported it
+		await updateDoc(issueRef, { deletedAt: serverTimestamp(), ...(isManager.value ? { deletedBy: uid } : {}) });
 
 		updateListedIssue(issueRef.id, null);
 		invalidateUserActivity();
@@ -151,6 +166,8 @@ export function useIssueActions(issue: Ref<Issue | undefined>) {
 	return {
 		isManager,
 		isAuthor,
+		votingProperty,
+		canVoteAsOwner,
 		myVote,
 		voting,
 		votesLeft,

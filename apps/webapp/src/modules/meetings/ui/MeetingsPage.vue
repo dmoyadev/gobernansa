@@ -131,8 +131,8 @@ function minutesHint(meeting: Meeting) {
 	font-weight: var(--lnx-font-weight-bold);
 
 	&.convened {
-		background: var(--color-issue-cat-services);
-		color: var(--color-issue-cat-services-accent);
+		background: var(--color-issue-cat-blue);
+		color: var(--color-issue-cat-blue-accent);
 	}
 
 	&.cancelled {

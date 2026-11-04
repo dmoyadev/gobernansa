@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { IssueSuggestion } from '@gobernansa/shared/application/writing.ts';
-import type { Issue } from '@gobernansa/shared/domain/issue.ts';
+import type { Issue, IssueCategory } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
-import { issuesCategories } from '@gobernansa/shared/domain/issue.ts';
+import { getIssueCategories, issueCategoryStyle } from '@gobernansa/shared/domain/issue.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
@@ -19,7 +19,6 @@ import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useCreateIssue } from '../application/useIssues.ts';
 
-type Category = (typeof issuesCategories)[number];
 type Place = NonNullable<Issue['location']> & { reference: string };
 
 const STEPS = ['¿Qué ha pasado?', '¿Dónde ha pasado?', '¿Quieres añadir algo?'];
@@ -47,7 +46,9 @@ watch(step, () => {
 	$heading.value?.focus({ preventScroll: true });
 });
 
-const category = ref<Category>();
+const category = ref<IssueCategory>();
+// The community's, in its order
+const categories = computed(() => getIssueCategories(userCommunity.value));
 const place = ref<Place>();
 // Only set while the place is written by hand
 const otherPlace = ref<string>();
@@ -84,11 +85,12 @@ onUnmounted(() => {
 
 const suggestedCategory = computed(() => {
 	const value = suggestion.value?.category;
-	return value && value !== 'other' && value !== category.value?.value ? issuesCategories.find(option => option.value === value) : undefined;
+	// Only among the defaults the community still has, the suggestions don't know the others
+	return value && value !== 'other' && value !== category.value?.id ? categories.value.find(option => option.id === value) : undefined;
 });
 
 // Changing the category from the last step goes straight back to it
-function chooseCategory(option: Category) {
+function chooseCategory(option: IssueCategory) {
 	category.value = option;
 	goTo(place.value ? 2 : 1);
 }
@@ -118,7 +120,7 @@ const defaultTitle = computed(() => {
 	}
 
 	const { reference } = place.value;
-	return `${category.value.defaultTitle} en ${reference.charAt(0).toLowerCase()}${reference.slice(1)}`;
+	return `${category.value.defaultTitle || category.value.name} en ${reference.charAt(0).toLowerCase()}${reference.slice(1)}`;
 });
 
 // Photos and videos picked, previewed from the device until they're uploaded on sending
@@ -179,7 +181,7 @@ async function submit() {
 		const id = await createIssue({
 			title: title.value.trim() || defaultTitle.value,
 			description: description.value.trim(),
-			category: category.value.value,
+			category: category.value.id,
 			location: place.value,
 			assets,
 		});
@@ -224,15 +226,12 @@ async function submit() {
 	<MainLayout class="wizard">
 		<Transition :name="goingBack ? 'step-back' : 'step-forward'" mode="out-in">
 			<ul v-if="step === 0" class="categories">
-				<li v-for="option in issuesCategories" :key="option.value">
+				<li v-for="option in categories" :key="option.id">
 					<LnxButton
-						:variant="category?.value === option.value ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
-						:aria-pressed="category?.value === option.value"
+						:variant="category?.id === option.id ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
+						:aria-pressed="category?.id === option.id"
 						class="option category"
-						:style="{
-							'--cat-color': `var(--color-issue-cat-${option.value}-accent)`,
-							'--cat-color-bg': `var(--color-issue-cat-${option.value})`,
-						}"
+						:style="issueCategoryStyle(option)"
 						is-block
 						@click="chooseCategory(option)"
 					>
@@ -243,8 +242,8 @@ async function submit() {
 						</template>
 
 						<span class="text">
-							<strong>{{ option.label }}</strong>
-							<span class="examples">{{ option.examples }}</span>
+							<strong>{{ option.name }}</strong>
+							<span v-if="option.examples" class="examples">{{ option.examples }}</span>
 						</span>
 
 						<template #suffix>
@@ -334,15 +333,12 @@ async function submit() {
 				<div class="summary">
 					<div
 						class="summary-row"
-						:style="{
-							'--cat-color': `var(--color-issue-cat-${category.value}-accent)`,
-							'--cat-color-bg': `var(--color-issue-cat-${category.value})`,
-						}"
+						:style="issueCategoryStyle(category)"
 					>
 						<span class="icon">
 							<LnxIcon :icon="category.icon" :size="20" />
 						</span>
-						<span class="value">{{ category.label }}</span>
+						<span class="value">{{ category.name }}</span>
 						<LnxButton
 							type="button"
 							mode="link"
@@ -383,7 +379,7 @@ async function submit() {
 
 				<div v-if="suggestedCategory && suggestion" class="suggestion" role="status">
 					<LnxIcon :icon="suggestedCategory.icon" :size="20" />
-					<span class="value">¿Es de <strong>{{ suggestedCategory.label }}</strong>?</span>
+					<span class="value">¿Es de <strong>{{ suggestedCategory.name }}</strong>?</span>
 					<WritingSource :source="suggestion.source" />
 					<LnxButton type="button" mode="link" @click="category = suggestedCategory">
 						Cambiar

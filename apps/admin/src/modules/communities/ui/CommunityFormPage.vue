@@ -269,9 +269,9 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 				</p>
 				<div class="fields">
 					<LnxInput v-model="form.monthlyVotes" type="number" min="1" max="99" :placeholder="String(DEFAULT_MONTHLY_VOTES)">
-						Votos al mes por vecino
+						Votos al mes por propiedad
 						<template #helper>
-							Para apoyar incidencias. Si se deja vacío, {{ DEFAULT_MONTHLY_VOTES }}.
+							Para apoyar incidencias, los da el propietario de cada una. Si se deja vacío, {{ DEFAULT_MONTHLY_VOTES }}.
 						</template>
 					</LnxInput>
 				</div>

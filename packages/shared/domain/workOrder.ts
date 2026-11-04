@@ -14,7 +14,8 @@ export interface WorkOrder {
 	communityId: string;
 	issueId: string;
 	community: { name: string; address: string };
-	issue: { title: string; description: string; category: IssueCategory; location: string; assets: string[] };
+	// Its category as the community had it, the provider can't read the community. Only its id on older ones
+	issue: { title: string; description: string; category: Pick<IssueCategory, 'name' | 'icon'> | string; location: string; assets: string[] };
 	expectedAt: Timestamp | null;
 	// Who the provider calls: the community's administration contact, filled in with whoever sent it
 	contact: { name: string; phone?: string; whatsapp?: string; email?: string };

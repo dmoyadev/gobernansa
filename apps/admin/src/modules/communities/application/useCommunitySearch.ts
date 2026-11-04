@@ -1,7 +1,7 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Event } from '@gobernansa/shared/domain/event.ts';
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
-import type { Issue } from '@gobernansa/shared/domain/issue.ts';
+import type { Issue, IssueCategory } from '@gobernansa/shared/domain/issue.ts';
 import type { Meeting } from '@gobernansa/shared/domain/meeting.ts';
 import type { Obligation } from '@gobernansa/shared/domain/obligation.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
@@ -11,7 +11,7 @@ import type { Query } from 'firebase/firestore';
 import type { MaybeRefOrGetter } from 'vue';
 import { contactTypes, documentTypes, formatIban, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
-import { DEFAULT_MONTHLY_VOTES, issuesCategories } from '@gobernansa/shared/domain/issue.ts';
+import { DEFAULT_MONTHLY_VOTES, findIssueCategory, getIssueCategories } from '@gobernansa/shared/domain/issue.ts';
 import { obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
 import { propertyTypeIcons, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { providerCategories } from '@gobernansa/shared/domain/provider.ts';
@@ -88,14 +88,14 @@ function communityEntries(community: Community, base: string): SearchEntry[] {
 			to: area.booking ? `${base}/locations/${area.id}` : `${base}/locations`,
 		})),
 		...(cif || bank || iban ? [{ section: sectionTitles.info, icon: 'lucide:landmark', title: 'Datos fiscales', text: join(cif && `CIF ${cif}`, bank, iban && `IBAN ${formatIban(iban)}`), to: `${base}/info` }] : []),
-		{ section: sectionTitles.settings, icon: 'lucide:vote', title: 'Votos por vecino', text: `${monthlyVotes ?? DEFAULT_MONTHLY_VOTES} votos al mes por vecino`, to: `${base}/settings` },
+		{ section: sectionTitles.settings, icon: 'lucide:vote', title: 'Votos por propiedad', text: `${monthlyVotes ?? DEFAULT_MONTHLY_VOTES} votos al mes por propiedad`, to: `${base}/settings` },
 	];
 }
 
 // Everything else is read the first time the search is used, and kept for a while across visits to the page
 const cache = new Map<string, { at: number; entries: Promise<SearchEntry[]> }>();
 
-function loadEntries(id: string, base: string) {
+function loadEntries(id: string, base: string, categories: IssueCategory[]) {
 	const community = (name: string) => collection(db, 'communities', id, name);
 	return [
 		load<User>(query(collection(db, 'users'), where('communityId', '==', id), limit(300)), user => ({
@@ -115,7 +115,7 @@ function loadEntries(id: string, base: string) {
 		// The same query as the issues page, so it uses its index
 		load<Issue>(query(community('issues'), where('deletedAt', '==', null), orderBy('createdAt', 'desc'), limit(150)), issue => ({
 			section: sectionTitles.issues,
-			icon: issuesCategories.find(category => category.value === issue.category)?.icon ?? 'lucide:message-square-warning',
+			icon: findIssueCategory(categories, issue.category).icon,
 			title: issue.title,
 			text: issue.description ?? '',
 			to: `${base}/issues/${issue.id}`,
@@ -227,7 +227,7 @@ export function useCommunitySearch(communityId: MaybeRefOrGetter<string>, commun
 		if (!cached || Date.now() - cached.at > CACHE_TTL) {
 			cached = {
 				at: Date.now(),
-				entries: Promise.allSettled(loadEntries(id, base.value))
+				entries: Promise.allSettled(loadEntries(id, base.value, getIssueCategories(toValue(community))))
 					.then(results => results.flatMap(result => result.status === 'fulfilled' ? result.value : [])),
 			};
 			cache.set(id, cached);

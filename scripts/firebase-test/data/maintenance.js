@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { taxDeadlines } from '../../../packages/shared/domain/aeat.ts';
-import { DEFAULT_MONTHLY_VOTES, getVotingMonth, issueLocationTypes } from '../../../packages/shared/domain/issue.ts';
+import { DEFAULT_MONTHLY_VOTES, findIssueCategory, getIssueCategories, getVotingMonth, issueLocationTypes } from '../../../packages/shared/domain/issue.ts';
 import { obligationTypes } from '../../../packages/shared/domain/obligation.ts';
 import { audit, commonAreas, communities, days, images, now, office, properties, providerById, providers, uids, userById, year } from './cast.js';
 
@@ -11,6 +11,20 @@ const monthStart = getVotingMonth(now).start.getTime();
 const dayFormat = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long' });
 const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
 const insurer = providerById('prov_insurance').name;
+
+// Each one's secret key for the issues they report, as the webapp makes it the first time (authorKey.ts). New ones each
+// time the issues are loaded, written along with them
+const authorKeys = {};
+function authorKey(who) {
+	authorKeys[who] ??= randomBytes(24).toString('base64url');
+	return authorKeys[who];
+}
+
+// Properties vote, not people: each neighbour votes with their first property in the community, the home they live in
+function votingProperty(communityId, who) {
+	const owned = properties.filter(property => property.communityId === communityId && property.ownerUid === uids[who]);
+	return (owned.find(property => property.type === 'home') ?? owned[0])?.id;
+}
 
 function latest(...dates) {
 	return new Date(Math.max(...dates.filter(Boolean).map(date => date.getTime())));
@@ -41,8 +55,8 @@ function visit(provider, day, time) {
 }
 
 /*
- * Status, resolvedAt, updatedAt and the counters come from the comments and votes. votes: [who, score, when], when 'm'
- * this month (it uses one of their monthly votes: Javier has spent his five) or days from today. claim: its history as
+ * Status, resolvedAt, updatedAt and the counters come from the comments and votes. votes: [who, score, when], cast with
+ * their home, when 'm' this month (it uses one of its monthly votes: Javier's has spent its five) or days from today. claim: its history as
  * [day, time, status, note]. Work orders go below, the private document points to the issue's one not revoked
  */
 const issues = {
@@ -489,15 +503,15 @@ const obligations = {
 // day core's activity log says
 const taxIds = [`aeat-111-${year}-4t`, `aeat-190-${year}`, `aeat-347-${year}`];
 
-function castVotes(issue) {
+function castVotes(communityId, issue) {
 	const createdAt = days(...issue.at).getTime();
 	return issue.votes.map(([who, score, when], index) => {
 		const at = when === 'm' ? monthStart + (index + 1) * 41 * MINUTE : days(when, '20:00').getTime();
-		return { who, score, monthly: when === 'm', votedAt: new Date(Math.min(now.getTime(), Math.max(at, createdAt + HOUR))) };
+		return { who, propertyId: votingProperty(communityId, who), score, monthly: when === 'm', votedAt: new Date(Math.min(now.getTime(), Math.max(at, createdAt + HOUR))) };
 	});
 }
 
-// spent: this month's votes of each neighbour so far
+// spent: this month's votes of each property so far
 function seedIssue(set, communityId, issue, spent) {
 	const path = `communities/${communityId}/issues/${issue.id}`;
 	const createdAt = days(...issue.at);
@@ -507,12 +521,15 @@ function seedIssue(set, communityId, issue, spent) {
 	// Saving the claim touches the issue too
 	const claimed = history && { at: history.at(-1).at, who: issue.admin.by ?? 'office' };
 	const last = [{ at: createdAt, who: issue.by }, ...moves, touched, claimed].filter(Boolean).sort((a, b) => a.at - b.at).at(-1);
-	// Those past the month's votes are left out, as the app would refuse them
-	const votes = castVotes(issue).filter((vote) => {
-		if (vote.monthly) {
-			spent[vote.who] = (spent[vote.who] ?? 0) + 1;
+	// Those past the month's votes are left out, as the app would refuse them, and so are those of neighbours without a property
+	const votes = castVotes(communityId, issue).filter((vote) => {
+		if (!vote.propertyId) {
+			return false;
 		}
-		return !vote.monthly || spent[vote.who] <= DEFAULT_MONTHLY_VOTES;
+		if (vote.monthly) {
+			spent[vote.propertyId] = (spent[vote.propertyId] ?? 0) + 1;
+		}
+		return !vote.monthly || spent[vote.propertyId] <= DEFAULT_MONTHLY_VOTES;
 	});
 	const provider = issue.provider && providerById(issue.provider);
 
@@ -534,13 +551,16 @@ function seedIssue(set, communityId, issue, spent) {
 		// The admin platform's form has no attachments
 		assets: issue.by === 'office' ? undefined : issue.assets ?? [],
 		location: issue.location,
+		// Who reported it only goes in private/author: the issue has their key, the office's none (the admin platform's)
+		authorKey: issue.by === 'office' ? undefined : authorKey(issue.by),
 		createdAt,
 		updatedAt: last.at,
-		createdBy: uids[issue.by],
-		updatedBy: uids[last.who],
+		// Only the administration's changes are signed
+		updatedBy: last.who === issue.by ? undefined : uids[last.who],
+		// Removed by its author, who doesn't sign it
 		deletedAt: issue.deleted ? days(...issue.deleted) : null,
-		deletedBy: issue.deleted ? uids[issue.by] : undefined,
 	});
+	set(`${path}/private/author`, { uid: uids[issue.by] });
 
 	issue.comments.forEach((comment, index) => {
 		const author = userById(uids[comment.who]);
@@ -562,8 +582,8 @@ function seedIssue(set, communityId, issue, spent) {
 		});
 	});
 
-	for (const { who, score, votedAt } of votes) {
-		set(`${path}/votes/${issue.id}_${uids[who]}`, { voterId: uids[who], score, votedAt });
+	for (const { who, propertyId, score, votedAt } of votes) {
+		set(`${path}/votes/${issue.id}_${propertyId}`, { propertyId, voterId: uids[who], score, votedAt });
 	}
 
 	const order = workOrders.find(item => item.issueId === issue.id && item.communityId === communityId && !item.revokedAt);
@@ -596,7 +616,8 @@ function seedWorkOrder(set, order) {
 		issue: {
 			title: issue.title,
 			description: issue.description,
-			category: issue.category,
+			// As the community has it, the provider can't read it
+			category: (({ name, icon }) => ({ name, icon }))(findIssueCategory(getIssueCategories(community), issue.category)),
 			location: [issueLocationTypes[issue.location.type], issue.location.reference].filter(Boolean).join(' · '),
 			assets: issue.assets ?? [],
 		},
@@ -651,13 +672,18 @@ export default {
 
 		// Late in a month, votes cast days ago fall in it too and use up 'm' ones
 		const spent = {};
-		for (const vote of Object.values(issues).flat().flatMap(castVotes)) {
-			if (!vote.monthly && vote.votedAt >= monthStart) {
-				spent[vote.who] = (spent[vote.who] ?? 0) + 1;
+		for (const [communityId, list] of Object.entries(issues)) {
+			for (const vote of list.flatMap(issue => castVotes(communityId, issue))) {
+				if (vote.propertyId && !vote.monthly && vote.votedAt >= monthStart) {
+					spent[vote.propertyId] = (spent[vote.propertyId] ?? 0) + 1;
+				}
 			}
 		}
 		for (const [communityId, list] of Object.entries(issues)) {
 			list.forEach(issue => seedIssue(set, communityId, issue, spent));
+		}
+		for (const [who, key] of Object.entries(authorKeys)) {
+			set(`users/${uids[who]}/keys/issues`, { key });
 		}
 		workOrders.forEach(order => seedWorkOrder(set, order));
 

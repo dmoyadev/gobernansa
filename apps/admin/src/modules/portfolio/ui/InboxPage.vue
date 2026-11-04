@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import type { InboxIssue } from '../application/usePortfolio.ts';
-import { issuesCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { findIssueCategory, getIssueCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -68,7 +68,10 @@ const filtered = computed(() => {
 		&& (!range || (ageInDays(issue) >= range.min && ageInDays(issue) < range.max)));
 });
 
-const categories = Object.fromEntries(issuesCategories.map(category => [category.value, category]));
+// Each issue's, among its community's categories
+function categoryOf(issue: { communityId: string; category: string }) {
+	return findIssueCategory(getIssueCategories(communities.value.find(community => community.id === issue.communityId)), issue.category);
+}
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
 </script>
 
@@ -158,11 +161,11 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 		<TransitionGroup v-else-if="filtered.length" tag="ul" name="row" class="list ux-appear">
 			<li v-for="issue in filtered" :key="`${issue.communityId}/${issue.id}`">
 				<RouterLink class="issue ux-row" :to="`/communities/${issue.communityId}/issues/${issue.id}`">
-					<LnxIcon class="category" :icon="categories[issue.category]?.icon ?? 'lucide:triangle-alert'" :size="20" />
+					<LnxIcon class="category" :icon="categoryOf(issue).icon" :size="20" />
 					<div class="what">
 						<strong :style="{ viewTransitionName: `issue-${issue.id}` }">{{ issue.title }}</strong>
 						<small class="tabular">
-							{{ issue.communityName }} · {{ categories[issue.category]?.label }} · hace {{ ageInDays(issue, now) }} días
+							{{ issue.communityName }} · {{ categoryOf(issue).name }} · hace {{ ageInDays(issue, now) }} días
 							<template v-if="zoneOf(issue)"> · {{ zoneOf(issue) === PROPERTY_ZONE ? 'Propiedad' : zoneOf(issue) }}</template>
 						</small>
 						<small v-if="issue.provider || issue.expectedAt" class="tabular">

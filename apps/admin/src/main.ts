@@ -29,6 +29,7 @@ import '@gobernansa/shared/theme/typography.scss';
 import 'lnxjs-components/dist/base.css';
 import '@gobernansa/shared/theme/custom-theme.scss';
 import './app/ux/interactions.scss';
+import './app/ux/sortable.scss';
 
 const app = createApp(App as Component);
 installMonitoring(app, router, 'admin');

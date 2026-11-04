@@ -237,8 +237,8 @@ ol {
 	.badge {
 		padding: 0 var(--lnx-spacing-1);
 		border-radius: var(--lnx-radius-2);
-		background: var(--color-issue-cat-services);
-		color: var(--color-issue-cat-services-accent);
+		background: var(--color-issue-cat-blue);
+		color: var(--color-issue-cat-blue-accent);
 		font-size: .65rem;
 		font-weight: var(--lnx-font-weight-bold);
 		text-transform: uppercase;

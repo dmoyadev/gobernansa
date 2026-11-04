@@ -1,13 +1,13 @@
-import type { ClaimStatus, InsuranceClaim, Issue, IssueComment, IssuePrivate, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import type { ClaimStatus, InsuranceClaim, Issue, IssueAuthor, IssueCategory, IssueComment, IssuePrivate, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import type { Provider } from '@gobernansa/shared/domain/provider.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { WorkOrder } from '@gobernansa/shared/domain/workOrder.ts';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { claimStatus, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { claimStatus, findIssueCategory, getIssueCategories, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { isEmail } from '@gobernansa/shared/domain/mail.ts';
 import { newWorkOrderToken } from '@gobernansa/shared/domain/workOrder.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, deleteField, doc, increment, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
@@ -37,8 +37,9 @@ export function useIssues(communityId: string, status: MaybeRefOrGetter<IssueSta
 	}));
 }
 
-// Reported by the administration, e.g. after a call. The same fields as the webapp's, so neighbours see it as any other.
-// The id comes from the form (newId), so sending it twice writes the same issue
+// Reported by the administration, e.g. after a call. The same fields as the webapp's, so neighbours see it as any other,
+// with who reported it only in its private author document. The id comes from the form (newId), so sending it twice
+// writes the same issue
 export async function createIssue(communityId: string, uid: string, issueId: string, fields: Pick<Issue, 'title' | 'description' | 'category' | 'location'>) {
 	const issueRef = doc(issuesRef(communityId), issueId);
 	const batch = writeBatch(db);
@@ -49,13 +50,25 @@ export async function createIssue(communityId: string, uid: string, issueId: str
 		votesScore: 0,
 		votesCount: 0,
 		commentsCount: 0,
-		createdBy: uid,
-		updatedBy: uid,
 		createdAt: serverTimestamp(),
 		updatedAt: serverTimestamp(),
 		deletedAt: null,
 	});
+	batch.set(doc(issueRef, 'private', 'author'), { uid });
 	logActivity(batch, communityId, { area: 'issue', summary: `Abrió la incidencia «${fields.title}»`, link: `/communities/${communityId}/issues/${issueRef.id}` });
+	await batch.commit();
+}
+
+// The whole list, in the order neighbours see it. Issues keep their category's id, so renaming one renames it on all of them
+export async function saveIssueCategories(communityId: string, categories: IssueCategory[], summary: string) {
+	const uid = auth.currentUser?.uid;
+	if (!uid) {
+		throw new Error('The admin must be signed in to change the issue categories');
+	}
+
+	const batch = writeBatch(db);
+	batch.update(doc(db, 'communities', communityId), { issueCategories: categories, updatedAt: serverTimestamp(), updatedBy: uid });
+	logActivity(batch, communityId, { area: 'issue', summary, link: `/communities/${communityId}/issue-categories` });
 	await batch.commit();
 }
 
@@ -66,6 +79,8 @@ export function useIssue(communityId: string, issueId: string) {
 	const issue = useDocument<Issue>(issueRef);
 	// The internal note and the insurance claim, only the administration can read it
 	const adminData = useDocument<IssuePrivate>(privateRef);
+	// Who reported it, neighbours never see it
+	const author = useDocument<IssueAuthor>(doc(issueRef, 'private', 'author'));
 	// Ordered by date only, so no composite index is needed. Removed ones are left out here
 	const allComments = useCollection<IssueComment>(query(collection(issueRef, 'comments'), orderBy('createdAt')));
 	const comments = computed(() => allComments.value.filter(comment => !comment.deletedAt));
@@ -217,12 +232,13 @@ export function useIssue(communityId: string, issueId: string) {
 		const office = community?.contacts?.find(contact => contact.type === 'admin');
 		const contact = { name: office?.name || author.name || 'Administración', phone: office?.phone, whatsapp: office?.whatsapp, email: office?.email || author.email };
 		const token = newWorkOrderToken();
+		const category = findIssueCategory(getIssueCategories(community), current.category);
 		const copy = {
 			community: { name: community?.name ?? '', address: community?.address ?? '' },
 			issue: {
 				title: current.title,
 				description: current.description || '',
-				category: current.category,
+				category: { name: category.name, icon: category.icon },
 				location: current.location ? [issueLocationTypes[current.location.type], current.location.reference].filter(Boolean).join(' · ') : '',
 				assets: current.assets ?? [],
 			},
@@ -313,6 +329,7 @@ export function useIssue(communityId: string, issueId: string) {
 	return {
 		issue,
 		adminData,
+		author,
 		workOrder,
 		comments,
 		loading: issue.pending,
