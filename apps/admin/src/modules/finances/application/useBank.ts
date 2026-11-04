@@ -160,7 +160,9 @@ export async function matchMovement(communityId: string, movement: BankMovement,
  */
 export async function unmatchMovement(communityId: string, movement: BankMovement) {
 	const uid = signedUid();
-	const match = movement.match;
+	// The match as stored: an old undo after matching it again elsewhere would undo the wrong one
+	const stored = await getDoc(doc(movementsRef(communityId), movement.id));
+	const match = stored.data()?.status === 'matched' ? (stored.data() as BankMovement).match : undefined;
 	const pending = { ...movement, status: 'pending' } as BankMovement;
 	delete pending.match;
 	const markMovement = (batch: WriteBatch) => batch.update(doc(movementsRef(communityId), movement.id), { status: 'pending', match: deleteField(), updatedAt: serverTimestamp(), updatedBy: uid });
@@ -209,45 +211,55 @@ export async function unmatchMovement(communityId: string, movement: BankMovemen
 
 /**
  * Nothing to reconcile it with, e.g. a bank fee or a transfer between the community's accounts. A fee can be recorded
- * as a paid expense, made first with its id from when the form opened, so trying again doesn't duplicate it
+ * as a paid expense, in the same batch and with its id from the movement's, so trying again, from another tab too,
+ * doesn't duplicate it
  */
-export async function ignoreMovement(communityId: string, movement: BankMovement, note: string, expense?: { id: string; data: ExpenseData }) {
+export async function ignoreMovement(communityId: string, movement: BankMovement, note: string, expense?: ExpenseData) {
+	const expenseId = `bank-${movement.id}`;
+	const markMovement = (batch: WriteBatch) => {
+		batch.update(doc(movementsRef(communityId), movement.id), {
+			status: 'ignored',
+			...(note ? { note } : {}),
+			...(expense ? { expenseId } : {}),
+			updatedAt: serverTimestamp(),
+			updatedBy: signedUid(),
+		});
+		logActivity(batch, communityId, {
+			area: 'finance',
+			summary: `Marcó el movimiento «${movement.concept}» de ${formatCents(movement.amount)} como sin conciliar${expense ? ', registrado como gasto' : ''}`,
+			link: link(communityId),
+		});
+	};
 	if (expense) {
-		await addExpense(communityId, expense.id, expense.data);
+		await addExpense(communityId, expenseId, expense, markMovement);
+	} else {
+		const batch = writeBatch(db);
+		markMovement(batch);
+		await batch.commit();
 	}
-	const batch = writeBatch(db);
-	batch.update(doc(movementsRef(communityId), movement.id), {
-		status: 'ignored',
-		...(note ? { note } : {}),
-		...(expense ? { expenseId: expense.id } : {}),
-		updatedAt: serverTimestamp(),
-		updatedBy: signedUid(),
-	});
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Marcó el movimiento «${movement.concept}» de ${formatCents(movement.amount)} como sin conciliar${expense ? ', registrado como gasto' : ''}`,
-		link: link(communityId),
-	});
-	await batch.commit();
-	return { ...movement, status: 'ignored', ...(note ? { note } : {}), ...(expense ? { expenseId: expense.id } : {}) } as BankMovement;
+	return { ...movement, status: 'ignored', ...(note ? { note } : {}), ...(expense ? { expenseId } : {}) } as BankMovement;
 }
 
-// Undoes ignoreMovement, removing the expense recorded for it
+// Undoes ignoreMovement, removing the expense recorded for it in the same batch
 export async function unignoreMovement(communityId: string, movement: BankMovement) {
-	if (movement.expenseId) {
-		const snapshot = await getDoc(doc(db, 'communities', communityId, 'expenses', movement.expenseId));
-		if (snapshot.exists()) {
-			await deleteExpense(communityId, { ...snapshot.data(), id: snapshot.id } as Expense);
-		}
+	const markMovement = (batch: WriteBatch) => {
+		batch.update(doc(movementsRef(communityId), movement.id), { status: 'pending', note: deleteField(), expenseId: deleteField(), updatedAt: serverTimestamp(), updatedBy: signedUid() });
+		logActivity(batch, communityId, {
+			area: 'finance',
+			summary: `Volvió a dejar pendiente el movimiento «${movement.concept}» de ${formatCents(movement.amount)}`,
+			link: link(communityId),
+		});
+	};
+	// The expense as stored: a page left open may not know one was recorded since
+	const expenseId = (await getDoc(doc(movementsRef(communityId), movement.id))).data()?.expenseId as string | undefined;
+	const snapshot = expenseId ? await getDoc(doc(db, 'communities', communityId, 'expenses', expenseId)) : undefined;
+	if (snapshot?.exists()) {
+		await deleteExpense(communityId, { ...snapshot.data(), id: snapshot.id } as Expense, markMovement);
+	} else {
+		const batch = writeBatch(db);
+		markMovement(batch);
+		await batch.commit();
 	}
-	const batch = writeBatch(db);
-	batch.update(doc(movementsRef(communityId), movement.id), { status: 'pending', note: deleteField(), expenseId: deleteField(), updatedAt: serverTimestamp(), updatedBy: signedUid() });
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Volvió a dejar pendiente el movimiento «${movement.concept}» de ${formatCents(movement.amount)}`,
-		link: link(communityId),
-	});
-	await batch.commit();
 	const pending = { ...movement, status: 'pending' } as BankMovement;
 	delete pending.note;
 	delete pending.expenseId;

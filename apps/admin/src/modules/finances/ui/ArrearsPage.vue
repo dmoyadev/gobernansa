@@ -147,7 +147,9 @@ async function invoiceInterest(row: typeof rows.value[number]) {
 	}
 	invoicing.value = row.property.id;
 	try {
-		const charge = await issueInterestCharge(props.id, row.property, interest.items.map(item => item.charge.id), interest.total, toDateString(interestDate.value));
+		const issued = interestCharges.value.filter(charge => charge.propertyId === row.property.id);
+		const since = `${issued.map(charge => charge.interest?.to ?? '').sort().at(-1) || 'first'}-${issued.length}`;
+		const charge = await issueInterestCharge(props.id, row.property, interest.items.map(item => item.charge.id), interest.total, toDateString(interestDate.value), since);
 		interestCharges.value = [...interestCharges.value, charge];
 		toast('Recibo de intereses emitido', {
 			undo: async () => {

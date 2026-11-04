@@ -12,7 +12,7 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
-import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -175,7 +175,7 @@ async function undoDone(movement: BankMovement) {
 const panel = ref<{ id: string; mode: 'match' | 'ignore' }>();
 const search = ref('');
 const picked = ref<string[]>([]);
-const ignoreForm = ref({ note: '', asExpense: false, itemId: '', expenseId: '' });
+const ignoreForm = ref({ note: '', asExpense: false, itemId: '' });
 const ignoreYear = ref(new Date().getFullYear());
 const { data: budget } = useBudget(props.id, ignoreYear);
 const itemOptions = computed(() => [{ value: '', label: 'Sin partida' }, ...(budget.value?.items ?? []).map(item => ({ value: item.id, label: item.name }))]);
@@ -188,8 +188,7 @@ function openPanel(movement: BankMovement, mode: 'match' | 'ignore') {
 	panel.value = { id: movement.id, mode };
 	search.value = '';
 	picked.value = [];
-	// The expense's id is made now, so recording it twice writes one
-	ignoreForm.value = { note: movement.commonConcept === '17' ? 'Comisión del banco' : '', asExpense: movement.amount < 0 && movement.commonConcept === '17', itemId: '', expenseId: newId() };
+	ignoreForm.value = { note: movement.commonConcept === '17' ? 'Comisión del banco' : '', asExpense: movement.amount < 0 && movement.commonConcept === '17', itemId: '' };
 	ignoreYear.value = Number(movement.date.slice(0, 4));
 }
 
@@ -244,10 +243,10 @@ async function acceptManual(movement: BankMovement) {
 }
 
 async function ignore(movement: BankMovement) {
-	const { note, asExpense, itemId, expenseId } = ignoreForm.value;
+	const { note, asExpense, itemId } = ignoreForm.value;
 	const day = Timestamp.fromDate(new Date(`${movement.date}T12:00`));
 	const expense = asExpense && movement.amount < 0
-		? { id: expenseId, data: { itemId, concept: note.trim() || movement.concept, amount: -movement.amount, date: day, paidAt: day, paymentMethod: 'direct_debit' as const } }
+		? { itemId, concept: note.trim() || movement.concept, amount: -movement.amount, date: day, paidAt: day, paymentMethod: 'direct_debit' as const }
 		: undefined;
 	await run(movement.id, async () => {
 		const ignored = await ignoreMovement(props.id, movement, note.trim(), expense);

@@ -1,12 +1,13 @@
 import type { Budget, BudgetItem, Charge, ChargeCollection, Expense, FeePlan } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
+import type { WriteBatch } from 'firebase/firestore';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { chargeTypes, collectionMethods, feeBatchId, feePeriodicities, outstanding, payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, getDocs, getDocsFromServer, query, runTransaction, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 
@@ -118,31 +119,53 @@ export async function issueCharges(communityId: string, { type, concept, dueDate
 	}
 }
 
-// paidAt is given, so undoing puts back the exact date it had
+/**
+ * paidAt is given, so undoing puts back the exact date it had. In a transaction on the charge as it is now: already so
+ * (a double click, another tab) does nothing, one in a remittance not collected yet isn't marked paid by hand (the bank
+ * collects it), and one reconciled with a bank movement is undone from the bank, which points to it
+ */
 export async function setChargePaid(communityId: string, charge: Charge, paidAt: Timestamp | null) {
 	const paid = !!paidAt;
 	const uid = signedUid();
-	// A payment from the app marked unpaid is reverted: the charge drops it, the payment stays marked so. Undoing it
-	// (paid again, with the charge as it was) brings it back
-	const revert = !paid && !!charge.payment;
-	const batch = writeBatch(db);
-	batch.update(doc(chargesRef(communityId), charge.id), {
-		paidAt,
-		...(charge.payment ? { payment: paid ? charge.payment : deleteField() } : {}),
-		updatedAt: serverTimestamp(),
-		updatedBy: uid,
+	const ref = doc(chargesRef(communityId), charge.id);
+	await runTransaction(db, async (transaction) => {
+		const snapshot = await transaction.get(ref);
+		if (!snapshot.exists()) {
+			throw new Error('el recibo ya no existe');
+		}
+		const stored = snapshot.data() as Charge;
+		if (!!stored.paidAt === paid) {
+			return;
+		}
+		if (!paid && stored.bankMovementId) {
+			throw new Error('está conciliado con un movimiento del banco: deshaz la conciliación');
+		}
+		if (paid && stored.remittanceId) {
+			const remittance = await transaction.get(doc(db, 'communities', communityId, 'remittances', stored.remittanceId));
+			if (remittance.data()?.status !== 'collected') {
+				throw new Error('está en una remesa, que lo cobra');
+			}
+		}
+		// A payment from the app marked unpaid is reverted: the charge drops it, the payment stays marked so. Undoing it
+		// (paid again, with the charge as it was) brings it back
+		const revert = !paid && !!charge.payment;
+		transaction.update(ref, {
+			paidAt,
+			...(charge.payment ? { payment: paid ? charge.payment : deleteField() } : {}),
+			updatedAt: serverTimestamp(),
+			updatedBy: uid,
+		});
+		if (charge.payment) {
+			transaction.update(doc(db, 'communities', communityId, 'payments', charge.payment.id), paid
+				? { revertedAt: deleteField(), revertedBy: deleteField() }
+				: { revertedAt: serverTimestamp(), revertedBy: uid });
+		}
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Marcó «${charge.concept}» de ${charge.propertyName} como ${paid ? 'pagado' : 'pendiente'}${revert ? ', anulando su pago de prueba' : ''}`,
+			link: `/communities/${communityId}/charges`,
+		});
 	});
-	if (charge.payment) {
-		batch.update(doc(db, 'communities', communityId, 'payments', charge.payment.id), paid
-			? { revertedAt: deleteField(), revertedBy: deleteField() }
-			: { revertedAt: serverTimestamp(), revertedBy: uid });
-	}
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Marcó «${charge.concept}» de ${charge.propertyName} como ${paid ? 'pagado' : 'pendiente'}${revert ? ', anulando su pago de prueba' : ''}`,
-		link: `/communities/${communityId}/charges`,
-	});
-	await batch.commit();
 }
 
 // The fields entregas a cuenta keep. Paid on the day of the latest one when they reach the amount
@@ -315,7 +338,8 @@ export type ExpenseData = Pick<Expense, 'itemId' | 'concept' | 'amount' | 'date'
 	| 'withholdingRate' | 'withholding' | 'withholdingType' | 'dueDate' | 'paidAt' | 'paymentMethod' | 'fromReserve'>;
 
 // id made when the form opens, so sending it twice writes one expense. Fields left out aren't written
-export async function addExpense(communityId: string, id: string, data: ExpenseData) {
+// `also` adds to the same batch, e.g. the bank movement it's recorded for
+export async function addExpense(communityId: string, id: string, data: ExpenseData, also?: (batch: WriteBatch) => void) {
 	const expense = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as ExpenseData;
 	const uid = signedUid();
 	const now = serverTimestamp();
@@ -333,6 +357,7 @@ export async function addExpense(communityId: string, id: string, data: ExpenseD
 		summary: `Añadió el gasto «${expense.concept}» de ${formatCents(expense.amount)}`,
 		link: `/communities/${communityId}/budget`,
 	});
+	also?.(batch);
 	await batch.commit();
 }
 
@@ -341,23 +366,41 @@ export function useUnpaidInvoices(communityId: string) {
 	return useCollection<Expense>(query(expensesRef(communityId), where('paidAt', '==', null)));
 }
 
-// paidAt is given, so undoing puts back the exact date it had
+/**
+ * paidAt is given, so undoing puts back the exact date it had. In a transaction on the invoice as it is now: already so
+ * does nothing, and one in a transfer order not executed yet isn't marked paid by hand, the order pays it
+ */
 export async function setExpensePaid(communityId: string, expense: Expense, paidAt: Timestamp | null) {
-	const batch = writeBatch(db);
-	batch.update(doc(expensesRef(communityId), expense.id), {
-		paidAt,
-		updatedAt: serverTimestamp(),
-		updatedBy: signedUid(),
+	const ref = doc(expensesRef(communityId), expense.id);
+	const uid = signedUid();
+	await runTransaction(db, async (transaction) => {
+		const snapshot = await transaction.get(ref);
+		if (!snapshot.exists()) {
+			throw new Error('la factura ya no existe');
+		}
+		const stored = snapshot.data() as Expense;
+		if (!!stored.paidAt === !!paidAt) {
+			return;
+		}
+		if (!paidAt && stored.bankMovementId) {
+			throw new Error('está conciliada con un movimiento del banco: deshaz la conciliación');
+		}
+		if (paidAt && stored.paymentOrderId) {
+			const order = await transaction.get(doc(db, 'communities', communityId, 'paymentOrders', stored.paymentOrderId));
+			if (order.exists() && order.data().status !== 'executed') {
+				throw new Error('está en una orden de pago, que la paga');
+			}
+		}
+		transaction.update(ref, { paidAt, updatedAt: serverTimestamp(), updatedBy: uid });
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Marcó la factura «${expense.concept}»${expense.provider ? ` de ${expense.provider.name}` : ''} como ${paidAt ? 'pagada' : 'pendiente'} (${formatCents(payableAmount(expense))})`,
+			link: `/communities/${communityId}/payables`,
+		});
 	});
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Marcó la factura «${expense.concept}»${expense.provider ? ` de ${expense.provider.name}` : ''} como ${paidAt ? 'pagada' : 'pendiente'} (${formatCents(payableAmount(expense))})`,
-		link: `/communities/${communityId}/payables`,
-	});
-	await batch.commit();
 }
 
-export async function deleteExpense(communityId: string, expense: Expense) {
+export async function deleteExpense(communityId: string, expense: Expense, also?: (batch: WriteBatch) => void) {
 	const batch = writeBatch(db);
 	batch.delete(doc(expensesRef(communityId), expense.id));
 	logActivity(batch, communityId, {
@@ -365,6 +408,7 @@ export async function deleteExpense(communityId: string, expense: Expense) {
 		summary: `Borró el gasto «${expense.concept}» de ${formatCents(expense.amount)}`,
 		link: `/communities/${communityId}/budget`,
 	});
+	also?.(batch);
 	await batch.commit();
 }
 
@@ -386,15 +430,27 @@ export async function loadExpenses(communityId: string, year: number) {
 	return snapshot.docs.map(expense => ({ ...expense.data(), id: expense.id }) as Expense);
 }
 
-// The fees already issued from the year's budget, paid or not, once
-export async function loadFees(communityId: string, year: number) {
-	const snapshot = await getDocs(query(chargesRef(communityId), where('batchId', '==', feeBatchId(year))));
+// The charges of a run (the year's fees, a derrama) already issued, paid or not, once. fromServer before writing on
+// what it says: offline, the cache may miss what was issued or paid elsewhere
+export async function loadBatch(communityId: string, batchId: string, fromServer = false) {
+	const snapshot = await (fromServer ? getDocsFromServer : getDocs)(query(chargesRef(communityId), where('batchId', '==', batchId)));
 	return snapshot.docs.map(charge => ({ ...charge.data(), id: charge.id }) as Charge);
+}
+
+export async function loadFees(communityId: string, year: number, fromServer = false) {
+	return loadBatch(communityId, feeBatchId(year), fromServer);
 }
 
 // The plan is kept in the budget first, then each period is issued with only the fees still missing: retrying after a
 // failure, or after adding a property, issues what's left and never touches what was already issued (or paid)
 export async function issueFees(communityId: string, year: number, plan: FeePlan, periods: Omit<ChargeIssue, 'type' | 'batchId'>[]) {
+	// Read right before writing: a fee paid or issued elsewhere since the page loaded must not be overwritten unpaid, and
+	// fees issued meanwhile with another periodicity (another tab, a page left open) have other ids, so they'd be issued twice
+	const fees = await loadFees(communityId, year, true);
+	const prefix = `${feeBatchId(year)}-${plan.months}m-`;
+	if (fees.some(fee => !fee.id.startsWith(prefix))) {
+		throw new Error('ya se emitieron con otra periodicidad, recarga la página');
+	}
 	const batch = writeBatch(db);
 	batch.set(budgetRef(communityId, year), { fees: plan, updatedAt: serverTimestamp(), updatedBy: signedUid() }, { merge: true });
 	logActivity(batch, communityId, {
@@ -403,8 +459,7 @@ export async function issueFees(communityId: string, year: number, plan: FeePlan
 		link: `/communities/${communityId}/fees`,
 	});
 	await batch.commit();
-	// Read again right before writing: a fee paid or issued elsewhere since the page loaded must not be overwritten unpaid
-	const issued = new Set((await loadFees(communityId, year)).map(fee => fee.id));
+	const issued = new Set(fees.map(fee => fee.id));
 	for (const period of periods) {
 		const missing = period.ids.flatMap((id, index) => issued.has(id) ? [] : [{ id, share: period.shares[index] }]);
 		if (missing.length) {

@@ -6,7 +6,7 @@ import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remittanceStatuses, returnReasons } from '@gobernansa/shared/domain/sepa.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { arrayRemove, arrayUnion, collection, deleteField, doc, getDoc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { toDueDate } from './useFinances.ts';
 
 // Each debit writes its charge and, the first time, its mandate, plus the remittance and the activity entry: within
@@ -146,70 +146,79 @@ export interface ReturnData {
 	reason: ReturnReason;
 	// 'YYYY-MM-DD'
 	date: string;
-	// Gastos de devolución charged to the property, with the id made when the form opened
-	fee?: { id: string; cents: number };
+	// Gastos de devolución charged to the property
+	fee?: { cents: number };
 }
 
 /**
  * Devolución of one debit: the charge is unpaid again and free for another remittance, keeping the return, and a first
- * debit returned makes the mandate's next one first again. Resolves to the remittance as it's now and how to undo it
+ * debit returned makes the mandate's next one first again. In a transaction on the remittance as stored, so the same
+ * return registered twice (another tab, the bank's report after doing it by hand) is only registered once, and returns
+ * registered meanwhile aren't overwritten. Resolves to the remittance as it's now and how to undo it, with no undo when
+ * it was already returned
  */
-export async function returnDebit(communityId: string, remittance: Remittance, item: RemittanceItem, { reason, date, fee }: ReturnData) {
+export async function returnDebit(communityId: string, remittance: Remittance, item: RemittanceItem, { reason, date, fee: feeData }: ReturnData) {
 	const uid = signedUid();
 	const now = serverTimestamp();
 	const remittanceRef = doc(remittancesRef(communityId), remittance.id);
 	const chargeRef = doc(chargesRef(communityId), item.chargeId);
-	// The remittance as stored, so items returned meanwhile (another tab, an undo) aren't overwritten
-	const [remittanceSnapshot, chargeSnapshot, propertySnapshot] = await Promise.all([getDoc(remittanceRef), getDoc(chargeRef), getDoc(propertyRef(item.propertyId))]);
-	if (!remittanceSnapshot.exists()) {
-		throw new Error('la remesa ya no existe');
-	}
-	if (!chargeSnapshot.exists()) {
-		throw new Error('el recibo ya no existe');
-	}
-	const items = (remittanceSnapshot.data() as Remittance).items;
-	if (items.find(other => other.chargeId === item.chargeId)?.returned) {
-		throw new Error('ese adeudo ya está devuelto');
-	}
-	const charge = chargeSnapshot.data() as Charge;
-	const property = propertySnapshot.data() as Property | undefined;
-	// The mandate is first again only if none of its first debits in this remittance went through
-	const resetsFirst = item.sequence === 'FRST' && property?.mandate?.firstRemittanceId === remittance.id
-		&& !items.some(other => other.chargeId !== item.chargeId && other.propertyId === item.propertyId && other.sequence === 'FRST' && !other.returned);
-	const entry: ChargeReturn = { remittanceId: remittance.id, reason, date, amount: item.amount };
-	const returned = { ...remittance, items: items.map(other => other.chargeId === item.chargeId ? { ...other, returned: { reason, date, ...(fee ? { feeChargeId: fee.id } : {}) } } : other) };
+	// From the debit, so its gastos can't be charged twice either
+	const fee = feeData && { id: `return-${remittance.id}-${item.chargeId}`, cents: feeData.cents };
+	const result = await runTransaction(db, async (transaction) => {
+		const [remittanceSnapshot, chargeSnapshot, propertySnapshot] = await Promise.all([transaction.get(remittanceRef), transaction.get(chargeRef), transaction.get(propertyRef(item.propertyId))]);
+		if (!remittanceSnapshot.exists()) {
+			throw new Error('la remesa ya no existe');
+		}
+		const stored = { ...remittanceSnapshot.data(), id: remittance.id } as Remittance;
+		if (stored.items.find(other => other.chargeId === item.chargeId)?.returned) {
+			return { remittance: stored };
+		}
+		if (!chargeSnapshot.exists()) {
+			throw new Error('el recibo ya no existe');
+		}
+		const charge = chargeSnapshot.data() as Charge;
+		const property = propertySnapshot.data() as Property | undefined;
+		// The mandate is first again only if none of its first debits in this remittance went through
+		const resetsFirst = item.sequence === 'FRST' && property?.mandate?.firstRemittanceId === remittance.id
+			&& !stored.items.some(other => other.chargeId !== item.chargeId && other.propertyId === item.propertyId && other.sequence === 'FRST' && !other.returned);
+		const entry: ChargeReturn = { remittanceId: remittance.id, reason, date, amount: item.amount };
+		const returned = { ...stored, items: stored.items.map(other => other.chargeId === item.chargeId ? { ...other, returned: { reason, date, ...(fee ? { feeChargeId: fee.id } : {}) } } : other) };
 
-	const batch = writeBatch(db);
-	batch.update(remittanceRef, { items: returned.items, updatedAt: now, updatedBy: uid });
-	batch.update(chargeRef, { paidAt: null, remittanceId: deleteField(), returns: arrayUnion(entry), updatedAt: now, updatedBy: uid });
-	if (resetsFirst) {
-		batch.update(propertyRef(item.propertyId), { 'mandate.firstRemittanceId': deleteField() });
-	}
-	if (fee) {
-		batch.set(doc(chargesRef(communityId), fee.id), {
-			communityId,
-			propertyId: item.propertyId,
-			propertyName: item.propertyName,
-			ownerUid: property?.ownerUid ?? charge.ownerUid,
-			...(property?.ownerName ? { ownerName: property.ownerName } : {}),
-			type: 'fee',
-			concept: `Gastos de devolución · ${item.concept}`,
-			amount: fee.cents,
-			dueDate: toDueDate(date),
-			paidAt: null,
-			batchId: `return-${remittance.id}`,
-			createdAt: now,
-			createdBy: uid,
-			updatedAt: now,
-			updatedBy: uid,
+		transaction.update(remittanceRef, { items: returned.items, updatedAt: now, updatedBy: uid });
+		transaction.update(chargeRef, { paidAt: null, remittanceId: deleteField(), returns: arrayUnion(entry), updatedAt: now, updatedBy: uid });
+		if (resetsFirst) {
+			transaction.update(propertyRef(item.propertyId), { 'mandate.firstRemittanceId': deleteField() });
+		}
+		if (fee) {
+			transaction.set(doc(chargesRef(communityId), fee.id), {
+				communityId,
+				propertyId: item.propertyId,
+				propertyName: item.propertyName,
+				ownerUid: property?.ownerUid ?? charge.ownerUid,
+				...(property?.ownerName ? { ownerName: property.ownerName } : {}),
+				type: 'fee',
+				concept: `Gastos de devolución · ${item.concept}`,
+				amount: fee.cents,
+				dueDate: toDueDate(date),
+				paidAt: null,
+				batchId: `return-${remittance.id}`,
+				createdAt: now,
+				createdBy: uid,
+				updatedAt: now,
+				updatedBy: uid,
+			});
+		}
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Registró la devolución de «${item.concept}» de ${item.propertyName} (${formatCents(item.amount)}, ${reason} ${returnReasons[reason].toLowerCase()})${fee ? ` y le cargó ${formatCents(fee.cents)} de gastos` : ''}`,
+			link: link(communityId),
 		});
-	}
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Registró la devolución de «${item.concept}» de ${item.propertyName} (${formatCents(item.amount)}, ${reason} ${returnReasons[reason].toLowerCase()})${fee ? ` y le cargó ${formatCents(fee.cents)} de gastos` : ''}`,
-		link: link(communityId),
+		return { remittance: returned, charge, entry, resetsFirst };
 	});
-	await batch.commit();
+	if (!result.entry) {
+		return { remittance: result.remittance, undo: undefined };
+	}
+	const { remittance: returned, charge, entry, resetsFirst } = result;
 
 	// Only this debit's return is undone, others registered since are kept. Resolves to the remittance as it's then
 	async function undo() {

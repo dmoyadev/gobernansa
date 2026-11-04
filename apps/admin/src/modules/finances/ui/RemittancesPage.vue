@@ -278,12 +278,17 @@ async function confirmReturn(remittance: Remittance, item: RemittanceItem) {
 		const result = await returnDebit(props.id, remittance, item, {
 			reason: returnForm.value.reason,
 			date: returnForm.value.date,
-			...(fee ? { fee: { id: newId(), cents: fee } } : {}),
+			...(fee ? { fee: { cents: fee } } : {}),
 		});
 		replace(result.remittance);
 		returning.value = undefined;
+		const { undo } = result;
+		if (!undo) {
+			toast('Ese adeudo ya estaba devuelto');
+			return;
+		}
 		toast(fee ? 'Devolución registrada y gastos cargados' : 'Devolución registrada: el recibo vuelve a estar pendiente', {
-			undo: async () => replace(await result.undo()),
+			undo: async () => replace(await undo()),
 		});
 	});
 }
@@ -332,10 +337,13 @@ async function applyReport() {
 			const result = await returnDebit(props.id, current, item!, {
 				reason: line.code as ReturnReason,
 				date: line.date ?? today,
-				...(fee ? { fee: { id: newId(), cents: fee } } : {}),
+				...(fee ? { fee: { cents: fee } } : {}),
 			});
 			replace(result.remittance);
-			undos.push(result.undo);
+			// Registered meanwhile elsewhere (another tab, by hand): nothing to undo
+			if (result.undo) {
+				undos.push(result.undo);
+			}
 		}
 		report.value = undefined;
 		toast(`${undos.length} ${undos.length === 1 ? 'devolución registrada' : 'devoluciones registradas'}${fee ? ' con sus gastos' : ''}`, {

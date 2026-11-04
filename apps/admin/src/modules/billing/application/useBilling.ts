@@ -199,6 +199,10 @@ export async function annulInvoice(invoice: FeeInvoice) {
  */
 export async function recordInBooks(invoice: FeeInvoice, office: Office, itemId: string) {
 	const uid = signedUid();
+	// Recorded meanwhile (another tab): it isn't written again over what was paid since
+	if ((await getDoc(doc(invoicesRef(uid), invoice.id))).data()?.expenseId) {
+		return;
+	}
 	const write = async (providerId: string, created: boolean) => {
 		const now = serverTimestamp();
 		const batch = writeBatch(db);

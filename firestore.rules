@@ -32,6 +32,18 @@ service cloud.firestore {
     }
 
     // Neighbours and whoever manages it, from the admin platform
+    // ROB-6: what's written over a document keeps its createdAt. A create made again over one already there (another tab,
+    // a batch sent again after losing the connection) brings a new one and is turned down
+    function keepsCreation() {
+      return request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+    }
+
+    // A link (a remittance, a bank movement) is set or removed, never changed for another
+    function keepsLink(field) {
+      return resource.data.get(field, null) == null || request.resource.data.get(field, null) == null
+        || request.resource.data.get(field, null) == resource.data.get(field, null);
+    }
+
     function inOrManages(communityId) {
       return inCommunity(communityId) || manages(communityId);
     }
@@ -208,8 +220,9 @@ service cloud.firestore {
 
       allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || manages(resource.data.communityId));
       allow create: if manages(request.resource.data.communityId) && isPropertyData(request.resource.data);
+      // Its createdAt stays: the census imported again over one already there (two tabs, a batch sent again) is turned down
       allow update: if manages(resource.data.communityId) && request.resource.data.communityId == resource.data.communityId
-        && isPropertyData(request.resource.data);
+        && isPropertyData(request.resource.data) && keepsCreation();
       allow delete: if manages(resource.data.communityId);
     }
 
@@ -472,8 +485,9 @@ service cloud.firestore {
       allow read: if inCommunity(communityId) || manages(communityId);
       // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed
       allow create: if isSuperadmin();
-      // Intereses de demora (lateInterest): the yearly rate in hundredths of a percent, up to 20 %, and the days of grace
-      allow update: if manages(communityId)
+      // Intereses de demora (lateInterest): the yearly rate in hundredths of a percent, up to 20 %, and the days of grace.
+      // Its createdAt stays, so a portfolio imported twice doesn't create it again over itself
+      allow update: if manages(communityId) && keepsCreation()
         && (!('lateInterest' in request.resource.data) || (request.resource.data.lateInterest.keys().hasOnly(['rate', 'graceDays'])
           && request.resource.data.lateInterest.rate is int && request.resource.data.lateInterest.rate > 0 && request.resource.data.lateInterest.rate <= 2000
           && request.resource.data.lateInterest.graceDays is int && request.resource.data.lateInterest.graceDays >= 0 && request.resource.data.lateInterest.graceDays <= 365));
@@ -784,7 +798,15 @@ service cloud.firestore {
         }
 
         allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
-        allow create, update: if manages(communityId) && request.resource.data.communityId == communityId && isChargeData(request.resource.data);
+        allow create: if manages(communityId) && request.resource.data.communityId == communityId && isChargeData(request.resource.data);
+        // ROB-6: issued again over one already there (another tab, a batch sent again after losing the connection) its
+        // createdAt changes and it's turned down, so a paid charge is never left unpaid. It goes in one remittance at a
+        // time and only while unpaid, and is reconciled with one bank movement at a time, only while unpaid and not in a remittance
+        allow update: if manages(communityId) && request.resource.data.communityId == communityId && isChargeData(request.resource.data)
+          && keepsCreation() && keepsLink('remittanceId') && keepsLink('bankMovementId')
+          && (request.resource.data.get('remittanceId', null) == null || resource.data.get('remittanceId', null) != null || resource.data.get('paidAt', null) == null)
+          && (request.resource.data.get('bankMovementId', null) == null || resource.data.get('bankMovementId', null) != null
+            || (resource.data.get('paidAt', null) == null && resource.data.get('remittanceId', null) == null));
         allow update: if inCommunity(communityId) && notBlocked()
           && resource.data.ownerUid == request.auth.uid
           && resource.data.paidAt == null
@@ -817,7 +839,7 @@ service cloud.firestore {
             || ('bookingId' in request.resource.data
               && getAfter(/databases/$(database)/documents/communities/$(communityId)/bookings/$(request.resource.data.bookingId)).data.get('payment', {}).get('id', '') == paymentId));
         allow update: if manages(communityId) && changedOnly(['revertedAt', 'revertedBy']) && request.resource.data.get('revertedBy', request.auth.uid) == request.auth.uid;
-        allow update: if manages(communityId) && changedOnly(['bankMovementId'])
+        allow update: if manages(communityId) && changedOnly(['bankMovementId']) && keepsLink('bankMovementId')
           && (!('bankMovementId' in request.resource.data)
             || exists(/databases/$(database)/documents/communities/$(communityId)/bankMovements/$(request.resource.data.bankMovementId)));
       }
@@ -830,19 +852,32 @@ service cloud.firestore {
 
       // Remesas of domiciliated charges (SEPA direct debit), with each debtor's account. Only the office: the owners'
       // mandates are in their properties
+      // ROB-6: collected on one day, so a second bank movement can't collect it again, and only deleted before it's sent
       match /remittances/{remittanceId} {
-        allow read, write: if manages(communityId);
+        allow read, create: if manages(communityId);
+        allow update: if manages(communityId) && !(resource.data.status == 'collected' && request.resource.data.status == 'collected'
+          && request.resource.data.get('collectedAt', null) != resource.data.get('collectedAt', null));
+        allow delete: if manages(communityId) && resource.data.status == 'generated';
       }
 
       // Órdenes de pago to providers (SEPA credit transfer), with each provider's account. Only the office
+      // ROB-6: executed on one day, and only deleted before it's executed
       match /paymentOrders/{orderId} {
-        allow read, write: if manages(communityId);
+        allow read, create: if manages(communityId);
+        allow update: if manages(communityId) && !(resource.data.status == 'executed' && request.resource.data.status == 'executed'
+          && request.resource.data.get('executedAt', null) != resource.data.get('executedAt', null));
+        allow delete: if manages(communityId) && resource.data.status == 'generated';
       }
 
       // Movements of the community's bank account, imported from its statements (or the test bank feed) and reconciled
       // with the charges, invoices, remittances and orders they paid, which point back to them (bankMovementId). Only the office
+      // ROB-6: it leaves pending once (reconciled or set aside) and only goes back to it to undo that, so one movement
+      // can't pay two things; imported again over itself its createdAt changes and it's turned down. Only pending ones are removed
       match /bankMovements/{movementId} {
-        allow read, write: if manages(communityId);
+        allow read, create: if manages(communityId);
+        allow update: if manages(communityId) && keepsCreation()
+          && (resource.data.status == 'pending') != (request.resource.data.status == 'pending');
+        allow delete: if manages(communityId) && resource.data.status == 'pending';
       }
 
       // Contabilidad. Every entry is derived from the charges and invoices but the manual ones, which can't be written
@@ -860,8 +895,9 @@ service cloud.firestore {
           && !exists(/databases/$(database)/documents/communities/$(communityId)/fiscalYears/$(string(resource.data.year)));
       }
 
+      // Closed once: closing it again (another tab, a page left open) would overwrite it with what that one saw. Reopening deletes it
       match /fiscalYears/{year} {
-        allow read, write: if manages(communityId);
+        allow read, create, delete: if manages(communityId);
       }
 
       match /accounting/{docId} {
@@ -877,9 +913,16 @@ service cloud.firestore {
         allow write: if manages(communityId);
       }
 
+      // ROB-6: recorded again over one already there its createdAt changes and it's turned down. It goes in one payment
+      // order at a time, or in another once its order was executed and the transfer came back (unpaid again), and is
+      // reconciled with one bank movement, only while unpaid
       match /expenses/{expenseId} {
         allow read: if inOrManages(communityId);
-        allow write: if manages(communityId);
+        allow create, delete: if manages(communityId);
+        allow update: if manages(communityId) && keepsCreation() && keepsLink('bankMovementId')
+          && (request.resource.data.get('bankMovementId', null) == null || resource.data.get('bankMovementId', null) != null || resource.data.get('paidAt', null) == null)
+          && (keepsLink('paymentOrderId') || (resource.data.get('paidAt', null) == null
+            && get(/databases/$(database)/documents/communities/$(communityId)/paymentOrders/$(resource.data.paymentOrderId)).data.status == 'executed'));
       }
 
       // Inspections, revisions and renewals

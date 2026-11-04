@@ -9,8 +9,7 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { INTEREST_BATCH_ID } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { arrayRemove, arrayUnion, collection, deleteField, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
-import { newId } from '@/app/ux/navigation.ts';
+import { arrayRemove, arrayUnion, collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { queueMail } from '@/modules/mail/application/mail.ts';
 import { toDueDate } from './useFinances.ts';
 
@@ -158,9 +157,11 @@ export async function loadInterestCharges(communityId: string) {
 
 /**
  * Recibo de intereses de demora for what a property's overdue charges owe until `to` ('YYYY-MM-DD'), collected like any
- * other charge. It keeps which charges and until when, so their interest is counted from then on. Gives it back
+ * other charge. It keeps which charges and until when, so their interest is counted from then on. Its id comes from the
+ * property and what was already invoiced (`since`: the day the last one reached and how many there are), so issuing it
+ * twice (another tab, a page left open) finds it already there. Gives it back
  */
-export async function issueInterestCharge(communityId: string, property: Pick<Property, 'id' | 'name' | 'ownerUid' | 'ownerName'>, chargeIds: string[], amount: number, to: string) {
+export async function issueInterestCharge(communityId: string, property: Pick<Property, 'id' | 'name' | 'ownerUid' | 'ownerName'>, chargeIds: string[], amount: number, to: string, since: string) {
 	const uid = signedUid();
 	const due = new Date();
 	due.setDate(due.getDate() + INTEREST_DUE_DAYS);
@@ -178,15 +179,19 @@ export async function issueInterestCharge(communityId: string, property: Pick<Pr
 		batchId: INTEREST_BATCH_ID,
 		interest: { chargeIds, to },
 	};
-	const id = newId();
-	const batch = writeBatch(db);
-	batch.set(doc(db, 'communities', communityId, 'charges', id), { ...charge, createdAt: serverTimestamp(), createdBy: uid, updatedAt: serverTimestamp(), updatedBy: uid });
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Emitió a ${property.name} un recibo de ${formatCents(amount)} por los intereses de demora de ${chargeIds.length} ${chargeIds.length === 1 ? 'recibo' : 'recibos'} hasta el ${to.split('-').reverse().join('/')}`,
-		link: `/communities/${communityId}/charges`,
+	const id = `interest-${property.id}-${since}`;
+	const ref = doc(db, 'communities', communityId, 'charges', id);
+	await runTransaction(db, async (transaction) => {
+		if ((await transaction.get(ref)).exists()) {
+			throw new Error('ya se han emitido estos intereses, recarga la página');
+		}
+		transaction.set(ref, { ...charge, createdAt: serverTimestamp(), createdBy: uid, updatedAt: serverTimestamp(), updatedBy: uid });
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Emitió a ${property.name} un recibo de ${formatCents(amount)} por los intereses de demora de ${chargeIds.length} ${chargeIds.length === 1 ? 'recibo' : 'recibos'} hasta el ${to.split('-').reverse().join('/')}`,
+			link: `/communities/${communityId}/charges`,
+		});
 	});
-	await batch.commit();
 	const now = Timestamp.now();
 	return { ...charge, id, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid } as Charge;
 }

@@ -7,7 +7,7 @@ import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { PAYOUT_DAYS } from '@gobernansa/shared/domain/bank.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { remember } from '@/app/ux/navigation.ts';
 
 function signedUid() {
@@ -133,17 +133,22 @@ export async function restoreManualEntry(communityId: string, { id, ...entry }: 
 	await batch.commit();
 }
 
+// In a transaction: closed meanwhile elsewhere (another tab, a page left open), it isn't overwritten with what this one saw
 export async function closeFiscalYear(communityId: string, year: number, closing: { result: number; regularization: JournalLine[]; closing: JournalLine[]; names: Record<string, string> }) {
 	const uid = signedUid();
 	const now = serverTimestamp();
-	const batch = writeBatch(db);
-	batch.set(closingRef(communityId, year), { ...closing, year, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
-	logActivity(batch, communityId, {
-		area: 'finance',
-		summary: `Cerró el ejercicio ${year} con un ${closing.result >= 0 ? 'excedente' : 'déficit'} de ${formatCents(Math.abs(closing.result))}`,
-		link: link(communityId),
+	const ref = closingRef(communityId, year);
+	await runTransaction(db, async (transaction) => {
+		if ((await transaction.get(ref)).exists()) {
+			throw new Error('ya está cerrado, recarga la página');
+		}
+		transaction.set(ref, { ...closing, year, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
+		logActivity(transaction, communityId, {
+			area: 'finance',
+			summary: `Cerró el ejercicio ${year} con un ${closing.result >= 0 ? 'excedente' : 'déficit'} de ${formatCents(Math.abs(closing.result))}`,
+			link: link(communityId),
+		});
 	});
-	await batch.commit();
 }
 
 export async function reopenFiscalYear(communityId: string, year: number) {

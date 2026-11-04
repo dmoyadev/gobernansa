@@ -16,7 +16,7 @@ import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { addCollection, deleteCharge, issueCharges, loadPropertyCharges, removeCollection, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { addCollection, deleteCharge, issueCharges, loadBatch, loadPropertyCharges, removeCollection, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -58,8 +58,8 @@ const withoutCoefficient = computed(() => properties.value.filter(property => !p
 const issuing = ref(false);
 const formError = ref<string>();
 
-// The ids of a confirmed emission, kept until it's issued: trying the same one again after a failure rewrites those
-// charges instead of issuing them twice. Changing the form makes it another emission
+// The ids of a confirmed emission, kept until it's issued: trying the same one again after a failure only issues those
+// still missing instead of issuing them twice. Changing the form makes it another emission
 let confirmed: { key: string; batchId: string; ids: string[] } | undefined;
 
 async function issue() {
@@ -72,27 +72,34 @@ async function issue() {
 			: 'Escribe un importe válido, p. ej. 1.250,00';
 		return;
 	}
+	const key = JSON.stringify([form.value.type, form.value.concept.trim(), form.value.dueDate, shares.value.map(share => [share.property.id, share.cents])]);
+	const retry = confirmed?.key === key;
+	// Issued already, e.g. from another tab or before reloading: the live unpaid ones say so, with no reads
+	const dueDate = toDueDate(form.value.dueDate).toMillis();
+	const same = retry ? 0 : unpaid.value.filter(charge => charge.concept === form.value.concept.trim() && charge.dueDate.toMillis() === dueDate).length;
 	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Emitir «${form.value.concept.trim()}» a ${shares.value.length} propiedades por ${formatCents(sharesTotal.value)} en total?`)) {
+	if (!window.confirm(`${same ? `Ya hay ${same} ${same === 1 ? 'recibo' : 'recibos'} «${form.value.concept.trim()}» sin pagar con ese vencimiento. ` : ''}¿Emitir «${form.value.concept.trim()}» a ${shares.value.length} propiedades por ${formatCents(sharesTotal.value)} en total?`)) {
 		return;
 	}
-
-	const key = JSON.stringify([form.value.type, form.value.concept.trim(), form.value.dueDate, shares.value.map(share => [share.property.id, share.cents])]);
-	if (confirmed?.key !== key) {
+	if (!retry) {
 		confirmed = { key, batchId: newId(), ids: shares.value.map(() => newId()) };
 	}
+	const emission = confirmed!;
 
 	// Money: it waits for the server before telling it's done
 	issuing.value = true;
 	formError.value = undefined;
 	try {
+		// After a failure halfway, the first batches are there and can't be written again
+		const issued = new Set(retry ? (await loadBatch(props.id, emission.batchId, true)).map(charge => charge.id) : []);
+		const missing = emission.ids.flatMap((id, index) => issued.has(id) ? [] : [{ id, share: shares.value[index] }]);
 		await issueCharges(props.id, {
 			type: form.value.type,
 			concept: form.value.concept.trim(),
 			dueDate: toDueDate(form.value.dueDate),
-			shares: shares.value,
-			batchId: confirmed.batchId,
-			ids: confirmed.ids,
+			shares: missing.map(({ share }) => share),
+			batchId: emission.batchId,
+			ids: missing.map(({ id }) => id),
 		});
 		toast(shares.value.length === 1 ? 'Recibo emitido' : 'Recibos emitidos');
 		form.value = emptyForm();
@@ -168,19 +175,27 @@ function setInHistory(charge: Charge, present: boolean) {
 	history.value = present ? [...others, charge].sort((a, b) => b.dueDate.toMillis() - a.dueDate.toMillis()) : others;
 }
 
+// One change per charge at a time, so a double click doesn't toggle it back
+const toggling = ref(new Set<string>());
+
 function togglePaid(charge: Charge) {
-	const previous = charge.paidAt;
-	const paidAt = previous ? null : Timestamp.now();
-	patchHistory(charge.id, { paidAt });
+	if (toggling.value.has(charge.id)) {
+		return;
+	}
+	const previous = { paidAt: charge.paidAt, payment: charge.payment };
+	const paidAt = previous.paidAt ? null : Timestamp.now();
+	// Marked unpaid, a payment from the app is reverted
+	patchHistory(charge.id, { paidAt, payment: paidAt ? charge.payment : undefined });
+	toggling.value.add(charge.id);
 	void optimistic(setChargePaid(props.id, charge, paidAt), {
 		done: paidAt ? 'Marcado como pagado' : 'Marcado como pendiente',
 		failed: 'No se ha podido cambiar',
 		revert: async () => {
-			patchHistory(charge.id, { paidAt: previous });
-			await setChargePaid(props.id, charge, previous);
+			patchHistory(charge.id, previous);
+			await setChargePaid(props.id, charge, previous.paidAt);
 		},
-		onError: () => patchHistory(charge.id, { paidAt: previous }),
-	});
+		onError: () => patchHistory(charge.id, previous),
+	}).finally(() => toggling.value.delete(charge.id));
 }
 
 // Paid only by entregas a cuenta: it goes back to pending by undoing one of them
@@ -506,7 +521,7 @@ function remove(charge: Charge) {
 								<LnxButton v-if="!charge.paidAt && !charge.remittanceId" mode="clear" size="small" :aria-expanded="collecting?.chargeId === charge.id" @click="openCollection(charge)">
 									Entrega a cuenta
 								</LnxButton>
-								<LnxButton v-if="!paidByCollections(charge)" mode="clear" size="small" @click="togglePaid(charge)">
+								<LnxButton v-if="!paidByCollections(charge) && !(charge.remittanceId && !charge.paidAt)" mode="clear" size="small" :is-loading="toggling.has(charge.id)" @click="togglePaid(charge)">
 									{{ charge.payment ? 'Anular pago de prueba' : charge.paidAt ? 'Marcar pendiente' : charge.collections?.length ? 'Marcar resto pagado' : 'Marcar pagado' }}
 								</LnxButton>
 								<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">

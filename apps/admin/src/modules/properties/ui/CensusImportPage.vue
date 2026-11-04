@@ -153,7 +153,7 @@ const comparing = ref(false);
 const loaded = new Map<string, Promise<Property[]>>();
 
 function census(communityId: string) {
-	const properties = loaded.get(communityId) ?? loadProperties(communityId).catch((e: unknown) => {
+	const properties = loaded.get(communityId) ?? loadProperties(communityId, true).catch((e: unknown) => {
 		loaded.delete(communityId);
 		throw e;
 	});
@@ -265,7 +265,8 @@ async function apply() {
 	].filter(Boolean).join(', ');
 	try {
 		for (const group of imported.value) {
-			const communityId = group.communityId ?? newId();
+			// From the CIF when there is one, so importing the same portfolio twice doesn't create it twice
+			const communityId = group.communityId ?? (group.cif ? `cif-${group.cif}` : newId());
 			await importCensus(communityId, group.rows, file, group.communityId
 				? undefined
 				: { name: group.name, address: group.address, ...(group.cif ? { cif: group.cif } : {}), ...(group.iban ? { iban: group.iban } : {}) });

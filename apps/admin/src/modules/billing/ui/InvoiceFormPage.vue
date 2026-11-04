@@ -40,6 +40,8 @@ onMounted(async () => {
 	try {
 		original.value = await loadInvoice(props.invoiceId);
 		if (original.value) {
+			// From the invoice and how many times it's been rectified: two tabs rectifying it at once issue one
+			id.value = `${original.value.id}-R${(original.value.rectifiedBy?.length ?? 0) + 1}`;
 			reset();
 		} else {
 			loadError.value = 'No existe esta factura.';

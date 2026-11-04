@@ -153,19 +153,30 @@ const issueForm = useTemplateRef('issueForm');
 useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), 'Emitir las cuotas');
 
 const unpaidFees = computed(() => fees.value.filter(fee => !fee.paidAt));
-// Those with entregas a cuenta stay too, what was collected would be lost with them
-const annullable = computed(() => unpaidFees.value.filter(fee => !fee.collections?.length));
+// Those with entregas a cuenta stay too, what was collected would be lost with them, and those in a remittance, which
+// the bank may be collecting already
+const annullable = computed(() => unpaidFees.value.filter(fee => !fee.collections?.length && !fee.remittanceId));
+const annulling = ref(false);
 
 async function annul() {
-	// Fresh, so a fee paid since the page loaded isn't deleted with the rest
-	await load();
+	// eslint-disable-next-line no-alert
+	if (annulling.value || !window.confirm(`¿Anular ${annullable.value.length} recibos de cuotas de ${year.value} sin pagar? Los pagados, los que tienen entregas a cuenta y los domiciliados en una remesa se quedan.`)) {
+		return;
+	}
+	annulling.value = true;
+	// From the server, after confirming, so a fee paid or remitted since the page loaded (or while confirming) isn't deleted
+	// with the rest. Offline, nothing is annulled
+	try {
+		fees.value = await loadFees(props.id, year.value, true);
+	} catch (e) {
+		toast(`No se han podido anular: ${(e as Error).message}`, { tone: 'error' });
+		return;
+	} finally {
+		annulling.value = false;
+	}
 	const annulled = annullable.value.map(fee => ({ ...fee, id: fee.id }));
 	const label = `las cuotas pendientes de ${year.value}`;
 	if (!annulled.length) {
-		return;
-	}
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Anular ${annulled.length} recibos de cuotas de ${year.value} sin pagar? Los pagados y los que tienen entregas a cuenta se quedan.`)) {
 		return;
 	}
 	const ids = new Set(annulled.map(fee => fee.id));
@@ -328,7 +339,7 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 				<p v-if="issueError" class="error" role="alert">
 					{{ issueError }}
 				</p>
-				<LnxButton v-if="annullable.length" mode="clear" variant="danger" @click="void annul()">
+				<LnxButton v-if="annullable.length" mode="clear" variant="danger" :is-loading="annulling" @click="void annul()">
 					Anular las pendientes ({{ annullable.length }})
 				</LnxButton>
 				<LnxButton type="submit" :is-loading="issuing" :disabled="loading || !missingCount || !!unbalanced || !!foreign.length">

@@ -7,7 +7,7 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { IMPORT_BATCH_ID } from '@gobernansa/shared/domain/exchange.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, getDocsFromServer, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { loadLedgerData } from './useAccounting.ts';
 import { toDueDate } from './useFinances.ts';
@@ -57,9 +57,10 @@ export async function loadYearCharges(communityId: string, year: number) {
 	return docs<Charge>(snapshot).sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis() || a.propertyName.localeCompare(b.propertyName, 'es', { numeric: true }));
 }
 
-// The ids already imported, to add only what's missing
+// The ids already imported, to add only what's missing. From the server: offline, the cache may miss some, and those
+// would be written again over what was paid since
 export async function loadImportedIds(communityId: string) {
-	const snapshot = await getDocs(query(chargesRef(communityId), where('batchId', '==', IMPORT_BATCH_ID)));
+	const snapshot = await getDocsFromServer(query(chargesRef(communityId), where('batchId', '==', IMPORT_BATCH_ID)));
 	return new Set(snapshot.docs.map(charge => charge.id));
 }
 
@@ -108,9 +109,10 @@ export async function importCharges(communityId: string, rows: ImportRow[], file
 	return written;
 }
 
-// The census, once
-export async function loadProperties(communityId: string) {
-	const snapshot = await getDocs(query(collection(db, 'properties'), where('communityId', '==', communityId)));
+// The census, once. fromServer for what decides what's new: offline, the cache may not have it all and every property
+// would look new
+export async function loadProperties(communityId: string, fromServer = false) {
+	const snapshot = await (fromServer ? getDocsFromServer : getDocs)(query(collection(db, 'properties'), where('communityId', '==', communityId)));
 	return docs<Property>(snapshot).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
 }
 
