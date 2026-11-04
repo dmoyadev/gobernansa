@@ -35,6 +35,8 @@ export interface ErrorGroup {
 	resolvedBy?: string;
 	// The release that has the fix
 	resolvedIn?: string;
+	// Reported since it was last resolved, so the header can count those that came back (MON-9). Older groups lack it
+	seenSinceResolved?: boolean;
 	note?: string;
 	// The same failure as that group, which shows both together
 	mergedInto?: string;

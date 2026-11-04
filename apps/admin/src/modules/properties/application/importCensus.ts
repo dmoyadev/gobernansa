@@ -20,6 +20,10 @@ export async function importCensus(communityId: string, rows: CensusRow[], file:
 	const uid = auth.currentUser!.uid;
 	const now = serverTimestamp();
 	const changed = rows.filter(row => row.status === 'new' || row.status === 'update');
+	// MON-4: what the file had that wasn't written, in the first entry
+	const unchanged = rows.filter(row => row.status === 'unchanged').length;
+	const rejected = rows.filter(row => row.status === 'error').length;
+	const rest = [unchanged && plural(unchanged, 'fila sin cambios', 'filas sin cambios'), rejected && plural(rejected, 'fila rechazada', 'filas rechazadas')].filter(Boolean).join(' y ');
 	const batches = Math.max(Math.ceil(changed.length / BATCH_PROPERTIES), create ? 1 : 0);
 	for (let index = 0; index < batches; index++) {
 		const chunk = changed.slice(index * BATCH_PROPERTIES, (index + 1) * BATCH_PROPERTIES);
@@ -41,7 +45,7 @@ export async function importCensus(communityId: string, rows: CensusRow[], file:
 			const parts = [added && plural(added, 'propiedad nueva', 'propiedades nuevas'), chunk.length - added && plural(chunk.length - added, 'actualizada', 'actualizadas')];
 			logActivity(batch, communityId, {
 				area: 'property',
-				summary: `Importó el censo de ${file}: ${parts.filter(Boolean).join(' y ')}`,
+				summary: `Importó el censo de ${file}: ${parts.filter(Boolean).join(' y ')}${!index && rest ? `; ${rest}` : ''}`,
 				link: `/communities/${communityId}/properties`,
 			});
 		}

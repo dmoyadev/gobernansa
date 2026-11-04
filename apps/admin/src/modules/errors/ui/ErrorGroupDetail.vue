@@ -88,7 +88,7 @@ const resolvedIn = ref(RELEASE);
 const note = ref('');
 function resolve() {
 	const values = { status: 'resolved' as const, resolvedBy: auth.currentUser?.uid ?? '', resolvedIn: resolvedIn.value.trim().slice(0, 40), note: note.value.trim().slice(0, 1000) };
-	change({ ...values, resolvedAt: serverTimestamp() }, { ...values, resolvedAt: Timestamp.now() }, { done: 'Error resuelto', failed: 'No se ha podido resolver' });
+	change({ ...values, resolvedAt: serverTimestamp(), seenSinceResolved: false }, { ...values, resolvedAt: Timestamp.now(), seenSinceResolved: false }, { done: 'Error resuelto', failed: 'No se ha podido resolver' });
 	resolving.value = false;
 }
 
@@ -105,7 +105,7 @@ function merge() {
 	}
 	const values = { mergedInto: target.id, status: target.status, ...(target.status === 'resolved' ? { resolvedBy: auth.currentUser?.uid ?? '', resolvedIn: target.resolvedIn ?? '' } : {}) };
 	const resolvedAt = target.status === 'resolved';
-	change({ ...values, ...(resolvedAt ? { resolvedAt: serverTimestamp() } : {}) }, { ...values, ...(resolvedAt ? { resolvedAt: Timestamp.now() } : {}) }, { done: 'Errores fusionados', failed: 'No se han podido fusionar' });
+	change({ ...values, ...(resolvedAt ? { resolvedAt: serverTimestamp(), seenSinceResolved: false } : {}) }, { ...values, ...(resolvedAt ? { resolvedAt: Timestamp.now(), seenSinceResolved: false } : {}) }, { done: 'Errores fusionados', failed: 'No se han podido fusionar' });
 }
 
 async function copy(text: string) {

@@ -4,8 +4,9 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed, useTemplateRef } from 'vue';
+import { computed, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { errorAlerts, watchErrorAlerts } from '@/modules/errors/application/useErrorAlerts.ts';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 import { useSearchHighlight } from './useSearchHighlight.ts';
 import { shortcutTitle, useShortcut } from './ux/shortcuts.ts';
@@ -77,6 +78,9 @@ for (const section of SECTIONS) {
 	}, `Ir a ${section.label.toLowerCase()}`);
 }
 
+// MON-9: the team sees on Errores how many urgent or come-back errors wait
+watch(() => user.value?.role === 'superadmin', watchErrorAlerts, { immediate: true });
+
 // Pages already visited are kept, with their data and scroll, so going back to them is instant.
 // ponytail: their live listeners keep running (and reading on changes) while hidden; lower this if reads grow
 const KEPT_PAGES = 6;
@@ -92,6 +96,7 @@ const KEPT_PAGES = 6;
 			<RouterLink v-for="section in sections" :key="section.to" :to="section.to" :title="shortcutTitle(section.label, section.combo)">
 				<LnxIcon :icon="section.icon" :size="18" />
 				{{ section.label }}
+				<span v-if="section.to === '/errors' && errorAlerts" class="alerts">{{ errorAlerts }}<span class="sr-only"> por revisar</span></span>
 			</RouterLink>
 		</nav>
 
@@ -200,6 +205,17 @@ const KEPT_PAGES = 6;
 
 		&:active {
 			scale: var(--press-scale);
+		}
+
+		.alerts {
+			min-width: 18px;
+			padding: 0 var(--lnx-spacing-1);
+			border-radius: 9px;
+			background: #b91c1c;
+			color: #fff;
+			font-size: var(--lnx-font-size-legal);
+			line-height: 18px;
+			text-align: center;
 		}
 
 		&.router-link-exact-active,

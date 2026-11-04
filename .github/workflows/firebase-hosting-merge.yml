@@ -51,3 +51,20 @@ jobs:
           channelId: live
           projectId: dmoyadev-gobernansa
           target: admin
+      # MON-5: both sites answer with their page and its first script, or the run fails and GitHub emails it. The script's
+      # type is checked too: a missing file would get index.html from the rewrite, with a 200
+      - name: Check both sites
+        run: |
+          for site in https://dmoyadev-gobernansa.web.app https://gobernansa-admin.web.app; do
+            script=$(curl -fsS --retry 3 --retry-all-errors "$site/" | grep -oE '<script[^>]+src="/[^"]+\.js"' | head -1 | sed -E 's/.*src="([^"]+)".*/\1/')
+            if [ -z "$script" ]; then
+              echo "::error::$site doesn't load any script"
+              exit 1
+            fi
+            type=$(curl -fsS --retry 3 --retry-all-errors -o /dev/null -w '%{content_type}' "$site$script")
+            if [[ "$type" != *javascript* ]]; then
+              echo "::error::$site$script answers with $type"
+              exit 1
+            fi
+            echo "$site loads $script"
+          done

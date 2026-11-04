@@ -91,7 +91,7 @@ async function runExport(item: typeof exports[number]) {
 		const file = await item.run();
 		const issues = journalIssues(item.key, file.content);
 		if (issues) {
-			guard(item.key, issues, () => download(file));
+			guard(item.key, `el diario ${file.name}`, issues, () => download(file));
 		} else {
 			download(file);
 		}

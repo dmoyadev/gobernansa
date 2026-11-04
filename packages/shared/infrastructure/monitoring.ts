@@ -298,6 +298,8 @@ async function flush(id: string) {
 				count: increment(count),
 				lastSeen: serverTimestamp(),
 				lastRelease: RELEASE,
+				// MON-9: once resolved, seen again. Resolving sets it back to false
+				seenSinceResolved: true,
 				...(withSample ? { sessions: increment(1) } : {}),
 				...(mode === 'update' ? { releases: arrayUnion(RELEASE), routes: arrayUnion(...routes) } : {}),
 			});

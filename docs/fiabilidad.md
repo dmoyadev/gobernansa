@@ -34,13 +34,11 @@ A cambio:
 | ID | Prioridad | Qué | Coste | Depende de | Estado |
 |---|---|---|---|---|---|
 | ROB-5 | P1 | Interruptores remotos y versión mínima | 0 € (Remote Config) | — | Hecho en el código; falta probarlo en la consola |
-| MON-9 | P1 | Avisos de errores nuevos: dentro del admin ya; en el móvil con INF-1 | 0 € | — | Pendiente |
-| MON-4 | P1 | Registro de las operaciones que mueven dinero o generan ficheros oficiales | 0 € | — | Pendiente |
-| MON-5 | P1 | Disponibilidad: comprobar las dos webs después de cada despliegue | 0 € | — | Pendiente |
-| ROB-4 | P1 | Despliegues compatibles con la versión anterior y vuelta atrás | 0 € | ROB-5 | Pendiente |
-| MON-7 | P1 | Rutina de revisión y guía de respuesta | 0 € | — | Pendiente |
+| ROB-4 | P1 | Despliegues compatibles con la versión anterior y vuelta atrás | 0 € | ROB-5 | Documentado; falta ensayar la vuelta atrás en la consola |
+| MON-5 | P1 | Disponibilidad: comprobar las dos webs después de cada despliegue | 0 € | — | Hecho en el workflow; falta verlo en un despliegue |
 | ROB-2 | P0 | Copias de seguridad con restauración ensayada | Almacenamiento de las copias con Blaze; hay un puente gratuito | INF-1 | Pendiente |
 | ROB-3 | P1 | Pruebas automáticas de lo que mueve dinero o va a la AEAT | 0 € | VAL-1 | Pendiente |
+| MON-9 | P2 | Avisos de errores nuevos al móvil del equipo | 0 € | INF-1 | En el admin, hecho; al móvil, pendiente |
 | MON-10 | P2 | Traducir los errores al código original sin publicarlo | 0 € | — | Pendiente |
 | MON-6 | P2 | Rendimiento real por pantalla, con las APIs del navegador | 0 €; cuota acotada | — | Pendiente |
 | ROB-7 | P2 | Dependencias al día | 0 € | — | Pendiente |
@@ -48,10 +46,11 @@ A cambio:
 | ROB-1 | P0 | Entorno de pruebas separado de producción | 0 € (segundo proyecto gratuito) | — | Aplazado |
 
 **Orden recomendado:**
-1. **Ahora:** probar ROB-5 en la consola de Firebase.
-2. **Fase 2:** MON-9 (dentro del admin), MON-4, MON-5, ROB-4 y MON-7.
-3. ROB-2 en cuanto haya Blaze (INF-1); hasta entonces, su puente gratuito.
-4. **Fase 3:** MON-10, MON-6 y los avisos al móvil de MON-9.
+1. **Ahora, en la consola de Firebase:** probar ROB-5 y ensayar una vez la vuelta atrás de la app y de las reglas (ROB-4, pasos en la sección 5). En el siguiente despliegue, comprobar que el paso final de MON-5 pasa.
+2. ROB-2 en cuanto haya Blaze (INF-1); hasta entonces, su puente gratuito.
+3. **Fase 3:** MON-10, MON-6 y los avisos al móvil de MON-9.
+
+La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se terminó en el código el 04/11/2026.
 
 **ROB-1 está aplazado** por decisión propia (04/11/2026). Mientras tanto, lo que se iba a hacer en el entorno de pruebas se hace en los emuladores locales: reproducir fallos (MON-7) y ensayar restauraciones (ROB-2).
 
@@ -65,7 +64,7 @@ A cambio:
 - **Reglas de Firestore:** unas 800 líneas que validan la forma de cada escritura. Son la última defensa ante un error del cliente.
 - **Dinero:** los importes se guardan en céntimos, y las escrituras de varios documentos van en lote (`writeBatch`) o en transacción, así que un cobro no queda a medias.
 - **Caché persistente de Firestore:** la app abre sin conexión. Las escrituras hechas sin conexión se guardan en el navegador y se envían al volver, también después de recargar.
-- **Registro de actividad por comunidad** (`communities/{c}/activity`). Guarda quién, cuándo y un resumen de cada cambio hecho desde el admin. Se escribe en el mismo lote que el cambio, firmado y fechado por el servidor, y no se puede editar ni borrar. Reabrir un ejercicio también queda registrado. Es la base de MON-4.
+- **Registro de actividad por comunidad** (`communities/{c}/activity`). Guarda quién, cuándo y un resumen de cada cambio hecho desde el admin. Se escribe en el mismo lote que el cambio, firmado y fechado por el servidor, y no se puede editar ni borrar. Reabrir un ejercicio también queda registrado.
 - **Errores propios** (MON-1, MON-2, MON-3 y MON-8, cerrados el 02/11/2026). Los errores de las dos apps se guardan en el propio Firestore (`errors/{huella}` y sus muestras en `samples`, que caducan a los 30 días), agrupados por una huella, con la versión, la pantalla, el contexto y los últimos 30 pasos del usuario. Lo hace `packages/shared/infrastructure/monitoring.ts`:
   - **Urgentes:** `permission-denied`, `failed-precondition` y los errores que vuelven después de resolverlos. Los de conexión y los avisos de la propia app no se envían.
   - **Límites:** un envío por huella cada 10 minutos, 20 por sesión y 40 al día por dispositivo; 1 o 2 escrituras por envío y ninguna lectura.
@@ -85,8 +84,11 @@ A cambio:
   - **Botones bloqueados** mientras dura la acción.
 
   Comprobado con 50 casos de las reglas en el emulador y con doble clic en el admin.
-- **Actualizaciones:** las dos PWA avisan cuando hay versión nueva.
-- **Vuelta atrás:** Hosting guarda las versiones publicadas y la consola guarda el historial de reglas (ROB-4).
+- **Registro de las operaciones de dinero** (MON-4, cerrado el 04/11/2026). El recorrido de una remesa se sigue en la actividad de la comunidad, con sus cifras: las cuotas emitidas (recibos y total), la remesa generada, enviada y cobrada (recibos, total y cuántos quedan pagados o vuelven a pendiente), cada devolución y, al importar el informe del banco, cuántas se casaron, por cuánto, y cuántas quedaron sin casar y por qué. Al importar el censo, las filas nuevas, actualizadas, sin cambios y rechazadas. Cada descarga de un fichero SEPA, AEAT o del diario queda registrada con el resultado de su comprobación, también cuando se descarga con errores.
+- **Avisos de errores en el admin** (MON-9, opción A, 04/11/2026). El equipo ve en la cabecera, junto a «Errores», cuántos grupos piden atención: los urgentes pendientes y los que han vuelto después de resolverlos. Es una consulta de recuento al abrir el admin, cada hora y al abrir «Errores», que cuesta una lectura por cada 1.000 grupos y no necesita índices nuevos. Para contar los que vuelven, cada envío marca el grupo como visto (`seenSinceResolved`) y resolverlo lo desmarca. Los grupos resueltos antes de este cambio cuentan a partir de su siguiente envío, y las versiones anteriores de las apps siguen enviando sin marcarlo: las reglas las aceptan, pero no cuentan en la cabecera hasta que actualizan. Comprobado en los emuladores con la demo: el contador sale con 4 (3 urgentes y 1 que ha vuelto) y baja a 3 al resolver ese grupo.
+- **Disponibilidad** (MON-5). El último paso del despliegue pide las dos webs y el primer JS de cada una, y comprueba que llega como JavaScript: por la reescritura de Hosting, un fichero que falta responde 200 con el `index.html`. Si algo falla, el workflow falla y GitHub avisa por email.
+- **Rutina y guía de respuesta** (MON-7, cerrado el 04/11/2026), en la sección 5, con los pasos para volver atrás la app y las reglas (ROB-4).
+- **Actualizaciones:** las dos PWA avisan cuando hay versión nueva, y la versión mínima de ROB-5 obliga a actualizar.
 
 ### Lo que falta
 
@@ -113,20 +115,6 @@ A cambio:
 
 ## 3. Detectar (MON)
 
-### MON-4 · Registro de operaciones clave (P1)
-
-**Qué.** Poder reconstruir lo que pasó cuando un despacho diga «la remesa salió mal».
-
-**Cómo.** Sin almacén nuevo:
-- **Lo de negocio ya se registra.** El registro de actividad de cada comunidad ya guarda las operaciones del admin, inalterable y en el mismo lote que el cambio. Falta:
-  - añadir las cifras a los resúmenes de las operaciones de dinero que no las llevan: recibos y total de una remesa, devoluciones casadas y sin casar, filas aceptadas y rechazadas al importar el censo;
-  - registrar la descarga de cada fichero AEAT o SEPA, con el resultado de su comprobación.
-- **Lo técnico va en el rastro** de cada error.
-
-La parte de GAR-1 (exigir el registro en las reglas y guardar los valores de antes y después) es independiente y se puede hacer después.
-
-**Hecho cuando** el recorrido de una remesa del piloto, desde la emisión de las cuotas hasta las devoluciones, se puede seguir en la actividad de la comunidad.
-
 ### MON-5 · Disponibilidad (P1)
 
 **Qué.** Saber cuándo la app no carga en absoluto. Lo más probable no es que Hosting se caiga, sino que un despliegue publique algo roto o que se agote la cuota.
@@ -135,6 +123,8 @@ La parte de GAR-1 (exigir el registro en las reglas y guardar los valores de ant
 - **Tras cada despliegue,** un paso final del workflow pide las dos webs y el primer fichero JS que carga cada una. Si alguna no responde bien, el workflow falla y GitHub avisa por email.
 - **Opcional:** la misma comprobación programada cada pocas horas en GitHub Actions. Si el repositorio es privado, gasta minutos del cupo gratuito de Actions.
 - **Si se sospecha una caída de Firebase,** consultar status.firebase.google.com.
+
+**Hecho en el workflow** (04/11/2026): el paso «Check both sites» de `firebase-hosting-merge.yml`. Probado a mano contra las dos webs: un fichero que no existe responde 200 con HTML, por eso se comprueba el tipo.
 
 **Hecho cuando** un despliegue con el `index.html` roto hace fallar el workflow.
 
@@ -155,30 +145,9 @@ Alternativa sin código: Firebase Performance Monitoring, del mismo proveedor qu
 
 **Hecho cuando** se ven las 10 pantallas más lentas de cada app.
 
-### MON-7 · Rutina y guía de respuesta (P1)
+### MON-9 · Avisos (P2)
 
-**Rutina.**
-- **Después de cada despliegue:** mirar en la página «Errores» los errores nuevos de la versión desplegada durante la primera hora.
-- **Cada semana, unos 15 minutos:** los grupos nuevos y los que han vuelto, el uso de Firestore (consola → Firestore → Uso) y comprobar que se ha hecho la copia de seguridad (ROB-2).
-- **Cada trimestre:** ensayar una restauración (ROB-2) y revisar las dependencias (ROB-7).
-
-**Guía de respuesta.**
-
-| Síntoma | Qué mirar | Qué hacer |
-|---|---|---|
-| Errores nuevos justo después de un despliegue | «Errores», filtrado por la versión | Volver a la versión anterior en Hosting (ROB-4) y corregir con calma |
-| Muchos `permission-denied` después de cambiar las reglas | Qué versiones aparecen en el grupo | Si vienen de clientes antiguos, restaurar las reglas anteriores desde el historial y hacerlas compatibles (ROB-4) |
-| Cuota agotada | Consola de Firebase → Uso: qué la disparó | Avisar a los despachos de que vuelve hacia las 9:00. Si fue una pantalla, corregirla (INF-2); si se repite, pasar a Blaze (INF-1) |
-| Picos de lecturas o de errores sin explicación | Uso por horas en la consola y grupos sin sesión | Puede ser un abuso: restringir la clave y activar App Check (ROB-8) |
-| Un despacho dice que algo salió mal | La actividad de la comunidad (MON-4) y los grupos de esa comunidad y fecha en «Errores» | Reproducirlo en los emuladores locales (o en el entorno de pruebas, si se hace ROB-1) |
-| Falla en producción una función de dinero | «Errores» | Apagarla con su interruptor (ROB-5) mientras se corrige |
-| Hay demasiados errores y gastan cuota | El contador `count` de los grupos | Bajar `errorSampleRate` o apagar `errorReporting` (ROB-5) |
-| No se ha hecho la copia nocturna | El aviso del panel (ROB-2) | Lanzarla a mano el mismo día |
-| Firebase caído | status.firebase.google.com | Avisar a los despachos; no hay nada que desplegar |
-
-### MON-9 · Avisos (P1)
-
-**Qué.** Enterarse de un grupo de errores nuevo o que ha vuelto sin tener que buscarlo.
+**Qué.** Enterarse de un grupo de errores nuevo o que ha vuelto sin tener que buscarlo. La opción A está hecha (sección 2); falta enterarse sin abrir el admin.
 
 **Cómo.**
 
@@ -189,9 +158,9 @@ Alternativa sin código: Firebase Performance Monitoring, del mismo proveedor qu
 | **C. Email al equipo** desde el correo saliente | El proveedor SMTP de FUN-2 | Con FUN-2 | Reutiliza la bandeja que ya existe |
 | **D. Tarea programada de GitHub Actions** que revisa los grupos nuevos y abre una incidencia en el repositorio, de la que GitHub avisa por email | GitHub (ya está) | Ya, sin Blaze | Lee producción con una cuenta de servicio y gasta minutos de Actions y algunas lecturas |
 
-Recomendación: A ahora y B con INF-1. D solo si INF-1 va a tardar y hace falta enterarse sin abrir el admin. Solo cuentan los urgentes y los que vuelven.
+Recomendación: B con INF-1. D solo si INF-1 va a tardar y hace falta enterarse sin abrir el admin. Solo cuentan los urgentes y los que vuelven, como en el contador de la cabecera.
 
-**Hecho cuando** un error nuevo hace aparecer el contador en la cabecera del equipo.
+**Hecho cuando** un error urgente nuevo llega al móvil del equipo sin tener el admin abierto.
 
 ### MON-10 · Traducir los errores al código original (P2)
 
@@ -237,16 +206,12 @@ Alternativa sin Remote Config: un documento `config/app` en Firestore. Más senc
 **Qué.** Que un despliegue no rompa a quien tiene abierta la versión anterior, y que deshacerlo cueste minutos.
 
 **Cómo.**
-- **Conviven varias versiones.** Una PWA instalada o una pestaña abierta siguen con la versión anterior hasta que el usuario acepta la actualización, y eso puede tardar horas o días. Hoy las reglas se despliegan antes que la app, lo que protege al código nuevo pero no al antiguo. Por eso un cambio en las reglas o en la forma de los datos va en tres pasos:
-  1. primero las reglas aceptan la forma antigua y la nueva;
-  2. se sube la versión mínima (ROB-5) para que todos actualicen;
-  3. después se deja de aceptar la forma antigua.
+- **Conviven varias versiones.** Una PWA instalada o una pestaña abierta siguen con la versión anterior hasta que el usuario acepta la actualización, y eso puede tardar horas o días. Hoy las reglas se despliegan antes que la app, lo que protege al código nuevo pero no al antiguo. Por eso un cambio en las reglas o en la forma de los datos va en tres pasos, con la versión mínima de ROB-5 en medio. Sin medir quién usa qué versión: la versión mínima garantiza que ya no queda nadie con la antigua.
+- **Los pasos** del cambio en tres pasos y de la vuelta atrás de la app y de las reglas están en la guía de respuesta (sección 5).
 
-  Sin medir quién usa qué versión: la versión mínima garantiza que ya no queda nadie con la antigua.
-- **Volver atrás la app.** Hosting guarda las versiones publicadas: en la consola, Hosting → historial de versiones → restaurar la anterior. También se puede revertir el commit y dejar que despliegue CI.
-- **Volver atrás las reglas.** Desde el historial de reglas de la consola, como ya explica [firebase.md](firebase.md). Después hay que corregir el fichero, porque el siguiente push lo vuelve a desplegar.
+**Documentado** (04/11/2026). Falta el ensayo real en la consola, que hace el titular del proyecto: volver atrás una vez cada web y las reglas, y volver a dejarlas como estaban.
 
-**Hecho cuando** se ha ensayado una vez volver atrás la app y las reglas, y el procedimiento está en la guía de MON-7.
+**Hecho cuando** se ha ensayado una vez volver atrás la app y las reglas.
 
 ### ROB-2 · Copias de seguridad con restauración ensayada (P0)
 
@@ -325,7 +290,54 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 
 ---
 
-## 5. Fuentes
+## 5. Rutina y guía de respuesta
+
+### Rutina
+
+- **Después de cada despliegue:** que el workflow haya acabado en verde, incluido el último paso, que comprueba las dos webs (MON-5). Durante la primera hora, mirar en «Errores» los errores nuevos de la versión desplegada (filtro «Nuevos en …»).
+- **Al abrir el admin:** si el contador rojo de «Errores» de la cabecera no está a cero, revisar esos grupos: son los urgentes y los que han vuelto (MON-9).
+- **Cada semana, unos 15 minutos:** los grupos nuevos y los que han vuelto; el uso de Firestore (consola → Firestore → Uso), sobre todo si se acerca a las 50.000 lecturas o 20.000 escrituras diarias; y, cuando exista, que se ha hecho la copia de seguridad (ROB-2).
+- **Cada trimestre:** ensayar una restauración (ROB-2) y una vuelta atrás de la app (abajo), y revisar las dependencias (ROB-7).
+
+### Guía de respuesta
+
+| Síntoma | Qué mirar | Qué hacer |
+|---|---|---|
+| El workflow de despliegue falla en el último paso | Qué web o qué fichero no respondió, en el registro del paso | Volver atrás esa web (abajo) y corregir con calma |
+| Errores nuevos justo después de un despliegue | «Errores», filtrado por la versión | Volver atrás la app (abajo) y corregir con calma |
+| Muchos `permission-denied` después de cambiar las reglas | Qué versiones aparecen en el grupo | Si vienen de clientes antiguos, volver atrás las reglas (abajo) y hacer el cambio en tres pasos |
+| Cuota agotada | Consola de Firebase → Uso: qué la disparó | Avisar a los despachos de que vuelve hacia las 9:00. Si fue una pantalla, corregirla (INF-2); si se repite, pasar a Blaze (INF-1) |
+| Picos de lecturas o de errores sin explicación | Uso por horas en la consola y grupos sin sesión | Puede ser un abuso: restringir la clave y activar App Check (ROB-8) |
+| Un despacho dice que algo salió mal | La actividad de la comunidad: cada operación de dinero lleva sus cifras y cada fichero descargado, su comprobación. Y los grupos de esa comunidad y fecha en «Errores» | Reproducirlo en los emuladores locales (o en el entorno de pruebas, si se hace ROB-1) |
+| Falla en producción una función de dinero | «Errores» | Apagarla con su interruptor (ROB-5) mientras se corrige |
+| Hay que obligar a todos a actualizar | La versión que lleva el arreglo | Subir `minVersion` (ROB-5) a esa versión |
+| Hay demasiados errores y gastan cuota | El contador `count` de los grupos | Bajar `errorSampleRate` o apagar `errorReporting` (ROB-5) |
+| No se ha hecho la copia nocturna | El aviso del panel (ROB-2) | Lanzarla a mano el mismo día |
+| Firebase caído | status.firebase.google.com | Avisar a los despachos; no hay nada que desplegar |
+
+### Volver atrás la app
+
+Cada web se vuelve atrás por separado, en minutos y sin tocar los datos:
+1. **Si la versión rota subió `minVersion`**, bajarlo antes en Remote Config. Si no, la versión restaurada queda por debajo del mínimo y se bloquea a sí misma.
+2. **Consola de Firebase → Hosting**, elegir el sitio: `dmoyadev-gobernansa` es la webapp y `gobernansa-admin` el admin.
+3. **Historial de versiones:** en la versión anterior a la rota, el menú ⋮ → **Restaurar**. Se publica al momento. Quien tenga abierta la versión rota ve el aviso de versión nueva de la PWA.
+4. **Revertir el commit en `main`** (`git revert`), o el siguiente push vuelve a publicar la versión rota. CI despliega la reversión.
+5. **Comprobar** en «Errores» que dejan de llegar los de esa versión.
+
+### Volver atrás las reglas
+
+1. **Consola de Firebase → Firestore → Reglas.** A la izquierda está el historial: elegir la versión anterior, compararla con la actual y publicarla.
+2. **Corregir `firestore.rules`** en el repositorio y hacer push: el siguiente despliegue publica el fichero y pisa lo que se haya hecho en la consola.
+3. Si la app nueva ya depende de las reglas nuevas, volver atrás también la app.
+
+### Un cambio que rompe la versión anterior, en tres pasos
+
+Una PWA instalada o una pestaña abierta siguen con su versión hasta que el usuario acepta la actualización. Un cambio en las reglas o en la forma de los datos que la versión anterior no entiende va así:
+1. **Primer despliegue:** las reglas aceptan la forma antigua y la nueva, y la app nueva escribe la nueva.
+2. **Subir la versión mínima:** en Remote Config, `minVersion` a la versión de ese despliegue (la que aparece en el menú del admin y en el perfil de la webapp, p. ej. `2026.11.04-1200`), y **Publicar cambios**. Quien tenga una anterior solo puede actualizar ([firebase.md](firebase.md), sección 7).
+3. **Segundo despliegue:** las reglas dejan de aceptar la forma antigua.
+
+## 6. Fuentes
 
 Comprobadas el 02/11/2026:
 - [Precios de Firebase](https://firebase.google.com/pricing): cuotas del plan gratuito y límite de Remote Config; Cloud Functions solo con Blaze.

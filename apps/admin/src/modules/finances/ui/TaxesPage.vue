@@ -127,7 +127,8 @@ const { check, guard, confirm, dismiss } = useFileCheck();
 watch(year, dismiss);
 
 function download(model: Model, content: Uint8Array<ArrayBuffer>) {
-	guard(model, checkAeat(content), () => downloadFile(`${normalizeTaxId(community.value!.cif!)}-${model}-${year.value}.txt`, content, 'text/plain;charset=iso-8859-1'));
+	const name = `${normalizeTaxId(community.value!.cif!)}-${model}-${year.value}.txt`;
+	guard(model, `el modelo ${model} de ${year.value} (${name})`, checkAeat(content), () => downloadFile(name, content, 'text/plain;charset=iso-8859-1'));
 }
 
 function taxIdProblem(nif?: string) {

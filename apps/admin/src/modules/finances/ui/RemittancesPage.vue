@@ -24,7 +24,7 @@ import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useFileCheck } from '../application/useFileCheck.ts';
 import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
-import { createRemittance, deleteRemittance, loadRemittances, MAX_REMITTANCE_ITEMS, returnDebit, setRemittanceStatus } from '../application/useRemittances.ts';
+import { createRemittance, deleteRemittance, loadRemittances, logReturnsReport, MAX_REMITTANCE_ITEMS, returnDebit, setRemittanceStatus } from '../application/useRemittances.ts';
 import FileCheck from './FileCheck.vue';
 
 const props = defineProps<{ id: string }>();
@@ -115,7 +115,7 @@ const { check, guard, confirm, dismiss } = useFileCheck();
 
 function download(remittance: Remittance) {
 	const xml = remittanceXml(remittance);
-	guard(remittance.id, checkSepa(xml), () => downloadFile(`${remittance.reference}.xml`, xml, 'application/xml'));
+	guard(remittance.id, `la remesa ${remittance.reference} (${remittance.items.length} recibos por ${formatCents(remittance.total)})`, checkSepa(xml), () => downloadFile(`${remittance.reference}.xml`, xml, 'application/xml'));
 }
 
 // What was checked is what would be made, so changing it drops a held check
@@ -175,9 +175,10 @@ async function generate() {
 		total: selectedTotal.value,
 	};
 	const xml = remittanceXml(data);
-	guard('new', checkSepa(xml), async () => save(id, data, xml));
+	guard('new', `la remesa ${data.reference} (${data.items.length} recibos por ${formatCents(data.total)})`, checkSepa(xml), async () => save(id, data, xml));
 }
 
+// Whether the file was downloaded, for its activity entry
 async function save(id: string, data: RemittanceData, xml: string) {
 	// Money: it waits for the server before telling it's done
 	generating.value = true;
@@ -188,8 +189,10 @@ async function save(id: string, data: RemittanceData, xml: string) {
 		openId.value = id;
 		excluded.value = new Set();
 		toast(`Remesa ${data.reference} generada, súbela a la banca online`);
+		return true;
 	} catch (e) {
 		formError.value = `No se ha podido generar: ${(e as Error).message}`;
+		return false;
 	} finally {
 		generating.value = false;
 	}
@@ -330,6 +333,8 @@ async function applyReport() {
 	}
 	const today = toDateString(new Date());
 	const undos: (() => Promise<Remittance>)[] = [];
+	const registered: RemittanceItem[] = [];
+	const { name, matches } = report.value;
 	applying.value = true;
 	reportError.value = undefined;
 	try {
@@ -344,6 +349,7 @@ async function applyReport() {
 			// Registered meanwhile elsewhere (another tab, by hand): nothing to undo
 			if (result.undo) {
 				undos.push(result.undo);
+				registered.push(item!);
 			}
 		}
 		report.value = undefined;
@@ -357,10 +363,10 @@ async function applyReport() {
 	} catch (e) {
 		reportError.value = `Se han registrado ${undos.length} y la siguiente ha fallado: ${(e as Error).message}`;
 		// Those registered now show as such, trying again only registers the rest
-		const { name, matches } = report.value!;
 		report.value = { name, matches: matchReturns(matches.map(match => match.line), remittances.value) };
 	} finally {
 		applying.value = false;
+		logReturnsReport(props.id, name, registered, matches.filter(match => match.problem));
 	}
 }
 </script>

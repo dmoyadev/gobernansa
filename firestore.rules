@@ -425,10 +425,13 @@ service cloud.firestore {
         && request.resource.data.releases == [request.resource.data.firstRelease]
         && hasGroupLists(request.resource.data)
         && request.resource.data.status == 'new';
-      // Seen again: the counters only go up, at most 100 at a time, and the lists only grow, the new release being this one.
+      // Seen again: the counters only go up, at most 100 at a time, and the lists only grow, the new release being this one;
+      // it's marked as seen since it was resolved (MON-9), which only the team clears, by resolving it.
       // The team resolves, ignores, reopens and merges them. Checked in this order so a report never reads the profile
       allow update: if (signedIn()
-          && changedOnly(['count', 'sessions', 'lastSeen', 'lastRelease', 'releases', 'routes'])
+          && changedOnly(['count', 'sessions', 'lastSeen', 'lastRelease', 'releases', 'routes', 'seenSinceResolved'])
+          // Left as it was by clients from before MON-9
+          && (request.resource.data.get('seenSinceResolved', true) == true || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['seenSinceResolved']))
           && request.resource.data.count is int && request.resource.data.count > resource.data.count && request.resource.data.count <= resource.data.count + 100
           && request.resource.data.sessions - resource.data.sessions in [0, 1]
           && request.resource.data.lastSeen == request.time
@@ -437,9 +440,10 @@ service cloud.firestore {
           && request.resource.data.releases.toSet().difference(resource.data.releases.toSet()).hasOnly([request.resource.data.lastRelease])
           && request.resource.data.routes.hasAll(resource.data.routes)
           && hasGroupLists(request.resource.data))
-        || (changedOnly(['status', 'resolvedAt', 'resolvedBy', 'resolvedIn', 'note', 'mergedInto'])
+        || (changedOnly(['status', 'resolvedAt', 'resolvedBy', 'resolvedIn', 'note', 'mergedInto', 'seenSinceResolved'])
           && isSuperadmin()
           && request.resource.data.status in ['new', 'resolved', 'ignored']
+          && request.resource.data.get('seenSinceResolved', false) is bool
           && (request.resource.data.get('resolvedAt', null) == resource.data.get('resolvedAt', null) || request.resource.data.resolvedAt == request.time)
           && (request.resource.data.get('resolvedBy', null) == resource.data.get('resolvedBy', null) || request.resource.data.resolvedBy == request.auth.uid)
           && request.resource.data.get('resolvedIn', '') is string && request.resource.data.get('resolvedIn', '').size() <= 40

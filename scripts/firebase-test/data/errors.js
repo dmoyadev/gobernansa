@@ -403,6 +403,8 @@ export default {
 				resolvedBy: resolved ? uids.team : undefined,
 				resolvedIn: resolved?.in,
 				note: resolved?.note,
+				// As each report marks it, for the header's count of those that came back (MON-9)
+				seenSinceResolved: resolved ? group.lastSeen > resolved.at : undefined,
 				mergedInto: mergedInto && idOf[mergedInto],
 			});
 

@@ -11,6 +11,7 @@ import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { toast } from '@/app/ux/toast.ts';
+import { countErrorAlerts } from '../application/useErrorAlerts.ts';
 import ErrorGroupDetail from './ErrorGroupDetail.vue';
 
 /*
@@ -99,6 +100,8 @@ async function load(more = false) {
 		}
 		groups.value = more ? [...groups.value, ...page.docs.map(toGroup)] : page.docs.map(toGroup);
 		if (!more) {
+			// The header's count, up to date with what's shown
+			void countErrorAlerts();
 			resolved.value = resolvedPage?.docs.map(toGroup) ?? [];
 			urgent.value = urgentPage?.docs.map(toGroup) ?? [];
 		}

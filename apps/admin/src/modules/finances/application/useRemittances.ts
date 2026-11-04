@@ -6,6 +6,8 @@ import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remittanceStatuses, returnReasons } from '@gobernansa/shared/domain/sepa.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
+import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { arrayRemove, arrayUnion, collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { toDueDate } from './useFinances.ts';
 
@@ -121,6 +123,7 @@ export async function setRemittanceStatus(communityId: string, remittance: Remit
 		? { sentAt: null, collectedAt: null }
 		: status === 'sent' ? { sentAt: remittance.sentAt ?? at, collectedAt: null } : { collectedAt: at };
 	batch.update(doc(remittancesRef(communityId), remittance.id), { status, ...dates, updatedAt: now, updatedBy: uid });
+	let changed = 0;
 	if (status === 'collected' || remittance.status === 'collected') {
 		const charges = await getDocs(query(chargesRef(communityId), where('remittanceId', '==', remittance.id)));
 		// Those already paid by hand keep their date, and only those this remittance paid go back to unpaid
@@ -129,12 +132,14 @@ export async function setRemittanceStatus(communityId: string, remittance: Remit
 			const paidAt = (charge.data() as Charge).paidAt;
 			if (status === 'collected' ? !paidAt : paidAt?.toMillis() === collectedAt) {
 				batch.update(charge.ref, { paidAt: status === 'collected' ? at : null, updatedAt: now, updatedBy: uid });
+				changed++;
 			}
 		}
 	}
 	logActivity(batch, communityId, {
 		area: 'finance',
-		summary: `Marcó la remesa ${remittance.reference} como ${remittanceStatuses[status].toLowerCase()}`,
+		summary: `Marcó la remesa ${remittance.reference} (${plural(remittance.items.length, 'recibo', 'recibos')} por ${formatCents(remittance.total)}) como ${remittanceStatuses[status].toLowerCase()}${
+			status === 'collected' ? `: ${plural(changed, 'recibo queda pagado', 'recibos quedan pagados')}` : remittance.status === 'collected' ? `: ${plural(changed, 'recibo vuelve', 'recibos vuelven')} a pendiente` : ''}`,
 		link: link(communityId),
 	});
 	also?.(batch);
@@ -250,4 +255,18 @@ export async function returnDebit(communityId: string, remittance: Remittance, i
 	}
 
 	return { remittance: returned, undo };
+}
+
+// What a bank report brought (MON-4): the returns registered from it, each logged on its own, and those left out, why.
+// Not waited for, the returns are registered already
+export function logReturnsReport(communityId: string, file: string, registered: RemittanceItem[], unmatched: { problem?: string }[]) {
+	const batch = writeBatch(db);
+	const reasons = [...new Set(unmatched.map(match => match.problem))].join('; ');
+	logActivity(batch, communityId, {
+		area: 'finance',
+		summary: `Importó las devoluciones de ${file}: ${plural(registered.length, 'casada', 'casadas')} por ${formatCents(registered.reduce((sum, item) => sum + item.amount, 0))}${
+			unmatched.length ? ` y ${plural(unmatched.length, 'sin casar', 'sin casar')} (${reasons})` : ''}`,
+		link: link(communityId),
+	});
+	void batch.commit().catch(error => reportError(error, { action: 'No se ha podido registrar el informe de devoluciones' }));
 }

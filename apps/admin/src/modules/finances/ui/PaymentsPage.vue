@@ -106,7 +106,7 @@ const { check, guard, confirm, dismiss } = useFileCheck();
 
 function download(order: PaymentOrder) {
 	const xml = paymentOrderXml(order);
-	guard(order.id, checkSepa(xml), () => downloadFile(`${order.reference}.xml`, xml, 'application/xml'));
+	guard(order.id, `la orden de pago ${order.reference} (${order.items.length} transferencias por ${formatCents(order.total)})`, checkSepa(xml), () => downloadFile(`${order.reference}.xml`, xml, 'application/xml'));
 }
 
 // What was checked is what would be made, so changing it drops a held check
@@ -159,9 +159,10 @@ async function generate() {
 		total: selectedTotal.value,
 	};
 	const xml = paymentOrderXml(data);
-	guard('new', checkSepa(xml), async () => save(id, data, xml));
+	guard('new', `la orden de pago ${data.reference} (${data.items.length} transferencias por ${formatCents(data.total)})`, checkSepa(xml), async () => save(id, data, xml));
 }
 
+// Whether the file was downloaded, for its activity entry
 async function save(id: string, data: PaymentOrderData, xml: string) {
 	// Money: it waits for the server before telling it's done
 	generating.value = true;
@@ -172,8 +173,10 @@ async function save(id: string, data: PaymentOrderData, xml: string) {
 		openId.value = id;
 		excluded.value = new Set();
 		toast(`Orden ${data.reference} generada, súbela a la banca online`);
+		return true;
 	} catch (e) {
 		formError.value = `No se ha podido generar: ${(e as Error).message}`;
+		return false;
 	} finally {
 		generating.value = false;
 	}
