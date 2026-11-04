@@ -5,6 +5,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { bookingTotal, getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getBookableAreas } from '@gobernansa/shared/domain/community.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
+import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { FirebaseError } from 'firebase/app';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -104,7 +105,8 @@ watch([areaId, date], () => {
 // What the area costs per slot, the fianza is given back after
 const fee = computed(() => ({ price: area.value?.price ?? 0, deposit: area.value?.deposit ?? 0 }));
 const feeTotal = computed(() => fee.value.price + fee.value.deposit);
-const canPayOnline = computed(() => userCommunity.value?.onlinePayments === 'test');
+// Online payments can be turned off from the console (ROB-5)
+const canPayOnline = computed(() => userCommunity.value?.onlinePayments === 'test' && remote.payments);
 
 const busy = ref(false);
 const message = ref<string>();

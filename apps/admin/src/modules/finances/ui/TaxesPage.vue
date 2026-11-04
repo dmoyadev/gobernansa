@@ -6,6 +6,7 @@ import { attributeIncome, incomeTotals, model184File, model190File, model347File
 import { checkAeat } from '@gobernansa/shared/domain/fileChecks.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
+import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
@@ -271,7 +272,8 @@ async function addDeadlines() {
 	}
 }
 
-const canDownload = computed(() => !loading.value && !error.value && !cifProblem.value);
+// The files can be turned off from the console (ROB-5) while one of them is being fixed
+const canDownload = computed(() => !loading.value && !error.value && !cifProblem.value && remote.aeatFiles);
 const downloads: Record<Model, () => void> = { 347: download347, 190: download190, 184: download184 };
 useShortcut('d', () => downloads[model.value](), 'Descargar el fichero', () => canDownload.value);
 useShortcut('n', () => {
@@ -309,6 +311,9 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 			y el certificado de la comunidad; desde aquí no se envía nada a Hacienda.
 		</p>
 	</section>
+	<p v-if="!remote.aeatFiles" class="warning" role="note">
+		La descarga de los ficheros de la AEAT está desactivada temporalmente mientras se revisa.
+	</p>
 
 	<p v-if="error" class="error card" role="alert">
 		{{ error }}

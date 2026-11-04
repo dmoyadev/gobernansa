@@ -32,7 +32,7 @@ Las sugerencias y la redacción automática (urgencia y gremio de una incidencia
 
 ### Mantenimiento
 
-- **Al terminar una feature:** actualizar la tabla de estado de arriba, la fila de gobernança en la matriz de funcionalidades (sección 4), sus coordenadas en las matrices (sección 8) si cambian, y quitar o bajar su fila en la tabla de huecos (sección 9.2), pasando su identificador a la lista de cerrados con la fecha. Si se cierra un MON o un ROB, también en [fiabilidad.md](fiabilidad.md).
+- **Al terminar una feature:** actualizar la tabla de estado de arriba, la fila de gobernança en la matriz de funcionalidades (sección 4), sus coordenadas en las matrices (sección 8) si cambian, y quitar o bajar su fila en la tabla de huecos (sección 9.2), pasando su identificador a la lista de cerrados con la fecha. Si se cierra un MON o un ROB, quitar su fila y su ficha de [fiabilidad.md](fiabilidad.md), que solo recoge lo pendiente, y contar en su sección 2 lo que ha quedado hecho.
 - **Al cambiar de posicionamiento o precio:** actualizar las secciones 9.1 y 9.5.
 - **Datos de competidores:** caducan rápido (precios, notas en tiendas, versiones). Revisarlos cada 6 meses o antes de una decisión de precio, y cambiar la fecha de corte de arriba. Lo pendiente de verificar está en la sección 10.
 
@@ -490,6 +490,8 @@ Cada hueco tiene un identificador estable (`FUN-1`, `DAT-2`, `MON-1`…) para re
 | **ROB** | Robustez: evitar los fallos y recuperarse de ellos | [fiabilidad.md](fiabilidad.md) |
 
 **Cerrados:**
+- **04/11/2026:** ROB-6. Un doble clic, dos pestañas o un reintento sin conexión ya no duplican cuotas, derramas, intereses, remesas, órdenes de pago, devoluciones, conciliaciones ni cierres: las reglas rechazan lo que se escribiría dos veces.
+- **02/11/2026:** ROB-9. Moverse por las dos apps ya no relee lo mismo: las páginas vuelven sin leerlo todo otra vez, las lecturas pesadas se comparten entre páginas, las votaciones se leen ya contadas y ninguna consulta crece sin tope con los años.
 - **02/11/2026:** MON-1, MON-2, MON-3 y MON-8. Los errores de las dos apps llegan al propio Firestore agrupados, con la versión, la pantalla y lo que hizo el usuario antes; los urgentes salen primero en la página «Errores» del admin, solo para el equipo; y las dos apps avisan cuando se agota la cuota.
 - **01/11/2026, sin identificador:** cierre legal de la junta (firma, sellado, notificación con acuse y art. 17.8), importación del censo y de comunidades, PWA instalable, correo saliente en modo de prueba, parte de trabajo para el gremio, sugerencias y redacción automática, comprobación de ficheros, devoluciones SEPA importadas, abonos de la pasarela en la conciliación, entregas a cuenta e intereses de demora.
 
@@ -534,7 +536,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 
 | ID | Prioridad | Hueco |
 |---|---|---|
-| ROB-1 | P0 | Entorno de pruebas separado: hoy las previews de cada PR usan la base de datos de producción |
+| ROB-1 | P0 | Entorno de pruebas separado: hoy las previews de cada PR usan la base de datos de producción. Aplazado por decisión propia; mientras tanto se prueba en los emuladores locales |
 | ROB-2 | P0 | Copias de seguridad con restauración ensayada |
 
 ### 9.3 Diferenciadores defendibles
@@ -555,7 +557,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 - **Recursos:** proyecto de una persona con el plan gratuito de Firebase (INF-1), y un problema de credibilidad ante los despachos (como le pasa a ResidenciAPP, que también es una persona física). Conviene constituir una sociedad o, al menos, publicar un aviso legal completo antes de vender (EMP-1).
 - **Juntas telemáticas sin ley aprobada:** hay que construir el voto con un aviso claro sobre su validez legal. El acta lleva firma electrónica simple: sirve como prueba, pero no equivale a una firma cualificada ni a una notificación fehaciente de un prestador de confianza mientras ese canal siga en modo de prueba.
 - **Ficheros oficiales sin validar (VAL-1):** un error en un 347, una remesa o un asiento cuesta la confianza del despacho. Hay que validarlos con la AEAT y con bancos reales antes de venderlos, y vigilar los cambios anuales de diseño de registro.
-- **Fiabilidad operativa:** los errores ya llegan al panel del equipo, pero no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1), no hay copias de seguridad (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1), aunque ahora las dos apps lo avisan. Un despacho que pierde un día de trabajo o un dato no vuelve.
+- **Fiabilidad operativa:** los errores ya llegan al panel del equipo, pero no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1, aplazado: se prueba en los emuladores locales), no hay copias de seguridad (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1), aunque ahora las dos apps lo avisan. Un despacho que pierde un día de trabajo o un dato no vuelve.
 
 ### 9.5 Estrategia de precio y go-to-market sugerida (propuesta, a validar)
 

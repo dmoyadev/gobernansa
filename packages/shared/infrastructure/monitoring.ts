@@ -8,6 +8,7 @@ import { ref, watch } from 'vue';
 import { installed, isIos, updateReady } from '../application/pwa.ts';
 import useAuth from '../application/useAuth.ts';
 import { auth, db } from './firebase.ts';
+import { remote } from './remoteConfig.ts';
 
 /*
  * Errores de las apps (MON-1 and MON-2, docs/fiabilidad.md §3). Every error is cleaned of personal data, classified,
@@ -235,7 +236,10 @@ async function queue({ kind, code, message, stack, context, route = routeName() 
 	group.routes.add(route.slice(0, 80));
 	if (!group.sampled) {
 		group.sampled = true;
-		group.sample = sample(message, stack, route, context);
+		// errorSampleRate (ROB-5) lowers the writes when there are too many errors
+		if (Math.random() < remote.errorSampleRate) {
+			group.sample = sample(message, stack, route, context);
+		}
 	}
 
 	const wait = group.lastSent + THROTTLE_MS - Date.now();
@@ -252,7 +256,7 @@ async function queue({ kind, code, message, stack, context, route = routeName() 
 async function flush(id: string) {
 	const group = groups.get(id);
 	const { currentUser } = auth;
-	if (!SENDS || !group?.unsent || !currentUser || quotaExhausted.value || sends >= SESSION_SENDS) {
+	if (!SENDS || !remote.errorReporting || !group?.unsent || !currentUser || quotaExhausted.value || sends >= SESSION_SENDS) {
 		return;
 	}
 	const today = new Date().toDateString();

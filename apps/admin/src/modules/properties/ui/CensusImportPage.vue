@@ -9,6 +9,7 @@ import { decodeText, parseCsv } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { censusFields, censusTemplate, communityFields, groupByCommunity, guessCensusColumns, guessHeaderRow, importedTotal, readCensus } from '@gobernansa/shared/domain/census.ts';
 import { formatCoefficient, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
+import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
@@ -252,7 +253,7 @@ const byEmail = ref(true);
 const importing = ref(false);
 
 async function apply() {
-	if (!source.value || importing.value || comparing.value || (!toWrite.value && !newCommunities.value && !inviting.value)) {
+	if (!remote.censusImport || !source.value || importing.value || comparing.value || (!toWrite.value && !newCommunities.value && !inviting.value)) {
 		return;
 	}
 	const file = source.value.name;
@@ -502,8 +503,11 @@ async function apply() {
 				</LnxCheckbox>
 				<MailModeNote v-if="byEmail" />
 			</template>
+			<p v-if="!remote.censusImport" class="warning" role="note">
+				La importación del censo está desactivada temporalmente mientras se revisa.
+			</p>
 			<div class="actions">
-				<LnxButton :disabled="importing || comparing || (!toWrite && !newCommunities && !inviting)" @click="apply()">
+				<LnxButton :disabled="!remote.censusImport || importing || comparing || (!toWrite && !newCommunities && !inviting)" @click="apply()">
 					<LnxIcon :icon="importing ? 'lucide:loader-circle' : 'lucide:check'" :class="{ spin: importing }" />
 					{{ importing ? 'Importando…' : toWrite ? `Importar ${plural(toWrite, 'propiedad', 'propiedades')}` : 'Importar' }}
 				</LnxButton>

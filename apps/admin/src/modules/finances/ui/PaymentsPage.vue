@@ -9,6 +9,7 @@ import { payableAmount } from '@gobernansa/shared/domain/finance.ts';
 import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { paymentOrderStatuses, paymentOrderXml, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
+import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
@@ -243,7 +244,10 @@ async function remove(order: PaymentOrder) {
 		La orden se descarga como fichero SEPA de transferencias (pain.001) y se sube a la banca online de la comunidad. No hace falta conectar con el banco ni tiene coste.
 	</p>
 
-	<form ref="generateForm" class="card" @submit.prevent="generate()">
+	<p v-if="!remote.remittances" class="card warning" role="note">
+		La generación de órdenes de pago está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
+	</p>
+	<form v-else ref="generateForm" class="card" @submit.prevent="generate()">
 		<h2>Nueva orden de pago</h2>
 		<p v-if="invoicesError || providersError" class="error" role="alert">
 			No se han podido cargar: {{ (invoicesError ?? providersError)?.message }}

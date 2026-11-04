@@ -10,6 +10,7 @@ import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { creditorId, matchReturns, parseReturns, remittanceStatuses, remittanceXml, returnReasons, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
+import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
@@ -437,7 +438,10 @@ async function applyReport() {
 		</footer>
 	</section>
 
-	<form ref="generateForm" class="card" @submit.prevent="generate()">
+	<p v-if="!remote.remittances" class="card warning" role="note">
+		La generación de remesas está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
+	</p>
+	<form v-else ref="generateForm" class="card" @submit.prevent="generate()">
 		<h2>Nueva remesa</h2>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
 			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}

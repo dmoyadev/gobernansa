@@ -6,6 +6,7 @@ import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
+import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -30,7 +31,8 @@ const loading = computed(() => unpaid.pending.value && !unpaid.value.length);
 const loadError = computed(() => unpaid.error.value);
 
 // Blocked neighbours (and admins viewing as one) can look, not pay
-const canPay = computed(() => userCommunity.value?.onlinePayments === 'test' && !user.value?.blocked);
+// Online payments can be turned off from the console (ROB-5)
+const canPay = computed(() => userCommunity.value?.onlinePayments === 'test' && !user.value?.blocked && remote.payments);
 
 /* The paid history, read when asked for */
 const paid = ref<Charge[]>();

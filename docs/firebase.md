@@ -10,6 +10,15 @@ Each push to `main` deploys it before the app, so change the rules here and not 
 
 The local emulator enforces it too. Each rule that checks the user's community or role reads their profile once per request, which counts as one extra read.
 
+**Money can't be written twice** (ROB-6 in [fiabilidad.md](fiabilidad.md)). The rules turn down what a double click, a second tab or a batch sent again after losing the connection would duplicate, with no extra reads and also when an offline write reaches the server later:
+- a charge, expense, bank movement, property or community written again over one already there (its `createdAt` changes): a run of fees, a derrama, a recibo de intereses, a statement or a census imported twice;
+- a charge's `remittanceId`, `bankMovementId` or an invoice's `paymentOrderId` changed for another one: a charge goes in one remittance at a time and only while unpaid, and a charge or invoice is reconciled with one bank movement only while unpaid (and a charge only if it isn't in a remittance); an invoice moves to another payment order only once the first was executed and the transfer came back unpaid;
+- a bank movement reconciled or set aside twice: it only goes from pending to done and back;
+- a remittance or payment order deleted once sent or executed, or collected or executed again on another day;
+- a year closed again over its closing.
+
+When one is turned down, the action shows an error and nothing of its batch is written. What needs to know the state on the server first (marking a charge or invoice paid by hand, returns, recibos de intereses, closing the year) goes in a transaction, so it needs a connection.
+
 ## 2. Indexes
 
 The first time each of these queries runs, Firestore logs an error in the browser console with a link that creates the index:
@@ -86,6 +95,23 @@ Both apps install from the browser as apps (Chrome and Edge offer it; Safari add
 - **Hosting headers**: `firebase.json` serves the pages (`/`, `index.html` and every path without an extension, the app's routes) and the workers and the manifest with `Cache-Control: no-cache` instead of Hosting's default hour, so the browser checks them each time and a deploy reaches them at once (an unchanged file is a short 304). Vite's hashed `/assets/**` are cached for a year, as their names change with their content. The two rules never match the same path, so it doesn't matter which one Hosting would apply first; the icons and images keep Hosting's default hour.
 - **Offline data**: Firestore keeps what it reads in IndexedDB (`persistentLocalCache` with the multi-tab manager, in `packages/shared/infrastructure/firebase.ts`), so the installed app shows the last data without a connection and sends the changes made offline once it's back. It doesn't add reads: the server is still asked first, listeners opened again within 30 minutes are only charged for what changed, and several tabs share one connection. With the emulators it stays in memory, so their reset data doesn't mix with the live project's. Signing out removes it from the device (`terminate` and `clearIndexedDbPersistence` in `logout()`, `packages/shared/application/useAuth.ts`), which also stops the other open tabs' Firestore; those reload to `/login` when they see the session end. Changes not sent yet are lost with it, and if another tab holds it for over 3 seconds signing out goes ahead without it.
 - **Not covered**: Google Fonts and the images in `public/` aren't cached, so offline the text uses the system font. There's no listing in the app stores.
+
+## 7. Remote switches
+
+Both apps read these switches from **Firebase console → Remote Config** when they open and again as soon as a change is published, with no deploy and no Firestore reads (ROB-5 in [fiabilidad.md](fiabilidad.md)). Remote Config is free. A parameter that doesn't exist, or a browser that can't reach it, keeps the default, so nothing needs creating until it's needed. To use one, create the parameter with exactly this name and type, then **Publish changes**:
+
+| Parameter | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `payments` | Boolean | `true` | `false` hides the **Pagar** buttons of charges and bookings in the webapp |
+| `remittances` | Boolean | `true` | `false` replaces the forms to generate remittances and payment orders in the admin with a notice |
+| `aeatFiles` | Boolean | `true` | `false` disables downloading the 347, 190 and 184 in the admin |
+| `censusImport` | Boolean | `true` | `false` disables importing a census or a portfolio in the admin |
+| `errorReporting` | Boolean | `true` | `false` stops sending errors to the **Errores** page |
+| `errorSampleRate` | Number | `1` | Share of sessions, from 0 to 1, whose errors carry a sample (stack, trail and context); lower it when errors spend too many writes |
+| `minVersion` | String | empty | The lowest release still allowed, e.g. `2026.11.04-1200`. Older ones (`VITE_RELEASE`, shown in the webapp's profile and the admin's menu) are covered by a notice that only lets them update. Releases sort as text, so a date and time is enough |
+| `maintenance` | String | empty | A message shown in both apps while it isn't empty |
+
+Remote Config needs the **Firebase Installations API** and the **Firebase Remote Config API**, which a new Firebase project has on. If the API key is ever restricted (ROB-8), keep both in its list of APIs, or every app keeps the defaults.
 
 ## Roles
 
