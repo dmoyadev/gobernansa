@@ -19,6 +19,8 @@ import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -125,6 +127,22 @@ watch([selected, collectionDate], () => {
 	}
 });
 
+const generateForm = useTemplateRef('generateForm');
+
+// The next one starts over: no filters, every charge ticked, and without the check of the last file
+function reset() {
+	dueUntil.value = '';
+	batch.value = ALL;
+	collectionDate.value = '';
+	excluded.value = new Set();
+	formError.value = undefined;
+	if (check.value?.key === 'new') {
+		dismiss();
+	}
+}
+
+const { open, show, close } = useNewForm(generateForm, reset);
+
 async function generate() {
 	if (generating.value || !community.value) {
 		return;
@@ -187,7 +205,10 @@ async function save(id: string, data: RemittanceData, xml: string) {
 		downloadFile(`${data.reference}.xml`, xml, 'application/xml');
 		remittances.value = [{ ...data, id, status: 'generated' } as Remittance, ...remittances.value];
 		openId.value = id;
-		excluded.value = new Set();
+		// The form closes, its check stays shown under the new remittance
+		const shown = check.value;
+		close();
+		check.value = shown && { key: id, issues: shown.issues };
 		toast(`Remesa ${data.reference} generada, súbela a la banca online`);
 		return true;
 	} catch (e) {
@@ -198,7 +219,6 @@ async function save(id: string, data: RemittanceData, xml: string) {
 	}
 }
 
-const generateForm = useTemplateRef('generateForm');
 useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), 'Generar la remesa');
 
 /* Remittances */
@@ -380,6 +400,7 @@ async function applyReport() {
 			Importar devoluciones
 			<Kbd combo="i" />
 		</LnxButton>
+		<NewButton v-if="!open" label="Nueva remesa" :disabled="!remote.remittances" @click="show()" />
 	</header>
 
 	<p class="intro hint">
@@ -447,7 +468,7 @@ async function applyReport() {
 	<p v-if="!remote.remittances" class="card warning" role="note">
 		La generación de remesas está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
 	</p>
-	<form v-else ref="generateForm" class="card" @submit.prevent="generate()">
+	<form v-else-if="open" ref="generateForm" class="card ux-appear" @submit.prevent="generate()">
 		<h2>Nueva remesa</h2>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
 			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
@@ -535,6 +556,10 @@ async function applyReport() {
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'recibo' : 'recibos' }} · {{ formatCents(selectedTotal) }}
 			</span>
+			<LnxButton mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
 			<LnxButton type="submit" :is-loading="generating" :disabled="!selected.length || !community">
 				<LnxIcon icon="lucide:file-down" />
 				Generar y descargar

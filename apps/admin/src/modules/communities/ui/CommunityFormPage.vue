@@ -5,11 +5,13 @@ import { contactTypes, documentTypes, WEEKDAYS } from '@gobernansa/shared/domain
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { reveal } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
@@ -108,8 +110,15 @@ onRevalidate(() => {
 	}
 });
 
+// A new contact or document goes last, opened on its first field
+async function revealLast() {
+	await nextTick();
+	reveal([...formElement.value?.querySelectorAll<HTMLElement>('.item') ?? []].at(-1));
+}
+
 function addContact() {
 	form.value.contacts.push({ type: 'other', name: '' });
+	void revealLast();
 }
 
 function addSchedule(contact: CommunityContact) {
@@ -118,6 +127,7 @@ function addSchedule(contact: CommunityContact) {
 
 function addDocument() {
 	form.value.documents.push({ type: 'minutes', title: '', url: '', date: toInputDate(new Date()) });
+	void revealLast();
 }
 
 async function save() {
@@ -185,6 +195,10 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 			<!-- An existing one's has the nav of its workspace instead -->
 			<BackButton v-if="!id" :to="backTo" :label="backLabel" />
 			<h1>{{ id ? workspaces.community.sectionOf.get(section)!.pages[0].title : 'Nueva comunidad' }}</h1>
+			<template v-if="!loading && !notFound && !loadError">
+				<NewButton v-if="section === 'contacts'" label="Nuevo contacto" @click="addContact()" />
+				<NewButton v-else-if="section === 'documents'" label="Nuevo documento" @click="addDocument()" />
+			</template>
 		</header>
 
 		<!-- Shaped like the first card: its title and fields -->
@@ -278,12 +292,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 			</section>
 
 			<section v-if="section === 'contacts'" class="card">
-				<header>
-					<LnxButton type="button" mode="outline" size="small" @click="addContact()">
-						<LnxIcon icon="lucide:plus" />
-						Añadir contacto
-					</LnxButton>
-				</header>
 				<p v-if="!form.contacts.length" class="hint">
 					Aún no hay contactos. Los vecinos verán solo el teléfono de emergencias.
 				</p>
@@ -361,12 +369,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 			</section>
 
 			<section v-if="section === 'documents'" class="card">
-				<header>
-					<LnxButton type="button" mode="outline" size="small" @click="addDocument()">
-						<LnxIcon icon="lucide:plus" />
-						Añadir documento
-					</LnxButton>
-				</header>
 				<p v-if="!form.documents.length" class="hint">
 					Aún no hay documentos: estatutos, normas, póliza del seguro o actas de las juntas.
 				</p>
@@ -456,14 +458,6 @@ form {
 	display: flex;
 	flex-direction: column;
 	gap: var(--lnx-spacing-4);
-
-	header {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--lnx-spacing-2);
-	}
 
 	h2 {
 		font-size: var(--lnx-font-size-small);

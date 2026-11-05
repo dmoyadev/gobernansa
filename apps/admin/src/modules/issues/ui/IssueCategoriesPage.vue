@@ -7,6 +7,7 @@ import BackButton from '@/app/ux/BackButton.vue';
 import IconPicker from '@/app/ux/IconPicker.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { useSortable } from '@/app/ux/sortable.ts';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -126,7 +127,6 @@ function persist(next: IssueCategory[], summary: string, done: string, revert?: 
 	});
 }
 
-useShortcut('n', () => void create(), 'Crear una categoría');
 useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.editing')?.requestSubmit(), 'Guardar la categoría');
 </script>
 
@@ -134,11 +134,7 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}/issues`" label="Volver a las incidencias" />
 		<h1>Categorías de incidencias</h1>
-		<LnxButton :disabled="loading || (!!loadError && !categories.length) || !!draft?.isNew" @click="create()">
-			<LnxIcon icon="lucide:plus" />
-			Crear
-			<Kbd combo="n" />
-		</LnxButton>
+		<NewButton label="Nueva categoría" :disabled="loading || (!!loadError && !categories.length) || !!draft?.isNew" @click="create()" />
 	</header>
 
 	<p class="hint">
@@ -202,6 +198,7 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 					</LnxButton>
 					<LnxButton type="button" mode="clear" size="small" @click="cancel()">
 						Cancelar
+						<Kbd combo="escape" />
 					</LnxButton>
 					<LnxButton type="submit" size="small">
 						<LnxIcon icon="lucide:check" />

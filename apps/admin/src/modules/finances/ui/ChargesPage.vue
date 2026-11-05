@@ -13,6 +13,8 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -62,6 +64,16 @@ const formError = ref<string>();
 // still missing instead of issuing them twice. Changing the form makes it another emission
 let confirmed: { key: string; batchId: string; ids: string[] } | undefined;
 
+const issueForm = useTemplateRef('issueForm');
+
+// The emission confirmed is kept, so typing the same one again after a failure still only issues those missing
+function reset() {
+	form.value = emptyForm();
+	formError.value = undefined;
+}
+
+const { open, show, close } = useNewForm(issueForm, reset);
+
 async function issue() {
 	if (issuing.value) {
 		return;
@@ -102,7 +114,7 @@ async function issue() {
 			ids: missing.map(({ id }) => id),
 		});
 		toast(shares.value.length === 1 ? 'Recibo emitido' : 'Recibos emitidos');
-		form.value = emptyForm();
+		close();
 		confirmed = undefined;
 	} catch (e) {
 		formError.value = `No se han podido emitir: ${(e as Error).message}`;
@@ -111,8 +123,6 @@ async function issue() {
 	}
 }
 
-const issueForm = useTemplateRef('issueForm');
-useShortcut('n', () => issueForm.value?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus(), 'Emitir recibos');
 useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), 'Emitir los recibos');
 
 // Arrears, from the live unpaid charges
@@ -323,10 +333,11 @@ function remove(charge: Charge) {
 <template>
 	<header class="page-header">
 		<h1>Recibos</h1>
+		<NewButton v-if="!open" label="Emitir recibos" :disabled="!properties.length" @click="show()" />
 	</header>
 
-	<form ref="issueForm" class="card" @submit.prevent="issue()">
-		<h2>Emitir recibos o derrama <Kbd combo="n" /></h2>
+	<form v-if="open" ref="issueForm" class="card ux-appear" @submit.prevent="issue()">
+		<h2>Emitir recibos o derrama</h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="form.type"
@@ -382,6 +393,10 @@ function remove(charge: Charge) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
+			<LnxButton mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
 			<LnxButton type="submit" :is-loading="issuing" :disabled="!properties.length">
 				<LnxIcon icon="lucide:receipt-euro" />
 				Emitir

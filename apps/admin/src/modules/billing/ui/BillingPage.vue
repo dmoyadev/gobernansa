@@ -8,17 +8,16 @@ import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts'
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { issueInvoices, loadInvoices, MAX_RUN_INVOICES, useOffice } from '../application/useBilling.ts';
 
 const ALL = '';
-const router = useRouter();
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 
 const { data: office, pending: officePending, error: officeError } = useOffice();
@@ -157,7 +156,6 @@ async function run() {
 
 const runForm = useTemplateRef('runForm');
 useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las facturas del mes');
-useShortcut('n', () => void router.push('/billing/new'), 'Nueva factura');
 </script>
 
 <template>
@@ -172,11 +170,7 @@ useShortcut('n', () => void router.push('/billing/new'), 'Nueva factura');
 			<LnxIcon icon="lucide:briefcase" />
 			Datos fiscales
 		</LnxButton>
-		<LnxButton to="/billing/new" size="small" :disabled="!office">
-			<LnxIcon icon="lucide:plus" />
-			Nueva factura
-			<Kbd combo="n" />
-		</LnxButton>
+		<NewButton label="Nueva factura" to="/billing/new" :disabled="!office" />
 	</header>
 
 	<p class="intro hint">

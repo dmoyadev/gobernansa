@@ -10,6 +10,8 @@ import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
@@ -35,17 +37,6 @@ const editingId = ref<string>();
 // The new one's id, kept until it's published
 const draftId = ref(newId());
 
-function edit(notification: Event) {
-	editingId.value = notification.id;
-	form.value = {
-		title: notification.title,
-		description: notification.description ?? '',
-		type: notification.type,
-		date: toInputDate(notification.date.toDate()),
-	};
-	window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 // Opened from the search with ?edit=<id>, it's shown in the form even when it's not on the first page. Watched, as
 // the page is kept and opened again with another one
 const route = useRoute();
@@ -70,12 +61,25 @@ function reset() {
 	form.value = emptyForm();
 }
 
-// The form empties at once; if the server rejects it, what was written comes back
+const { open, show, close } = useNewForm(formElement, reset);
+
+function edit(notification: Event) {
+	editingId.value = notification.id;
+	form.value = {
+		title: notification.title,
+		description: notification.description ?? '',
+		type: notification.type,
+		date: toInputDate(notification.date.toDate()),
+	};
+	void show();
+}
+
+// The form closes at once; if the server rejects it, it opens again with what was written
 function save() {
 	const sent = { ...form.value };
 	const isNew = !editingId.value;
 	const id = editingId.value ?? draftId.value;
-	reset();
+	close();
 	if (isNew) {
 		draftId.value = newId();
 	}
@@ -89,6 +93,7 @@ function save() {
 			} else {
 				editingId.value = id;
 			}
+			open.value = true;
 		},
 	});
 }
@@ -100,7 +105,7 @@ function remove(notification: Event) {
 	}
 
 	if (editingId.value === notification.id) {
-		reset();
+		close();
 	}
 	void optimistic(deleteNotification(notification), {
 		done: 'Aviso borrado',
@@ -109,7 +114,6 @@ function remove(notification: Event) {
 	});
 }
 
-useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Escribir un aviso');
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o guardar el aviso');
 </script>
 
@@ -117,9 +121,10 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Avisos</h1>
+		<NewButton v-if="!open" label="Nuevo aviso" @click="show()" />
 	</header>
 
-	<form ref="formElement" class="card" @submit.prevent="save()" @keydown.esc="editingId && reset()">
+	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar aviso' : 'Nuevo aviso' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
@@ -148,8 +153,9 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton v-if="editingId" mode="clear" @click="reset()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
+				<Kbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:send'" />

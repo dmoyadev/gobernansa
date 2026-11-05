@@ -12,7 +12,9 @@ import { useCollection } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
-import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
@@ -102,6 +104,13 @@ function onTypeChange() {
 	form.value.everyMonths = String(type.everyMonths ?? '');
 }
 
+function reset() {
+	editingId.value = undefined;
+	form.value = emptyForm();
+}
+
+const { open, show, close } = useNewForm(formElement, reset);
+
 function edit(obligation: Obligation) {
 	editingId.value = obligation.id;
 	form.value = {
@@ -112,12 +121,7 @@ function edit(obligation: Obligation) {
 		providerId: obligation.provider?.id ?? '',
 		notes: obligation.notes ?? '',
 	};
-	window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function reset() {
-	editingId.value = undefined;
-	form.value = emptyForm();
+	void show();
 }
 
 // The list shows it at once, so the form empties straight away, and comes back as it was typed if the server refuses it
@@ -161,6 +165,7 @@ function save() {
 		onError: () => {
 			form.value = typed;
 			editingId.value = editing ? id : undefined;
+			open.value = true;
 			if (!editing) {
 				newObligationId.value = id;
 			}
@@ -169,21 +174,10 @@ function save() {
 	if (!editing) {
 		newObligationId.value = newId();
 	}
-	reset();
+	close();
 }
 
-function focusForm() {
-	formElement.value?.querySelector<HTMLElement>('input, button')?.focus();
-}
-
-useShortcut('n', focusForm, 'Nueva obligación');
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la obligación');
-// Only while editing, so Escape stays free for anything else the rest of the time
-useEventListener(window, 'keydown', (event) => {
-	if (event.key === 'Escape' && editingId.value && !event.defaultPrevented) {
-		reset();
-	}
-});
 
 // The next one counts from when it was due, so doing it late doesn't shift the cycle, unless that's still in the past
 function nextDueAt(obligation: Obligation) {
@@ -236,7 +230,7 @@ function remove(obligation: Obligation) {
 	logActivity(batch, props.id, { area: 'obligation', summary: `Borró la obligación «${obligation.title}»` });
 	void optimistic(batch.commit(), { done: 'Obligación borrada', failed: 'No se ha podido borrar', revert: async () => restore(obligation) });
 	if (editingId.value === obligation.id) {
-		reset();
+		close();
 	}
 }
 
@@ -291,6 +285,7 @@ function downloadIcs(obligation: Obligation) {
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Obligaciones</h1>
+		<NewButton v-if="!open" label="Nueva obligación" @click="show()" />
 	</header>
 
 	<section v-if="warningGroups.length" class="card attention" :class="warningGroups[0].key" aria-labelledby="attention-title">
@@ -329,7 +324,7 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 	</section>
 
-	<form ref="formElement" class="card" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar obligación' : 'Nueva obligación' }}</h2>
 		<div class="fields">
 			<LnxSelect
@@ -377,7 +372,7 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton v-if="editingId" mode="clear" @click="reset()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

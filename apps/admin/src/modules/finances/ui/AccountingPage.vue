@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -267,7 +268,6 @@ async function removeEntry(entry: JournalEntry) {
 	}
 }
 
-useShortcut('n', async () => openEntry(), 'Nuevo asiento', () => !closed.value && !!data.value);
 useShortcut('mod+enter', () => entryForm.value?.requestSubmit(), 'Guardar el asiento', () => !!editor.value);
 useShortcut('escape', cancelEntry, 'Cancelar el asiento', () => !!editor.value);
 
@@ -470,6 +470,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 			<LnxIcon icon="lucide:printer" />
 			Imprimir
 		</LnxButton>
+		<NewButton v-if="!editor" label="Nuevo asiento" :disabled="closed || !ledger" @click="openEntry()" />
 	</header>
 
 	<p v-if="error" class="error" role="alert">
@@ -492,11 +493,6 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 						<template v-if="closed && closedAt"> · cerrado el {{ dateFormat.format(closedAt) }}</template>
 						· {{ (closed ? closing!.result : proposedClosing.result) >= 0 ? 'excedente' : 'déficit' }} de {{ formatCents(Math.abs(closed ? closing!.result : proposedClosing.result)) }}
 					</span>
-					<LnxButton v-if="!closed" mode="clear" size="small" @click="openEntry()">
-						<LnxIcon icon="lucide:plus" />
-						Nuevo asiento
-						<Kbd combo="n" />
-					</LnxButton>
 					<LnxButton v-if="closed" mode="clear" size="small" :is-loading="closingBusy" @click="reopen()">
 						<LnxIcon icon="lucide:lock-open" />
 						Reabrir
@@ -519,7 +515,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 			</template>
 		</section>
 
-		<form v-if="editor" ref="entryForm" class="card" @submit.prevent="submitEntry()">
+		<form v-if="editor" ref="entryForm" class="card ux-appear" @submit.prevent="submitEntry()">
 			<h2>{{ editor.existing ? 'Editar asiento' : 'Nuevo asiento' }}</h2>
 			<div class="fields">
 				<DatePicker v-model="editor.date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>

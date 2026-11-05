@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { meetingStatus, meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
+import NewButton from '@/app/ux/NewButton.vue';
 import { useMeetings } from '../application/useMeetings.ts';
 
 const props = defineProps<{ id: string }>();
@@ -15,20 +13,13 @@ const { data: meetings, pending, error } = useMeetings(props.id);
 const sortedMeetings = computed(() => [...meetings.value].sort((a, b) => (b.date?.toMillis() ?? 0) - (a.date?.toMillis() ?? 0)));
 
 const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeStyle: 'short' });
-
-const router = useRouter();
-useShortcut('n', () => router.push(`/communities/${props.id}/meetings/new`), 'Nueva junta');
 </script>
 
 <template>
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Juntas</h1>
-		<LnxButton :to="`/communities/${id}/meetings/new`">
-			<LnxIcon icon="lucide:plus" />
-			Nueva junta
-			<Kbd combo="n" />
-		</LnxButton>
+		<NewButton label="Nueva junta" :to="`/communities/${id}/meetings/new`" />
 	</header>
 
 	<section class="card" :aria-busy="pending && !meetings.length">

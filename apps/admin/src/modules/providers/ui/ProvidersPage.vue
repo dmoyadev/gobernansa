@@ -12,6 +12,8 @@ import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -62,6 +64,8 @@ function reset() {
 	draftId.value = newId();
 }
 
+const { open, show, close } = useNewForm(formElement, reset);
+
 function edit(provider: Provider) {
 	editingId.value = provider.id;
 	form.value = {
@@ -78,7 +82,7 @@ function edit(provider: Provider) {
 		communityIds: provider.communityIds.filter(id => managesCommunity(me.value, id)),
 	};
 	formError.value = undefined;
-	window.scrollTo({ top: 0, behavior: 'smooth' });
+	void show();
 }
 
 function save() {
@@ -95,9 +99,9 @@ function save() {
 		return;
 	}
 
-	// The list shows it at once; the form is cleared now and comes back as it was if the server says no
+	// The list shows it at once; the form closes now and comes back as it was if the server says no
 	const sent = { editingId: editingId.value, draftId: draftId.value, form: form.value };
-	reset();
+	close();
 	void optimistic(saveProvider(sent.editingId, { ...sent.form, communityIds }, sent.draftId), {
 		done: sent.editingId ? 'Proveedor guardado' : 'Proveedor añadido',
 		failed: 'No se ha podido guardar',
@@ -105,6 +109,7 @@ function save() {
 			editingId.value = sent.editingId;
 			draftId.value = sent.draftId;
 			form.value = sent.form;
+			open.value = true;
 		},
 	});
 }
@@ -116,7 +121,7 @@ function remove(provider: Provider) {
 	}
 
 	if (editingId.value === provider.id) {
-		reset();
+		close();
 	}
 	void optimistic(deleteProvider(provider.id), {
 		done: 'Proveedor eliminado',
@@ -209,21 +214,20 @@ function focusFirst(element: HTMLElement | undefined, selector: string) {
 	element?.querySelector<HTMLElement>(selector)?.focus();
 }
 
-useShortcut('n', () => focusFirst(formElement.value, 'input'), 'Añadir proveedor');
 useShortcut('/', () => focusFirst(filtersElement.value, 'input[type="search"]'), 'Buscar proveedores');
 // The rating's form when writing in it, the provider's otherwise
 useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formElement.value)?.requestSubmit(), 'Guardar');
-useShortcut('escape', () => reset(), 'Cancelar la edición', () => !!editingId.value);
 </script>
 
 <template>
 	<header class="page-header">
 		<BackButton to="/" label="Volver a comunidades" />
 		<h1>Proveedores</h1>
+		<NewButton v-if="!open" label="Nuevo proveedor" @click="show()" />
 	</header>
 
-	<form ref="formElement" class="card" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar proveedor' : 'Añadir proveedor' }}</h2>
+	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
+		<h2>{{ editingId ? 'Editar proveedor' : 'Nuevo proveedor' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.name" required>
 				Nombre
@@ -277,8 +281,9 @@ useShortcut('escape', () => reset(), 'Cancelar la edición', () => !!editingId.v
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton v-if="editingId" mode="clear" @click="reset()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
+				<Kbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />

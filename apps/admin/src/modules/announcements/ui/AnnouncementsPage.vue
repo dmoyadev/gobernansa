@@ -15,6 +15,8 @@ import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate, remember } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic, toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -105,6 +107,15 @@ const formElement = ref<HTMLFormElement>();
 // derived from it, so sending twice writes them once
 const broadcastId = ref(newId());
 
+// The communities stay ticked, they also pick the ones listed below
+function reset() {
+	form.value = emptyForm();
+	formError.value = undefined;
+	broadcastId.value = newId();
+}
+
+const { open, show, close } = useNewForm(formElement, reset);
+
 function send() {
 	if (!selected.value.length) {
 		formError.value = 'Elige al menos una comunidad.';
@@ -140,8 +151,7 @@ function send() {
 		const copies = sent.communityIds.map(communityId => ({ ...data, id: `${sent.broadcastId}-${communityId}`, communityId, createdAt: at, createdBy: uid, updatedAt: at, updatedBy: uid }) as Event);
 		recent.value = sortBroadcasts([...previous, { id: sent.broadcastId, title: data.title, type: data.type, date: data.date, description: data.description, copies }]);
 	}
-	form.value = emptyForm();
-	broadcastId.value = newId();
+	close();
 	// No undo: neighbours are already told of it
 	void optimistic(batch.commit(), {
 		done: 'Comunicado enviado',
@@ -150,6 +160,7 @@ function send() {
 			recent.value = previous;
 			form.value = sent.form;
 			broadcastId.value = sent.broadcastId;
+			open.value = true;
 		},
 	});
 }
@@ -257,7 +268,6 @@ async function restoreBroadcast(broadcast: Broadcast) {
 	await batch.commit();
 }
 
-useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Nuevo comunicado');
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el comunicado');
 </script>
 
@@ -265,9 +275,37 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 	<header class="page-header">
 		<BackButton to="/" label="Volver" />
 		<h1>Comunicados</h1>
+		<NewButton v-if="!open" label="Nuevo comunicado" @click="show()" />
 	</header>
 
-	<form ref="formElement" class="card" @submit.prevent="send()">
+	<!-- Who a new one goes to, and whose sent ones are listed below -->
+	<section class="card">
+		<fieldset class="communities" :aria-busy="loading && !communities.length">
+			<legend>Comunidades</legend>
+			<p v-if="error" class="error" role="alert">
+				No se han podido cargar: {{ error.message }}
+			</p>
+			<template v-if="loading && !communities.length">
+				<span v-for="width in [20, 60, 45, 70, 50]" :key="width" class="skeleton-row" :class="{ all: width === 20 }" aria-hidden="true">
+					<span class="skeleton-item skeleton-item--icon" />
+					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+				</span>
+			</template>
+			<template v-else-if="communities.length">
+				<LnxCheckbox v-model="allSelected" class="check all">
+					Todas
+				</LnxCheckbox>
+				<LnxCheckbox v-for="community in communities" :key="community.id" v-model="selected" class="check" :value="community.id">
+					{{ community.name || 'Sin nombre' }}
+				</LnxCheckbox>
+			</template>
+			<p v-else class="hint">
+				No gestionas ninguna comunidad.
+			</p>
+		</fieldset>
+	</section>
+
+	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="send()">
 		<h2>Nuevo comunicado</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
@@ -322,34 +360,14 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 			</footer>
 		</details>
 
-		<fieldset class="communities" :aria-busy="loading && !communities.length">
-			<legend>Comunidades</legend>
-			<p v-if="error" class="error" role="alert">
-				No se han podido cargar: {{ error.message }}
-			</p>
-			<template v-if="loading && !communities.length">
-				<span v-for="width in [20, 60, 45, 70, 50]" :key="width" class="skeleton-row" :class="{ all: width === 20 }" aria-hidden="true">
-					<span class="skeleton-item skeleton-item--icon" />
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-				</span>
-			</template>
-			<template v-else-if="communities.length">
-				<LnxCheckbox v-model="allSelected" class="check all">
-					Todas
-				</LnxCheckbox>
-				<LnxCheckbox v-for="community in communities" :key="community.id" v-model="selected" class="check" :value="community.id">
-					{{ community.name || 'Sin nombre' }}
-				</LnxCheckbox>
-			</template>
-			<p v-else class="hint">
-				No gestionas ninguna comunidad.
-			</p>
-		</fieldset>
-
 		<footer class="form-actions">
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
+			<LnxButton mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
 			<LnxButton type="submit" :disabled="!selected.length">
 				<LnxIcon icon="lucide:send" />
 				Enviar a <span class="tabular">{{ selected.length }}</span> comunidad{{ selected.length === 1 ? '' : 'es' }}

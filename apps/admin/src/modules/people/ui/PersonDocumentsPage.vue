@@ -13,6 +13,8 @@ import { useCollection, useDocument } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 
@@ -53,12 +55,18 @@ const category = ref<PersonDocument['category']>('other');
 const propertyId = ref('');
 const sending = ref(false);
 const formError = ref<string>();
-const fileInput = ref<HTMLInputElement>();
 const formElement = useTemplateRef<HTMLFormElement>('formElement');
 // Sending it again after a failure writes the same document instead of a second one
 let documentId = newId();
 
-useShortcut('n', () => fileInput.value?.focus(), 'Enviar un documento');
+function reset() {
+	file.value = undefined;
+	formError.value = undefined;
+	documentId = newId();
+}
+
+const { open, show, close } = useNewForm(formElement, reset);
+
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el documento elegido');
 
 function fileRef(id: string) {
@@ -99,9 +107,7 @@ async function upload() {
 			link: `/communities/${props.id}/people/${props.uid}/documents`,
 		});
 		await batch.commit();
-		file.value = undefined;
-		fileInput.value!.value = '';
-		documentId = newId();
+		close();
 	} catch (e) {
 		formError.value = `No se ha podido enviar: ${(e as Error).message}`;
 	} finally {
@@ -159,15 +165,15 @@ function formatSize(bytes: number) {
 				de <span :style="{ viewTransitionName: `person-${uid}` }">{{ person.name }}</span>
 			</template>
 		</h1>
+		<NewButton v-if="!open" label="Enviar un documento" @click="show()" />
 	</header>
 
-	<form ref="formElement" class="card" @submit.prevent="upload()">
-		<h2>Enviar un documento <Kbd combo="n" /></h2>
+	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="upload()">
+		<h2>Enviar un documento</h2>
 		<p class="hint">
 			Lo verá en su perfil, con tu nombre. Hasta 1 MB.
 		</p>
 		<input
-			ref="fileInput"
 			type="file"
 			required
 			@change="file = ($event.target as HTMLInputElement).files?.[0]"
@@ -197,6 +203,10 @@ function formatSize(bytes: number) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
+			<LnxButton mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
 			<LnxButton type="submit" :is-loading="sending">
 				<LnxIcon icon="lucide:send" />
 				Enviar

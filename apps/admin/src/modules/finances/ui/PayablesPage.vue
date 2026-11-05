@@ -5,6 +5,7 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
+import NewButton from '@/app/ux/NewButton.vue';
 import { optimistic } from '@/app/ux/toast.ts';
 import { setExpensePaid, useUnpaidInvoices } from '../application/useFinances.ts';
 
@@ -38,10 +39,7 @@ function markPaid(invoice: Expense) {
 			<LnxIcon icon="lucide:send" />
 			Pagar por transferencia
 		</LnxButton>
-		<LnxButton :to="`/communities/${id}/budget`" mode="clear" size="small">
-			<LnxIcon icon="lucide:plus" />
-			Añadir factura
-		</LnxButton>
+		<NewButton label="Nueva factura" :to="`/communities/${id}/budget?new`" />
 	</header>
 
 	<section class="card">

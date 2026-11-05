@@ -8,9 +8,11 @@
 	--press-scale: .97;
 }
 
-// The scrollbar's room is kept on short pages too, so the page doesn't widen and shift when it isn't there
+// The scrollbar's room is kept on short pages too, so the page doesn't widen and shift when it isn't there. What's
+// scrolled into view (a form opening, a focused field) stays clear of the sticky top bar
 html {
 	scrollbar-gutter: stable;
+	scroll-padding-top: calc(64px + var(--lnx-spacing-4));
 }
 
 /* Text */

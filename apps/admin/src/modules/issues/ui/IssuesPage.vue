@@ -6,12 +6,14 @@ import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { computed, nextTick, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
-import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { createIssue, useIssues } from '../application/useIssues.ts';
@@ -56,13 +58,14 @@ function emptyForm() {
 	return { id: newId(), title: '', description: '', category: categories.value[0]?.id ?? '', place: '' as '' | keyof typeof issueLocationTypes, reference: '' };
 }
 
-const form = ref<ReturnType<typeof emptyForm>>();
+const form = ref(emptyForm());
 const formElement = ref<HTMLFormElement>();
+const { open, show, close } = useNewForm(formElement);
 
-async function openForm() {
-	form.value ??= emptyForm();
-	await nextTick();
-	formElement.value?.querySelector<HTMLInputElement>('.fields input')?.focus();
+// Fresh each time, with the community's categories once they've loaded
+function openForm() {
+	form.value = emptyForm();
+	void show();
 }
 
 function defaultTitle(categoryId: string) {
@@ -73,10 +76,7 @@ function defaultTitle(categoryId: string) {
 // The issue is in the local cache at once, so it opens straight away. If the server rejects it, back to the form as it was
 function create() {
 	const values = form.value;
-	if (!values) {
-		return;
-	}
-	form.value = undefined;
+	close();
 	const { id: issueId, title, description, category, place, reference } = values;
 	const link = `/communities/${props.id}/issues/${issueId}`;
 	void optimistic(createIssue(props.id, me.value!.id, issueId, {
@@ -89,6 +89,7 @@ function create() {
 		failed: 'No se ha podido crear',
 		onError: () => {
 			form.value = values;
+			open.value = true;
 			if (router.currentRoute.value.path === link) {
 				void router.replace(`/communities/${props.id}/issues`);
 			}
@@ -97,13 +98,7 @@ function create() {
 	void router.push(link);
 }
 
-useShortcut('n', openForm, 'Nueva incidencia');
-useShortcut('mod+enter', create, 'Crear la incidencia');
-useEventListener(window, 'keydown', (event) => {
-	if (event.key === 'Escape' && form.value && !event.defaultPrevented) {
-		form.value = undefined;
-	}
-});
+useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 </script>
 
 <template>
@@ -114,14 +109,10 @@ useEventListener(window, 'keydown', (event) => {
 			<LnxIcon icon="lucide:tags" />
 			Categorías
 		</LnxButton>
-		<LnxButton v-if="!form" @click="openForm()">
-			<LnxIcon icon="lucide:plus" />
-			Nueva incidencia
-			<Kbd combo="n" />
-		</LnxButton>
+		<NewButton v-if="!open" label="Nueva incidencia" @click="openForm()" />
 	</header>
 
-	<form v-if="form" ref="formElement" class="card new ux-appear" @submit.prevent="create()">
+	<form v-if="open" ref="formElement" class="card new ux-appear" @submit.prevent="create()">
 		<h2>Nueva incidencia</h2>
 		<fieldset class="categories">
 			<legend>Categoría</legend>
@@ -164,8 +155,9 @@ useEventListener(window, 'keydown', (event) => {
 			</LnxTextarea>
 		</div>
 		<footer class="form-actions">
-			<LnxButton mode="clear" @click="form = undefined">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
+				<Kbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon icon="lucide:plus" />

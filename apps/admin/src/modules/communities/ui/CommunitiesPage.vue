@@ -6,8 +6,7 @@ import { computed, reactive, ref, useTemplateRef, watch } from 'vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { useRouter } from 'vue-router';
-import Kbd from '@/app/ux/Kbd.vue';
+import NewButton from '@/app/ux/NewButton.vue';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { loadNeighbourCount, useCommunities } from '../application/useCommunities.ts';
 
@@ -33,13 +32,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 // Placeholder rows as wide as real names and addresses tend to be
 const SKELETON_ROWS = [[48, 72], [36, 58], [54, 80], [42, 64]];
 
-const router = useRouter();
 const searchField = useTemplateRef<{ $el: HTMLElement }>('searchField');
-useShortcut('n', () => {
-	if (user.value?.role === 'superadmin') {
-		void router.push('/communities/new');
-	}
-}, 'Nueva comunidad');
 useShortcut('/', () => searchField.value?.$el.querySelector('input')?.focus(), 'Buscar comunidades');
 
 // One aggregation per community, only for the ones not counted yet: the live list changes on every edit, not just on new ones.
@@ -82,11 +75,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 				Importar comunidades
 			</LnxButton>
 			<!-- Only gobernança's team creates them, and then assigns them to their administrators -->
-			<LnxButton v-if="user?.role === 'superadmin'" to="/communities/new">
-				<LnxIcon icon="lucide:plus" />
-				Nueva comunidad
-				<Kbd combo="n" />
-			</LnxButton>
+			<NewButton v-if="user?.role === 'superadmin'" label="Nueva comunidad" to="/communities/new" />
 		</div>
 	</header>
 

@@ -11,6 +11,8 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
@@ -161,6 +163,15 @@ const formAmounts = computed(() => {
 	return base > 0 ? invoiceAmounts(base, expenseForm.value.vatRate, withholdings[expenseForm.value.withholding].rate) : undefined;
 });
 
+const expenseFormElement = useTemplateRef('expenseFormElement');
+
+function resetExpense() {
+	expenseForm.value = emptyExpense();
+	expenseError.value = undefined;
+}
+
+const { open, show, close } = useNewForm(expenseFormElement, resetExpense, () => !budgetPending.value && !expensesPending.value);
+
 function submitExpense() {
 	const typed = expenseForm.value;
 	const amounts = formAmounts.value;
@@ -194,22 +205,20 @@ function submitExpense() {
 		paymentMethod: typed.paymentMethod,
 		fromReserve: typed.fromReserve || undefined,
 	};
-	// Cleared at once, ready for the next one. If it fails it's back as typed, with the same id
-	expenseForm.value = emptyExpense();
+	// Closed and emptied at once. If it fails it's back open as typed, with the same id
+	close();
 	expenseId = newId();
-	expenseError.value = undefined;
 	void optimistic(addExpense(props.id, id, expense), {
 		done: typed.paid ? 'Gasto añadido' : 'Factura añadida, pendiente de pago',
 		failed: 'No se ha podido añadir',
 		onError: () => {
 			expenseForm.value = typed;
 			expenseId = id;
+			open.value = true;
 		},
 	});
 }
 
-const expenseFormElement = useTemplateRef('expenseFormElement');
-useShortcut('n', () => expenseFormElement.value?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus(), 'Nuevo gasto');
 // The form being filled in
 useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), 'Guardar el formulario');
 
@@ -248,6 +257,7 @@ function remove(expense: Expense) {
 				{{ value }}
 			</template>
 		</LnxSelect>
+		<NewButton v-if="!open" label="Nuevo gasto o factura" :disabled="!itemOptions.length" @click="show()" />
 	</header>
 
 	<form class="card" @submit.prevent="save()">
@@ -366,8 +376,8 @@ function remove(expense: Expense) {
 		</p>
 	</section>
 
-	<form ref="expenseFormElement" class="card" @submit.prevent="submitExpense()">
-		<h2>Nuevo gasto o factura <Kbd combo="n" /></h2>
+	<form v-if="open" ref="expenseFormElement" class="card ux-appear" @submit.prevent="submitExpense()">
+		<h2>Nuevo gasto o factura</h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="expenseForm.itemId"
@@ -477,6 +487,10 @@ function remove(expense: Expense) {
 			<p v-if="expenseError" class="error" role="alert">
 				{{ expenseError }}
 			</p>
+			<LnxButton mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
 			<LnxButton type="submit" :disabled="!itemOptions.length">
 				<LnxIcon icon="lucide:plus" />
 				Añadir gasto

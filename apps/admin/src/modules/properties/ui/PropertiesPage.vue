@@ -6,7 +6,9 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
-import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
+import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
 import { deleteProperty, restoreProperty, saveProperty, toPropertyForm, useProperties } from '../application/useProperties.ts';
@@ -52,18 +54,20 @@ let createId = newId();
 const formElement = useTemplateRef<HTMLFormElement>('formElement');
 const searchInput = useTemplateRef<HTMLElement>('searchInput');
 
-function edit(property: Property) {
-	editingId.value = property.id;
-	form.value = toPropertyForm(property);
-	window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 function reset() {
 	editingId.value = undefined;
 	form.value = toPropertyForm();
 }
 
-// The form empties at once, the list shows it from the local cache. If the server rejects it, the form gets it back
+const { open, show, close } = useNewForm(formElement, reset);
+
+function edit(property: Property) {
+	editingId.value = property.id;
+	form.value = toPropertyForm(property);
+	void show();
+}
+
+// The form closes at once, the list shows it from the local cache. If the server rejects it, the form opens with it again
 function save() {
 	// The account's name and email are copied, so the census reads without loading the accounts
 	const owner = people.value.find(person => person.id === form.value.ownerUid);
@@ -73,26 +77,20 @@ function save() {
 		coefficient: String(form.value.coefficient ?? ''),
 		...(owner ? { ownerName: owner.name, ownerEmail: owner.email } : {}),
 	}, createId);
-	reset();
+	close();
 	createId = newId();
 	void optimistic(action, {
 		done: sent.editingId ? 'Propiedad guardada' : 'Propiedad añadida',
 		failed: 'No se ha podido guardar',
 		onError: () => {
 			({ form: form.value, editingId: editingId.value, createId } = sent);
+			open.value = true;
 		},
 	});
 }
 
-useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Añadir una propiedad');
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la propiedad');
 useShortcut('/', () => searchInput.value?.querySelector('input')?.focus(), 'Buscar en el censo');
-// Only while editing, so Esc keeps closing whatever else is open otherwise
-useEventListener(window, 'keydown', (event) => {
-	if (event.key === 'Escape' && editingId.value && !event.defaultPrevented) {
-		reset();
-	}
-});
 
 function remove(property: Property) {
 	// eslint-disable-next-line no-alert
@@ -101,7 +99,7 @@ function remove(property: Property) {
 	}
 
 	if (editingId.value === property.id) {
-		reset();
+		close();
 	}
 	void optimistic(deleteProperty(property), {
 		done: 'Propiedad borrada',
@@ -121,10 +119,11 @@ function ownerLabel(property: Property) {
 <template>
 	<header class="page-header">
 		<h1>Propiedades</h1>
+		<NewButton v-if="!open" label="Nueva propiedad" @click="show()" />
 	</header>
 
-	<form ref="formElement" class="card" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar propiedad' : 'Nueva propiedad' }} <Kbd v-if="!editingId" combo="n" /></h2>
+	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
+		<h2>{{ editingId ? 'Editar propiedad' : 'Nueva propiedad' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.name" placeholder="2A, Plaza 14…" required>
 				Nombre
@@ -185,7 +184,7 @@ function ownerLabel(property: Property) {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton v-if="editingId" mode="clear" @click="reset()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

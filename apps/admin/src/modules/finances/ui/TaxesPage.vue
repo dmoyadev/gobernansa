@@ -15,6 +15,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
@@ -41,7 +43,7 @@ const route = useRoute();
 const router = useRouter();
 const model = computed<Model>(() => (Object.keys(models) as Model[]).find(key => key === route.query.model) ?? '347');
 function setModel(key: Model) {
-	void router.replace({ query: { ...route.query, model: key } });
+	return router.replace({ query: { ...route.query, model: key } });
 }
 
 /* Data: read once per year, read again when coming back */
@@ -203,6 +205,19 @@ watch(year, () => {
 	incomeForm.value = emptyIncome();
 });
 
+function resetIncome() {
+	incomeForm.value = emptyIncome();
+	incomeError.value = undefined;
+}
+
+const { open, show, close } = useNewForm(incomeElement, resetIncome);
+
+// The form is in the 184 tab, so it waits for the tab to be there
+async function newIncome() {
+	await setModel('184');
+	await show();
+}
+
 const incomeGross = computed(() => toCents(incomeForm.value.gross));
 const incomeWithholding = computed(() => Math.round(incomeGross.value * (Number(incomeForm.value.rate.replace(',', '.')) || 0) / 100));
 
@@ -231,6 +246,8 @@ async function saveIncome() {
 			withholding: incomeWithholding.value,
 		});
 		incomeId.value = newId();
+		// Closed, keeping the date, type and payer for the next one
+		close();
 		incomeForm.value = { ...emptyIncome(), date: form.date, kind: form.kind, payer: form.payer, payerNif: form.payerNif, rate: form.rate };
 		toast('Ingreso añadido');
 		await load(true);
@@ -277,11 +294,7 @@ async function addDeadlines() {
 const canDownload = computed(() => !loading.value && !error.value && !cifProblem.value && remote.aeatFiles);
 const downloads: Record<Model, () => void> = { 347: download347, 190: download190, 184: download184 };
 useShortcut('d', () => downloads[model.value](), 'Descargar el fichero', () => canDownload.value);
-useShortcut('n', () => {
-	setModel('184');
-	setTimeout(() => incomeElement.value?.querySelector('input')?.focus());
-}, 'Nuevo ingreso', () => !!data.value);
-useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el ingreso', () => model.value === '184');
+useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el ingreso', () => model.value === '184' && open.value);
 </script>
 
 <template>
@@ -302,6 +315,8 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				{{ value }}
 			</template>
 		</LnxSelect>
+		<!-- Also from another tab, where the open form isn't in sight -->
+		<NewButton v-if="!open || model !== '184'" label="Nuevo ingreso" :disabled="!data" @click="newIncome()" />
 	</header>
 
 	<section class="banner" role="note">
@@ -559,7 +574,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 
 		<!-- 184 -->
 		<template v-else>
-			<form ref="incomeElement" class="card ux-appear" @submit.prevent="saveIncome()">
+			<section class="card ux-appear">
 				<h2>Ingresos de la comunidad en {{ year }}</h2>
 				<p class="hint">
 					Lo que la comunidad cobra a terceros, como el alquiler de la azotea a una operadora o los intereses de la cuenta.
@@ -585,6 +600,10 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				<p v-else class="empty">
 					No hay ingresos de terceros en {{ year }}.
 				</p>
+			</section>
+
+			<form v-if="open" ref="incomeElement" class="card ux-appear" @submit.prevent="saveIncome()">
+				<h2>Nuevo ingreso</h2>
 				<div class="fields">
 					<DatePicker v-model="incomeForm.date" required>
 						Fecha de cobro
@@ -626,6 +645,10 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 					<span v-else-if="incomeGross > 0" class="summary">
 						Cobrado en el banco {{ formatCents(incomeGross - incomeWithholding) }}<template v-if="incomeWithholding">, retenido {{ formatCents(incomeWithholding) }}</template>
 					</span>
+					<LnxButton mode="clear" @click="close()">
+						Cancelar
+						<Kbd combo="escape" />
+					</LnxButton>
 					<LnxButton type="submit" :is-loading="savingIncome">
 						<LnxIcon icon="lucide:plus" />
 						Añadir ingreso

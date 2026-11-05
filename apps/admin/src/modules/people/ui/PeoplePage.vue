@@ -8,6 +8,8 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
+import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -44,7 +46,14 @@ const byEmail = ref(true);
 const formError = ref<string>();
 const formElement = useTemplateRef<HTMLFormElement>('formElement');
 
-// The email is its id, so sending it twice can't make two. The form empties at once and gets its values back if it fails
+function reset() {
+	form.value = { ...form.value, name: '', email: '', communityIds: [] };
+	formError.value = undefined;
+}
+
+const { open, show, close } = useNewForm(formElement, reset);
+
+// The email is its id, so sending it twice can't make two. The form closes at once and opens with its values if it fails
 function sendInvitation() {
 	const email = form.value.email.trim().toLowerCase();
 	if (people.value.some(person => person.email === email)) {
@@ -57,19 +66,18 @@ function sendInvitation() {
 	}
 
 	const sent = { ...form.value };
-	formError.value = undefined;
-	form.value = { ...form.value, name: '', email: '', communityIds: [] };
+	close();
 	void optimistic(invite({ ...sent, email, communityId }, undefined, byEmail.value), {
 		done: `${sent.name.trim()} invitado${byEmail.value ? `; ${mailOutcome(email)}` : ''}`,
 		// Sending one over another is an update, which the rules don't allow
 		failed: 'No se ha podido invitar, puede que ese email ya tenga una invitación pendiente',
 		onError: () => {
 			form.value = sent;
+			open.value = true;
 		},
 	});
 }
 
-useShortcut('n', () => formElement.value?.querySelector('input')?.focus(), 'Invitar a alguien');
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar la invitación');
 
 function remove(person: User & { id: string }) {
@@ -144,10 +152,11 @@ function cancel(invitation: Invitation & { id: string }) {
 		<!-- A community's has the nav of its workspace instead -->
 		<BackButton v-if="!communityId" to="/" label="Volver a comunidades" />
 		<h1>{{ communityId ? 'Vecinos y gestores' : 'Administradores' }}</h1>
+		<NewButton v-if="!open && roleOptions.length" label="Invitar a alguien" @click="show()" />
 	</header>
 
-	<form v-if="roleOptions.length" ref="formElement" class="card" @submit.prevent="sendInvitation()">
-		<h2>Invitar <Kbd combo="n" /></h2>
+	<form v-if="open && roleOptions.length" ref="formElement" class="card ux-appear" @submit.prevent="sendInvitation()">
+		<h2>Invitar a alguien</h2>
 		<p class="hint">
 			Su cuenta se crea la primera vez que entre en gobernança con este email.
 		</p>
@@ -197,6 +206,10 @@ function cancel(invitation: Invitation & { id: string }) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
+			<LnxButton mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon icon="lucide:send" />
 				Invitar
