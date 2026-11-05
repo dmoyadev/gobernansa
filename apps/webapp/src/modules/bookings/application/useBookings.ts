@@ -85,6 +85,16 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 	return { dayBookings, myBookings, book, pay, cancel };
 }
 
+// The user's bookings still to pay, of any area and day. Equality filters only, so no composite index is needed
+export function useOwedBookings() {
+	const { user } = useAuth();
+	const db = getFirestore();
+	const communityId = computed(() => user.value?.communityId);
+	return useCollection<Booking>(computed(() => communityId.value && user.value
+		? query(collection(db, 'communities', communityId.value, 'bookings'), where('uid', '==', user.value.id), where('paidAt', '==', null))
+		: null));
+}
+
 // One booking, for its justificante
 export async function loadBooking(communityId: string, id: string) {
 	const booking = await getDoc(doc(getFirestore(), 'communities', communityId, 'bookings', id));

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ISSUE_ICON } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onMounted, onUnmounted, useTemplateRef } from 'vue';
 
@@ -99,7 +100,7 @@ onUnmounted(() => {
 					variant="danger"
 					to="/issues/new"
 				>
-					<LnxIcon icon="lucide:circle-alert" />
+					<LnxIcon :icon="ISSUE_ICON" />
 					Dar aviso
 				</LnxButton>
 			</li>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { contactTypes, getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
-import { getVotingMonth } from '@gobernansa/shared/domain/issue.ts';
+import { getVotingMonth, ISSUE_ICON } from '@gobernansa/shared/domain/issue.ts';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
@@ -60,7 +60,7 @@ async function showMyIssues() {
 				Avisa de cualquier problema para que empecemos a trabajar en ello cuanto antes.
 			</p>
 			<LnxButton variant="danger" to="/issues/new" is-block>
-				<LnxIcon icon="lucide:circle-alert" />
+				<LnxIcon :icon="ISSUE_ICON" />
 				Dar aviso
 			</LnxButton>
 		</div>
@@ -75,7 +75,7 @@ async function showMyIssues() {
 			<div class="stats">
 				<RouterLink to="/issues" class="stat link" @click="showMyIssues()">
 					<span class="stat-icon">
-						<LnxIcon icon="lucide:message-square-warning" :size="18" />
+						<LnxIcon :icon="ISSUE_ICON" :size="18" />
 					</span>
 					<strong>{{ issues?.total ?? '—' }}</strong>
 					<span>

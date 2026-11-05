@@ -85,6 +85,13 @@ export const routes: Array<RouteRecordRaw> = [
 					},
 				],
 			},
+			// Behind the + of the tab bar
+			{
+				path: '/new',
+				name: 'Nuevo',
+				component: async () => import('./ActionsPage.vue'),
+				meta: { title: '¿Qué quieres hacer?' },
+			},
 			{
 				path: '/neighborhood',
 				children: [

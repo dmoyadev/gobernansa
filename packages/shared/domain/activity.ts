@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import { ISSUE_ICON } from './issue.ts';
 
 // Who changed what in a community, at communities/{communityId}/activity. Written along with each change from the admin platform, never edited
 export interface Activity {
@@ -20,7 +21,7 @@ export const activityAreas: Record<ActivityArea, { label: string; icon: string }
 	community: { label: 'Comunidad', icon: 'lucide:building-2' },
 	people: { label: 'Vecinos y gestores', icon: 'lucide:users' },
 	property: { label: 'Propiedades', icon: 'lucide:house' },
-	issue: { label: 'Incidencias', icon: 'lucide:message-square-warning' },
+	issue: { label: 'Incidencias', icon: ISSUE_ICON },
 	event: { label: 'Comunicados', icon: 'lucide:megaphone' },
 	meeting: { label: 'Juntas', icon: 'lucide:gavel' },
 	finance: { label: 'Cuentas', icon: 'lucide:landmark' },

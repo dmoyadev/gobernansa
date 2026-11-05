@@ -2,6 +2,9 @@ import type { Timestamp } from 'firebase/firestore';
 import type { Datable, Deletable } from './audit.ts';
 import type { User } from './user.ts';
 
+// The same everywhere an issue is shown or reported: tab bar, home, lists
+export const ISSUE_ICON = 'lucide:message-square-warning';
+
 export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type IssueSortingField = 'updatedAt' | 'createdAt' | 'votesCount';
 
