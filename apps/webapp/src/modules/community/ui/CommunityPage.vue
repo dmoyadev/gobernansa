@@ -2,11 +2,8 @@
 import type { CommunityDocument } from '@gobernansa/shared/domain/community.ts';
 import { contactTypes, documentTypes, formatIban, formatSchedule, getBookableAreas, getPhoneLink, getWhatsappLink, isWithinSchedule } from '@gobernansa/shared/domain/community.ts';
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
-import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
-import { useCommunityEvents } from '@/modules/events/application/useCommunityEvents.ts';
-import EventCard from '@/modules/events/ui/EventCard.vue';
 import { formatMeetingDate, useMeetings } from '@/modules/meetings/application/useMeetings.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
@@ -15,7 +12,6 @@ import { useUserCommunity } from '../application/useUserCommunity.ts';
 const SPACES_REGEX = /\s/g;
 
 const { userCommunity } = useUserCommunity();
-const { events } = useCommunityEvents(3);
 const { nextMeeting } = useMeetings();
 
 const bookableAreas = computed(() => getBookableAreas(userCommunity.value));
@@ -281,27 +277,6 @@ function formatDate(document: CommunityDocument) {
 				</li>
 			</ul>
 		</section>
-
-		<section>
-			<header>
-				<h2>Avisos</h2>
-				<LnxButton
-					class="btn-all"
-					to="/neighborhood/timeline"
-					mode="clear"
-					variant="grayscale"
-					size="small"
-					@click="scrollTop()"
-				>
-					Ver todo
-				</LnxButton>
-			</header>
-			<ul class="events">
-				<li v-for="event in events" :key="event.id">
-					<EventCard :event small />
-				</li>
-			</ul>
-		</section>
 	</MainLayout>
 </template>
 
@@ -311,25 +286,12 @@ section {
 	flex-direction: column;
 	gap: var(--lnx-spacing-2);
 
-	> h2,
-	header h2 {
+	> h2 {
 		font-size: var(--lnx-font-size-small);
 		font-weight: var(--lnx-font-weight-bold);
 		color: var(--color-gray-6);
 		text-transform: uppercase;
 		letter-spacing: .04em;
-	}
-
-	header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-
-		.btn-all {
-			--lnx-button-color: var(--color-gray-6);
-			text-transform: uppercase;
-			font-size: var(--lnx-font-size-legal);
-		}
 	}
 }
 
@@ -510,11 +472,5 @@ a.row:active {
 .empty {
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
-}
-
-.events {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
 }
 </style>

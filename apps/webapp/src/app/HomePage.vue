@@ -157,7 +157,7 @@ async function showMyIssues() {
 				<h2>Actividad reciente</h2>
 				<LnxButton
 					class="btn-all"
-					to="/neighborhood/timeline"
+					to="/notices"
 					mode="clear"
 					variant="grayscale"
 					size="small"

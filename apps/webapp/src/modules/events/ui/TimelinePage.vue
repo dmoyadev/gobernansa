@@ -12,8 +12,8 @@ const { userCommunity } = useUserCommunity();
 
 <template>
 	<TheHeader>
-		<h1>Cronograma</h1>
-		<p>Conoce qué ha pasado y qué se ha hecho en tu comunidad.</p>
+		<h1>Avisos</h1>
+		<p>Lo que comunica tu administración y lo que se ha hecho en tu comunidad.</p>
 	</TheHeader>
 	<MainLayout>
 		<ul class="events">

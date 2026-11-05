@@ -102,12 +102,6 @@ export const routes: Array<RouteRecordRaw> = [
 						meta: { title: 'Comunidad' },
 					},
 					{
-						path: 'timeline',
-						name: 'Cronograma',
-						component: async () => import('@/modules/events/ui/TimelinePage.vue'),
-						meta: { title: 'Cronograma' },
-					},
-					{
 						path: 'meetings',
 						name: 'Juntas',
 						component: async () => import('@/modules/meetings/ui/MeetingsPage.vue'),
@@ -167,6 +161,13 @@ export const routes: Array<RouteRecordRaw> = [
 				name: 'Perfil',
 				component: async () => import('@/modules/auth/ui/ProfilePage.vue'),
 				meta: { title: 'Perfil' },
+			},
+			// Behind the bell of the header, after the tabs so it slides in from the right
+			{
+				path: '/notices',
+				name: 'Avisos',
+				component: async () => import('@/modules/events/ui/TimelinePage.vue'),
+				meta: { title: 'Avisos' },
 			},
 		],
 	},

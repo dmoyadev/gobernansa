@@ -16,9 +16,10 @@ const $header = useTemplateRef('$header');
 		<TheToolbar :title="title || String($route.meta.title || '')" :reveal="$header">
 			<LnxButton
 				v-if="user"
-				to="/profile"
+				to="/notices"
 				mode="clear"
 				shape="circle"
+				aria-label="Avisos"
 			>
 				<LnxIcon icon="lucide:bell" />
 			</LnxButton>
