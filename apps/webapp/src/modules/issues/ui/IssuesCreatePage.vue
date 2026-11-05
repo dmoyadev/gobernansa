@@ -8,7 +8,6 @@ import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
-import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -17,6 +16,7 @@ import { useUserProperties } from '@/modules/community/application/useUserProper
 import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia } from '@/shared/infrastructure/cloudinary.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
+import { useWizardSteps } from '@/shared/ui/useWizardSteps.ts';
 import { useCreateIssue } from '../application/useIssues.ts';
 
 type Place = NonNullable<Issue['location']> & { reference: string };
@@ -31,20 +31,8 @@ const { user } = useAuth();
 const { userCommunity } = useUserCommunity();
 const { userProperties } = useUserProperties();
 
-const step = ref(0);
-const goingBack = ref(false);
 const $heading = useTemplateRef('$heading');
-
-function goTo(index: number) {
-	goingBack.value = index < step.value;
-	step.value = index;
-}
-
-// Each step starts at the top, and screen readers announce its question
-watch(step, () => {
-	scrollTop();
-	$heading.value?.focus({ preventScroll: true });
-});
+const { step, goTo } = useWizardSteps($heading);
 
 const category = ref<IssueCategory>();
 // The community's, in its order
@@ -223,256 +211,255 @@ async function submit() {
 		</h1>
 	</header>
 
+	<!-- .wizard also hides the tab bar -->
 	<MainLayout class="wizard">
-		<Transition :name="goingBack ? 'step-back' : 'step-forward'" mode="out-in">
-			<ul v-if="step === 0" class="categories">
-				<li v-for="option in categories" :key="option.id">
-					<LnxButton
-						:variant="category?.id === option.id ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
-						:aria-pressed="category?.id === option.id"
-						class="option category"
-						:style="issueCategoryStyle(option)"
-						is-block
-						@click="chooseCategory(option)"
-					>
-						<template #prefix>
-							<span class="icon">
-								<LnxIcon :icon="option.icon" :size="28" />
-							</span>
-						</template>
-
-						<span class="text">
-							<strong>{{ option.name }}</strong>
-							<span v-if="option.examples" class="examples">{{ option.examples }}</span>
-						</span>
-
-						<template #suffix>
-							<LnxIcon icon="lucide:chevron-right" :size="24" class="chevron" />
-						</template>
-					</LnxButton>
-				</li>
-			</ul>
-
-			<div v-else-if="step === 1" class="places">
-				<section v-if="userProperties.length">
-					<h2>Tus propiedades</h2>
-					<ul class="grid">
-						<li v-for="property in userProperties" :key="property.id">
-							<LnxButton
-								:variant="place?.propertyId === property.id ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
-								:aria-pressed="place?.propertyId === property.id"
-								class="option place"
-								is-block
-								@click="choosePlace({ type: 'property', propertyId: property.id, reference: property.name })"
-							>
-								<LnxIcon :icon="propertyTypeIcons[property.type]" :size="28" />
-								{{ property.name }}
-							</LnxButton>
-						</li>
-					</ul>
-				</section>
-
-				<section>
-					<h2>Zonas comunes</h2>
-					<ul class="grid">
-						<li v-for="area in getCommonAreas(userCommunity)" :key="area.id">
-							<LnxButton
-								:variant="isChosenArea(area.name) ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
-								:aria-pressed="isChosenArea(area.name)"
-								class="option place"
-								is-block
-								@click="choosePlace({ type: 'common_area', reference: area.name })"
-							>
-								<LnxIcon :icon="area.icon" :size="28" />
-								{{ area.name }}
-							</LnxButton>
-						</li>
-						<li>
-							<LnxButton
-								:variant="otherPlace !== undefined ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
-								:aria-pressed="otherPlace !== undefined"
-								class="option place"
-								is-block
-								@click="writeOtherPlace()"
-							>
-								<LnxIcon icon="lucide:pencil" :size="28" />
-								Otro sitio
-							</LnxButton>
-						</li>
-					</ul>
-				</section>
-
-				<form
-					v-if="otherPlace !== undefined"
-					class="other-place"
-					@submit.prevent="choosePlace({ type: 'common_area', reference: otherPlace.trim() }, true)"
+		<ul v-if="step === 0" class="categories">
+			<li v-for="option in categories" :key="option.id">
+				<LnxButton
+					:variant="category?.id === option.id ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
+					:aria-pressed="category?.id === option.id"
+					class="option category"
+					:style="issueCategoryStyle(option)"
+					is-block
+					@click="chooseCategory(option)"
 				>
-					<LnxInput
-						ref="$otherPlace"
-						v-model="otherPlace"
-						placeholder="Ej: Portal 2, trastero 4…"
-						enterkeyhint="next"
-					>
-						¿Dónde exactamente?
-					</LnxInput>
-					<LnxButton
-						type="submit"
-						size="large"
-						is-block
-						:disabled="!otherPlace.trim()"
-					>
-						Continuar
-						<template #suffix>
-							<LnxIcon icon="lucide:arrow-right" />
-						</template>
-					</LnxButton>
-				</form>
-			</div>
-
-			<form v-else-if="category && place" class="details" @submit.prevent="submit()">
-				<div class="summary">
-					<div
-						class="summary-row"
-						:style="issueCategoryStyle(category)"
-					>
+					<template #prefix>
 						<span class="icon">
-							<LnxIcon :icon="category.icon" :size="20" />
+							<LnxIcon :icon="option.icon" :size="28" />
 						</span>
-						<span class="value">{{ category.name }}</span>
-						<LnxButton
-							type="button"
-							mode="link"
-							aria-label="Cambiar qué ha pasado"
-							@click="goTo(0)"
-						>
-							Cambiar
-						</LnxButton>
-					</div>
-					<div class="summary-row">
-						<span class="icon">
-							<LnxIcon icon="lucide:map-pin" :size="20" />
-						</span>
-						<span class="value">{{ place.reference }}</span>
-						<LnxButton
-							type="button"
-							mode="link"
-							aria-label="Cambiar dónde ha pasado"
-							@click="goTo(1)"
-						>
-							Cambiar
-						</LnxButton>
-					</div>
-				</div>
+					</template>
 
-				<LnxTextarea
-					v-model="description"
-					rows="4"
-					placeholder="Por ejemplo: desde cuándo pasa o si es urgente"
+					<span class="text">
+						<strong>{{ option.name }}</strong>
+						<span v-if="option.examples" class="examples">{{ option.examples }}</span>
+					</span>
+
+					<template #suffix>
+						<LnxIcon icon="lucide:chevron-right" :size="24" class="chevron" />
+					</template>
+				</LnxButton>
+			</li>
+		</ul>
+
+		<div v-else-if="step === 1" class="places">
+			<section v-if="userProperties.length">
+				<h2>Tus propiedades</h2>
+				<ul class="grid">
+					<li v-for="property in userProperties" :key="property.id">
+						<LnxButton
+							:variant="place?.propertyId === property.id ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
+							:aria-pressed="place?.propertyId === property.id"
+							class="option place"
+							is-block
+							@click="choosePlace({ type: 'property', propertyId: property.id, reference: property.name })"
+						>
+							<LnxIcon :icon="propertyTypeIcons[property.type]" :size="28" />
+							{{ property.name }}
+						</LnxButton>
+					</li>
+				</ul>
+			</section>
+
+			<section>
+				<h2>Zonas comunes</h2>
+				<ul class="grid">
+					<li v-for="area in getCommonAreas(userCommunity)" :key="area.id">
+						<LnxButton
+							:variant="isChosenArea(area.name) ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
+							:aria-pressed="isChosenArea(area.name)"
+							class="option place"
+							is-block
+							@click="choosePlace({ type: 'common_area', reference: area.name })"
+						>
+							<LnxIcon :icon="area.icon" :size="28" />
+							{{ area.name }}
+						</LnxButton>
+					</li>
+					<li>
+						<LnxButton
+							:variant="otherPlace !== undefined ? BUTTON_VARIANTS.PRIMARY : BUTTON_VARIANTS.GRAYSCALE"
+							:aria-pressed="otherPlace !== undefined"
+							class="option place"
+							is-block
+							@click="writeOtherPlace()"
+						>
+							<LnxIcon icon="lucide:pencil" :size="28" />
+							Otro sitio
+						</LnxButton>
+					</li>
+				</ul>
+			</section>
+
+			<form
+				v-if="otherPlace !== undefined"
+				class="other-place"
+				@submit.prevent="choosePlace({ type: 'common_area', reference: otherPlace.trim() }, true)"
+			>
+				<LnxInput
+					ref="$otherPlace"
+					v-model="otherPlace"
+					placeholder="Ej: Portal 2, trastero 4…"
+					enterkeyhint="next"
 				>
-					Cuéntanos más (opcional)
-				</LnxTextarea>
+					¿Dónde exactamente?
+				</LnxInput>
+				<LnxButton
+					type="submit"
+					size="large"
+					is-block
+					:disabled="!otherPlace.trim()"
+				>
+					Continuar
+					<template #suffix>
+						<LnxIcon icon="lucide:arrow-right" />
+					</template>
+				</LnxButton>
+			</form>
+		</div>
 
-				<p v-if="suggestion?.hint && suggestion.urgency === 'urgent'" class="urgent" role="alert">
-					<LnxIcon icon="lucide:siren" :size="20" class="urgent-icon" />
-					{{ suggestion.hint }}
-				</p>
-
-				<div v-if="suggestedCategory && suggestion" class="suggestion" role="status">
-					<LnxIcon :icon="suggestedCategory.icon" :size="20" />
-					<span class="value">¿Es de <strong>{{ suggestedCategory.name }}</strong>?</span>
-					<WritingSource :source="suggestion.source" />
-					<LnxButton type="button" mode="link" @click="category = suggestedCategory">
+		<form v-else-if="category && place" class="details" @submit.prevent="submit()">
+			<div class="summary">
+				<div
+					class="summary-row"
+					:style="issueCategoryStyle(category)"
+				>
+					<span class="icon">
+						<LnxIcon :icon="category.icon" :size="20" />
+					</span>
+					<span class="value">{{ category.name }}</span>
+					<LnxButton
+						type="button"
+						mode="link"
+						aria-label="Cambiar qué ha pasado"
+						@click="goTo(0)"
+					>
 						Cambiar
 					</LnxButton>
 				</div>
-
-				<div v-if="canUploadMedia" class="media">
-					<span id="media-label">Fotos o vídeos (opcional)</span>
-					<ul class="media-grid" aria-labelledby="media-label">
-						<li v-for="(item, index) in media" :key="item.preview">
-							<!-- #t skips to the first frame, iOS shows nothing otherwise -->
-							<video
-								v-if="item.isVideo"
-								:src="`${item.preview}#t=0.1`"
-								muted
-								playsinline
-								preload="metadata"
-							/>
-							<img v-else :src="item.preview" :alt="item.file.name">
-							<LnxIcon
-								v-if="item.isVideo"
-								class="video-badge"
-								icon="lucide:play"
-								:size="14"
-							/>
-							<button
-								type="button"
-								class="remove"
-								:aria-label="`Quitar ${item.file.name}`"
-								:disabled="saving"
-								@click="removeMedia(index)"
-							>
-								<LnxIcon icon="lucide:x" :size="14" />
-							</button>
-						</li>
-						<li v-if="media.length < MAX_MEDIA">
-							<label class="add-media" :class="{ disabled: saving }">
-								<input
-									class="sr-only"
-									type="file"
-									accept="image/*,video/*"
-									multiple
-									:disabled="saving"
-									@change="addMedia"
-								>
-								<LnxIcon icon="lucide:camera" :size="24" />
-								Añadir
-							</label>
-						</li>
-					</ul>
-					<p v-if="mediaError" class="media-error" role="alert">
-						{{ mediaError }}
-					</p>
-				</div>
-
-				<LnxInput
-					v-model="title"
-					:placeholder="defaultTitle"
-					enterkeyhint="send"
-				>
-					Título (opcional)
-					<template #helper>
-						Si lo dejas vacío, se llamará «{{ defaultTitle }}»
-					</template>
-				</LnxInput>
-
-				<p v-if="error" class="error" role="alert">
-					<LnxIcon icon="lucide:circle-alert" :size="20" class="error-icon" />
-					No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.
-				</p>
-
-				<div class="send">
+				<div class="summary-row">
+					<span class="icon">
+						<LnxIcon icon="lucide:map-pin" :size="20" />
+					</span>
+					<span class="value">{{ place.reference }}</span>
 					<LnxButton
-						type="submit"
-						size="large"
-						is-block
-						:is-loading="saving"
-						:disabled="saving || !!user?.blocked"
+						type="button"
+						mode="link"
+						aria-label="Cambiar dónde ha pasado"
+						@click="goTo(1)"
 					>
-						<template #prefix>
-							<LnxIcon icon="lucide:send" />
-						</template>
-						<template v-if="uploadProgress !== undefined">
-							Subiendo… {{ Math.round(uploadProgress * 100) }}%
-						</template>
-						<template v-else>
-							Enviar aviso
-						</template>
+						Cambiar
 					</LnxButton>
-					<small>{{ user?.blocked ? 'Tu cuenta no puede enviar avisos ahora mismo.' : 'Toda la comunidad podrá verlo.' }}</small>
 				</div>
-			</form>
-		</Transition>
+			</div>
+
+			<LnxTextarea
+				v-model="description"
+				rows="4"
+				placeholder="Por ejemplo: desde cuándo pasa o si es urgente"
+			>
+				Cuéntanos más (opcional)
+			</LnxTextarea>
+
+			<p v-if="suggestion?.hint && suggestion.urgency === 'urgent'" class="urgent" role="alert">
+				<LnxIcon icon="lucide:siren" :size="20" class="urgent-icon" />
+				{{ suggestion.hint }}
+			</p>
+
+			<div v-if="suggestedCategory && suggestion" class="suggestion" role="status">
+				<LnxIcon :icon="suggestedCategory.icon" :size="20" />
+				<span class="value">¿Es de <strong>{{ suggestedCategory.name }}</strong>?</span>
+				<WritingSource :source="suggestion.source" />
+				<LnxButton type="button" mode="link" @click="category = suggestedCategory">
+					Cambiar
+				</LnxButton>
+			</div>
+
+			<div v-if="canUploadMedia" class="media">
+				<span id="media-label">Fotos o vídeos (opcional)</span>
+				<ul class="media-grid" aria-labelledby="media-label">
+					<li v-for="(item, index) in media" :key="item.preview">
+						<!-- #t skips to the first frame, iOS shows nothing otherwise -->
+						<video
+							v-if="item.isVideo"
+							:src="`${item.preview}#t=0.1`"
+							muted
+							playsinline
+							preload="metadata"
+						/>
+						<img v-else :src="item.preview" :alt="item.file.name">
+						<LnxIcon
+							v-if="item.isVideo"
+							class="video-badge"
+							icon="lucide:play"
+							:size="14"
+						/>
+						<button
+							type="button"
+							class="remove"
+							:aria-label="`Quitar ${item.file.name}`"
+							:disabled="saving"
+							@click="removeMedia(index)"
+						>
+							<LnxIcon icon="lucide:x" :size="14" />
+						</button>
+					</li>
+					<li v-if="media.length < MAX_MEDIA">
+						<label class="add-media" :class="{ disabled: saving }">
+							<input
+								class="sr-only"
+								type="file"
+								accept="image/*,video/*"
+								multiple
+								:disabled="saving"
+								@change="addMedia"
+							>
+							<LnxIcon icon="lucide:camera" :size="24" />
+							Añadir
+						</label>
+					</li>
+				</ul>
+				<p v-if="mediaError" class="media-error" role="alert">
+					{{ mediaError }}
+				</p>
+			</div>
+
+			<LnxInput
+				v-model="title"
+				:placeholder="defaultTitle"
+				enterkeyhint="send"
+			>
+				Título (opcional)
+				<template #helper>
+					Si lo dejas vacío, se llamará «{{ defaultTitle }}»
+				</template>
+			</LnxInput>
+
+			<p v-if="error" class="error" role="alert">
+				<LnxIcon icon="lucide:circle-alert" :size="20" class="error-icon" />
+				No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.
+			</p>
+
+			<div class="send">
+				<LnxButton
+					type="submit"
+					size="large"
+					is-block
+					:is-loading="saving"
+					:disabled="saving || !!user?.blocked"
+				>
+					<template #prefix>
+						<LnxIcon icon="lucide:send" />
+					</template>
+					<template v-if="uploadProgress !== undefined">
+						Subiendo… {{ Math.round(uploadProgress * 100) }}%
+					</template>
+					<template v-else>
+						Enviar aviso
+					</template>
+				</LnxButton>
+				<small>{{ user?.blocked ? 'Tu cuenta no puede enviar avisos ahora mismo.' : 'Toda la comunidad podrá verlo.' }}</small>
+			</div>
+		</form>
 	</MainLayout>
 </template>
 
@@ -515,11 +502,6 @@ header {
 			}
 		}
 	}
-}
-
-// The steps slide in, so they must not widen the page meanwhile
-.wizard {
-	overflow-x: clip;
 }
 
 // Big LnxButtons shaped like the issues list cards, easy to read and tap for anyone
@@ -791,33 +773,5 @@ header {
 	gap: var(--lnx-spacing-2);
 	color: var(--color-gray-7);
 	font-size: var(--lnx-font-size-small);
-}
-
-.step-forward-enter-active,
-.step-forward-leave-active,
-.step-back-enter-active,
-.step-back-leave-active {
-	transition: opacity .2s, transform .25s cubic-bezier(.2, 0, 0, 1);
-}
-
-.step-forward-enter-from,
-.step-back-leave-to {
-	opacity: 0;
-	transform: translateX(32px);
-}
-
-.step-forward-leave-to,
-.step-back-enter-from {
-	opacity: 0;
-	transform: translateX(-32px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.step-forward-enter-from,
-	.step-forward-leave-to,
-	.step-back-enter-from,
-	.step-back-leave-to {
-		transform: none;
-	}
 }
 </style>

@@ -4,7 +4,7 @@ import type { Ref } from 'vue';
 import type { Checkout } from '@/modules/finances/application/useMyCharges.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { bookingId, bookingTotal } from '@gobernansa/shared/domain/booking.ts';
-import { collection, deleteDoc, doc, getFirestore, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getFirestore, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useCollection } from 'vuefire';
 import { preparePayment } from '@/modules/finances/application/useMyCharges.ts';
@@ -57,6 +57,7 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 		batch.set(ref, { ...booking, paidAt: serverTimestamp(), payment: payment.payment });
 		batch.set(payment.ref, payment.data);
 		await batch.commit();
+		return payment.payment;
 	}
 
 	// One booked owed, paid later from the app
@@ -70,6 +71,7 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 		batch.update(doc(db, 'communities', communityId.value, 'bookings', booking.id), { paidAt: serverTimestamp(), payment: payment.payment });
 		batch.set(payment.ref, payment.data);
 		await batch.commit();
+		return payment.payment;
 	}
 
 	async function cancel(booking: Booking) {
@@ -81,4 +83,10 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 	}
 
 	return { dayBookings, myBookings, book, pay, cancel };
+}
+
+// One booking, for its justificante
+export async function loadBooking(communityId: string, id: string) {
+	const booking = await getDoc(doc(getFirestore(), 'communities', communityId, 'bookings', id));
+	return booking.exists() ? { ...booking.data(), id: booking.id } as Booking : undefined;
 }

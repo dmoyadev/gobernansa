@@ -117,6 +117,12 @@ async function submit() {
 			Se simula la confirmación del Bizum desde la app de tu banco.
 		</p>
 
+		<p class="privacy">
+			<LnxIcon class="privacy-icon" icon="lucide:shield-check" :size="18" />
+			<span v-if="method === 'card'"><strong>No guardamos los datos de tu tarjeta</strong>: ni el número, ni la caducidad, ni el CVC. Solo la marca y los 4 últimos dígitos, para el justificante.</span>
+			<span v-else><strong>No guardamos ningún dato de pago</strong>: ni tu teléfono ni los datos de tu banco.</span>
+		</p>
+
 		<p v-if="error" class="error" role="alert">
 			{{ error }}
 		</p>
@@ -231,6 +237,19 @@ async function submit() {
 .hint {
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
+}
+
+.privacy {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
+	color: var(--color-gray-7);
+	font-size: var(--lnx-font-size-small);
+
+	.privacy-icon {
+		flex-shrink: 0;
+		color: var(--color-issue-status-resolved);
+	}
 }
 
 .error {

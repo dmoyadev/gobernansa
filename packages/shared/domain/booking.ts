@@ -33,6 +33,12 @@ export function bookingId(areaId: string, date: string, from: string) {
 	return `${areaId}_${date}_${from}`;
 }
 
+// Its slot back: the date and the time have no '_', the area's id may
+export function parseBookingId(id: string) {
+	const [from = '', date = '', ...areaId] = id.split('_').reverse();
+	return { areaId: areaId.reverse().join('_'), date, from };
+}
+
 function toMinutes(time: string) {
 	const [hours, minutes] = time.split(':').map(Number);
 	return hours * 60 + minutes;

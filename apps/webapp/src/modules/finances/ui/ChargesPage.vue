@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
-import type { Checkout } from '../application/useMyCharges.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
@@ -13,13 +12,12 @@ import { useUserCommunity } from '@/modules/community/application/useUserCommuni
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useMyCharges } from '../application/useMyCharges.ts';
-import TestCheckout from './TestCheckout.vue';
 
 const SPACES_REGEX = /\s/g;
 
 const { user } = useAuth();
 const { userCommunity } = useUserCommunity();
-const { unpaid, loadPaid, payCharge } = useMyCharges();
+const { unpaid, loadPaid } = useMyCharges();
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 
@@ -50,19 +48,6 @@ async function showPaid() {
 	} finally {
 		paidLoading.value = false;
 	}
-}
-
-/* Paying */
-const paying = ref<Charge>();
-const justPaid = ref<{ chargeId: string; concept: string }>();
-
-async function pay(checkout: Checkout) {
-	const charge = paying.value!;
-	await payCharge(charge, checkout);
-	justPaid.value = { chargeId: charge.id, concept: charge.concept };
-	paying.value = undefined;
-	// Read again when asked, with this one
-	paid.value = undefined;
 }
 
 /* Paying by transfer */
@@ -111,14 +96,6 @@ function transferConcept(charge: Charge) {
 			No se han podido cargar tus recibos. Recarga la página.
 		</p>
 
-		<p v-if="justPaid" class="success" role="status">
-			<LnxIcon icon="lucide:circle-check" :size="18" />
-			<span>Pago de prueba registrado: «{{ justPaid.concept }}».</span>
-			<RouterLink :to="`/neighborhood/charges/${justPaid.chargeId}/receipt`">
-				Ver justificante
-			</RouterLink>
-		</p>
-
 		<section>
 			<h2>Pendientes</h2>
 			<ul v-if="loading" class="list" aria-label="Cargando">
@@ -148,8 +125,7 @@ function transferConcept(charge: Charge) {
 						<LnxButton
 							v-if="canPay && !charge.remittanceId && outstanding(charge) > 0"
 							size="small"
-							:disabled="!!paying"
-							@click="paying = charge; justPaid = undefined"
+							:to="`/neighborhood/charges/${charge.id}/pay`"
 						>
 							Pagar
 						</LnxButton>
@@ -160,14 +136,6 @@ function transferConcept(charge: Charge) {
 				Estás al corriente, no tienes nada pendiente.
 			</p>
 		</section>
-
-		<TestCheckout
-			v-if="paying"
-			:amount="outstanding(paying)"
-			:concept="`${paying.concept} · ${paying.propertyName}`"
-			:pay="pay"
-			@cancel="paying = undefined"
-		/>
 
 		<section v-if="pending.length && userCommunity?.iban" id="transfer">
 			<h2>Pagar por transferencia</h2>
@@ -396,28 +364,6 @@ a.row:active {
 	small {
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-small);
-	}
-}
-
-.success {
-	padding: var(--lnx-spacing-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-1);
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-	color: var(--color-issue-status-resolved);
-	font-size: var(--lnx-font-size-small);
-
-	span {
-		flex: 1;
-		color: var(--color-gray-9);
-	}
-
-	a {
-		color: var(--color-primary);
-		font-weight: var(--lnx-font-weight-bold);
 	}
 }
 

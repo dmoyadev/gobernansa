@@ -1,24 +1,22 @@
 <script setup lang="ts">
+import type { Booking } from '@gobernansa/shared/domain/booking.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { chargeTypes, collectionMethods, outstanding } from '@gobernansa/shared/domain/finance.ts';
-import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
-import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
+import { ref, watch } from 'vue';
+import { loadBooking } from '@/modules/bookings/application/useBookings.ts';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { loadMyCharge } from '../application/useMyCharges.ts';
+import ReceiptSheet from './ReceiptSheet.vue';
 
-const props = defineProps<{ id: string }>();
+// Of a charge, or of a booking with isBooking
+const props = defineProps<{ id: string; isBooking?: boolean }>();
 
 const { user } = useAuth();
-const { userCommunity } = useUserCommunity();
-
-const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'long' });
 
 const charge = ref<Charge>();
+const booking = ref<Booking>();
 const loading = ref(true);
 const error = ref<string>();
 
@@ -28,9 +26,15 @@ watch(() => user.value?.communityId, async (communityId) => {
 		return;
 	}
 	try {
-		charge.value = await loadMyCharge(communityId, props.id);
-		// One partly paid gets the justificante of its entregas a cuenta, with what's left
-		error.value = charge.value?.paidAt || charge.value?.collections?.length ? undefined : 'Este recibo no existe o aún no está pagado.';
+		if (props.isBooking) {
+			booking.value = await loadBooking(communityId, props.id);
+			// Neighbours can read every booking, but only get the justificante of theirs
+			error.value = booking.value?.paidAt && booking.value.uid === user.value?.id ? undefined : 'Esta reserva no existe o aún no está pagada.';
+		} else {
+			charge.value = await loadMyCharge(communityId, props.id);
+			// One partly paid gets the justificante of its entregas a cuenta, with what's left
+			error.value = charge.value?.paidAt || charge.value?.collections?.length ? undefined : 'Este recibo no existe o aún no está pagado.';
+		}
 	} catch (e) {
 		reportError(e, { action: 'Cargar el justificante' });
 		error.value = 'No se ha podido cargar el justificante.';
@@ -39,16 +43,13 @@ watch(() => user.value?.communityId, async (communityId) => {
 	}
 }, { immediate: true });
 
-// What the last payment covered, after the entregas a cuenta
-const rest = computed(() => charge.value ? outstanding({ ...charge.value, paidAt: null }) : 0);
-
 function print() {
 	window.print();
 }
 </script>
 
 <template>
-	<TheToolbar title="Justificante de pago" back="/neighborhood/charges" />
+	<TheToolbar title="Justificante de pago" :back="isBooking ? '/neighborhood/bookings' : '/neighborhood/charges'" />
 
 	<main class="receipt">
 		<LnxButton class="print" :disabled="loading || !!error" @click="print()">
@@ -59,73 +60,7 @@ function print() {
 		<p v-if="error" class="error" role="alert">
 			{{ error }}
 		</p>
-		<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
-			<span class="skeleton-item skeleton-item--title" style="width: 60%" />
-			<span v-for="width in [80, 70, 75, 50]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
-		</article>
-		<article v-else-if="charge" class="sheet">
-			<header>
-				<strong>{{ userCommunity?.name }}</strong>
-				<span v-if="userCommunity?.cif">CIF {{ userCommunity.cif }}</span>
-				<span v-if="userCommunity?.address">{{ userCommunity.address }}</span>
-			</header>
-
-			<h2>{{ charge.paidAt ? 'Justificante de pago' : 'Justificante de entregas a cuenta' }}</h2>
-			<p v-if="charge.payment" class="test">
-				Pago de prueba: tu comunidad está probando los pagos online y no se ha cobrado nada. Este justificante no acredita un pago real.
-			</p>
-
-			<dl>
-				<div>
-					<dt>Recibido de</dt>
-					<dd>{{ charge.ownerName || user?.name }}</dd>
-				</div>
-				<div>
-					<dt>Propiedad</dt>
-					<dd>{{ charge.propertyName }}</dd>
-				</div>
-				<div>
-					<dt>Concepto</dt>
-					<dd>{{ chargeTypes[charge.type] }} · {{ charge.concept }}</dd>
-				</div>
-				<div>
-					<dt>Vencimiento</dt>
-					<dd>{{ dateFormat.format(charge.dueDate.toDate()) }}</dd>
-				</div>
-				<div v-for="item in charge.collections ?? []" :key="item.id">
-					<dt>Entrega a cuenta del {{ dateFormat.format(item.date.toDate()) }}</dt>
-					<dd>{{ collectionMethods[item.method] }} · {{ formatCents(item.amount) }}</dd>
-				</div>
-				<template v-if="charge.paidAt">
-					<div>
-						<dt>Fecha de pago</dt>
-						<dd>{{ dateFormat.format(charge.paidAt.toDate()) }}</dd>
-					</div>
-					<div v-if="rest">
-						<dt>Forma de pago</dt>
-						<dd>
-							{{ charge.payment ? `${describePayment(charge.payment)}, online` : 'Registrado por la administración' }}<template v-if="charge.collections?.length">
-								· {{ formatCents(rest) }}
-							</template>
-						</dd>
-					</div>
-				</template>
-				<div>
-					<dt>Referencia</dt>
-					<dd class="ref">
-						{{ charge.payment?.id ?? charge.id }}
-					</dd>
-				</div>
-				<div class="total">
-					<dt>Importe</dt>
-					<dd>{{ formatCents(charge.amount) }}</dd>
-				</div>
-				<div v-if="!charge.paidAt" class="total">
-					<dt>Pendiente</dt>
-					<dd>{{ formatCents(rest) }}</dd>
-				</div>
-			</dl>
-		</article>
+		<ReceiptSheet v-else :charge="charge" :booking="booking" />
 	</main>
 </template>
 
@@ -142,68 +77,6 @@ function print() {
 	}
 }
 
-// A page on screen, the same on paper
-.sheet {
-	width: 100%;
-	max-width: 210mm;
-	margin: 0 auto;
-	padding: var(--lnx-spacing-5);
-	background: #FFFFFF;
-	color: #000000;
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000014;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-	line-height: 1.5;
-
-	> header {
-		display: flex;
-		flex-direction: column;
-		font-size: var(--lnx-font-size-small);
-	}
-
-	h2 {
-		text-align: center;
-		font-size: 1.2rem;
-		text-transform: uppercase;
-	}
-
-	.test {
-		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
-		border: 1px dashed #7a5a00;
-		color: #7a5a00;
-		font-size: var(--lnx-font-size-small);
-	}
-
-	dl > div {
-		padding: var(--lnx-spacing-2) 0;
-		border-bottom: 1px solid #CCCCCC;
-		display: flex;
-		justify-content: space-between;
-		gap: var(--lnx-spacing-3);
-	}
-
-	dt {
-		color: #555555;
-	}
-
-	dd {
-		text-align: right;
-		overflow-wrap: anywhere;
-	}
-
-	.ref {
-		font-family: monospace;
-		font-size: var(--lnx-font-size-small);
-	}
-
-	.total {
-		border-bottom: none;
-		font-size: 1.1rem;
-		font-weight: var(--lnx-font-weight-bold);
-	}
-}
-
 .error {
 	color: var(--color-secondary-accent);
 	font-size: var(--lnx-font-size-small);
@@ -217,22 +90,6 @@ function print() {
 		.print {
 			display: none;
 		}
-	}
-
-	.sheet {
-		max-width: none;
-		box-shadow: none;
-	}
-}
-</style>
-
-<!-- The app's chrome around the page isn't printed: the toolbar, the tab bar and the notices -->
-<style>
-@media print {
-	.toolbar,
-	nav,
-	.notice {
-		display: none !important;
 	}
 }
 </style>

@@ -38,7 +38,7 @@ const { userCommunity } = useUserCommunity();
 	display: contents;
 
 	&.with-notice {
-		--tab-height: calc(58px + max(16px, env(safe-area-inset-bottom)) + 64px);
+		--tab-height: calc(var(--tab-bar-height, 58px) + max(16px, env(safe-area-inset-bottom)) + 64px);
 	}
 }
 
@@ -47,7 +47,7 @@ const { userCommunity } = useUserCommunity();
 	z-index: 100;
 	position: fixed;
 	right: var(--lnx-spacing-4);
-	bottom: calc(58px + max(16px, env(safe-area-inset-bottom)) + var(--lnx-spacing-2));
+	bottom: calc(var(--tab-bar-height, 58px) + max(16px, env(safe-area-inset-bottom)) + var(--lnx-spacing-2));
 	left: var(--lnx-spacing-4);
 	display: flex;
 	flex-direction: column;

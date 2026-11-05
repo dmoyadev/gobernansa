@@ -37,7 +37,7 @@ const tabs = [
 <template>
 	<RouterView />
 
-	<nav>
+	<nav class="tab-bar">
 		<LnxButton
 			v-for="(tab, index) in tabs"
 			:key="index"
@@ -56,8 +56,18 @@ const tabs = [
 
 <style>
 :root {
+	--tab-bar-height: 58px;
 	--tab-bottom: max(16px, env(safe-area-inset-bottom)) /* above the home indicator when installed */;
-	--tab-height: calc(58px + var(--tab-bottom)) /* nav height + bottom padding */;
+	--tab-height: calc(var(--tab-bar-height) + var(--tab-bottom)) /* nav height + bottom padding */;
+}
+
+/* Wizards (reporting an issue, paying) take the whole screen, so leaving one is only through its back button */
+:root:has(.wizard) {
+	--tab-bar-height: 0px;
+}
+
+:root:has(.wizard) .tab-bar {
+	display: none;
 }
 </style>
 

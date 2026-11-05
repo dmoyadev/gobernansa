@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { Booking } from '@gobernansa/shared/domain/booking.ts';
-import type { Checkout } from '@/modules/finances/application/useMyCharges.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { bookingTotal, getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
+import { bookingId, bookingTotal, getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getBookableAreas } from '@gobernansa/shared/domain/community.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
@@ -10,7 +9,6 @@ import { FirebaseError } from 'firebase/app';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import TestCheckout from '@/modules/finances/ui/TestCheckout.vue';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useBookings } from '../application/useBookings.ts';
@@ -53,7 +51,7 @@ watch(days, () => {
 	}
 });
 
-const { dayBookings, myBookings, book, pay, cancel } = useBookings(date, areaId);
+const { dayBookings, myBookings, book, cancel } = useBookings(date, areaId);
 const loadError = computed(() => dayBookings.error.value || myBookings.error.value);
 
 const blocked = computed(() => !!user.value?.blocked);
@@ -93,13 +91,8 @@ const slots = computed(() => {
 });
 
 const selected = ref<{ from: string; to: string }>();
-// The test checkout, for the slot being booked or one booked owed
-const checkingOut = ref<'selected' | Booking>();
 watch([areaId, date], () => {
 	selected.value = undefined;
-	if (checkingOut.value === 'selected') {
-		checkingOut.value = undefined;
-	}
 });
 
 // What the area costs per slot, the fianza is given back after
@@ -111,7 +104,8 @@ const canPayOnline = computed(() => userCommunity.value?.onlinePayments === 'tes
 const busy = ref(false);
 const message = ref<string>();
 
-async function confirm(checkout?: Checkout) {
+// Booked owed or free, paid ones are booked from the pay wizard
+async function confirm() {
 	if (!area.value || !selected.value) {
 		return;
 	}
@@ -119,7 +113,6 @@ async function confirm(checkout?: Checkout) {
 	if (weekFull.value) {
 		message.value = `Ya has llegado al máximo de reservas semanales en ${area.value.name}.`;
 		selected.value = undefined;
-		checkingOut.value = undefined;
 		return;
 	}
 
@@ -127,11 +120,10 @@ async function confirm(checkout?: Checkout) {
 	message.value = undefined;
 	try {
 		// Only the times: the slot shown also carries its state, which isn't stored
-		await book({ areaId: area.value.id, date: date.value, from: selected.value.from, to: selected.value.to }, fee.value, checkout);
+		await book({ areaId: area.value.id, date: date.value, from: selected.value.from, to: selected.value.to }, fee.value);
 		selected.value = undefined;
-		checkingOut.value = undefined;
 		if (feeTotal.value) {
-			message.value = checkout ? undefined : 'Reservada. Queda pendiente de pago: págalo a la administración.';
+			message.value = 'Reservada. Queda pendiente de pago: págalo a la administración.';
 		}
 	} catch (e) {
 		// The rules turn down a slot that's already booked, someone got it first
@@ -139,21 +131,9 @@ async function confirm(checkout?: Checkout) {
 			? 'Esa franja acaba de reservarse.'
 			: 'No se ha podido reservar. Inténtalo de nuevo.';
 		selected.value = undefined;
-		checkingOut.value = undefined;
 	} finally {
 		busy.value = false;
 	}
-}
-
-// From the checkout: books the selected slot paid, or pays one booked owed
-async function payCheckout(checkout: Checkout) {
-	if (checkingOut.value === 'selected') {
-		await confirm(checkout);
-		return;
-	}
-	await pay(checkingOut.value!, checkout);
-	checkingOut.value = undefined;
-	message.value = undefined;
 }
 
 async function remove(booking: Booking) {
@@ -283,13 +263,13 @@ function formatDay(day: string) {
 					<small>Normas</small>
 					<p>{{ area.rules }}</p>
 				</div>
-				<div v-if="checkingOut !== 'selected'" class="confirm-actions">
+				<div class="confirm-actions">
 					<LnxButton mode="clear" @click="selected = undefined">
 						Cancelar
 					</LnxButton>
-					<LnxButton v-if="feeTotal && canPayOnline" @click="checkingOut = 'selected'">
+					<LnxButton v-if="feeTotal && canPayOnline" :to="`/neighborhood/bookings/${bookingId(area.id, date, selected.from)}/pay`">
 						<LnxIcon icon="lucide:credit-card" />
-						{{ area.rules ? 'Acepto las normas y pago' : 'Pagar y reservar' }} {{ formatCents(feeTotal) }}
+						Pagar y reservar {{ formatCents(feeTotal) }}
 					</LnxButton>
 					<LnxButton v-else :is-loading="busy" @click="confirm()">
 						<LnxIcon icon="lucide:calendar-check" />
@@ -297,16 +277,6 @@ function formatDay(day: string) {
 					</LnxButton>
 				</div>
 			</section>
-
-			<TestCheckout
-				v-if="checkingOut"
-				:amount="checkingOut === 'selected' ? feeTotal : bookingTotal(checkingOut)"
-				:concept="checkingOut === 'selected'
-					? `${area.name}, ${formatDay(date)} de ${selected?.from} a ${selected?.to}`
-					: `${area.name}, ${formatDay(checkingOut.date)} de ${checkingOut.from} a ${checkingOut.to}`"
-				:pay="payCheckout"
-				@cancel="checkingOut = undefined"
-			/>
 
 			<section v-if="upcoming.length">
 				<h2>Tus próximas reservas</h2>
@@ -326,10 +296,18 @@ function formatDay(day: string) {
 						<LnxButton
 							v-if="!blocked && canPayOnline && booking.paidAt === null"
 							size="small"
-							:disabled="!!checkingOut"
-							@click="checkingOut = booking"
+							:to="`/neighborhood/bookings/${booking.id}/pay`"
 						>
 							Pagar
+						</LnxButton>
+						<LnxButton
+							v-if="booking.paidAt"
+							mode="clear"
+							shape="circle"
+							:to="`/neighborhood/bookings/${booking.id}/receipt`"
+							:aria-label="`Justificante de la reserva del ${formatDay(booking.date)} a las ${booking.from}`"
+						>
+							<LnxIcon icon="lucide:file-check" />
 						</LnxButton>
 						<LnxButton
 							v-if="!blocked && !booking.paidAt"
