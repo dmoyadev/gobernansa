@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Obligation, ObligationType } from '@gobernansa/shared/domain/obligation.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
-import { obligationStatus, obligationStatusLabels, obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
+import { OBLIGATION_WARNING_DAYS, obligationDone, obligationStatus, obligationStatusLabels, obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
@@ -39,7 +39,18 @@ function status(obligation: Obligation) {
 	return obligationStatus(obligation, today());
 }
 
-const warnings = computed(() => sorted.value.filter(obligation => status(obligation) !== 'ok'));
+// The overdue ones first, so their tone leads the banner, each group already by due date
+const warningGroups = computed(() => [
+	{ key: 'overdue', label: 'Vencidas', items: sorted.value.filter(obligation => status(obligation) === 'overdue') },
+	{ key: 'soon', label: `Próximos ${OBLIGATION_WARNING_DAYS} días`, items: sorted.value.filter(obligation => status(obligation) === 'soon') },
+].filter(group => group.items.length));
+
+const warningSummary = computed(() => warningGroups.value.map(({ key, items: { length } }) => key === 'overdue'
+	? `${length} vencida${length === 1 ? '' : 's'}`
+	: `${length} vence${length === 1 ? '' : 'n'} en los próximos ${OBLIGATION_WARNING_DAYS} días`).join(' y '));
+
+// «Hace 12 días», «ayer», «hoy», «mañana», «dentro de 20 días»
+const relativeDay = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
 
 const { providers } = useProviders(() => props.id);
 const typeOptions = Object.entries(obligationTypes).map(([value, type]) => ({ value: value as ObligationType, label: type.label }));
@@ -117,9 +128,12 @@ function save() {
 	const editing = !!editingId.value;
 	const { type, title, dueAt, everyMonths, providerId, notes } = typed;
 	const months = Number.parseInt(everyMonths, 10);
+	const due = new Date(`${dueAt}T00:00`);
+	const stored = obligations.value.find(item => item.id === editingId.value);
 	// Kept when it's no longer shared with this community, so editing something else doesn't drop it
-	const provider = providers.value.find(item => item.id === providerId)
-		?? obligations.value.find(item => item.id === editingId.value && item.provider?.id === providerId)?.provider;
+	const provider = providers.value.find(item => item.id === providerId) ?? (stored?.provider?.id === providerId ? stored.provider : undefined);
+	// A one-off one done is pending again once it gets another date or stops repeating
+	const stillDone = months > 0 || (stored && !stored.everyMonths && stored.dueAt.toMillis() === due.getTime());
 	const now = serverTimestamp();
 	const batch = writeBatch(db);
 	// Merged, so the optional fields left empty are removed
@@ -127,17 +141,18 @@ function save() {
 		communityId: props.id,
 		type,
 		title: title.trim(),
-		dueAt: Timestamp.fromDate(new Date(`${dueAt}T00:00`)),
+		dueAt: Timestamp.fromDate(due),
 		everyMonths: months > 0 ? months : deleteField(),
 		provider: provider ? { id: provider.id, name: provider.name } : deleteField(),
 		notes: notes.trim() || deleteField(),
+		...(stillDone ? {} : { lastDoneAt: deleteField() }),
 		updatedAt: now,
 		updatedBy: uid,
 		...(editing ? {} : { createdAt: now, createdBy: uid }),
 	}, { merge: true });
 	logActivity(batch, props.id, {
 		area: 'obligation',
-		summary: `${editing ? 'Editó' : 'Añadió'} la obligación «${title.trim()}», vence el ${new Date(`${dueAt}T00:00`).toLocaleDateString('es')}`,
+		summary: `${editing ? 'Editó' : 'Añadió'} la obligación «${title.trim()}», vence el ${due.toLocaleDateString('es')}`,
 		link: `/communities/${props.id}/obligations`,
 	});
 	void optimistic(batch.commit(), {
@@ -278,13 +293,40 @@ function downloadIcs(obligation: Obligation) {
 		<h1>Obligaciones</h1>
 	</header>
 
-	<section v-if="warnings.length" class="banner" role="status">
-		<LnxIcon icon="lucide:bell-ring" :size="20" />
-		<ul>
-			<li v-for="obligation in warnings" :key="obligation.id">
-				<strong>{{ obligation.title }}</strong>: <span class="tabular">{{ daysLabel(obligation).toLowerCase() }}</span>
-			</li>
-		</ul>
+	<section v-if="warningGroups.length" class="card attention" :class="warningGroups[0].key" aria-labelledby="attention-title">
+		<header class="attention-header">
+			<span class="tile"><LnxIcon :icon="warningGroups[0].key === 'overdue' ? 'lucide:triangle-alert' : 'lucide:bell-ring'" :size="20" /></span>
+			<div>
+				<h2 id="attention-title">
+					Requieren atención
+				</h2>
+				<p class="tabular">
+					{{ warningSummary }}
+				</p>
+			</div>
+		</header>
+		<div class="groups">
+			<section v-for="group in warningGroups" :key="group.key" :class="group.key" :aria-labelledby="`attention-${group.key}`">
+				<h3 :id="`attention-${group.key}`">
+					{{ group.label }}
+				</h3>
+				<ul>
+					<li v-for="obligation in group.items" :key="obligation.id" class="warning">
+						<span class="tile"><LnxIcon :icon="obligationTypes[obligation.type]?.icon ?? 'lucide:calendar-check'" :size="16" /></span>
+						<div class="warning-what">
+							<strong>{{ obligation.title }}</strong>
+							<small class="tabular">{{ group.key === 'overdue' ? 'Venció' : 'Vence' }} el {{ obligation.dueAt.toDate().toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) }}</small>
+						</div>
+						<div class="warning-end">
+							<span class="pill tabular">{{ relativeDay.format(daysLeft(obligation), 'day') }}</span>
+							<LnxButton mode="outline" size="small" shape="circle" :aria-label="`Marcar «${obligation.title}» como hecha`" title="Marcar como hecha" @click="markDone(obligation)">
+								<LnxIcon icon="lucide:check" />
+							</LnxButton>
+						</div>
+					</li>
+				</ul>
+			</section>
+		</div>
 	</section>
 
 	<form ref="formElement" class="card" @submit.prevent="save()">
@@ -374,7 +416,7 @@ function downloadIcs(obligation: Obligation) {
 						<span class="badge" :class="status(obligation)">{{ obligationStatusLabels[status(obligation)] }}</span>
 					</strong>
 					<small class="tabular">
-						{{ obligation.dueAt.toDate().toLocaleDateString('es') }} · {{ daysLabel(obligation) }}
+						{{ obligation.dueAt.toDate().toLocaleDateString('es') }}<template v-if="!obligationDone(obligation)"> · {{ daysLabel(obligation) }}</template>
 						<template v-if="obligation.everyMonths"> · Cada {{ obligation.everyMonths }} meses</template>
 					</small>
 					<small v-if="obligation.provider || obligation.lastDoneAt" class="tabular">
@@ -387,7 +429,7 @@ function downloadIcs(obligation: Obligation) {
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton mode="outline" size="small" @click="markDone(obligation)">
+					<LnxButton v-if="!obligationDone(obligation)" mode="outline" size="small" @click="markDone(obligation)">
 						<LnxIcon icon="lucide:check" />
 						Hecha
 					</LnxButton>
@@ -421,24 +463,6 @@ function downloadIcs(obligation: Obligation) {
 	}
 }
 
-.banner {
-	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-4);
-	border: 1px solid var(--color-secondary-accent);
-	border-radius: var(--lnx-radius-3);
-	display: flex;
-	align-items: flex-start;
-	gap: var(--lnx-spacing-3);
-	color: var(--color-secondary-accent);
-
-	ul {
-		display: flex;
-		flex-direction: column;
-		gap: var(--lnx-spacing-1);
-		color: var(--color-gray-7);
-	}
-}
-
 .card {
 	margin-bottom: var(--lnx-spacing-5);
 	padding: var(--lnx-spacing-5);
@@ -456,6 +480,148 @@ function downloadIcs(obligation: Obligation) {
 		color: var(--color-gray-6);
 		text-transform: uppercase;
 		letter-spacing: .04em;
+	}
+}
+
+// Red for overdue, amber for coming up, like the dashboard. Darkened for text, so it reads on its tint
+.attention {
+	&.overdue,
+	.overdue {
+		--tone: var(--color-secondary-accent);
+	}
+
+	&.soon,
+	.soon {
+		--tone: var(--color-issue-cat-amber-accent);
+	}
+
+	// On the banner and each group, so each mixes its own tone
+	&,
+	section {
+		--tone-text: color-mix(in srgb, var(--tone) 70%, var(--color-gray-9));
+		--tone-soft: color-mix(in srgb, var(--tone) 12%, var(--color-gray-0));
+	}
+
+	.tile {
+		flex: none;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--lnx-radius-2);
+		display: grid;
+		place-items: center;
+		background: var(--tone-soft);
+		color: var(--tone-text);
+	}
+}
+
+.attention-header {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	.tile {
+		width: 40px;
+		height: 40px;
+		border-radius: var(--lnx-radius-3);
+	}
+
+	// Over the card's small caps, this is the banner's title
+	h2 {
+		font-size: var(--lnx-font-size-big);
+		color: var(--color-gray-9);
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	p {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+	}
+}
+
+// Side by side when they fit, one under the other when not
+.groups {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+	gap: var(--lnx-spacing-4) var(--lnx-spacing-6);
+
+	h3 {
+		margin-bottom: var(--lnx-spacing-1);
+		display: flex;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		color: var(--color-gray-6);
+		text-transform: uppercase;
+		letter-spacing: .04em;
+
+		&::before {
+			content: '';
+			width: 8px;
+			height: 8px;
+			border-radius: var(--lnx-radius-circle);
+			background: var(--tone);
+		}
+	}
+}
+
+.warning {
+	padding: var(--lnx-spacing-2) 0;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	& + & {
+		border-top: 1px solid var(--color-gray-2);
+	}
+
+	// Under the title, so it keeps the width
+	@media (width <= 640px) {
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: start;
+		row-gap: var(--lnx-spacing-1);
+
+		.warning-end {
+			grid-column: 2;
+		}
+	}
+}
+
+.warning-end {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+}
+
+.warning-what {
+	display: flex;
+	flex-direction: column;
+
+	strong {
+		font-weight: var(--lnx-font-weight-regular);
+		color: var(--color-gray-9);
+		text-wrap: pretty;
+	}
+
+	small {
+		color: var(--color-gray-6);
+	}
+}
+
+.pill {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: 999px;
+	display: inline-block;
+	background: var(--tone-soft);
+	color: var(--tone-text);
+	font-size: var(--lnx-font-size-small);
+	font-weight: var(--lnx-font-weight-bold);
+	white-space: nowrap;
+
+	&::first-letter {
+		text-transform: uppercase;
 	}
 }
 
