@@ -1,7 +1,7 @@
 {
 	"name": "@gobernansa/webapp",
 	"type": "module",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"private": true,
 	"scripts": {
 		"dev": "vite --mode localhost --host --port 5400",
