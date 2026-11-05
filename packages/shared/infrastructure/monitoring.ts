@@ -9,6 +9,7 @@ import { installed, isIos, updateReady } from '../application/pwa.ts';
 import useAuth from '../application/useAuth.ts';
 import { auth, db } from './firebase.ts';
 import { remote } from './remoteConfig.ts';
+import { measurePerformance } from './vitals.ts';
 
 /*
  * Errores de las apps (MON-1 and MON-2, docs/fiabilidad.md §3). Every error is cleaned of personal data, classified,
@@ -164,6 +165,8 @@ export function installMonitoring(app: App, router: Router, name: ErrorApp) {
 		}
 	});
 	reportExhaustedQuota();
+	// MON-6, with the same switch and limits as the errors
+	measurePerformance(router, name, () => SENDS && remote.errorReporting && !quotaExhausted.value);
 
 	if (import.meta.env.DEV) {
 		countReads();

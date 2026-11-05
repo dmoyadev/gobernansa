@@ -45,6 +45,11 @@ The admin's **Errores** page (only the team) orders the errors by when they were
 | Errores, the urgent ones first | Served by the status and type indexes; if Firestore asks for its own, composite on `errors`: `status` ascending, `code` ascending, `lastSeen` descending |
 | Errores, the header's count of urgent and come-back ones (MON-9) | None: a count with equality filters only (`status` with `code`, or `status` with `seenSinceResolved`), served by the single-field indexes |
 | Errores → Limpiar caducadas | Single field on the `samples` **collection group**: `expiresAt` ascending (Firestore → Indexes → Single field → Add exemption, collection ID `samples`, scope "Collection group") |
+| Errores, the last backup (ROB-2) | None: one document, `ops/backup` |
+| Errores → Rendimiento (MON-6) | None: the days' documents by id (`vitals/{app}_{day}`), up to 30 per query |
+| `npm run backup` (ROB-2) | None: each collection group without filters, in name order, which Firestore serves on its own |
+
+`ops` is written only with the Admin SDK (the backup script) and read only by the team; `vitals` takes the sampled sessions' performance, one write each, with no reads, and the rules cap what each write adds (docs/fiabilidad.md, MON-6).
 
 Samples expire 30 days after they're taken (`expiresAt`), and **Limpiar caducadas** removes them, along with the errors resolved or ignored that went 180 days without coming back. If Firestore's TTL turns out to work on the free plan, a TTL policy on the `samples` collection group's `expiresAt` field (Firestore → Time-to-live) removes them on its own; its deletes count against the daily quota too.
 

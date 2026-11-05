@@ -36,21 +36,22 @@ A cambio:
 | ROB-5 | P1 | Interruptores remotos y versión mínima | 0 € (Remote Config) | — | Hecho en el código; falta probarlo en la consola |
 | ROB-4 | P1 | Despliegues compatibles con la versión anterior y vuelta atrás | 0 € | ROB-5 | Documentado; falta ensayar la vuelta atrás en la consola |
 | MON-5 | P1 | Disponibilidad: comprobar las dos webs después de cada despliegue | 0 € | — | Hecho en el workflow; falta verlo en un despliegue |
-| ROB-2 | P0 | Copias de seguridad con restauración ensayada | Almacenamiento de las copias con Blaze; hay un puente gratuito | INF-1 | Pendiente |
+| ROB-2 | P0 | Copias de seguridad con restauración ensayada | Almacenamiento de las copias con Blaze; hay un puente gratuito | INF-1 | Puente gratuito hecho en el código; falta activarlo en tu equipo y restaurar una copia real |
 | ROB-3 | P1 | Pruebas automáticas de lo que mueve dinero o va a la AEAT | 0 € | VAL-1 | Pendiente |
 | MON-9 | P2 | Avisos de errores nuevos al móvil del equipo | 0 € | INF-1 | En el admin, hecho; al móvil, pendiente |
-| MON-10 | P2 | Traducir los errores al código original sin publicarlo | 0 € | — | Pendiente |
-| MON-6 | P2 | Rendimiento real por pantalla, con las APIs del navegador | 0 €; cuota acotada | — | Pendiente |
+| MON-10 | P2 | Traducir los errores al código original sin publicarlo | 0 € | — | Hecho en el código; falta traducir una muestra de producción |
+| MON-6 | P2 | Rendimiento real por pantalla, con las APIs del navegador | 0 €; cuota acotada | — | Hecho en el código; falta que lleguen medidas de producción |
 | ROB-7 | P2 | Dependencias al día | 0 € | — | Pendiente |
 | ROB-8 | P2 | Proteger la cuota de abusos | 0 € la clave; App Check, 10.000 comprobaciones gratis al mes | — | Pendiente |
 | ROB-1 | P0 | Entorno de pruebas separado de producción | 0 € (segundo proyecto gratuito) | — | Aplazado |
 
 **Orden recomendado:**
 1. **Ahora, en la consola de Firebase:** probar ROB-5 y ensayar una vez la vuelta atrás de la app y de las reglas (ROB-4, pasos en la sección 5). En el siguiente despliegue, comprobar que el paso final de MON-5 pasa.
-2. ROB-2 en cuanto haya Blaze (INF-1); hasta entonces, su puente gratuito.
-3. **Fase 3:** MON-10, MON-6 y los avisos al móvil de MON-9.
+2. **Ahora, en tu equipo:** activar la copia diaria de ROB-2 y restaurar una copia real en los emuladores (pasos en su ficha). Pasar a las copias de Blaze en cuanto haya INF-1.
+3. **Después del siguiente despliegue:** traducir la pila de una muestra (MON-10) y, al cabo de unos días, revisar la pestaña «Rendimiento» (MON-6).
+4. Los avisos al móvil de MON-9, con INF-1.
 
-La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se terminó en el código el 04/11/2026.
+La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se terminó en el código el 04/11/2026, y la fase 3 (el puente gratuito de ROB-2, MON-10 y MON-6), el mismo día.
 
 **ROB-1 está aplazado** por decisión propia (04/11/2026). Mientras tanto, lo que se iba a hacer en el entorno de pruebas se hace en los emuladores locales: reproducir fallos (MON-7) y ensayar restauraciones (ROB-2).
 
@@ -96,7 +97,7 @@ La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se
   - el enlace mágico no funciona en ellas, porque su dominio no está autorizado;
   - lo que sí funciona en ellas (entrar con contraseña, el parte de trabajo por enlace) escribe en datos reales;
   - un cambio que necesita reglas nuevas falla en la preview aunque esté bien.
-- **No hay copias de seguridad** ni forma de volver a un estado anterior de los datos.
+- **Las copias de seguridad dependen de tu equipo** (ROB-2, puente gratuito): solo se hacen si está encendido o se despierta, leen toda la base de datos cada vez y aún no se ha restaurado ninguna copia real.
 - **No hay pruebas automáticas**, tampoco en lo que mueve dinero o va a la AEAT.
 - **La cuota se puede gastar desde fuera.** La configuración de Firebase es pública por diseño, y cada petición evalúa `me()` en las reglas. Esa lectura se cobra aunque la regla rechace la petición, así que un script podría agotar la cuota de todos. Incluye enviar errores falsos a `errors`: los topes de envío están en el navegador.
 - **Límites de cuota del uso normal:**
@@ -109,6 +110,10 @@ La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se
   - **Dos pestañas que importan el mismo censo a la vez** pueden duplicar las propiedades nuevas. Con un identificador fijo, una propiedad renombrada bloquearía la importación entera.
   - **Una derrama emitida en dos pestañas** solo avisa: dos derramas iguales pueden ser legítimas.
   - **Borrar un recibo suelto** no comprueba si está pagado.
+- **Rendimiento (MON-6):**
+  - Safari no tiene LCP ni la medida de las interacciones: de sus sesiones solo llegan los saltos (CLS).
+  - La respuesta es la interacción más lenta de la sesión, no el INP exacto, que descarta una de cada 50.
+  - Las reglas limitan cada envío a sumar 1 en como mucho tres tramos por pantalla y tres pantallas, pero no a uno por medida: alguien con sesión podría falsear las cifras, igual que los errores (ROB-8).
 - **Privacidad:** falta añadir a la página legal que se guardan errores técnicos con el identificador del usuario durante 30 días, para corregir fallos.
 
 ---
@@ -143,6 +148,15 @@ La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se
 
 Alternativa sin código: Firebase Performance Monitoring, del mismo proveedor que ya usamos, pero menos a medida.
 
+**Hecho en el código** (04/11/2026), en `packages/shared/infrastructure/vitals.ts`:
+- **Muestreo:** el 10 % de las sesiones con sesión iniciada, con el mismo interruptor `errorReporting` (ROB-5) y nada mientras la cuota esté agotada.
+- **A qué pantalla va cada medida:** la carga, a la pantalla con la que se abrió la app; los saltos, a la del peor tramo de saltos (ventanas de hasta 5 s, como CLS); la respuesta, a la de la interacción más lenta.
+- **Tramos:** carga hasta 1 s, 2,5 s, 4 s y más; saltos hasta 0,1, 0,25 y más; respuesta hasta 200 ms, 500 ms y más. Buenos, hasta 2,5 s, 0,1 y 200 ms.
+- **Envío:** `vitals/{app}_{día}` (el día en España), con `increment` y `merge`, sin lecturas: unas 0,1 escrituras por sesión. Una página abierta en segundo plano no mide la carga.
+- **Panel:** la pestaña «Rendimiento» de «Errores», con los últimos 7 o 30 días: por app, cada pantalla con el porcentaje de cargas, saltos y respuestas buenos y de cuántas, primero las de carga más lenta. Una pantalla va bien si lo es el 75 %. Cuesta una lectura por app y día.
+
+Comprobado en los emuladores con la demo: un envío real del admin pasa las reglas (18 casos de las reglas probados) y la pestaña suma bien los días de cada periodo.
+
 **Hecho cuando** se ven las 10 pantallas más lentas de cada app.
 
 ### MON-9 · Avisos (P2)
@@ -175,6 +189,13 @@ Recomendación: B con INF-1. D solo si INF-1 va a tardar y hace falta enterarse 
 | **C. No traducir:** basta con el nombre del fichero, que sale de la página, y con el rastro | Ninguno | Suficiente para la mayoría de los fallos |
 
 Recomendación: C al principio y A cuando un fallo no se entienda con el rastro.
+
+**Hecho en el código** (04/11/2026), con la opción A:
+- **Build:** las dos apps generan los mapas (`build.sourcemap: 'hidden'`), sin enlazarlos desde el código.
+- **CI:** los dos workflows los guardan como artefacto `sourcemaps-<versión>` (90 días los de producción y 14 los de las previews; unos 4 MB comprimidos por ejecución) y los borran de `dist` antes de desplegar. Por si acaso, `firebase.json` tampoco publica ningún `.map`.
+- **En local:** se copia la pila de la muestra en «Errores» y `pbpaste | npm run symbolicate -- <versión de la muestra>`. Descarga los mapas con `gh` (hay que instalarlo y hacer `gh auth login`) y cambia cada línea por el fichero, la línea y la función del código. Con la versión `local` usa el último `npm run build` de tu equipo, que sirve para la opción B.
+
+Comprobado con un build local: una línea del código minificado se traduce a la línea exacta de `monitoring.ts`.
 
 **Hecho cuando** la pila de una muestra de producción se traduce en local a las líneas reales del código.
 
@@ -233,6 +254,19 @@ Las dos opciones leen todos los documentos, así que gastan cuota y solo sirven 
 **Vigilancia sin servicios externos.** Al terminar, el script escribe `ops/backup` con la fecha y el número de documentos. La página «Errores» muestra un aviso si la última copia tiene más de 26 horas.
 
 **Ensayo.** Cada trimestre, restaurar la última copia en los emuladores locales (o en el entorno de pruebas, si se hace ROB-1) y comprobar que la app funciona con ella. Una copia que nunca se ha restaurado no garantiza nada.
+
+**Puente gratuito hecho en el código** (04/11/2026), con la opción a), en `scripts/backup`:
+- **Copia:** `npm run backup` lee todos los documentos con el Admin SDK y la cuenta de servicio de `scripts/firebase-test/serviceAccountKey.local.json`, los comprime y los cifra (AES-256-GCM) en `~/Documents/Backups/gobernansa`, y deja las 14 últimas. Busca cada colección por su nombre en `firestore.rules`, así que una colección nueva entra sola en cuanto tiene sus reglas. Al terminar escribe `ops/backup`. Con `FIRESTORE_EMULATOR_HOST`, copia el emulador en vez de producción.
+- **Clave:** se crea la primera vez en `~/.config/gobernansa/backup.key`, fuera de la carpeta de las copias. **Guarda una copia en el gestor de contraseñas:** sin ella no se puede restaurar ninguna copia.
+- **Programarla:** `npm run backup -- --schedule` escribe `~/Library/LaunchAgents/com.gobernansa.backup.plist` y dice cómo activarlo (`launchctl bootstrap gui/<uid> <plist>`). Se lanza cada día a las 14:00; si el equipo estaba dormido, al despertar. Su registro, en `~/Documents/Backups/gobernansa/backup.log`. Si cambias de versión de Node o mueves el repositorio, vuelve a ejecutarlo.
+- **Vigilancia:** la página «Errores» muestra cuándo fue la última copia y cuántos documentos tenía, y un aviso en rojo si tiene más de 26 horas o no hay ninguna. Cuesta una lectura al abrir la página.
+- **Restaurar:** `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run restore` vacía el emulador y escribe la última copia (o la que se le pase). Con el emulador de Auth, crea la cuenta de cada perfil con su mismo identificador y correo, para entrar como esa persona con enlace mágico. Se niega a escribir en producción.
+- **Cuota:** cada copia gasta una lectura por documento, más una por colección vacía. El script avisa si pasa de 25.000, la mitad de las diarias: entonces hay que pasar a Blaze.
+- **No incluye** las cuentas de Auth (se rehacen desde `users` al restaurar en los emuladores) ni los ficheros de Cloudinary.
+
+Ensayado entero en los emuladores con la demo: copia de 993 documentos de 40 colecciones, vaciado, restauración y una segunda copia idéntica a la primera; y el admin abierto sobre lo restaurado con la cuenta del equipo.
+
+**Falta:** activar la copia diaria en tu equipo, hacer la primera copia real y restaurarla en los emuladores.
 
 **Hecho cuando** hay una copia diaria automática y se ha restaurado una entera al menos una vez.
 
@@ -296,8 +330,8 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 
 - **Después de cada despliegue:** que el workflow haya acabado en verde, incluido el último paso, que comprueba las dos webs (MON-5). Durante la primera hora, mirar en «Errores» los errores nuevos de la versión desplegada (filtro «Nuevos en …»).
 - **Al abrir el admin:** si el contador rojo de «Errores» de la cabecera no está a cero, revisar esos grupos: son los urgentes y los que han vuelto (MON-9).
-- **Cada semana, unos 15 minutos:** los grupos nuevos y los que han vuelto; el uso de Firestore (consola → Firestore → Uso), sobre todo si se acerca a las 50.000 lecturas o 20.000 escrituras diarias; y, cuando exista, que se ha hecho la copia de seguridad (ROB-2).
-- **Cada trimestre:** ensayar una restauración (ROB-2) y una vuelta atrás de la app (abajo), y revisar las dependencias (ROB-7).
+- **Cada semana, unos 15 minutos:** los grupos nuevos y los que han vuelto; el uso de Firestore (consola → Firestore → Uso), sobre todo si se acerca a las 50.000 lecturas o 20.000 escrituras diarias; y que no sale el aviso de la copia de seguridad en «Errores» (ROB-2). Y la pestaña «Rendimiento»: qué pantallas bajan del 75 % (MON-6).
+- **Cada trimestre:** ensayar una restauración de la última copia con `npm run restore` (ROB-2) y una vuelta atrás de la app (abajo), y revisar las dependencias (ROB-7).
 
 ### Guía de respuesta
 
@@ -312,7 +346,10 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 | Falla en producción una función de dinero | «Errores» | Apagarla con su interruptor (ROB-5) mientras se corrige |
 | Hay que obligar a todos a actualizar | La versión que lleva el arreglo | Subir `minVersion` (ROB-5) a esa versión |
 | Hay demasiados errores y gastan cuota | El contador `count` de los grupos | Bajar `errorSampleRate` o apagar `errorReporting` (ROB-5) |
-| No se ha hecho la copia nocturna | El aviso del panel (ROB-2) | Lanzarla a mano el mismo día |
+| No se ha hecho la copia diaria | El aviso de «Errores» y `~/Documents/Backups/gobernansa/backup.log` (ROB-2) | Lanzarla a mano el mismo día con `npm run backup` |
+| Una pila de error no se entiende | La versión de la muestra | `pbpaste \| npm run symbolicate -- <versión>` (MON-10) |
+| Una pantalla va lenta | La pestaña «Rendimiento» de «Errores» (MON-6) | Medirla en local con las herramientas del navegador y corregirla |
+| Hay que recuperar datos borrados o estropeados | La última copia anterior al fallo (ROB-2) | Restaurarla en los emuladores, comprobar qué falta y copiarlo a mano a producción con el Admin SDK, sin pisar el resto |
 | Firebase caído | status.firebase.google.com | Avisar a los despachos; no hay nada que desplegar |
 
 ### Volver atrás la app

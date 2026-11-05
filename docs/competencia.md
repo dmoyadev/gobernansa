@@ -538,7 +538,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 | ID | Prioridad | Hueco |
 |---|---|---|
 | ROB-1 | P0 | Entorno de pruebas separado: hoy las previews de cada PR usan la base de datos de producción. Aplazado por decisión propia; mientras tanto se prueba en los emuladores locales |
-| ROB-2 | P0 | Copias de seguridad con restauración ensayada |
+| ROB-2 | P0 | Copias de seguridad con restauración ensayada. Hay un puente gratuito: una copia diaria cifrada en el equipo del titular, con aviso en el admin si falta y restauración ensayada en los emuladores con la demo; falta activarla y restaurar una copia real, y con Blaze (INF-1), las copias programadas de Firestore |
 
 ### 9.3 Diferenciadores defendibles
 
@@ -558,7 +558,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 - **Recursos:** proyecto de una persona con el plan gratuito de Firebase (INF-1), y un problema de credibilidad ante los despachos (como le pasa a ResidenciAPP, que también es una persona física). Conviene constituir una sociedad o, al menos, publicar un aviso legal completo antes de vender (EMP-1).
 - **Juntas telemáticas sin ley aprobada:** hay que construir el voto con un aviso claro sobre su validez legal. El acta lleva firma electrónica simple: sirve como prueba, pero no equivale a una firma cualificada ni a una notificación fehaciente de un prestador de confianza mientras ese canal siga en modo de prueba.
 - **Ficheros oficiales sin validar (VAL-1):** un error en un 347, una remesa o un asiento cuesta la confianza del despacho. Hay que validarlos con la AEAT y con bancos reales antes de venderlos, y vigilar los cambios anuales de diseño de registro.
-- **Fiabilidad operativa:** los errores ya llegan al panel del equipo, pero no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1, aplazado: se prueba en los emuladores locales), no hay copias de seguridad (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1), aunque ahora las dos apps lo avisan. Un despacho que pierde un día de trabajo o un dato no vuelve.
+- **Fiabilidad operativa:** los errores ya llegan al panel del equipo, pero no hay dónde probar un cambio antes de producción, porque las previews de cada PR apuntan a la base de datos real (ROB-1, aplazado: se prueba en los emuladores locales), las copias de seguridad dependen de un equipo encendido hasta tener Blaze (ROB-2), y agotar la cuota gratuita, que comparten todos los clientes, deja a todos sin servicio hasta la mañana siguiente (INF-1), aunque ahora las dos apps lo avisan. Un despacho que pierde un día de trabajo o un dato no vuelve.
 
 ### 9.5 Estrategia de precio y go-to-market sugerida (propuesta, a validar)
 

@@ -16,7 +16,10 @@
 		"check-deps": "npx taze -r",
 		"seed-firebase": "node ./scripts/firebase-test/seed.js",
 		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js",
-		"start:firebase:emulators": "firebase emulators:start"
+		"start:firebase:emulators": "firebase emulators:start",
+		"backup": "node ./scripts/backup/backup.js",
+		"restore": "node ./scripts/backup/restore.js",
+		"symbolicate": "node ./scripts/symbolicate.js"
 	},
 	"dependencies": {
 		"firebase": "^12.19.0",

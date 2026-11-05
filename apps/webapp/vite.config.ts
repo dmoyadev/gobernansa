@@ -6,6 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig({
 	envDir: '../..', // Both apps share the .env files at the root of the repo
+	build: { sourcemap: 'hidden' }, // Maps to read production errors (MON-10), never linked from the code: CI keeps them apart and deploys without them
 	resolve: {
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }, // Import from src as '@/...'
 	},

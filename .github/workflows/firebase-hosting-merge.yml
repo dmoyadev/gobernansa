@@ -31,6 +31,13 @@ jobs:
       # The version each build shows and reports its errors with, sortable: build date and time (UTC) and commit
       - run: echo "VITE_RELEASE=$(date -u +%Y.%m.%d-%H%M)-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
       - run: npm ci && npx eslint . && npm run build
+      # MON-10: the code maps stay with the run, named after the release, for npm run symbolicate; never published
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sourcemaps-${{ env.VITE_RELEASE }}
+          path: apps/*/dist/**/*.map
+          retention-days: 90
+      - run: find apps/*/dist -name '*.map' -delete
       # Rules go first so the new app finds the rules it needs, and a rules file that doesn't compile stops both
       - uses: google-github-actions/auth@v2
         with:

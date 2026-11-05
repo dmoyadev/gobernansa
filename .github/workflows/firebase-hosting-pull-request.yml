@@ -33,6 +33,13 @@ jobs:
       # The version each build shows and reports its errors with, sortable: build date and time (UTC) and commit
       - run: echo "VITE_RELEASE=$(date -u +%Y.%m.%d-%H%M)-$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> "$GITHUB_ENV"
       - run: npm ci && npx eslint . && npm run build
+      # MON-10: the code maps stay with the run, named after the release, for npm run symbolicate; never published
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sourcemaps-${{ env.VITE_RELEASE }}
+          path: apps/*/dist/**/*.map
+          retention-days: 14
+      - run: find apps/*/dist -name '*.map' -delete
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

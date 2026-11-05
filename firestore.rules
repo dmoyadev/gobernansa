@@ -485,6 +485,42 @@ service cloud.firestore {
       allow read: if isSuperadmin();
     }
 
+    // Operations' own records, written with the Admin SDK: ops/backup is the last backup (ROB-2), for the team's warning
+    match /ops/{docId} {
+      allow read: if isSuperadmin();
+    }
+
+    // Rendimiento real (MON-6): one document per app and day with, per screen, how many loads fell in each band of LCP, CLS
+    // and the slowest interaction. A sampled session adds 1 to at most three bands (the app, one per metric) in each of the
+    // screens it names in touched, and nothing else. Like errors, without reading the profile; the team reads them
+    match /vitals/{dayId} {
+      // A float or a string fails the subtraction or isn't in the list
+      function bandGrows(after, before, band) {
+        return after.get(band, 0) - before.get(band, 0) in [0, 1];
+      }
+      function screenGrows(name) {
+        let after = request.resource.data.screens[name];
+        let before = resource == null ? {} : resource.data.screens.get(name, {});
+        return name.size() <= 80
+          && after.keys().hasOnly(['lcp1', 'lcp25', 'lcp4', 'lcpMore', 'clsGood', 'clsMid', 'clsPoor', 'inpGood', 'inpMid', 'inpPoor'])
+          && after.diff(before).affectedKeys().size() <= 3
+          && bandGrows(after, before, 'lcp1') && bandGrows(after, before, 'lcp25') && bandGrows(after, before, 'lcp4') && bandGrows(after, before, 'lcpMore')
+          && bandGrows(after, before, 'clsGood') && bandGrows(after, before, 'clsMid') && bandGrows(after, before, 'clsPoor')
+          && bandGrows(after, before, 'inpGood') && bandGrows(after, before, 'inpMid') && bandGrows(after, before, 'inpPoor');
+      }
+
+      allow read: if isSuperadmin();
+      allow create, update: if signedIn()
+        && dayId.matches('(admin|webapp)_[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && request.resource.data.keys().hasOnly(['screens', 'touched'])
+        && request.resource.data.screens is map && request.resource.data.screens.size() <= 100
+        && request.resource.data.touched is list && request.resource.data.touched.size() >= 1 && request.resource.data.touched.size() <= 3
+        && request.resource.data.screens.diff(resource == null ? {} : resource.data.screens).affectedKeys().hasOnly(request.resource.data.touched)
+        && screenGrows(request.resource.data.touched[0])
+        && (request.resource.data.touched.size() < 2 || screenGrows(request.resource.data.touched[1]))
+        && (request.resource.data.touched.size() < 3 || screenGrows(request.resource.data.touched[2]));
+    }
+
     match /communities/{communityId} {
       allow read: if inCommunity(communityId) || manages(communityId);
       // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed

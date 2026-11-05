@@ -5,7 +5,7 @@ import { errorApps, errorStatus, hasReturned, isUrgent, URGENT_CODES } from '@go
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, collectionGroup, getDocs, limit, orderBy, query, startAfter, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, collectionGroup, doc, getDoc, getDocs, limit, orderBy, query, startAfter, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -13,6 +13,7 @@ import { onRevalidate } from '@/app/ux/navigation.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { countErrorAlerts } from '../application/useErrorAlerts.ts';
 import ErrorGroupDetail from './ErrorGroupDetail.vue';
+import PerformancePanel from './PerformancePanel.vue';
 
 /*
  * Errores (MON-8, docs/fiabilidad.md): the failures the apps reported, for the team. 25 groups at a time and once, not
@@ -25,6 +26,24 @@ const CLEAN_ROUNDS = 10;
 const CLEAN_BATCH = 500;
 const STALE_DAYS = 180;
 const DAY_MS = 24 * 60 * 60 * 1000;
+// The backup runs every day: past this, a day was missed (ROB-2)
+const BACKUP_DUE_MS = 26 * 60 * 60 * 1000;
+
+const tab = ref<'errors' | 'performance'>('errors');
+
+// ROB-2: the last backup, written by npm run backup. One read when the page opens
+const backup = ref<{ at?: Timestamp; documents: number }>();
+const backupChecked = ref(false);
+async function checkBackup() {
+	try {
+		backup.value = (await getDoc(doc(db, 'ops', 'backup'))).data() as typeof backup.value;
+		backupChecked.value = true;
+	} catch (e) {
+		reportError(e, { source: 'action', action: 'No se ha podido comprobar la copia de seguridad' });
+	}
+}
+void checkBackup();
+const backupLate = computed(() => backupChecked.value && Date.now() - (backup.value?.at?.toMillis() ?? 0) > BACKUP_DUE_MS);
 
 const errorsRef = collection(db, 'errors');
 
@@ -227,113 +246,134 @@ async function clean() {
 		</LnxButton>
 	</header>
 
-	<p class="hint">
-		Los fallos que ven los usuarios de las dos apps, agrupados. Primero los que han vuelto tras resolverlos y los urgentes. Esta versión del admin es la {{ RELEASE }}.
+	<p v-if="backupLate" class="backup-late" role="alert">
+		<LnxIcon icon="lucide:database-backup" :size="18" />
+		<span v-if="backup?.at">La última copia de seguridad es de {{ timeAgo(backup.at.toDate()) }}, hace más de 26 horas: lánzala hoy con <code>npm run backup</code>.</span>
+		<span v-else>No consta ninguna copia de seguridad: lánzala con <code>npm run backup</code>.</span>
 	</p>
 
-	<div class="filters">
-		<LnxSelect v-model.convert="status" :options="statusOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
-			Estado
-			<template #option="{ option }">
-				{{ option.label }}
-			</template>
-			<template #optionInput="{ value }">
-				{{ statusOptions.find(option => option.value === value)?.label }}
-			</template>
-		</LnxSelect>
-		<LnxSelect v-model.convert="app" :options="appOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
-			App
-			<template #option="{ option }">
-				{{ option.label }}
-			</template>
-			<template #optionInput="{ value }">
-				{{ appOptions.find(option => option.value === value)?.label }}
-			</template>
-		</LnxSelect>
-		<LnxSelect v-model.convert="code" :options="codeOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
-			Tipo
-			<template #option="{ option }">
-				{{ option.label }}
-			</template>
-			<template #optionInput="{ value }">
-				{{ codeOptions.find(option => option.value === value)?.label }}
-			</template>
-		</LnxSelect>
-		<LnxSelect v-model.convert="release" :options="releaseOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
-			Versión
-			<template #option="{ option }">
-				{{ option.label }}
-			</template>
-			<template #optionInput="{ value }">
-				{{ releaseOptions.find(option => option.value === value)?.label }}
-			</template>
-		</LnxSelect>
+	<div class="tabs" role="tablist" aria-label="Vista">
+		<button type="button" role="tab" :aria-selected="tab === 'errors'" @click="tab = 'errors'">
+			Errores
+		</button>
+		<button type="button" role="tab" :aria-selected="tab === 'performance'" @click="tab = 'performance'">
+			Rendimiento
+		</button>
 	</div>
 
-	<section class="card" :aria-busy="loading && !shown.length">
-		<p v-if="error" class="error" role="alert">
-			No se ha podido cargar: {{ error }}
+	<PerformancePanel v-if="tab === 'performance'" />
+
+	<template v-else>
+		<p class="hint">
+			Los fallos que ven los usuarios de las dos apps, agrupados. Primero los que han vuelto tras resolverlos y los urgentes. Esta versión del admin es la {{ RELEASE }}.<template v-if="backup?.at && !backupLate">
+				Última copia de seguridad: {{ timeAgo(backup.at.toDate()) }}, {{ backup.documents.toLocaleString('es') }} documentos.
+			</template>
 		</p>
 
-		<ul v-if="loading && !shown.length" class="list">
-			<li v-for="width in [70, 50, 80, 60]" :key="width" class="group">
-				<div class="row">
-					<span class="skeleton-item skeleton-item--icon" />
-					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+		<div class="filters">
+			<LnxSelect v-model.convert="status" :options="statusOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				Estado
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ statusOptions.find(option => option.value === value)?.label }}
+				</template>
+			</LnxSelect>
+			<LnxSelect v-model.convert="app" :options="appOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				App
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ appOptions.find(option => option.value === value)?.label }}
+				</template>
+			</LnxSelect>
+			<LnxSelect v-model.convert="code" :options="codeOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				Tipo
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ codeOptions.find(option => option.value === value)?.label }}
+				</template>
+			</LnxSelect>
+			<LnxSelect v-model.convert="release" :options="releaseOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				Versión
+				<template #option="{ option }">
+					{{ option.label }}
+				</template>
+				<template #optionInput="{ value }">
+					{{ releaseOptions.find(option => option.value === value)?.label }}
+				</template>
+			</LnxSelect>
+		</div>
+
+		<section class="card" :aria-busy="loading && !shown.length">
+			<p v-if="error" class="error" role="alert">
+				No se ha podido cargar: {{ error }}
+			</p>
+
+			<ul v-if="loading && !shown.length" class="list">
+				<li v-for="width in [70, 50, 80, 60]" :key="width" class="group">
+					<div class="row">
+						<span class="skeleton-item skeleton-item--icon" />
+						<div class="what">
+							<span class="skeleton-item" :style="{ width: `${width}%` }" />
+							<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+						</div>
 					</div>
-				</div>
-			</li>
-		</ul>
-		<ul v-else-if="shown.length" class="list ux-appear">
-			<li v-for="group in shown" :key="group.id" class="group">
-				<button type="button" class="row" :aria-expanded="open === group.id" @click="open = open === group.id ? undefined : group.id">
-					<span v-if="hasReturned(group)" class="status is-returned">
-						<LnxIcon icon="lucide:rotate-ccw" :size="14" />
-						Ha vuelto
-					</span>
-					<span v-else class="status" :class="`is-${group.status}`">
-						<LnxIcon :icon="errorStatus[group.status].icon" :size="14" />
-						{{ errorStatus[group.status].label }}
-					</span>
-					<span class="what">
-						<strong>{{ group.message || 'Sin mensaje' }}</strong>
-						<small>
-							{{ errorApps[group.app] }} · {{ group.code }}<template v-if="group.file"> · {{ group.file }}</template>
-							<template v-if="group.lastSeen">
-								· <time :datetime="group.lastSeen.toDate().toISOString()" :title="dateFormat.format(group.lastSeen.toDate())">{{ timeAgo(group.lastSeen.toDate()) }}</time>
-							</template>
-							<template v-if="group.merged.length"> · {{ group.merged.length + 1 }} grupos fusionados</template>
-						</small>
-					</span>
-					<span class="counts">
-						<span v-if="isUrgent(group) && !hasReturned(group)" class="urgent">
-							<LnxIcon icon="lucide:triangle-alert" :size="14" />
-							Urgente
+				</li>
+			</ul>
+			<ul v-else-if="shown.length" class="list ux-appear">
+				<li v-for="group in shown" :key="group.id" class="group">
+					<button type="button" class="row" :aria-expanded="open === group.id" @click="open = open === group.id ? undefined : group.id">
+						<span v-if="hasReturned(group)" class="status is-returned">
+							<LnxIcon icon="lucide:rotate-ccw" :size="14" />
+							Ha vuelto
 						</span>
-						<span :title="`${group.sessions} ${group.sessions === 1 ? 'sesión afectada' : 'sesiones afectadas'}`">
-							{{ group.count }} {{ group.count === 1 ? 'vez' : 'veces' }}
+						<span v-else class="status" :class="`is-${group.status}`">
+							<LnxIcon :icon="errorStatus[group.status].icon" :size="14" />
+							{{ errorStatus[group.status].label }}
 						</span>
-					</span>
-				</button>
+						<span class="what">
+							<strong>{{ group.message || 'Sin mensaje' }}</strong>
+							<small>
+								{{ errorApps[group.app] }} · {{ group.code }}<template v-if="group.file"> · {{ group.file }}</template>
+								<template v-if="group.lastSeen">
+									· <time :datetime="group.lastSeen.toDate().toISOString()" :title="dateFormat.format(group.lastSeen.toDate())">{{ timeAgo(group.lastSeen.toDate()) }}</time>
+								</template>
+								<template v-if="group.merged.length"> · {{ group.merged.length + 1 }} grupos fusionados</template>
+							</small>
+						</span>
+						<span class="counts">
+							<span v-if="isUrgent(group) && !hasReturned(group)" class="urgent">
+								<LnxIcon icon="lucide:triangle-alert" :size="14" />
+								Urgente
+							</span>
+							<span :title="`${group.sessions} ${group.sessions === 1 ? 'sesión afectada' : 'sesiones afectadas'}`">
+								{{ group.count }} {{ group.count === 1 ? 'vez' : 'veces' }}
+							</span>
+						</span>
+					</button>
 
-				<ErrorGroupDetail
-					v-if="open === group.id"
-					:group="group"
-					:candidates="shown.filter(other => other.id !== group.id)"
-					:patch="patch"
-				/>
-			</li>
-		</ul>
-		<p v-else-if="!error" class="hint">
-			{{ status === 'new' ? 'No hay errores pendientes.' : 'No hay errores con estos filtros.' }}
-		</p>
+					<ErrorGroupDetail
+						v-if="open === group.id"
+						:group="group"
+						:candidates="shown.filter(other => other.id !== group.id)"
+						:patch="patch"
+					/>
+				</li>
+			</ul>
+			<p v-else-if="!error" class="hint">
+				{{ status === 'new' ? 'No hay errores pendientes.' : 'No hay errores con estos filtros.' }}
+			</p>
 
-		<LnxButton v-if="hasMore" mode="clear" :is-loading="loading" @click="load(true)">
-			Cargar más
-		</LnxButton>
-	</section>
+			<LnxButton v-if="hasMore" mode="clear" :is-loading="loading" @click="load(true)">
+				Cargar más
+			</LnxButton>
+		</section>
+	</template>
 </template>
 
 <style lang="scss" scoped>
@@ -353,6 +393,42 @@ async function clean() {
 	margin-bottom: var(--lnx-spacing-4);
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
+}
+
+.backup-late {
+	margin-bottom: var(--lnx-spacing-4);
+	padding: var(--lnx-spacing-3) var(--lnx-spacing-4);
+	border-radius: var(--lnx-radius-3);
+	background: #fee2e2;
+	color: #991b1b;
+	font-size: var(--lnx-font-size-small);
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+}
+
+.tabs {
+	margin-bottom: var(--lnx-spacing-4);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-1);
+
+	button {
+		padding: var(--lnx-spacing-1) var(--lnx-spacing-3);
+		border: 1px solid var(--color-gray-3);
+		border-radius: 999px;
+		background: var(--color-gray-0);
+		font: inherit;
+		font-size: var(--lnx-font-size-small);
+		color: var(--color-gray-7);
+		cursor: pointer;
+
+		&[aria-selected='true'] {
+			border-color: var(--color-primary);
+			color: var(--color-primary);
+			font-weight: var(--lnx-font-weight-bold);
+		}
+	}
 }
 
 .filters {
