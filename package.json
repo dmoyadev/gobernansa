@@ -9,7 +9,7 @@
 	"scripts": {
 		"dev:webapp": "npm run dev -w apps/webapp",
 		"dev:admin": "npm run dev -w apps/admin",
-		"dev": "concurrently \"npm run start:firebase:emulators\" \"npm run dev -w apps/webapp\" \"npm run dev -w apps/admin\"",
+		"dev": "concurrently --kill-others-on-fail \"npm run start:firebase:emulators\" \"npm run seed-firebase:emulators -- --reset\" \"npm run dev -w apps/webapp\" \"npm run dev -w apps/admin\"",
 		"build": "npm run build -w apps/webapp -w apps/admin",
 		"lint": "eslint --fix",
 		"check-typing": "npm run check-typing -w apps/webapp -w apps/admin",

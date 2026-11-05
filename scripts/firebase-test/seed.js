@@ -49,6 +49,18 @@ function plan(group) {
 	return docs;
 }
 
+// `npm run dev` starts the emulators and this seed together: wait up to a minute for both to answer
+async function emulatorsUp() {
+	const hosts = [process.env.FIRESTORE_EMULATOR_HOST, process.env.FIREBASE_AUTH_EMULATOR_HOST].filter(Boolean);
+	for (let tries = 0; tries < 60; tries++) {
+		if ((await Promise.all(hosts.map(host => fetch(`http://${host}/`).then(() => true, () => false)))).every(Boolean)) {
+			return true;
+		}
+		await new Promise(resolve => setTimeout(resolve, 1000));
+	}
+	return false;
+}
+
 async function chooseTarget(key) {
 	if (process.env.FIRESTORE_EMULATOR_HOST) {
 		return 'emulator';
@@ -212,7 +224,7 @@ async function main() {
 	const key = readKey();
 	const target = await chooseTarget(key);
 	const projectId = target === 'live' ? key.project_id : process.env.GCLOUD_PROJECT ?? key?.project_id ?? 'demo-gobernansa';
-	if (target === 'emulator' && !await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/`).catch(() => null)) {
+	if (target === 'emulator' && !await emulatorsUp()) {
 		throw new Error(`No hay emulador de Firestore en ${process.env.FIRESTORE_EMULATOR_HOST}: arráncalo con npm run start:firebase:emulators`);
 	}
 	admin.initializeApp(target === 'live' ? { credential: admin.credential.cert(key) } : { projectId });
