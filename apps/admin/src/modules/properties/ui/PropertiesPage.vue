@@ -250,10 +250,10 @@ function ownerLabel(property: Property) {
 							</small>
 						</div>
 						<div class="item-actions">
-							<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
+							<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
 								<LnxIcon icon="lucide:pencil" />
 							</LnxButton>
-							<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
+							<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
 								<LnxIcon icon="lucide:trash-2" />
 							</LnxButton>
 						</div>

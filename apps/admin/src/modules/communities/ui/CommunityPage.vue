@@ -584,11 +584,11 @@ useEventListener(window, 'pointerup', disarm);
 			<p id="edit-help">
 				Arrastra cada tarjeta por su asa, o muévela con las flechas, y cambia su tamaño con su botón.
 			</p>
-			<LnxButton mode="clear" size="small" @click="resetLayout()">
+			<LnxButton mode="clear" class="size-small" @click="resetLayout()">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Restablecer
 			</LnxButton>
-			<LnxButton ref="doneButton" size="small" @click="stopEditing()">
+			<LnxButton ref="doneButton" class="size-small" @click="stopEditing()">
 				<LnxIcon icon="lucide:check" />
 				Listo
 			</LnxButton>
@@ -641,7 +641,7 @@ useEventListener(window, 'pointerup', disarm);
 						</RouterLink>
 					</CommunityBusinessCard>
 					<div v-if="tile.size === 4" class="card-actions">
-						<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" size="small" @click="copy(label, value)">
+						<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" class="size-small" @click="copy(label, value)">
 							<LnxIcon :icon="copied === label ? 'lucide:check' : 'lucide:copy'" />
 							{{ copied === label ? 'Copiado' : `Copiar ${label}` }}
 						</LnxButton>
@@ -786,8 +786,7 @@ useEventListener(window, 'pointerup', disarm);
 					<LnxButton
 						mode="clear"
 						shape="circle"
-						size="small"
-						class="handle"
+						class="handle size-small"
 						:data-handle="tile.key"
 						:aria-label="`Mover ${tile.title}`"
 						:title="`Mover ${tile.title}`"
@@ -800,7 +799,7 @@ useEventListener(window, 'pointerup', disarm);
 					<LnxButton
 						mode="clear"
 						shape="circle"
-						size="small"
+						class="size-small"
 						:aria-label="`Cambiar tamaño de ${tile.title} (ahora ${sizeLabels[tile.size]}, pasará a ${sizeLabels[nextSize(tile)]})`"
 						:title="`Cambiar tamaño de ${tile.title} (ahora ${sizeLabels[tile.size]}, pasará a ${sizeLabels[nextSize(tile)]})`"
 						@click="resize(index)"

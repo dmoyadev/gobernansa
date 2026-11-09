@@ -381,16 +381,16 @@ async function remove(order: PaymentOrder) {
 					</button>
 					<span class="chip" :class="{ ok: order.status === 'executed' }">{{ paymentOrderStatuses[order.status] }}</span>
 					<div class="item-actions">
-						<LnxButton mode="clear" size="small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(order)">
+						<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(order)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
-						<LnxButton v-if="order.status === 'generated'" mode="clear" size="small" :is-loading="busyId === order.id" @click="execute(order)">
+						<LnxButton v-if="order.status === 'generated'" mode="clear" class="size-small" :is-loading="busyId === order.id" @click="execute(order)">
 							Marcar ejecutada
 						</LnxButton>
 						<LnxButton
 							v-if="order.status === 'generated'"
 							mode="clear"
-							size="small"
+							class="size-small"
 							shape="circle"
 							variant="danger"
 							aria-label="Borrar"

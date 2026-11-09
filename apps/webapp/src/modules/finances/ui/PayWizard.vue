@@ -77,7 +77,7 @@ function print() {
 					{{ unavailable }}
 				</p>
 				<slot name="unavailable">
-					<LnxButton :to="back" mode="outline" size="large" is-block>
+					<LnxButton :to="back" mode="outline" class="size-large" is-block>
 						{{ backLabel }}
 					</LnxButton>
 				</slot>
@@ -107,7 +107,7 @@ function print() {
 
 				<slot />
 
-				<LnxButton size="large" is-block @click="goTo(1)">
+				<LnxButton class="size-large" is-block @click="goTo(1)">
 					{{ continueLabel ?? 'Continuar al pago' }}
 					<template #suffix>
 						<LnxIcon icon="lucide:arrow-right" />
@@ -133,7 +133,7 @@ function print() {
 			</div>
 
 			<div class="actions">
-				<LnxButton size="large" is-block @click="print()">
+				<LnxButton class="size-large" is-block @click="print()">
 					<template #prefix>
 						<LnxIcon icon="lucide:download" />
 					</template>

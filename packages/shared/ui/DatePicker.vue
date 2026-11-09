@@ -24,10 +24,11 @@ const model = defineModel<string>();
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const WEEK_DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
+// The library reads and emits days at 00:00 UTC
 const date = computed({
-	get: () => (model.value ? new Date(`${model.value}T00:00`) : undefined),
+	get: () => (model.value ? new Date(model.value) : undefined),
 	set: (value?: Date) => {
-		model.value = value ? toDateString(value) : '';
+		model.value = value ? value.toISOString().slice(0, 10) : '';
 	},
 });
 
@@ -39,9 +40,6 @@ function isOutOfRange(item: Item) {
 	const day = toDateString(new Date(item.year, item.month, item.number));
 	return (!!props.min && day < props.min) || (!!props.max && day > props.max);
 }
-
-// lnxjs-components passes isItemDisabledFn through toRef, which calls a function as a getter: it has to return the real one
-const isItemDisabledFn = computed(() => (props.min || props.max ? () => isOutOfRange : undefined));
 </script>
 
 <template>
@@ -50,8 +48,8 @@ const isItemDisabledFn = computed(() => (props.min || props.max ? () => isOutOfR
 		:months-names="MONTHS"
 		:week-days-names="WEEK_DAYS"
 		today-text="Hoy"
-		:show-format="value => value?.toLocaleDateString('es') ?? ''"
-		:is-item-disabled-fn="isItemDisabledFn as unknown as (item: Item) => boolean"
+		:show-format="value => value?.toLocaleDateString('es', { timeZone: 'UTC' }) ?? ''"
+		:is-item-disabled-fn="min || max ? isOutOfRange : undefined"
 		:is-loading="isLoading"
 		:has-error="hasError"
 		:custom-validity="customValidity"

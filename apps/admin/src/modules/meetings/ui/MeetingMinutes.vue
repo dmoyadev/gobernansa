@@ -235,7 +235,7 @@ function print() {
 	<section v-if="minutes" class="card">
 		<header class="minutes-header screen-only">
 			<h2>{{ minutes.closedAt ? 'Acta firmada' : 'Acta para firmar' }}</h2>
-			<LnxButton size="small" @click="print()">
+			<LnxButton class="size-small" @click="print()">
 				<LnxIcon icon="lucide:printer" />
 				Imprimir o guardar PDF
 			</LnxButton>
@@ -252,17 +252,17 @@ function print() {
 					<form v-else-if="signing === role" class="signing screen-only" @submit.prevent="sign()">
 						<SignaturePad v-model="path" />
 						<div class="form-actions">
-							<LnxButton type="button" mode="clear" size="small" @click="signing = undefined">
+							<LnxButton type="button" mode="clear" class="size-small" @click="signing = undefined">
 								Cancelar
 							</LnxButton>
-							<LnxButton type="submit" size="small" :is-loading="busy" :disabled="!path">
+							<LnxButton type="submit" class="size-small" :is-loading="busy" :disabled="!path">
 								<LnxIcon icon="lucide:signature" />
 								Firmar como {{ minutes[role].name }}
 							</LnxButton>
 						</div>
 					</form>
 					<div v-else class="unsigned">
-						<LnxButton v-if="!isFullySigned(minutes)" class="screen-only" mode="outline" size="small" :disabled="!!signing" @click="startSigning(role)">
+						<LnxButton v-if="!isFullySigned(minutes)" class="screen-only size-small" mode="outline" :disabled="!!signing" @click="startSigning(role)">
 							<LnxIcon icon="lucide:signature" />
 							{{ minutes[role].uid === user?.id ? 'Firmar' : 'Firmar en persona' }}
 						</LnxButton>

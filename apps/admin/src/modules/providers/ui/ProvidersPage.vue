@@ -354,11 +354,11 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 					<small class="tabular">({{ provider.ratingCount }})</small>
 				</button>
 				<div class="provider-actions">
-					<LnxButton mode="clear" size="small" @click="edit(provider)">
+					<LnxButton mode="clear" class="size-small" @click="edit(provider)">
 						<LnxIcon icon="lucide:pencil" />
 						Editar
 					</LnxButton>
-					<LnxButton v-if="canDelete(provider)" mode="clear" size="small" variant="danger" @click="remove(provider)">
+					<LnxButton v-if="canDelete(provider)" mode="clear" class="size-small" variant="danger" @click="remove(provider)">
 						<LnxIcon icon="lucide:trash-2" />
 						Eliminar
 					</LnxButton>
@@ -387,7 +387,7 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 							<p v-if="ratingsError" class="error" role="alert">
 								{{ ratingsError }}
 							</p>
-							<LnxButton type="submit" size="small">
+							<LnxButton type="submit" class="size-small">
 								<LnxIcon icon="lucide:star" />
 								Valorar
 								<Kbd combo="mod+enter" />

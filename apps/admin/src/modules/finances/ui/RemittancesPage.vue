@@ -395,7 +395,7 @@ async function applyReport() {
 	<header class="page-header">
 		<h1>Remesas</h1>
 		<input ref="reportInput" type="file" accept=".xml,application/xml,text/xml" hidden @change="readReport">
-		<LnxButton size="small" mode="outline" :disabled="loading" @click="reportInput?.click()">
+		<LnxButton class="size-small" mode="outline" :disabled="loading" @click="reportInput?.click()">
 			<LnxIcon icon="lucide:file-input" />
 			Importar devoluciones
 			<Kbd combo="i" />
@@ -600,16 +600,16 @@ async function applyReport() {
 					</button>
 					<span class="chip" :class="{ ok: remittance.status === 'collected' }">{{ remittanceStatuses[remittance.status] }}</span>
 					<div class="item-actions">
-						<LnxButton mode="clear" size="small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
+						<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
-						<LnxButton v-if="remittance.status !== 'collected'" mode="clear" size="small" :is-loading="busyId === remittance.id" @click="advance(remittance)">
+						<LnxButton v-if="remittance.status !== 'collected'" mode="clear" class="size-small" :is-loading="busyId === remittance.id" @click="advance(remittance)">
 							{{ remittance.status === 'generated' ? 'Marcar enviada' : 'Marcar cobrada' }}
 						</LnxButton>
 						<LnxButton
 							v-if="remittance.status === 'generated'"
 							mode="clear"
-							size="small"
+							class="size-small"
 							shape="circle"
 							variant="danger"
 							aria-label="Borrar"
@@ -653,7 +653,7 @@ async function applyReport() {
 								<LnxButton
 									v-if="remittance.status !== 'generated' && !item.returned && returning !== item.chargeId"
 									mode="clear"
-									size="small"
+									class="size-small"
 									@click="startReturn(item)"
 								>
 									Devolución

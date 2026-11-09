@@ -592,7 +592,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 							{{ formatCents(incomeAmounts(entry).gross) }}
 							<small v-if="incomeAmounts(entry).withholding" class="hint">retenido {{ formatCents(incomeAmounts(entry).withholding) }}</small>
 						</span>
-						<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeIncome(entry)">
+						<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeIncome(entry)">
 							<LnxIcon icon="lucide:trash-2" />
 						</LnxButton>
 					</li>

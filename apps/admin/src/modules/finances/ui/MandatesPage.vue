@@ -202,7 +202,7 @@ function remove(property: Property) {
 						{{ mandateStatuses[property.mandate.status] }}
 					</span>
 					<span v-else class="chip">Sin mandato</span>
-					<LnxButton mode="clear" size="small" @click="editingId === property.id ? editingId = undefined : edit(property)">
+					<LnxButton mode="clear" class="size-small" @click="editingId === property.id ? editingId = undefined : edit(property)">
 						{{ editingId === property.id ? 'Cerrar' : property.mandate ? 'Editar' : 'Añadir' }}
 					</LnxButton>
 				</div>

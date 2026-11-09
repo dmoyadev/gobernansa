@@ -119,7 +119,7 @@ async function pay(checkout: Checkout) {
 		:pay="pay"
 	>
 		<template v-if="booking?.paidAt && booking.uid === user?.id" #unavailable>
-			<LnxButton :to="`/neighborhood/bookings/${booking.id}/receipt`" size="large" is-block>
+			<LnxButton :to="`/neighborhood/bookings/${booking.id}/receipt`" class="size-large" is-block>
 				<template #prefix>
 					<LnxIcon icon="lucide:file-check" />
 				</template>

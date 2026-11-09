@@ -474,9 +474,8 @@ async function apply() {
 					</div>
 					<LnxButton
 						v-if="group.rows.length > PREVIEW_ROWS && !expanded.includes(groupKey(group))"
-						class="more"
+						class="more size-small"
 						mode="clear"
-						size="small"
 						@click="expanded.push(groupKey(group))"
 					>
 						Mostrar {{ plural(group.rows.length - PREVIEW_ROWS, 'fila más', 'filas más') }}

@@ -356,11 +356,11 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 					</div>
 
 					<div class="item-actions">
-						<LnxButton type="button" mode="clear" size="small" @click="addSchedule(contact)">
+						<LnxButton type="button" mode="clear" class="size-small" @click="addSchedule(contact)">
 							<LnxIcon icon="lucide:clock" />
 							Añadir horario
 						</LnxButton>
-						<LnxButton type="button" mode="clear" size="small" variant="danger" @click="form.contacts.splice(index, 1)">
+						<LnxButton type="button" mode="clear" class="size-small" variant="danger" @click="form.contacts.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 							Quitar contacto
 						</LnxButton>
@@ -403,7 +403,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 						</LnxInput>
 					</div>
 					<div class="item-actions">
-						<LnxButton type="button" mode="clear" size="small" variant="danger" @click="form.documents.splice(index, 1)">
+						<LnxButton type="button" mode="clear" class="size-small" variant="danger" @click="form.documents.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 							Quitar documento
 						</LnxButton>

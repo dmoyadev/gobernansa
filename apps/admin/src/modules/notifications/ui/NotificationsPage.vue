@@ -194,10 +194,10 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
+					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
+					<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>

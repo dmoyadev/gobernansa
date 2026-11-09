@@ -22,7 +22,7 @@ const { userCommunity } = useUserCommunity();
 		<p v-if="viewingAs" class="notice" role="status">
 			<LnxIcon icon="lucide:eye" :size="16" />
 			<span>Viendo «{{ userCommunity?.name }}» como vecino</span>
-			<LnxButton mode="clear" size="small" @click="exitViewAs()">
+			<LnxButton mode="clear" class="size-small" @click="exitViewAs()">
 				Salir
 			</LnxButton>
 		</p>

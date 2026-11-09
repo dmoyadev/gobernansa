@@ -246,14 +246,14 @@ function cancel(invitation: Invitation & { id: string }) {
 				</span>
 
 				<div v-if="communityId || canEdit(person)" class="person-actions">
-					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" size="small">
+					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" class="size-small">
 						<LnxIcon icon="lucide:file-text" />
 						Documentos
 					</LnxButton>
 					<LnxButton
 						v-if="communityId && person.role === 'user' && canEdit(person)"
 						mode="clear"
-						size="small"
+						class="size-small"
 						@click="toggleBlocked(person)"
 					>
 						<LnxIcon :icon="person.blocked ? 'lucide:shield-check' : 'lucide:shield-ban'" />
@@ -262,13 +262,13 @@ function cancel(invitation: Invitation & { id: string }) {
 					<LnxButton
 						v-if="canEdit(person) && communityId && roleOptions.includes('manager')"
 						mode="clear"
-						size="small"
+						class="size-small"
 						@click="toggleManager(person)"
 					>
 						<LnxIcon :icon="person.role === 'manager' ? 'lucide:user-minus' : 'lucide:user-check'" />
 						{{ person.role === 'manager' ? 'Quitar gestión' : 'Hacer gestor' }}
 					</LnxButton>
-					<LnxButton v-if="canEdit(person)" mode="clear" size="small" variant="danger" @click="remove(person)">
+					<LnxButton v-if="canEdit(person)" mode="clear" class="size-small" variant="danger" @click="remove(person)">
 						<LnxIcon icon="lucide:trash-2" />
 						{{ communityId ? 'Quitar de la comunidad' : 'Quitar acceso' }}
 					</LnxButton>
@@ -306,13 +306,13 @@ function cancel(invitation: Invitation & { id: string }) {
 				</div>
 				<span class="badge">{{ roles[invitation.role]?.label }}</span>
 				<div v-if="assignableRoles(me, invitation.communityId).includes(invitation.role)" class="person-actions">
-					<LnxButton mode="clear" size="small" @click="resend(invitation)">
+					<LnxButton mode="clear" class="size-small" @click="resend(invitation)">
 						<LnxIcon icon="lucide:mail" />
 						Reenviar invitación por email
 					</LnxButton>
 					<LnxButton
 						mode="clear"
-						size="small"
+						class="size-small"
 						variant="danger"
 						@click="cancel(invitation)"
 					>

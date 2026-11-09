@@ -391,7 +391,7 @@ function downloadSample() {
 	<header class="page-header">
 		<h1>Conciliación bancaria</h1>
 		<input ref="fileInput" type="file" accept=".n43,.aeb,.q43,.txt,.csv,text/plain,text/csv" hidden @change="readFile">
-		<LnxButton size="small" @click="fileInput?.click()">
+		<LnxButton class="size-small" @click="fileInput?.click()">
 			<LnxIcon icon="lucide:upload" />
 			Importar extracto
 			<Kbd combo="i" />
@@ -585,28 +585,28 @@ function downloadSample() {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton mode="clear" size="small" :disabled="!account" @click="downloadSample()">
+			<LnxButton mode="clear" class="size-small" :disabled="!account" @click="downloadSample()">
 				<LnxIcon icon="lucide:file-down" />
 				Descargar extracto de ejemplo (Norma 43)
 			</LnxButton>
 			<template v-if="feed">
-				<LnxButton mode="clear" size="small" @click="disconnect()">
+				<LnxButton mode="clear" class="size-small" @click="disconnect()">
 					Desconectar
 				</LnxButton>
-				<LnxButton size="small" :is-loading="syncing" :disabled="!account" @click="sync()">
+				<LnxButton class="size-small" :is-loading="syncing" :disabled="!account" @click="sync()">
 					<LnxIcon icon="lucide:refresh-cw" />
 					Sincronizar
 				</LnxButton>
 			</template>
 			<template v-else-if="consenting">
-				<LnxButton mode="clear" size="small" @click="consenting = false">
+				<LnxButton mode="clear" class="size-small" @click="consenting = false">
 					Cancelar
 				</LnxButton>
-				<LnxButton size="small" :is-loading="syncing" :disabled="!account" @click="sync(true)">
+				<LnxButton class="size-small" :is-loading="syncing" :disabled="!account" @click="sync(true)">
 					Autorizar en el banco de pruebas
 				</LnxButton>
 			</template>
-			<LnxButton v-else size="small" :disabled="!account || loading" @click="consenting = true">
+			<LnxButton v-else class="size-small" :disabled="!account || loading" @click="consenting = true">
 				<LnxIcon icon="lucide:plug" />
 				Conectar banco
 			</LnxButton>
@@ -640,10 +640,10 @@ function downloadSample() {
 					</div>
 					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
 					<div class="item-actions">
-						<LnxButton mode="clear" size="small" :aria-expanded="panel?.id === movement.id && panel.mode === 'match'" @click="openPanel(movement, 'match')">
+						<LnxButton mode="clear" class="size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'match'" @click="openPanel(movement, 'match')">
 							Conciliar a mano
 						</LnxButton>
-						<LnxButton mode="clear" size="small" :aria-expanded="panel?.id === movement.id && panel.mode === 'ignore'" @click="openPanel(movement, 'ignore')">
+						<LnxButton mode="clear" class="size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'ignore'" @click="openPanel(movement, 'ignore')">
 							Apartar
 						</LnxButton>
 					</div>
@@ -655,7 +655,7 @@ function downloadSample() {
 						<span>{{ suggestions.get(movement.id)!.candidate.label }}</span>
 						<small>{{ suggestions.get(movement.id)!.score ? 'Coinciden el importe y el nombre o la referencia' : 'Coincide el importe' }}</small>
 					</span>
-					<LnxButton size="small" :is-loading="busyId === movement.id" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
+					<LnxButton class="size-small" :is-loading="busyId === movement.id" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
 						Aceptar
 					</LnxButton>
 				</div>
@@ -684,7 +684,7 @@ function downloadSample() {
 							Seleccionado {{ formatCents(pickedTotal()) }}<template v-if="pickedTotal() !== movement.amount"> · faltan {{ formatCents(movement.amount - pickedTotal()) }} para cuadrar</template>
 						</span>
 						<LnxButton
-							size="small"
+							class="size-small"
 							:is-loading="busyId === movement.id"
 							:disabled="typeof pickedCandidate !== 'object' || pickedCandidate.amount !== movement.amount"
 							@click="acceptManual(movement)"
@@ -723,7 +723,7 @@ function downloadSample() {
 						Registrarlo como gasto pagado
 					</LnxCheckbox>
 					<footer class="form-actions">
-						<LnxButton type="submit" size="small" :is-loading="busyId === movement.id">
+						<LnxButton type="submit" class="size-small" :is-loading="busyId === movement.id">
 							Apartar
 						</LnxButton>
 					</footer>
@@ -752,7 +752,7 @@ function downloadSample() {
 						</small>
 					</div>
 					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
-					<LnxButton mode="clear" size="small" :is-loading="busyId === movement.id" @click="undoDone(movement)">
+					<LnxButton mode="clear" class="size-small" :is-loading="busyId === movement.id" @click="undoDone(movement)">
 						Deshacer
 					</LnxButton>
 				</div>

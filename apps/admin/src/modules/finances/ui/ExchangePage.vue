@@ -320,7 +320,7 @@ async function importDraft() {
 					<strong>{{ item.title }}{{ item.yearly ? ` ${year}` : '' }}</strong>
 					<span class="hint">{{ item.description }}</span>
 				</div>
-				<LnxButton mode="outline" size="small" :disabled="!!busy" @click="runExport(item)">
+				<LnxButton mode="outline" class="size-small" :disabled="!!busy" @click="runExport(item)">
 					<LnxIcon :icon="busy === item.key ? 'lucide:loader-circle' : 'lucide:download'" :class="{ spin: busy === item.key }" />
 					Descargar
 				</LnxButton>
@@ -351,7 +351,7 @@ async function importDraft() {
 		</p>
 		<div class="import-actions">
 			<input ref="checkInput" type="file" accept=".xml,.txt,.dbf,.csv,text/xml,application/xml,text/plain,text/csv" hidden @change="pickCheck">
-			<LnxButton size="small" mode="outline" @click="checkInput?.click()">
+			<LnxButton class="size-small" mode="outline" @click="checkInput?.click()">
 				<LnxIcon icon="lucide:file-search" />
 				Elegir fichero
 			</LnxButton>
@@ -375,12 +375,12 @@ async function importDraft() {
 					Para las filas sin vencimiento
 				</template>
 			</DatePicker>
-			<LnxButton mode="clear" size="small" @click="downloadTemplate()">
+			<LnxButton mode="clear" class="size-small" @click="downloadTemplate()">
 				<LnxIcon icon="lucide:file-spreadsheet" />
 				Descargar plantilla
 			</LnxButton>
 			<input ref="fileInput" type="file" accept=".csv,.txt,text/csv,text/plain" hidden @change="readFile">
-			<LnxButton size="small" :disabled="reading || importing" @click="fileInput?.click()">
+			<LnxButton class="size-small" :disabled="reading || importing" @click="fileInput?.click()">
 				<LnxIcon icon="lucide:upload" />
 				Elegir fichero
 				<Kbd combo="i" />

@@ -223,7 +223,7 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 					</small>
 				</span>
 				<div class="actions">
-					<LnxButton v-if="area.booking" :to="`/communities/${id}/locations/${area.id}`" mode="outline" size="small">
+					<LnxButton v-if="area.booking" :to="`/communities/${id}/locations/${area.id}`" mode="outline" class="size-small">
 						<LnxIcon icon="lucide:calendar-clock" />
 						Reservas
 					</LnxButton>

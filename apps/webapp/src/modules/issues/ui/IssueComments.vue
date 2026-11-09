@@ -100,11 +100,10 @@ function authorName(comment: IssueComment) {
 					</div>
 					<LnxButton
 						v-if="isMine(comment)"
-						class="delete"
+						class="delete size-small"
 						mode="clear"
 						variant="grayscale"
 						shape="circle"
-						size="small"
 						aria-label="Eliminar tu comentario"
 						@click="remove(comment)"
 					>

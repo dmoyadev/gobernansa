@@ -462,11 +462,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				{{ value }}
 			</template>
 		</LnxSelect>
-		<LnxButton mode="outline" size="small" :disabled="!ledger" @click="exportCsv()">
+		<LnxButton mode="outline" class="size-small" :disabled="!ledger" @click="exportCsv()">
 			<LnxIcon icon="lucide:file-spreadsheet" />
 			CSV
 		</LnxButton>
-		<LnxButton size="small" :disabled="!ledger" @click="print()">
+		<LnxButton class="size-small" :disabled="!ledger" @click="print()">
 			<LnxIcon icon="lucide:printer" />
 			Imprimir
 		</LnxButton>
@@ -493,11 +493,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 						<template v-if="closed && closedAt"> · cerrado el {{ dateFormat.format(closedAt) }}</template>
 						· {{ (closed ? closing!.result : proposedClosing.result) >= 0 ? 'excedente' : 'déficit' }} de {{ formatCents(Math.abs(closed ? closing!.result : proposedClosing.result)) }}
 					</span>
-					<LnxButton v-if="closed" mode="clear" size="small" :is-loading="closingBusy" @click="reopen()">
+					<LnxButton v-if="closed" mode="clear" class="size-small" :is-loading="closingBusy" @click="reopen()">
 						<LnxIcon icon="lucide:lock-open" />
 						Reabrir
 					</LnxButton>
-					<LnxButton v-else size="small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
+					<LnxButton v-else class="size-small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
 						<LnxIcon icon="lucide:lock" />
 						Cerrar el ejercicio
 					</LnxButton>
@@ -549,7 +549,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 					</LnxInput>
 					<LnxButton
 						mode="clear"
-						size="small"
+						class="size-small"
 						shape="circle"
 						variant="danger"
 						aria-label="Quitar línea"
@@ -562,7 +562,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				</li>
 			</ul>
 			<div>
-				<LnxButton mode="clear" size="small" @click="editor.lines.push(emptyLine())">
+				<LnxButton mode="clear" class="size-small" @click="editor.lines.push(emptyLine())">
 					<LnxIcon icon="lucide:plus" />
 					Añadir línea
 				</LnxButton>
@@ -628,10 +628,10 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 							<div class="entry-title">
 								<span>{{ entry.concept }} <small>{{ entryKinds[entry.kind] }}</small></span>
 								<span v-if="entry.manualId && !closed" class="entry-actions no-print">
-									<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="openEntry(manualOf(entry))">
+									<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="openEntry(manualOf(entry))">
 										<LnxIcon icon="lucide:pencil" />
 									</LnxButton>
-									<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeEntry(entry)">
+									<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeEntry(entry)">
 										<LnxIcon icon="lucide:trash-2" />
 									</LnxButton>
 								</span>
@@ -923,7 +923,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 								<LnxButton
 									v-if="account.custom && !closed"
 									mode="clear"
-									size="small"
+									class="size-small"
 									shape="circle"
 									variant="danger"
 									aria-label="Borrar cuenta"

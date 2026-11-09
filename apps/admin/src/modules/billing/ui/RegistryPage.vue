@@ -64,7 +64,7 @@ function downloadYear() {
 	<header class="page-header">
 		<BackButton to="/billing" label="Volver a honorarios" />
 		<h1>Registro Verifactu</h1>
-		<LnxButton mode="clear" size="small" :disabled="!records.length" @click="downloadYear()">
+		<LnxButton mode="clear" class="size-small" :disabled="!records.length" @click="downloadYear()">
 			<LnxIcon icon="lucide:file-code" />
 			Descargar XML del año
 		</LnxButton>

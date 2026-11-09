@@ -160,15 +160,15 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 		</dl>
 
 		<div v-if="!resolving" class="actions">
-			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" size="small" @click="resolving = true">
+			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" class="size-small" @click="resolving = true">
 				<LnxIcon icon="lucide:check" />
 				Resolver
 			</LnxButton>
-			<LnxButton v-if="group.status === 'new'" mode="outline" size="small" @click="change({ status: 'ignored' }, { status: 'ignored' }, { done: 'Error ignorado', failed: 'No se ha podido ignorar' })">
+			<LnxButton v-if="group.status === 'new'" mode="outline" class="size-small" @click="change({ status: 'ignored' }, { status: 'ignored' }, { done: 'Error ignorado', failed: 'No se ha podido ignorar' })">
 				<LnxIcon icon="lucide:eye-off" />
 				Ignorar
 			</LnxButton>
-			<LnxButton v-if="group.status !== 'new'" mode="outline" size="small" @click="change({ status: 'new' }, { status: 'new' }, { done: 'Error reabierto', failed: 'No se ha podido reabrir' })">
+			<LnxButton v-if="group.status !== 'new'" mode="outline" class="size-small" @click="change({ status: 'new' }, { status: 'new' }, { done: 'Error reabierto', failed: 'No se ha podido reabrir' })">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Reabrir
 			</LnxButton>
@@ -182,7 +182,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 						{{ mergeOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxButton type="submit" mode="outline" size="small" :disabled="!mergeTarget">
+				<LnxButton type="submit" mode="outline" class="size-small" :disabled="!mergeTarget">
 					<LnxIcon icon="lucide:merge" />
 					Fusionar
 				</LnxButton>
@@ -196,11 +196,11 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 				Nota
 			</LnxInput>
 			<div class="actions">
-				<LnxButton type="submit" size="small">
+				<LnxButton type="submit" class="size-small">
 					<LnxIcon icon="lucide:check" />
 					Marcar como resuelto
 				</LnxButton>
-				<LnxButton mode="clear" size="small" @click="resolving = false">
+				<LnxButton mode="clear" class="size-small" @click="resolving = false">
 					Cancelar
 				</LnxButton>
 			</div>
@@ -270,7 +270,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 
 			<h4>
 				Pila
-				<LnxButton v-if="sample.stack" mode="clear" size="small" @click="copy(sample.stack)">
+				<LnxButton v-if="sample.stack" mode="clear" class="size-small" @click="copy(sample.stack)">
 					<LnxIcon icon="lucide:copy" />
 					Copiar
 				</LnxButton>

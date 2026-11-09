@@ -138,18 +138,18 @@ async function record() {
 				<span v-if="invoice.annulled" class="chip debt">Anulada</span>
 				<span v-for="number in invoice.rectifiedBy ?? []" :key="number" class="chip">Rectificada por {{ number }}</span>
 				<span class="spacer" />
-				<LnxButton v-if="!invoice.annulled" :to="`/billing/${invoice.id}/rectify`" mode="clear" size="small">
+				<LnxButton v-if="!invoice.annulled" :to="`/billing/${invoice.id}/rectify`" mode="clear" class="size-small">
 					<LnxIcon icon="lucide:file-pen" />
 					Rectificar
 				</LnxButton>
-				<LnxButton v-if="!invoice.annulled && !invoice.expenseId && !items" mode="clear" size="small" :disabled="!office" @click="startRecording()">
+				<LnxButton v-if="!invoice.annulled && !invoice.expenseId && !items" mode="clear" class="size-small" :disabled="!office" @click="startRecording()">
 					<LnxIcon icon="lucide:book-plus" />
 					Anotar en sus cuentas
 				</LnxButton>
 				<RouterLink v-if="invoice.expenseId" :to="`/communities/${invoice.communityId}/payables`" class="chip ok">
 					En sus cuentas
 				</RouterLink>
-				<LnxButton v-if="!invoice.annulled && !invoice.rectifiedBy?.length && !invoice.expenseId" mode="clear" size="small" variant="danger" :is-loading="busy" @click="annul()">
+				<LnxButton v-if="!invoice.annulled && !invoice.rectifiedBy?.length && !invoice.expenseId" mode="clear" class="size-small" variant="danger" :is-loading="busy" @click="annul()">
 					Anular registro
 				</LnxButton>
 			</div>
@@ -296,7 +296,7 @@ async function record() {
 							· Enviado (simulado, entorno de pruebas), CSV {{ item.submission.csv }}
 						</small>
 					</div>
-					<LnxButton mode="clear" size="small" shape="circle" aria-label="Descargar XML" title="Descargar XML" @click="download(item)">
+					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Descargar XML" title="Descargar XML" @click="download(item)">
 						<LnxIcon icon="lucide:download" />
 					</LnxButton>
 				</li>

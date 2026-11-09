@@ -314,7 +314,7 @@ function downloadIcs(obligation: Obligation) {
 						</div>
 						<div class="warning-end">
 							<span class="pill tabular">{{ relativeDay.format(daysLeft(obligation), 'day') }}</span>
-							<LnxButton mode="outline" size="small" shape="circle" :aria-label="`Marcar «${obligation.title}» como hecha`" title="Marcar como hecha" @click="markDone(obligation)">
+							<LnxButton mode="outline" class="size-small" shape="circle" :aria-label="`Marcar «${obligation.title}» como hecha`" title="Marcar como hecha" @click="markDone(obligation)">
 								<LnxIcon icon="lucide:check" />
 							</LnxButton>
 						</div>
@@ -424,17 +424,17 @@ function downloadIcs(obligation: Obligation) {
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton v-if="!obligationDone(obligation)" mode="outline" size="small" @click="markDone(obligation)">
+					<LnxButton v-if="!obligationDone(obligation)" mode="outline" class="size-small" @click="markDone(obligation)">
 						<LnxIcon icon="lucide:check" />
 						Hecha
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" aria-label="Añadir al calendario" title="Añadir al calendario" @click="downloadIcs(obligation)">
+					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Añadir al calendario" title="Añadir al calendario" @click="downloadIcs(obligation)">
 						<LnxIcon icon="lucide:calendar-plus" />
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" aria-label="Editar" title="Editar" @click="edit(obligation)">
+					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(obligation)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(obligation)">
+					<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(obligation)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>

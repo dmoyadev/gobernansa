@@ -116,7 +116,7 @@ function record() {
 	<section class="card" :class="{ 'screen-only': !sent.length }">
 		<header class="header">
 			<h2>Notificación de {{ what }}</h2>
-			<LnxButton v-if="pending.length" class="screen-only" size="small" :is-loading="sending" @click="send()">
+			<LnxButton v-if="pending.length" class="screen-only size-small" :is-loading="sending" @click="send()">
 				<LnxIcon icon="lucide:send" />
 				{{ sent.length ? `Notificar a ${pending.length} que faltan` : kind === 'call' ? 'Notificar convocatoria' : 'Notificar a los propietarios' }}
 			</LnxButton>
@@ -203,7 +203,7 @@ function record() {
 				<DatePicker v-model="recording.receivedOn" :max="today" required>
 					Recibida el
 				</DatePicker>
-				<LnxButton type="submit" size="small" :disabled="!recording.noticeId || !recording.itemId || !recording.receivedOn">
+				<LnxButton type="submit" class="size-small" :disabled="!recording.noticeId || !recording.itemId || !recording.receivedOn">
 					<LnxIcon icon="lucide:file-x" />
 					Anotar discrepancia
 				</LnxButton>

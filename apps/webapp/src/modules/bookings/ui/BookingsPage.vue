@@ -295,7 +295,7 @@ function formatDay(day: string) {
 						</span>
 						<LnxButton
 							v-if="!blocked && canPayOnline && booking.paidAt === null"
-							size="small"
+							class="size-small"
 							:to="`/neighborhood/bookings/${booking.id}/pay`"
 						>
 							Pagar

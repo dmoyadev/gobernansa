@@ -247,13 +247,13 @@ function formatSize(bytes: number) {
 					</small>
 				</div>
 				<div class="actions">
-					<LnxButton mode="clear" size="small" :aria-label="`Descargar ${document.name}`" :title="`Descargar ${document.name}`" @click="download(document)">
+					<LnxButton mode="clear" class="size-small" :aria-label="`Descargar ${document.name}`" :title="`Descargar ${document.name}`" @click="download(document)">
 						<LnxIcon icon="lucide:download" />
 					</LnxButton>
 					<LnxButton
 						v-if="document.uploadedBy"
 						mode="clear"
-						size="small"
+						class="size-small"
 						variant="danger"
 						:aria-label="`Borrar ${document.name}`"
 						:title="`Borrar ${document.name}`"

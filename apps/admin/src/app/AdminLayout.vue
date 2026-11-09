@@ -106,7 +106,7 @@ const KEPT_PAGES = 6;
 			<small>Versión {{ RELEASE }}</small>
 		</span>
 		<!-- Only while the browser offers it, not once installed -->
-		<LnxButton v-if="canInstall" mode="clear" size="small" title="Instalar gobernança admin como app" @click="install()">
+		<LnxButton v-if="canInstall" mode="clear" class="size-small" title="Instalar gobernança admin como app" @click="install()">
 			<LnxIcon icon="lucide:monitor-down" />
 			Instalar
 		</LnxButton>

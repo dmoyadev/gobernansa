@@ -775,7 +775,7 @@ function reset() {
 				<LnxButton
 					mode="clear"
 					shape="circle"
-					size="small"
+					class="size-small"
 					:disabled="index === 0"
 					:aria-label="`Subir ${widgetsByKey.get(item.key)!.title}`"
 					aria-describedby="customize-help"
@@ -786,7 +786,7 @@ function reset() {
 				<LnxButton
 					mode="clear"
 					shape="circle"
-					size="small"
+					class="size-small"
 					:disabled="index === layout.length - 1"
 					:aria-label="`Bajar ${widgetsByKey.get(item.key)!.title}`"
 					aria-describedby="customize-help"
@@ -800,11 +800,11 @@ function reset() {
 			{{ announcement }}
 		</p>
 		<footer>
-			<LnxButton mode="clear" size="small" @click="reset()">
+			<LnxButton mode="clear" class="size-small" @click="reset()">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Restablecer
 			</LnxButton>
-			<LnxButton size="small" @click="dialog?.close()">
+			<LnxButton class="size-small" @click="dialog?.close()">
 				<LnxIcon icon="lucide:check" />
 				Listo
 			</LnxButton>

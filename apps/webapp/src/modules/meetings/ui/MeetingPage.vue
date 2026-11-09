@@ -179,7 +179,7 @@ function onDissent(notice: MeetingNotice, item: AgendaItem) {
 				<h2>Firmar acta</h2>
 				<p>Constas como {{ signerRoles[myRole].toLowerCase() }} de la junta. Revisa el acta y firma con el dedo o el ratón.</p>
 				<SignaturePad v-model="signature" />
-				<LnxButton size="small" :is-loading="busy === 'sign'" :disabled="!!busy || !signature || !!user?.blocked" @click="sign()">
+				<LnxButton class="size-small" :is-loading="busy === 'sign'" :disabled="!!busy || !signature || !!user?.blocked" @click="sign()">
 					<LnxIcon icon="lucide:signature" :size="16" />
 					Firmar acta
 				</LnxButton>
@@ -219,7 +219,7 @@ function onDissent(notice: MeetingNotice, item: AgendaItem) {
 					Acusaste recibo el {{ formatDay(notice.receivedAt) }}.
 				</p>
 				<template v-else>
-					<LnxButton size="small" :is-loading="busy === `receipt_${notice.id}`" :disabled="!!busy" @click="acknowledge(notice)">
+					<LnxButton class="size-small" :is-loading="busy === `receipt_${notice.id}`" :disabled="!!busy" @click="acknowledge(notice)">
 						<LnxIcon icon="lucide:mail-check" :size="16" />
 						Acuso recibo
 					</LnxButton>
@@ -237,7 +237,7 @@ function onDissent(notice: MeetingNotice, item: AgendaItem) {
 						<small v-else-if="notice.recordedDissent?.[item.id]">La administración anotó tu discrepancia, recibida el {{ formatDay(notice.recordedDissent[item.id]!.receivedOn) }}</small>
 						<LnxButton
 							v-else-if="canDissent(notice)"
-							size="small"
+							class="size-small"
 							mode="outline"
 							:is-loading="busy === `dissent_${item.id}`"
 							:disabled="!!busy"
@@ -257,7 +257,7 @@ function onDissent(notice: MeetingNotice, item: AgendaItem) {
 						v-for="(label, status) in attendanceStatus"
 						:key="status"
 						:mode="(status === 'delegated' ? delegating : attendance?.status === status && !delegating) ? 'solid' : 'outline'"
-						size="small"
+						class="size-small"
 						:is-loading="busy === status"
 						:disabled="!!busy || !!user?.blocked"
 						:aria-pressed="attendance?.status === status"
@@ -270,7 +270,7 @@ function onDissent(notice: MeetingNotice, item: AgendaItem) {
 					<LnxInput v-model="delegateName" required maxlength="100" :disabled="!!user?.blocked">
 						¿En quién delegas tu voto?
 					</LnxInput>
-					<LnxButton type="submit" size="small" :is-loading="busy === 'delegated'" :disabled="!!busy || !delegateName.trim() || !!user?.blocked">
+					<LnxButton type="submit" class="size-small" :is-loading="busy === 'delegated'" :disabled="!!busy || !delegateName.trim() || !!user?.blocked">
 						Guardar delegación
 					</LnxButton>
 				</form>
@@ -303,7 +303,7 @@ function onDissent(notice: MeetingNotice, item: AgendaItem) {
 										v-for="(label, choice) in voteChoices"
 										:key="choice"
 										:mode="myChoice(item, property) === choice ? 'solid' : 'outline'"
-										size="small"
+										class="size-small"
 										:aria-pressed="myChoice(item, property) === choice"
 										:is-loading="busy === `${item.id}_${property.id}_${choice}`"
 										:disabled="!!busy"

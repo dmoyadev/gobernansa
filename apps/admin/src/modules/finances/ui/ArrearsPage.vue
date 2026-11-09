@@ -356,7 +356,7 @@ function lastClaim(debtCase?: DebtCase) {
 								<LnxButton
 									:to="`/communities/${id}/arrears/${row.property.id}/claim`"
 									mode="clear"
-									size="small"
+									class="size-small"
 									shape="circle"
 									aria-label="Carta de reclamación"
 									title="Carta de reclamación"
@@ -366,7 +366,7 @@ function lastClaim(debtCase?: DebtCase) {
 								<LnxButton
 									:to="`/communities/${id}/arrears/${row.property.id}/monitorio`"
 									mode="clear"
-									size="small"
+									class="size-small"
 									shape="circle"
 									aria-label="Procedimiento monitorio"
 									title="Procedimiento monitorio"
@@ -414,7 +414,7 @@ function lastClaim(debtCase?: DebtCase) {
 											</tr>
 										</tbody>
 									</table>
-									<LnxButton size="small" mode="outline" :is-loading="invoicing === row.property.id" @click="invoiceInterest(row)">
+									<LnxButton class="size-small" mode="outline" :is-loading="invoicing === row.property.id" @click="invoiceInterest(row)">
 										<LnxIcon icon="lucide:receipt-euro" />
 										Generar recibo de intereses ({{ formatCents(row.interest.total) }})
 									</LnxButton>
@@ -451,7 +451,7 @@ function lastClaim(debtCase?: DebtCase) {
 													<template v-if="claim.tracking"> · {{ claim.tracking }} <span class="chip test">Prueba</span></template>
 												</small>
 											</div>
-											<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar del registro" @click="removeOne(row.debtCase!, claim)">
+											<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar del registro" @click="removeOne(row.debtCase!, claim)">
 												<LnxIcon icon="lucide:trash-2" />
 											</LnxButton>
 										</li>

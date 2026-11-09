@@ -407,7 +407,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 						{{ broadcast.copies.map(copy => communityNames.get(copy.communityId) ?? copy.communityId).join(', ') }}
 					</small>
 				</div>
-				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
+				<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>

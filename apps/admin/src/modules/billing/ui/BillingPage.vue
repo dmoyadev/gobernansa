@@ -162,11 +162,11 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las factu
 	<header class="page-header">
 		<BackButton to="/" label="Volver a comunidades" />
 		<h1>Honorarios</h1>
-		<LnxButton to="/billing/registry" mode="clear" size="small">
+		<LnxButton to="/billing/registry" mode="clear" class="size-small">
 			<LnxIcon icon="lucide:shield-check" />
 			Registro Verifactu
 		</LnxButton>
-		<LnxButton to="/billing/office" mode="clear" size="small">
+		<LnxButton to="/billing/office" mode="clear" class="size-small">
 			<LnxIcon icon="lucide:briefcase" />
 			Datos fiscales
 		</LnxButton>

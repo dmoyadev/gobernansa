@@ -70,7 +70,7 @@ function end() {
 		>
 			<path :d="path" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
 		</svg>
-		<LnxButton v-if="!readonly && path" type="button" mode="clear" size="small" class="clear" @click="path = ''">
+		<LnxButton v-if="!readonly && path" type="button" mode="clear" class="clear size-small" @click="path = ''">
 			<LnxIcon icon="lucide:eraser" />
 			Borrar
 		</LnxButton>

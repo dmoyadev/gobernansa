@@ -475,11 +475,11 @@ useEventListener(window, 'keydown', (event) => {
 									{{ comment.message }}
 								</p>
 								<div class="moderation">
-									<LnxButton mode="clear" size="small" @click="toggleHidden(comment)">
+									<LnxButton mode="clear" class="size-small" @click="toggleHidden(comment)">
 										<LnxIcon :icon="comment.hiddenAt ? 'lucide:eye' : 'lucide:eye-off'" />
 										{{ comment.hiddenAt ? 'Mostrar' : 'Ocultar' }}
 									</LnxButton>
-									<LnxButton v-if="authorOf(comment)" mode="clear" size="small" @click="toggleBlocked(comment)">
+									<LnxButton v-if="authorOf(comment)" mode="clear" class="size-small" @click="toggleBlocked(comment)">
 										<LnxIcon :icon="authorOf(comment)?.blocked ? 'lucide:user-check' : 'lucide:user-x'" />
 										{{ authorOf(comment)?.blocked ? 'Desbloquear vecino' : 'Bloquear vecino' }}
 									</LnxButton>
@@ -510,7 +510,7 @@ useEventListener(window, 'keydown', (event) => {
 						<LnxButton
 							v-if="issue.provider && !editingAssignment"
 							mode="clear"
-							size="small"
+							class="size-small"
 							@click="editingAssignment = true"
 						>
 							<LnxIcon icon="lucide:pencil" />
@@ -527,11 +527,11 @@ useEventListener(window, 'keydown', (event) => {
 							</div>
 						</div>
 						<div class="quick-actions">
-							<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" size="small">
+							<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" class="size-small">
 								<LnxIcon icon="lucide:phone" />
 								Llamar
 							</LnxButton>
-							<LnxButton v-if="providerMail" :href="providerMail" mode="outline" size="small">
+							<LnxButton v-if="providerMail" :href="providerMail" mode="outline" class="size-small">
 								<LnxIcon icon="lucide:mail" />
 								Enviar aviso
 							</LnxButton>
@@ -621,7 +621,7 @@ useEventListener(window, 'keydown', (event) => {
 						<LnxButton
 							v-if="adminData?.claim && !claimForm"
 							mode="clear"
-							size="small"
+							class="size-small"
 							@click="openClaimForm()"
 						>
 							<LnxIcon icon="lucide:pencil" />

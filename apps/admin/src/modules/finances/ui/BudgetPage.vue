@@ -280,7 +280,7 @@ function remove(expense: Expense) {
 				<LnxInput v-model="item.amount" inputmode="decimal" placeholder="1.250,00">
 					Importe anual (€)
 				</LnxInput>
-				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Quitar partida" title="Quitar partida" @click="items.splice(index, 1)">
+				<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Quitar partida" title="Quitar partida" @click="items.splice(index, 1)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
@@ -301,7 +301,7 @@ function remove(expense: Expense) {
 		<p v-if="reserveShort" class="warning">
 			<LnxIcon icon="lucide:triangle-alert" />
 			Es el {{ reservePercent.toLocaleString('es') }} % del presupuesto ordinario. La ley exige al menos el {{ MIN_RESERVE_PERCENT }} % ({{ formatCents(minReserve(typedOrdinary)) }}).
-			<LnxButton mode="clear" size="small" @click="proposeReserve()">
+			<LnxButton mode="clear" class="size-small" @click="proposeReserve()">
 				Poner el mínimo
 			</LnxButton>
 		</p>
@@ -532,7 +532,7 @@ function remove(expense: Expense) {
 						{{ isOverdue(expense) ? 'Vencida' : 'Pendiente de pago' }}
 					</RouterLink>
 				</div>
-				<LnxButton mode="clear" size="small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
+				<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
