@@ -645,7 +645,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 					<span v-else-if="incomeGross > 0" class="summary">
 						Cobrado en el banco {{ formatCents(incomeGross - incomeWithholding) }}<template v-if="incomeWithholding">, retenido {{ formatCents(incomeWithholding) }}</template>
 					</span>
-					<LnxButton mode="clear" @click="close()">
+					<LnxButton type="button" mode="clear" @click="close()">
 						Cancelar
 						<Kbd combo="escape" />
 					</LnxButton>

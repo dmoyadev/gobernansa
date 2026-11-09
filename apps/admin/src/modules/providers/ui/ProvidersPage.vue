@@ -281,7 +281,7 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

@@ -3,12 +3,13 @@ import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/comm
 import { commonAreaIcons, formatSchedule, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { nextTick, ref, toRaw } from 'vue';
+import { ref, toRaw, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import IconPicker from '@/app/ux/IconPicker.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { useSortable } from '@/app/ux/sortable.ts';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -23,11 +24,15 @@ const loading = ref(true);
 const loadError = ref<string>();
 const areas = ref<CommonArea[]>([]);
 
-// The one being edited, a copy so cancelling leaves it as it was. Its booking settings are kept while it's
+// What the form edits, a copy so cancelling leaves the area as it was. Its booking settings are kept while it's
 // unticked, so ticking it again in the same edit brings them back
-interface Draft extends CommonArea { bookable: boolean; isNew?: boolean }
-const draft = ref<Draft>();
+interface Draft extends CommonArea { bookable: boolean }
+const newDraft = (): Draft => ({ id: crypto.randomUUID(), name: '', icon: 'lucide:building-2', bookable: false });
+const draft = ref(newDraft());
+// The one being edited, none while adding a new one
+const editingId = ref<string>();
 const error = ref<string>();
+const formElement = useTemplateRef<HTMLFormElement>('formElement');
 
 // Read again when the page comes back, the last one shown meanwhile. The draft is its own copy, so the list is
 // always the latest: saving it mustn't write back what the bookings page changed meanwhile
@@ -44,30 +49,24 @@ function load() {
 void load();
 onRevalidate(load);
 
-async function edit(area: CommonArea) {
+function reset() {
+	draft.value = newDraft();
+	editingId.value = undefined;
+	error.value = undefined;
+}
+
+const { open, show, close } = useNewForm(formElement, reset);
+
+function edit(area: CommonArea) {
 	draft.value = { ...structuredClone(toRaw(area)), bookable: !!area.booking };
+	editingId.value = area.id;
 	error.value = undefined;
-	await nextTick();
-	document.querySelector<HTMLInputElement>('.editing input')?.focus();
+	void show();
 }
 
-async function create() {
-	if (draft.value?.isNew) {
-		document.querySelector<HTMLInputElement>('.editing input')?.focus();
-		return;
-	}
-	const area = { id: crypto.randomUUID(), name: '', icon: 'lucide:building-2' };
-	await edit(area);
-	draft.value!.isNew = true;
-}
-
-function cancel() {
-	draft.value = undefined;
-	error.value = undefined;
-}
-
+// The form closes at once and the list shows it. If the server rejects it, the form opens with it again
 function save() {
-	const { bookable, isNew, booking, ...area } = draft.value!;
+	const { bookable, booking, ...area } = draft.value;
 	area.name = area.name.trim();
 	// Issues point to the area by its name, so two can't share one
 	if (areas.value.some(other => other.id !== area.id && other.name.toLowerCase() === area.name.toLowerCase())) {
@@ -75,9 +74,14 @@ function save() {
 		return;
 	}
 
+	const sent = { draft: draft.value, editingId: editingId.value };
 	const saved: CommonArea = bookable ? { ...area, booking: booking ?? structuredClone(DEFAULT_BOOKING) } : area;
-	const next = isNew ? [saved, ...areas.value] : areas.value.map(other => other.id === saved.id ? saved : other);
-	persist(next, `${isNew ? 'Añadió' : 'Actualizó'} la zona común ${saved.name}`, isNew ? 'Zona creada' : 'Zona guardada');
+	const next = sent.editingId ? areas.value.map(other => other.id === saved.id ? saved : other) : [saved, ...areas.value];
+	close();
+	persist(next, `${sent.editingId ? 'Actualizó' : 'Añadió'} la zona común ${saved.name}`, sent.editingId ? 'Zona guardada' : 'Zona creada', undefined, () => {
+		({ draft: draft.value, editingId: editingId.value } = sent);
+		open.value = true;
+	});
 }
 
 function remove(area: CommonArea) {
@@ -87,6 +91,9 @@ function remove(area: CommonArea) {
 		return;
 	}
 
+	if (editingId.value === area.id) {
+		close();
+	}
 	const index = areas.value.findIndex(other => other.id === area.id);
 	// Back where it was, among the areas as they are by then
 	persist(areas.value.filter(other => other.id !== area.id), `Quitó la zona común ${area.name}`, 'Zona quitada', async () => {
@@ -105,36 +112,33 @@ function remove(area: CommonArea) {
 
 // Neighbours see them in this order, when reporting and booking
 const { sorting, rowStyle, rowClass, handleEvents } = useSortable(areas, {
-	disabled: () => !!draft.value,
+	disabled: () => open.value,
 	reorder: next => persist(next, 'Reordenó las zonas comunes', 'Orden guardado'),
 });
 
-// The list changes at once; if the server rejects it, it goes back and what was being edited is open again
-function persist(next: CommonArea[], summary: string, done: string, revert?: () => Promise<unknown>) {
+// The list changes at once; if the server rejects it, it goes back and `reopen` puts back what was being edited
+function persist(next: CommonArea[], summary: string, done: string, revert?: () => Promise<unknown>, reopen?: () => void) {
 	const previous = areas.value;
-	const editing = draft.value;
 	areas.value = next;
-	draft.value = undefined;
-	error.value = undefined;
 	void optimistic(saveCommonAreas(props.id, next, summary), {
 		done,
 		failed: 'No se ha podido guardar',
 		revert,
 		onError: () => {
 			areas.value = previous;
-			draft.value ??= editing;
+			reopen?.();
 		},
 	});
 }
 
-useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.editing')?.requestSubmit(), 'Guardar la zona');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la zona');
 </script>
 
 <template>
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}`" label="Volver a la comunidad" />
 		<h1>Zonas comunes</h1>
-		<NewButton label="Nueva zona común" :disabled="loading || (!!loadError && !areas.length) || !!draft?.isNew" @click="create()" />
+		<NewButton v-if="!open" label="Nueva zona común" :disabled="loading || (!!loadError && !areas.length)" @click="show()" />
 	</header>
 
 	<p class="hint">
@@ -143,6 +147,34 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	<p v-if="loadError && !areas.length" class="error" role="alert">
 		{{ loadError }}
 	</p>
+
+	<form v-if="open" ref="formElement" class="card form ux-appear" @submit.prevent="save()">
+		<h2>{{ editingId ? 'Editar zona común' : 'Nueva zona común' }}</h2>
+		<div class="named">
+			<IconPicker v-model="draft.icon" :options="commonAreaIcons" />
+			<LnxInput v-model="draft.name" autofocus placeholder="Portal, piscina, pista de pádel…" required>
+				Nombre
+			</LnxInput>
+		</div>
+		<LnxCheckbox v-model="draft.bookable">
+			Reservable
+		</LnxCheckbox>
+
+		<footer class="form-actions">
+			<p v-if="error" class="error" role="alert">
+				{{ error }}
+			</p>
+			<LnxButton type="button" mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
+			<LnxButton type="submit">
+				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
+				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
+				<Kbd combo="mod+enter" />
+			</LnxButton>
+		</footer>
+	</form>
 
 	<ul v-if="loading" class="card list" aria-busy="true">
 		<li v-for="width in [30, 45, 25, 38]" :key="width" class="row">
@@ -155,60 +187,24 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	</ul>
 
 	<TransitionGroup v-else-if="!loadError || areas.length" tag="ul" name="row" class="card list sortable ux-appear" :class="{ sorting }">
-		<li v-if="!areas.length && !draft" key="empty" class="empty">
+		<li v-if="!areas.length" key="empty" class="empty">
 			Aún no hay zonas comunes: portal, garaje, piscina…
 		</li>
 
 		<li
-			v-for="area in draft?.isNew ? [draft, ...areas] : areas"
+			v-for="area in areas"
 			:key="area.id"
 			:data-id="area.id"
 			:class="rowClass(area)"
 			:style="rowStyle(area)"
 		>
-			<form v-if="draft?.id === area.id" class="row editing" @submit.prevent="save()" @keydown.esc="cancel()">
-				<IconPicker v-model="draft.icon" :options="commonAreaIcons" />
-
-				<LnxInput v-model="draft.name" class="name" placeholder="Portal, piscina, pista de pádel…" aria-label="Nombre" required />
-				<LnxCheckbox v-model="draft.bookable">
-					Reservable
-				</LnxCheckbox>
-
-				<div class="actions">
-					<LnxButton
-						v-if="!draft.isNew"
-						type="button"
-						mode="clear"
-						shape="circle"
-						variant="danger"
-						:aria-label="`Quitar ${area.name}`"
-						:title="`Quitar ${area.name}`"
-						@click="remove(area)"
-					>
-						<LnxIcon icon="lucide:trash-2" />
-					</LnxButton>
-					<LnxButton type="button" mode="clear" size="small" @click="cancel()">
-						Cancelar
-						<Kbd combo="escape" />
-					</LnxButton>
-					<LnxButton type="submit" size="small">
-						<LnxIcon icon="lucide:check" />
-						Guardar
-						<Kbd combo="mod+enter" />
-					</LnxButton>
-				</div>
-				<p v-if="error" class="error wide" role="alert">
-					{{ error }}
-				</p>
-			</form>
-
-			<div v-else class="row">
+			<div class="row">
 				<button
 					type="button"
 					class="handle"
 					title="Reordenar"
 					:aria-label="`Reordenar ${area.name}, con las flechas arriba y abajo`"
-					:disabled="!!draft || areas.length < 2"
+					:disabled="open || areas.length < 2"
 					v-on="handleEvents(area)"
 				>
 					<LnxIcon icon="lucide:grip-vertical" :size="18" />
@@ -227,15 +223,11 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 						<LnxIcon icon="lucide:calendar-clock" />
 						Reservas
 					</LnxButton>
-					<LnxButton
-						mode="clear"
-						shape="circle"
-						:aria-label="`Editar ${area.name}`"
-						:title="`Editar ${area.name}`"
-						:disabled="!!draft"
-						@click="edit(area)"
-					>
+					<LnxButton mode="clear" shape="circle" :aria-label="`Editar ${area.name}`" :title="`Editar ${area.name}`" @click="edit(area)">
 						<LnxIcon icon="lucide:pencil" />
+					</LnxButton>
+					<LnxButton mode="clear" shape="circle" variant="danger" :aria-label="`Quitar ${area.name}`" :title="`Quitar ${area.name}`" @click="remove(area)">
+						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>
 			</div>
@@ -272,9 +264,46 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	flex-direction: column;
 }
 
-section.card {
+// Above the list, as the other pages' forms
+form.card {
+	margin-bottom: var(--lnx-spacing-5);
 	padding: var(--lnx-spacing-5);
+	align-items: flex-start;
+	gap: var(--lnx-spacing-4);
+
+	h2 {
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		color: var(--color-gray-6);
+		text-transform: uppercase;
+		letter-spacing: .04em;
+	}
+}
+
+// The icon beside the name, at the height of its input
+.named {
+	display: flex;
+	align-items: flex-end;
 	gap: var(--lnx-spacing-3);
+	width: min(480px, 100%);
+
+	> :last-child {
+		flex: 1;
+		min-width: 0;
+	}
+}
+
+.form-actions {
+	align-self: stretch;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--lnx-spacing-2);
+
+	.error {
+		flex: 1;
+	}
 }
 
 .list > li + li {
@@ -330,10 +359,6 @@ section.card {
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-1);
-}
-
-.wide {
-	flex-basis: 100%;
 }
 
 // Created or removed, the others make room

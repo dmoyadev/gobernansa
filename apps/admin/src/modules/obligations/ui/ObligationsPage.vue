@@ -372,7 +372,7 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

@@ -222,6 +222,67 @@ html[data-workspace-move="back"] {
 	}
 }
 
+// «Nuevo» flies to the button that sends the form it opens (newForm.ts), its label fading into that one's. The rest of
+// the page is at once as it ends, the form appearing on its own
+html[data-new-form] {
+	&::view-transition-group(*),
+	&::view-transition-old(root),
+	&::view-transition-new(root) {
+		animation-duration: 0s;
+	}
+
+	&::view-transition-group(new-form) {
+		animation-duration: .4s;
+		animation-timing-function: var(--ease-spring);
+	}
+
+	// Stretched to the button's shape as it changes, not scaled out of it
+	&::view-transition-old(new-form),
+	&::view-transition-new(new-form) {
+		height: 100%;
+	}
+}
+
+// Into the page «Nuevo» opens and back (navigation.ts): «Nuevo» turns into what sends its form, and the title into the
+// other one, while the rest crossfades in place
+html[data-new-page] {
+	&::view-transition-old(root) {
+		animation-name: vt-fade-out;
+	}
+
+	&::view-transition-new(root) {
+		animation-name: vt-fade-in;
+	}
+
+	// What's named in only one of the pages (a list's items) goes with the page, not over the other one
+	&::view-transition-group(*) {
+		animation-duration: .16s;
+	}
+
+	&::view-transition-group(new-form) {
+		animation-duration: .4s;
+		animation-timing-function: var(--ease-spring);
+	}
+
+	&::view-transition-group(page-title) {
+		animation-duration: .4s;
+	}
+
+	&::view-transition-old(new-form),
+	&::view-transition-new(new-form) {
+		height: 100%;
+	}
+
+	// Each text at its own size, not stretched to the other's width
+	&::view-transition-old(page-title),
+	&::view-transition-new(page-title) {
+		width: auto;
+		height: 100%;
+	}
+}
+
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
 @keyframes vt-out-up { to { opacity: 0; translate: 0 -10px; } }
 @keyframes vt-in-up { from { opacity: 0; translate: 0 20px; } }
 @keyframes vt-out-down { to { opacity: 0; translate: 0 10px; } }

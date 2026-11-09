@@ -586,7 +586,7 @@ useEventListener(window, 'keydown', (event) => {
 							Nota interna (los vecinos no la ven)
 						</LnxTextarea>
 						<footer class="form-actions">
-							<LnxButton v-if="issue.provider" mode="clear" @click="resetAssignment(); editingAssignment = false">
+							<LnxButton v-if="issue.provider" type="button" mode="clear" @click="resetAssignment(); editingAssignment = false">
 								Cancelar
 							</LnxButton>
 							<LnxButton type="submit">
@@ -696,7 +696,7 @@ useEventListener(window, 'keydown', (event) => {
 							Qué ha pasado
 						</LnxTextarea>
 						<footer class="form-actions">
-							<LnxButton mode="clear" @click="claimForm = undefined">
+							<LnxButton type="button" mode="clear" @click="claimForm = undefined">
 								Cancelar
 							</LnxButton>
 							<LnxButton type="submit">

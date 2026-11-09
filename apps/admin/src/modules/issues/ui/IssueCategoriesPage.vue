@@ -2,12 +2,13 @@
 import type { IssueCategory, IssueCategoryColor } from '@gobernansa/shared/domain/issue.ts';
 import { DEFAULT_ISSUE_CATEGORIES, getIssueCategories, issueCategoryColors, issueCategoryIcons, issueCategoryStyle } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
-import { nextTick, ref, toRaw } from 'vue';
+import { ref, toRaw, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import IconPicker from '@/app/ux/IconPicker.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { useSortable } from '@/app/ux/sortable.ts';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -22,10 +23,13 @@ const loading = ref(true);
 const loadError = ref<string>();
 const categories = ref<IssueCategory[]>([]);
 
-// The one being edited, a copy so cancelling leaves it as it was
-interface Draft extends IssueCategory { isNew?: boolean }
-const draft = ref<Draft>();
+// What the form edits, a copy so cancelling leaves the category as it was
+const newDraft = (): IssueCategory => ({ id: crypto.randomUUID(), name: '', icon: 'lucide:triangle-alert', color: 'gray', examples: '' });
+const draft = ref(newDraft());
+// The one being edited, none while adding a new one
+const editingId = ref<string>();
 const error = ref<string>();
+const formElement = useTemplateRef<HTMLFormElement>('formElement');
 
 // Read again when the page comes back, the last one shown meanwhile
 function load() {
@@ -41,29 +45,24 @@ function load() {
 void load();
 onRevalidate(load);
 
-async function edit(category: IssueCategory) {
+function reset() {
+	draft.value = newDraft();
+	editingId.value = undefined;
+	error.value = undefined;
+}
+
+const { open, show, close } = useNewForm(formElement, reset);
+
+function edit(category: IssueCategory) {
 	draft.value = structuredClone(toRaw(category));
+	editingId.value = category.id;
 	error.value = undefined;
-	await nextTick();
-	document.querySelector<HTMLInputElement>('.editing input')?.focus();
+	void show();
 }
 
-async function create() {
-	if (draft.value?.isNew) {
-		document.querySelector<HTMLInputElement>('.editing input')?.focus();
-		return;
-	}
-	await edit({ id: crypto.randomUUID(), name: '', icon: 'lucide:triangle-alert', color: 'gray', examples: '' });
-	draft.value!.isNew = true;
-}
-
-function cancel() {
-	draft.value = undefined;
-	error.value = undefined;
-}
-
+// The form closes at once and the list shows it. If the server rejects it, the form opens with it again
 function save() {
-	const { isNew, examples, ...category } = draft.value!;
+	const { examples, ...category } = draft.value;
 	// Without empty examples, Firestore doesn't take undefined
 	const saved: IssueCategory = { ...category, name: category.name.trim(), ...(examples?.trim() ? { examples: examples.trim() } : {}) };
 	if (categories.value.some(other => other.id !== saved.id && other.name.toLowerCase() === saved.name.toLowerCase())) {
@@ -71,8 +70,13 @@ function save() {
 		return;
 	}
 
-	const next = isNew ? [...categories.value, saved] : categories.value.map(other => other.id === saved.id ? saved : other);
-	persist(next, `${isNew ? 'Añadió' : 'Actualizó'} la categoría de incidencias ${saved.name}`, isNew ? 'Categoría creada' : 'Categoría guardada');
+	const sent = { draft: draft.value, editingId: editingId.value };
+	const next = sent.editingId ? categories.value.map(other => other.id === saved.id ? saved : other) : [...categories.value, saved];
+	close();
+	persist(next, `${sent.editingId ? 'Actualizó' : 'Añadió'} la categoría de incidencias ${saved.name}`, sent.editingId ? 'Categoría guardada' : 'Categoría creada', undefined, () => {
+		({ draft: draft.value, editingId: editingId.value } = sent);
+		open.value = true;
+	});
 }
 
 function remove(category: IssueCategory) {
@@ -87,6 +91,9 @@ function remove(category: IssueCategory) {
 		return;
 	}
 
+	if (editingId.value === category.id) {
+		close();
+	}
 	const index = categories.value.findIndex(other => other.id === category.id);
 	// Back where it was, among the categories as they are by then
 	persist(categories.value.filter(other => other.id !== category.id), `Quitó la categoría de incidencias ${category.name}`, 'Categoría quitada', async () => {
@@ -105,36 +112,33 @@ function remove(category: IssueCategory) {
 
 // Neighbours see them in this order when reporting
 const { sorting, rowStyle, rowClass, handleEvents } = useSortable(categories, {
-	disabled: () => !!draft.value,
+	disabled: () => open.value,
 	reorder: next => persist(next, 'Reordenó las categorías de incidencias', 'Orden guardado'),
 });
 
-// The list changes at once; if the server rejects it, it goes back and what was being edited is open again
-function persist(next: IssueCategory[], summary: string, done: string, revert?: () => Promise<unknown>) {
+// The list changes at once; if the server rejects it, it goes back and `reopen` puts back what was being edited
+function persist(next: IssueCategory[], summary: string, done: string, revert?: () => Promise<unknown>, reopen?: () => void) {
 	const previous = categories.value;
-	const editing = draft.value;
 	categories.value = next;
-	draft.value = undefined;
-	error.value = undefined;
 	void optimistic(saveIssueCategories(props.id, next, summary), {
 		done,
 		failed: 'No se ha podido guardar',
 		revert,
 		onError: () => {
 			categories.value = previous;
-			draft.value ??= editing;
+			reopen?.();
 		},
 	});
 }
 
-useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.editing')?.requestSubmit(), 'Guardar la categoría');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la categoría');
 </script>
 
 <template>
 	<header class="page-header">
 		<BackButton :to="`/communities/${id}/issues`" label="Volver a las incidencias" />
 		<h1>Categorías de incidencias</h1>
-		<NewButton label="Nueva categoría" :disabled="loading || (!!loadError && !categories.length) || !!draft?.isNew" @click="create()" />
+		<NewButton v-if="!open" label="Nueva categoría" :disabled="loading || (!!loadError && !categories.length)" @click="show()" />
 	</header>
 
 	<p class="hint">
@@ -143,9 +147,51 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	<p v-if="loadError && !categories.length" class="error" role="alert">
 		{{ loadError }}
 	</p>
-	<p v-else-if="error && !draft" class="error" role="alert">
+	<p v-else-if="error && !open" class="error" role="alert">
 		{{ error }}
 	</p>
+
+	<!-- In the category's colors, as neighbours see it -->
+	<form v-if="open" ref="formElement" class="card form ux-appear" :style="issueCategoryStyle(draft)" @submit.prevent="save()">
+		<h2>{{ editingId ? 'Editar categoría' : 'Nueva categoría' }}</h2>
+		<div class="fields">
+			<div class="named">
+				<IconPicker v-model="draft.icon" :options="issueCategoryIcons" />
+				<LnxInput v-model="draft.name" autofocus placeholder="Mantenimiento, ascensor, plagas…" required maxlength="40">
+					Nombre
+				</LnxInput>
+			</div>
+			<LnxInput v-model="draft.examples" placeholder="Luces, puertas, fugas…" maxlength="80">
+				Ejemplos
+				<template #helper>
+					Para ayudar a los vecinos a elegirla
+				</template>
+			</LnxInput>
+		</div>
+
+		<fieldset class="colors">
+			<legend>Color</legend>
+			<label v-for="[color, label] in colors" :key="color" :title="label" :style="issueCategoryStyle({ color })">
+				<input v-model="draft.color" type="radio" class="sr-only" name="color" :value="color" :aria-label="label">
+				<span class="swatch" />
+			</label>
+		</fieldset>
+
+		<footer class="form-actions">
+			<p v-if="error" class="error" role="alert">
+				{{ error }}
+			</p>
+			<LnxButton type="button" mode="clear" @click="close()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
+			<LnxButton type="submit">
+				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
+				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
+				<Kbd combo="mod+enter" />
+			</LnxButton>
+		</footer>
+	</form>
 
 	<ul v-if="loading" class="card list" aria-busy="true">
 		<li v-for="width in [30, 45, 25, 38]" :key="width" class="row">
@@ -159,65 +205,19 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 
 	<TransitionGroup v-else-if="!loadError || categories.length" tag="ul" name="row" class="card list sortable ux-appear" :class="{ sorting }">
 		<li
-			v-for="category in draft?.isNew ? [...categories, draft] : categories"
+			v-for="category in categories"
 			:key="category.id"
 			:data-id="category.id"
 			:class="rowClass(category)"
-			:style="[rowStyle(category), issueCategoryStyle(draft?.id === category.id ? draft : category)]"
+			:style="[rowStyle(category), issueCategoryStyle(category)]"
 		>
-			<form v-if="draft?.id === category.id" class="row editing" @submit.prevent="save()" @keydown.esc="cancel()">
-				<IconPicker v-model="draft.icon" :options="issueCategoryIcons" />
-
-				<div class="fields">
-					<LnxInput v-model="draft.name" placeholder="Mantenimiento, ascensor, plagas…" aria-label="Nombre" required maxlength="40" />
-					<LnxInput v-model="draft.examples" placeholder="Ejemplos, para ayudar a elegirla: luces, puertas, fugas…" aria-label="Ejemplos" maxlength="80" />
-				</div>
-
-				<fieldset class="colors">
-					<legend class="sr-only">
-						Color
-					</legend>
-					<label v-for="[color, label] in colors" :key="color" :title="label" :style="issueCategoryStyle({ color })">
-						<input v-model="draft.color" type="radio" class="sr-only" name="color" :value="color" :aria-label="label">
-						<span class="swatch" />
-					</label>
-				</fieldset>
-
-				<div class="actions">
-					<LnxButton
-						v-if="!draft.isNew"
-						type="button"
-						mode="clear"
-						shape="circle"
-						variant="danger"
-						:aria-label="`Quitar ${category.name}`"
-						:title="`Quitar ${category.name}`"
-						@click="remove(category)"
-					>
-						<LnxIcon icon="lucide:trash-2" />
-					</LnxButton>
-					<LnxButton type="button" mode="clear" size="small" @click="cancel()">
-						Cancelar
-						<Kbd combo="escape" />
-					</LnxButton>
-					<LnxButton type="submit" size="small">
-						<LnxIcon icon="lucide:check" />
-						Guardar
-						<Kbd combo="mod+enter" />
-					</LnxButton>
-				</div>
-				<p v-if="error" class="error wide" role="alert">
-					{{ error }}
-				</p>
-			</form>
-
-			<div v-else class="row">
+			<div class="row">
 				<button
 					type="button"
 					class="handle"
 					title="Reordenar"
 					:aria-label="`Reordenar ${category.name}, con las flechas arriba y abajo`"
-					:disabled="!!draft || categories.length < 2"
+					:disabled="open || categories.length < 2"
 					v-on="handleEvents(category)"
 				>
 					<LnxIcon icon="lucide:grip-vertical" :size="18" />
@@ -230,15 +230,11 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 					<small v-if="category.examples">{{ category.examples }}</small>
 				</span>
 				<div class="actions">
-					<LnxButton
-						mode="clear"
-						shape="circle"
-						:aria-label="`Editar ${category.name}`"
-						:title="`Editar ${category.name}`"
-						:disabled="!!draft"
-						@click="edit(category)"
-					>
+					<LnxButton mode="clear" shape="circle" :aria-label="`Editar ${category.name}`" :title="`Editar ${category.name}`" @click="edit(category)">
 						<LnxIcon icon="lucide:pencil" />
+					</LnxButton>
+					<LnxButton mode="clear" shape="circle" variant="danger" :aria-label="`Quitar ${category.name}`" :title="`Quitar ${category.name}`" @click="remove(category)">
+						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>
 			</div>
@@ -286,10 +282,48 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--lnx-spacing-3);
+}
 
-	// The picker in the category's colors, as neighbours see it
+// Above the list, as the other pages' forms
+form.card {
+	margin-bottom: var(--lnx-spacing-5);
+	padding: var(--lnx-spacing-5);
+	gap: var(--lnx-spacing-4);
+
+	h2 {
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		color: var(--color-gray-6);
+		text-transform: uppercase;
+		letter-spacing: .04em;
+	}
+}
+
+// The icon beside the name, at the height of its input, in the category's colors
+.named {
+	display: flex;
+	align-items: flex-end;
+	gap: var(--lnx-spacing-3);
 	--icon-bg: var(--cat-color-bg);
 	--icon-color: var(--cat-color);
+
+	> :last-child {
+		flex: 1;
+		min-width: 0;
+	}
+}
+
+.form-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--lnx-spacing-2);
+
+	.error {
+		flex: 1;
+		margin-bottom: 0;
+	}
 }
 
 .icon {
@@ -322,16 +356,22 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 }
 
 .fields {
-	flex: 1 1 260px;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+	align-items: start;
+	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
 }
 
 .colors {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--lnx-spacing-1);
+
+	legend {
+		width: 100%;
+		margin-bottom: var(--lnx-spacing-1);
+		font-size: var(--lnx-font-size-small);
+	}
 
 	label {
 		display: flex;
@@ -367,10 +407,6 @@ useShortcut('mod+enter', () => document.querySelector<HTMLFormElement>('form.edi
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-1);
-}
-
-.wide {
-	flex-basis: 100%;
 }
 
 // Created or removed, the others make room

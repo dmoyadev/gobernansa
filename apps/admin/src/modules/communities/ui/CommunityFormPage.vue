@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import type { Community, CommunityContact, CommunityDocument, ContactType } from '@gobernansa/shared/domain/community.ts';
+import type { Community, CommunityContact } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm, CommunitySection } from '../domain/communityForm.ts';
-import { contactTypes, documentTypes, WEEKDAYS } from '@gobernansa/shared/domain/community.ts';
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
-import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue';
+import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
-import { reveal } from '@/app/ux/newForm.ts';
+import { useNewForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
 import { duplicateCommunity } from '../application/duplicateCommunity.ts';
 import { loadCommunity, saveCommunity } from '../application/useCommunities.ts';
 import { findFormError, toCommunityForm, toInputDate } from '../domain/communityForm.ts';
+import CommunityContactFields from './CommunityContactFields.vue';
+import CommunityDocumentFields from './CommunityDocumentFields.vue';
 
 // Without an id, a new community is created from its general info and settings, prefilled from another one with ?from=<id>
 const props = withDefaults(defineProps<{ id?: string; section?: CommunitySection }>(), { section: 'info' });
@@ -29,8 +29,6 @@ const fromId = ref(queryFrom());
 const backTo = computed(() => fromId.value ? `/communities/${fromId.value}` : '/');
 const backLabel = computed(() => fromId.value ? 'Volver a la comunidad' : 'Volver a comunidades');
 
-const contactTypeOptions = Object.entries(contactTypes).map(([value, { label }]) => ({ value: value as ContactType, label }));
-const documentTypeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({ value: value as CommunityDocument['type'], label }));
 const currentYear = new Date().getFullYear();
 
 const router = useRouter();
@@ -110,27 +108,34 @@ onRevalidate(() => {
 	}
 });
 
-// A new contact or document goes last, opened on its first field
-async function revealLast() {
-	await nextTick();
-	reveal([...formElement.value?.querySelectorAll<HTMLElement>('.item') ?? []].at(-1));
-}
+// The contact or document «Nuevo» adds, in its own form above the list as on the other pages. Added, it goes last and
+// is saved with the rest of the section
+const blankContact = (): CommunityContact => ({ type: 'other', name: '' });
+const blankDocument = (): CommunityForm['documents'][number] => ({ type: 'minutes', title: '', url: '', date: toInputDate(new Date()) });
+const newContact = ref(blankContact());
+const newDocument = ref(blankDocument());
+const newElement = useTemplateRef<HTMLFormElement>('newElement');
+const { open: adding, show: showNew, close: closeNew } = useNewForm(newElement, () => {
+	newContact.value = blankContact();
+	newDocument.value = blankDocument();
+});
 
-function addContact() {
-	form.value.contacts.push({ type: 'other', name: '' });
-	void revealLast();
+function add() {
+	const contacts = props.section === 'contacts';
+	if (contacts) {
+		form.value.contacts.push(newContact.value);
+	} else {
+		form.value.documents.push(newDocument.value);
+	}
+	closeNew();
+	void save(contacts ? 'Contacto añadido' : 'Documento añadido');
 }
 
 function addSchedule(contact: CommunityContact) {
 	(contact.schedule ??= []).push({ days: [1, 2, 3, 4, 5], from: '09:00', to: '14:00' });
 }
 
-function addDocument() {
-	form.value.documents.push({ type: 'minutes', title: '', url: '', date: toInputDate(new Date()) });
-	void revealLast();
-}
-
-async function save() {
+async function save(done = props.id ? 'Guardado' : 'Comunidad creada') {
 	error.value = findFormError(form.value, pristine ? JSON.parse(pristine) as CommunityForm : undefined);
 	if (error.value || saving.value) {
 		return;
@@ -171,7 +176,7 @@ async function save() {
 		void router.push(`/communities/${id}`);
 	}
 	void optimistic(action, {
-		done: props.id ? 'Guardado' : 'Comunidad creada',
+		done,
 		failed: 'No se ha podido guardar',
 		// Back to the form with what was typed, to send it again
 		onError: (e) => {
@@ -186,21 +191,43 @@ async function save() {
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'Guardar cambios' : 'Crear comunidad');
+useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.requestSubmit(), props.id ? 'Guardar cambios' : 'Crear comunidad');
 </script>
 
 <template>
-	<form ref="formElement" @submit.prevent="save()">
-		<header class="page-header">
-			<!-- An existing one's has the nav of its workspace instead -->
-			<BackButton v-if="!id" :to="backTo" :label="backLabel" />
-			<h1>{{ id ? workspaces.community.sectionOf.get(section)!.pages[0].title : 'Nueva comunidad' }}</h1>
-			<template v-if="!loading && !notFound && !loadError">
-				<NewButton v-if="section === 'contacts'" label="Nuevo contacto" @click="addContact()" />
-				<NewButton v-else-if="section === 'documents'" label="Nuevo documento" @click="addDocument()" />
-			</template>
-		</header>
+	<header class="page-header">
+		<!-- An existing one's has the nav of its workspace instead -->
+		<BackButton v-if="!id" :to="backTo" :label="backLabel" />
+		<h1>{{ id ? workspaces.community.sectionOf.get(section)!.pages[0].title : 'Nueva comunidad' }}</h1>
+		<template v-if="!loading && !notFound && !loadError && !adding">
+			<NewButton v-if="section === 'contacts'" label="Nuevo contacto" @click="showNew()" />
+			<NewButton v-else-if="section === 'documents'" label="Nuevo documento" @click="showNew()" />
+		</template>
+	</header>
 
+	<form v-if="adding" ref="newElement" class="card new ux-appear" @submit.prevent="add()">
+		<h2>{{ section === 'contacts' ? 'Nuevo contacto' : 'Nuevo documento' }}</h2>
+		<CommunityContactFields v-if="section === 'contacts'" v-model="newContact" />
+		<CommunityDocumentFields v-else v-model="newDocument" />
+
+		<footer class="form-actions">
+			<LnxButton v-if="section === 'contacts'" type="button" mode="clear" class="size-small add-schedule" @click="addSchedule(newContact)">
+				<LnxIcon icon="lucide:clock" />
+				Añadir horario
+			</LnxButton>
+			<LnxButton type="button" mode="clear" @click="closeNew()">
+				Cancelar
+				<Kbd combo="escape" />
+			</LnxButton>
+			<LnxButton type="submit">
+				<LnxIcon icon="lucide:plus" />
+				Añadir
+				<Kbd combo="mod+enter" />
+			</LnxButton>
+		</footer>
+	</form>
+
+	<form ref="formElement" @submit.prevent="save()">
 		<!-- Shaped like the first card: its title and fields -->
 		<section v-if="loading" class="card" aria-busy="true">
 			<span class="skeleton-item skeleton-item--small" style="width: 22%" />
@@ -300,60 +327,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 					<legend class="sr-only">
 						Contacto {{ index + 1 }}
 					</legend>
-					<div class="fields">
-						<LnxSelect
-							v-model.convert="contact.type"
-							:options="contactTypeOptions"
-							:convert-fn="option => option.value"
-							search-placeholder-text="Buscar..."
-						>
-							Tipo
-							<template #option="{ option }">
-								{{ option.label }}
-							</template>
-							<template #optionInput="{ value }">
-								{{ contactTypes[value]?.label }}
-							</template>
-						</LnxSelect>
-						<LnxInput v-model="contact.name" required>
-							Nombre
-						</LnxInput>
-						<LnxInput v-model="contact.phone" type="tel">
-							Teléfono
-						</LnxInput>
-						<LnxInput v-model="contact.whatsapp" type="tel">
-							WhatsApp
-						</LnxInput>
-						<LnxInput v-model="contact.email" type="email" class="wide">
-							Email
-						</LnxInput>
-					</div>
-
-					<div v-for="(schedule, scheduleIndex) in contact.schedule" :key="scheduleIndex" class="schedule">
-						<fieldset class="days">
-							<legend>Horario</legend>
-							<label v-for="(day, dayIndex) in WEEKDAYS" :key="day">
-								<input v-model="schedule.days" type="checkbox" class="sr-only" :value="dayIndex + 1">
-								<span>{{ day }}</span>
-							</label>
-						</fieldset>
-						<LnxInput v-model="schedule.from" type="time" required>
-							Desde
-						</LnxInput>
-						<LnxInput v-model="schedule.to" type="time" required>
-							Hasta
-						</LnxInput>
-						<LnxButton
-							type="button"
-							mode="clear"
-							shape="circle"
-							:aria-label="`Quitar este horario de ${contact.name || 'el contacto'}`"
-							:title="`Quitar este horario de ${contact.name || 'el contacto'}`"
-							@click="contact.schedule!.splice(scheduleIndex, 1)"
-						>
-							<LnxIcon icon="lucide:x" />
-						</LnxButton>
-					</div>
+					<CommunityContactFields v-model="form.contacts[index]" />
 
 					<div class="item-actions">
 						<LnxButton type="button" mode="clear" class="size-small" @click="addSchedule(contact)">
@@ -373,35 +347,11 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), props.id ? 'G
 					Aún no hay documentos: estatutos, normas, póliza del seguro o actas de las juntas.
 				</p>
 
-				<fieldset v-for="(communityDocument, index) in form.documents" :key="index" class="item">
+				<fieldset v-for="(_, index) in form.documents" :key="index" class="item">
 					<legend class="sr-only">
 						Documento {{ index + 1 }}
 					</legend>
-					<div class="fields">
-						<LnxSelect
-							v-model.convert="communityDocument.type"
-							:options="documentTypeOptions"
-							:convert-fn="option => option.value"
-							search-placeholder-text="Buscar..."
-						>
-							Tipo
-							<template #option="{ option }">
-								{{ option.label }}
-							</template>
-							<template #optionInput="{ value }">
-								{{ documentTypes[value]?.label }}
-							</template>
-						</LnxSelect>
-						<DatePicker v-model="communityDocument.date" required>
-							Fecha
-						</DatePicker>
-						<LnxInput v-model="communityDocument.title" class="wide" required>
-							Título
-						</LnxInput>
-						<LnxInput v-model="communityDocument.url" type="url" class="wide" required>
-							Enlace al PDF
-						</LnxInput>
-					</div>
+					<CommunityDocumentFields v-model="form.documents[index]" />
 					<div class="item-actions">
 						<LnxButton type="button" mode="clear" class="size-small" variant="danger" @click="form.documents.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
@@ -436,6 +386,7 @@ form {
 }
 
 .page-header {
+	margin-bottom: var(--lnx-spacing-5);
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-2);
@@ -519,62 +470,20 @@ form {
 	gap: var(--lnx-spacing-2);
 }
 
-// Days on their own row, then from, to and the button to remove it
-.schedule {
-	display: grid;
-	grid-template-columns: 1fr 1fr auto;
-	align-items: end;
-	gap: var(--lnx-spacing-2) var(--lnx-spacing-3);
-
-	.days {
-		grid-column: 1 / -1;
-	}
+.new {
+	margin-bottom: var(--lnx-spacing-5);
 }
 
-.days {
+.form-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--lnx-spacing-2);
 
-	legend {
-		width: 100%;
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 44px;
-		height: 40px;
-		padding: 0 var(--lnx-spacing-2);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-
-		&:hover {
-			background: var(--color-gray-1);
-		}
-
-		&:active {
-			scale: var(--press-scale);
-		}
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
+	// Apart from sending or cancelling the form
+	.add-schedule {
+		margin-right: auto;
 	}
 }
 

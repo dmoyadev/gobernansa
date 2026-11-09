@@ -487,7 +487,7 @@ function remove(expense: Expense) {
 			<p v-if="expenseError" class="error" role="alert">
 				{{ expenseError }}
 			</p>
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

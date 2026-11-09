@@ -13,8 +13,46 @@ function historyPosition() {
 	return (window.history.state as { position?: number } | null)?.position ?? 0;
 }
 
+// The page «Nuevo» (NewButton.vue) is going to, and where it last went from where, to come back the same way
+let toNew: string | undefined;
+let wentToNew: { from: string; to: string } | undefined;
+export function goToNew(path: string) {
+	toNew = path;
+}
+
+// Once the page coming in is in place, so another transition doesn't cut it short (newForm.ts)
+let settled: Promise<unknown> = Promise.resolve();
+export async function pageSettled() {
+	return settled;
+}
+
+// What turns into the other page's: its «Nuevo», or else the button that sends its form, and its title. Only what's in
+// view and isn't named already
+function nameMorphing() {
+	const morphing = [
+		[document.querySelector('main .new-button') ?? document.querySelector('main form [type="submit"]'), 'new-form'],
+		[document.querySelector('main h1'), 'page-title'],
+	] as const;
+	return morphing.flatMap(([element, name]) => {
+		if (!(element instanceof HTMLElement) || getComputedStyle(element).viewTransitionName !== 'none') {
+			return [];
+		}
+		const { top, bottom } = element.getBoundingClientRect();
+		if (bottom <= 0 || top >= window.innerHeight) {
+			return [];
+		}
+		element.style.viewTransitionName = name;
+		return [element];
+	});
+}
+
+function unname(elements: HTMLElement[]) {
+	elements.forEach(element => element.style.viewTransitionName = '');
+}
+
 // Each page change crossfades with a slight slide, backwards when going back (by the browser or BackButton). Not when
-// the browser already animated it, as iOS' swipe back does, nor for those who prefer less motion
+// the browser already animated it, as iOS' swipe back does, nor for those who prefer less motion. Into the page «Nuevo»
+// opens and back from it, «Nuevo» and the title turn into the other page's in place while the rest crossfades
 export function installViewTransitions(router: Router) {
 	const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 	let lastPosition = 0;
@@ -30,19 +68,41 @@ export function installViewTransitions(router: Router) {
 		const position = historyPosition();
 		const animate = 'startViewTransition' in document && !reducedMotion.matches && !browserAnimated && !!from.matched.length && to.path !== from.path;
 		browserAnimated = false;
+		const intoNew = to.path === toNew;
+		const morph = intoNew || (wentToNew?.from === to.path && wentToNew.to === from.path);
+		toNew = undefined;
+		if (to.path !== from.path) {
+			wentToNew = intoNew ? { from: from.path, to: to.path } : undefined;
+		}
 		if (!animate) {
 			return true;
 		}
 		// On a push the state is still the current page's, on back and forward it's already the destination's
 		document.documentElement.dataset.navigation = position < lastPosition ? 'back' : 'forward';
+		let named = morph ? nameMorphing() : [];
+		if (morph) {
+			document.documentElement.dataset.newPage = '';
+		}
 		return new Promise<true>((resolve) => {
-			document.startViewTransition(async () => {
+			const transition = document.startViewTransition(async () => {
 				resolve(true);
 				// The new page is in the DOM once the navigation is done and rendered
 				await new Promise<void>((done) => {
 					pending.set(to, done);
 					setTimeout(done, UPDATE_TIMEOUT_MS);
 				});
+				if (morph) {
+					unname(named);
+					named = nameMorphing();
+				}
+			});
+			// Cut short by another navigation or a resize, it's simply as it ends
+			transition.ready.catch(() => {});
+			settled = transition.finished.catch(() => {}).then(() => {
+				unname(named);
+				if (morph) {
+					delete document.documentElement.dataset.newPage;
+				}
 			});
 		});
 	});

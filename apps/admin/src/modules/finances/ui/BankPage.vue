@@ -492,7 +492,7 @@ function downloadSample() {
 				{{ importError }}
 			</p>
 			<span v-else class="hint">Los movimientos que ya estaban importados no se duplican.</span>
-			<LnxButton mode="clear" @click="draft = undefined">
+			<LnxButton type="button" mode="clear" @click="draft = undefined">
 				Cancelar
 			</LnxButton>
 			<LnxButton :is-loading="importing" :disabled="!draftMovements.length || !!draft.statement?.errors.length" @click="importDraft()">
@@ -599,7 +599,7 @@ function downloadSample() {
 				</LnxButton>
 			</template>
 			<template v-else-if="consenting">
-				<LnxButton mode="clear" class="size-small" @click="consenting = false">
+				<LnxButton type="button" mode="clear" class="size-small" @click="consenting = false">
 					Cancelar
 				</LnxButton>
 				<LnxButton class="size-small" :is-loading="syncing" :disabled="!account" @click="sync(true)">

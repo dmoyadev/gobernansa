@@ -393,7 +393,7 @@ function remove(charge: Charge) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>
@@ -590,7 +590,7 @@ function remove(charge: Charge) {
 									<p v-if="collectError" class="error" role="alert">
 										{{ collectError }}
 									</p>
-									<LnxButton mode="clear" class="size-small" @click="collecting = undefined">
+									<LnxButton type="button" mode="clear" class="size-small" @click="collecting = undefined">
 										Cancelar
 									</LnxButton>
 									<LnxButton type="submit" class="size-small" :is-loading="savingCollection">

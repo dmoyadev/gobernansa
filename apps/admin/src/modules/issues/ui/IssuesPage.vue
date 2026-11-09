@@ -155,7 +155,7 @@ useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 			</LnxTextarea>
 		</div>
 		<footer class="form-actions">
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

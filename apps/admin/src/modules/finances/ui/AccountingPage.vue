@@ -13,6 +13,7 @@ import { downloadFile } from '@/app/ux/download.ts';
 import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
+import { closeForm, openForm } from '@/app/ux/newForm.ts';
 import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -168,24 +169,25 @@ async function openEntry(existing?: ManualEntry) {
 		return;
 	}
 	formError.value = undefined;
-	editor.value = existing
-		? {
-				id: existing.id,
-				existing,
-				date: existing.date,
-				concept: existing.concept,
-				lines: existing.lines.map(item => ({ key: newId(), account: item.account, debit: item.debit ? String(item.debit / 100).replace('.', ',') : '', credit: item.credit ? String(item.credit / 100).replace('.', ',') : '' })),
-			}
-		: { id: newId(), date: defaultDate(), concept: '', lines: [emptyLine(), emptyLine()] };
-	view.value = 'journal';
-	await nextTick();
-	entryForm.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-	entryForm.value?.querySelector<HTMLElement>('input:not([type="hidden"])')?.focus();
+	await openForm(async () => {
+		editor.value = existing
+			? {
+					id: existing.id,
+					existing,
+					date: existing.date,
+					concept: existing.concept,
+					lines: existing.lines.map(item => ({ key: newId(), account: item.account, debit: item.debit ? String(item.debit / 100).replace('.', ',') : '', credit: item.credit ? String(item.credit / 100).replace('.', ',') : '' })),
+				}
+			: { id: newId(), date: defaultDate(), concept: '', lines: [emptyLine(), emptyLine()] };
+		view.value = 'journal';
+		await nextTick();
+		return entryForm.value;
+	});
 }
 
 function cancelEntry() {
-	editor.value = undefined;
 	formError.value = undefined;
+	void closeForm(entryForm.value, () => editor.value = undefined);
 }
 
 const parsedLines = computed(() => (editor.value?.lines ?? []).map(item => ({
@@ -225,7 +227,7 @@ async function submitEntry() {
 		const target = data.value;
 		target.manual = [...target.manual.filter(other => other.id !== draft.id), saved];
 		const previous = draft.existing;
-		editor.value = undefined;
+		void closeForm(entryForm.value, () => editor.value = undefined);
 		toast(previous ? 'Asiento guardado' : 'Asiento añadido', {
 			undo: async () => {
 				if (previous) {
@@ -574,7 +576,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				<span v-else class="hint tabular" :class="{ unbalanced: draftDebit !== draftCredit }">
 					Debe {{ formatCents(draftDebit) }} · Haber {{ formatCents(draftCredit) }}<template v-if="draftDebit !== draftCredit"> · descuadre de {{ formatCents(Math.abs(draftDebit - draftCredit)) }}</template>
 				</span>
-				<LnxButton mode="clear" @click="cancelEntry()">
+				<LnxButton type="button" mode="clear" @click="cancelEntry()">
 					Cancelar
 					<Kbd combo="escape" />
 				</LnxButton>

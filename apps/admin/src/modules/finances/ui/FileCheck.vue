@@ -66,7 +66,7 @@ const summary = computed(() => [
 		</p>
 		<footer v-if="held">
 			<span class="hint">Con errores, {{ kind === 'aeat' ? 'la AEAT' : kind === 'sepa' ? 'el banco' : 'el programa' }} puede rechazarlo.</span>
-			<LnxButton mode="clear" class="size-small" @click="emit('dismiss')">
+			<LnxButton type="button" mode="clear" class="size-small" @click="emit('dismiss')">
 				Cancelar
 			</LnxButton>
 			<LnxButton class="size-small" variant="danger" @click="emit('confirm')">

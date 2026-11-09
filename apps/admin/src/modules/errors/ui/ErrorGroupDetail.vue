@@ -200,7 +200,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 					<LnxIcon icon="lucide:check" />
 					Marcar como resuelto
 				</LnxButton>
-				<LnxButton mode="clear" class="size-small" @click="resolving = false">
+				<LnxButton type="button" mode="clear" class="size-small" @click="resolving = false">
 					Cancelar
 				</LnxButton>
 			</div>

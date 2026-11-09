@@ -456,7 +456,7 @@ async function applyReport() {
 			<p v-if="reportError" class="error" role="alert">
 				{{ reportError }}
 			</p>
-			<LnxButton mode="clear" @click="report = undefined">
+			<LnxButton type="button" mode="clear" @click="report = undefined">
 				Cancelar
 			</LnxButton>
 			<LnxButton :is-loading="applying" :disabled="!ready.length" @click="applyReport()">
@@ -556,7 +556,7 @@ async function applyReport() {
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'recibo' : 'recibos' }} · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

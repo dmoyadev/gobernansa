@@ -338,7 +338,7 @@ async function remove(order: PaymentOrder) {
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'factura' : 'facturas' }} · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>

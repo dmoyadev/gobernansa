@@ -206,7 +206,7 @@ function cancel(invitation: Invitation & { id: string }) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton mode="clear" @click="close()">
+			<LnxButton type="button" mode="clear" @click="close()">
 				Cancelar
 				<Kbd combo="escape" />
 			</LnxButton>
