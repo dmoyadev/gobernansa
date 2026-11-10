@@ -32,7 +32,8 @@ jobs:
           cache: npm
       # The version each build shows and reports its errors with, sortable: build date and time (UTC) and commit
       - run: echo "VITE_RELEASE=$(date -u +%Y.%m.%d-%H%M)-$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)" >> "$GITHUB_ENV"
-      - run: npm ci && npx eslint . && npm run build
+      # ROB-7: a known high or critical vulnerability in what ships stops the run
+      - run: npm ci && npm audit --omit=dev --audit-level=high && npx eslint . && npm run build
       # MON-10: the code maps stay with the run, named after the release, for npm run symbolicate; never published
       - uses: actions/upload-artifact@v4
         with:

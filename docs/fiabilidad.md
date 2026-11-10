@@ -41,7 +41,7 @@ A cambio:
 | MON-9 | P2 | Avisos de errores nuevos al móvil del equipo | 0 € | INF-1 | En el admin, hecho; al móvil, pendiente |
 | MON-10 | P2 | Traducir los errores al código original sin publicarlo | 0 € | — | Hecho en el código; falta traducir una muestra de producción |
 | MON-6 | P2 | Rendimiento real por pantalla, con las APIs del navegador | 0 €; cuota acotada | — | Hecho en el código; falta que lleguen medidas de producción |
-| ROB-7 | P2 | Dependencias al día | 0 € | — | Pendiente |
+| ROB-7 | P2 | Dependencias al día | 0 € | — | Hecho en el código; falta activar Dependabot en GitHub |
 | ROB-8 | P2 | Proteger la cuota de abusos | 0 € la clave; App Check, 10.000 comprobaciones gratis al mes | — | Pendiente |
 | ROB-1 | P0 | Entorno de pruebas separado de producción | 0 € (segundo proyecto gratuito) | — | Aplazado |
 
@@ -49,7 +49,8 @@ A cambio:
 1. **Ahora, en la consola de Firebase:** probar ROB-5 y ensayar una vez la vuelta atrás de la app y de las reglas (ROB-4, pasos en la sección 5). En el siguiente despliegue, comprobar que el paso final de MON-5 pasa.
 2. **Ahora, en tu equipo:** activar la copia diaria de ROB-2 y restaurar una copia real en los emuladores (pasos en su ficha). Pasar a las copias de Blaze en cuanto haya INF-1.
 3. **Después del siguiente despliegue:** traducir la pila de una muestra (MON-10) y, al cabo de unos días, revisar la pestaña «Rendimiento» (MON-6).
-4. Los avisos al móvil de MON-9, con INF-1.
+4. **Ahora, en GitHub:** activar las alertas y las actualizaciones de seguridad de Dependabot (ROB-7).
+5. Los avisos al móvil de MON-9, con INF-1.
 
 La fase 2 (MON-4, MON-5, MON-7, ROB-4 y los avisos de MON-9 dentro del admin) se terminó en el código el 04/11/2026, y la fase 3 (el puente gratuito de ROB-2, MON-10 y MON-6), el mismo día.
 
@@ -294,6 +295,13 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 - **Dependabot:** activar en GitHub sus alertas y actualizaciones de seguridad (son gratis).
 - **CI:** un `npm audit --omit=dev --audit-level=high` que pare el despliegue.
 - **Cada trimestre:** revisar el resto con el `check-deps` que ya existe.
+
+**Hecho en el código** (10/11/2026):
+- `.github/dependabot.yml` solo abre PRs de seguridad (`open-pull-requests-limit: 0` apaga las de versiones); el resto se revisa con `check-deps`.
+- Los dos workflows pasan `npm audit --omit=dev --audit-level=high` antes de ESLint y del build.
+- `@firebase/firestore` fijaba `@grpc/grpc-js` en la 1.9, con una vulnerabilidad alta sin arreglo en esa rama. Un `overrides` en el `package.json` raíz lo sube a la 1.14, la misma que ya usa el resto del árbol. En el navegador no cambia nada: Firestore solo usa gRPC en Node. Quitar el override cuando Firebase suba esa dependencia.
+
+**Falta:** activar en GitHub, en Settings → Code security, las «Dependabot alerts» y las «Dependabot security updates».
 
 **Hecho cuando** Dependabot está activo y CI falla ante una vulnerabilidad alta.
 
