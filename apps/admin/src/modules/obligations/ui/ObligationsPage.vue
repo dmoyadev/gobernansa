@@ -3,23 +3,21 @@ import type { Obligation, ObligationType } from '@gobernansa/shared/domain/oblig
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { OBLIGATION_WARNING_DAYS, obligationDone, obligationStatus, obligationStatusLabels, obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { collection, deleteField, doc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useCollection } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const DAY = 86_400_000;
 const ICS_SPECIAL = /[\\;,]/g;
@@ -177,7 +175,7 @@ function save() {
 	close();
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la obligación');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la obligación' });
 
 // The next one counts from when it was due, so doing it late doesn't shift the cycle, unless that's still in the past
 function nextDueAt(obligation: Obligation) {
@@ -220,9 +218,8 @@ async function unmarkDone({ id, title, dueAt, lastDoneAt }: Obligation) {
 	await batch.commit();
 }
 
-function remove(obligation: Obligation) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${obligation.title}»?`)) {
+async function remove(obligation: Obligation) {
+	if (!await ask({ title: `¿Borrar «${obligation.title}»?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	const batch = writeBatch(db);
@@ -314,7 +311,7 @@ function downloadIcs(obligation: Obligation) {
 						</div>
 						<div class="warning-end">
 							<span class="pill tabular">{{ relativeDay.format(daysLeft(obligation), 'day') }}</span>
-							<LnxButton mode="outline" class="size-small" shape="circle" :aria-label="`Marcar «${obligation.title}» como hecha`" title="Marcar como hecha" @click="markDone(obligation)">
+							<LnxButton mode="outline" class="lnx-size-small" shape="circle" :aria-label="`Marcar «${obligation.title}» como hecha`" title="Marcar como hecha" @click="markDone(obligation)">
 								<LnxIcon icon="lucide:check" />
 							</LnxButton>
 						</div>
@@ -324,14 +321,13 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 	</section>
 
-	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar obligación' : 'Nueva obligación' }}</h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="form.type"
 				:options="typeOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				@select="onTypeChange()"
 			>
 				Tipo
@@ -345,9 +341,9 @@ function downloadIcs(obligation: Obligation) {
 			<LnxInput v-model="form.title" required>
 				Título
 			</LnxInput>
-			<DatePicker v-model="form.dueAt" required>
+			<LnxDatePicker v-model="form.dueAt" value-format="iso-date" required>
 				Vence el
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxInput v-model="form.everyMonths" type="number" min="1" step="1">
 				Se repite cada (meses)
 			</LnxInput>
@@ -355,7 +351,6 @@ function downloadIcs(obligation: Obligation) {
 				v-model.convert="form.providerId"
 				:options="providerOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="Ninguno"
 			>
 				Proveedor
@@ -372,14 +367,14 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -392,17 +387,17 @@ function downloadIcs(obligation: Obligation) {
 
 		<ul v-if="pending && !sorted.length" class="list">
 			<li v-for="width in ['50%', '35%', '60%']" :key="width" class="item">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width }" />
-					<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+					<span class="lnx-skeleton" :style="{ width }" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 				</div>
 				<div class="item-actions">
-					<span class="skeleton-item skeleton-item--title" style="width: 80px" />
+					<span class="lnx-skeleton lnx-skeleton--title" style="width: 80px" />
 				</div>
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="sorted.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="sorted.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="obligation in sorted" :key="obligation.id" class="item">
 				<LnxIcon class="type" :icon="obligationTypes[obligation.type]?.icon ?? 'lucide:calendar-check'" :size="20" :title="obligationTypes[obligation.type]?.label" />
 				<div class="what">
@@ -424,17 +419,17 @@ function downloadIcs(obligation: Obligation) {
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton v-if="!obligationDone(obligation)" mode="outline" class="size-small" @click="markDone(obligation)">
+					<LnxButton v-if="!obligationDone(obligation)" mode="outline" class="lnx-size-small" @click="markDone(obligation)">
 						<LnxIcon icon="lucide:check" />
 						Hecha
 					</LnxButton>
-					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Añadir al calendario" title="Añadir al calendario" @click="downloadIcs(obligation)">
+					<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Añadir al calendario" title="Añadir al calendario" @click="downloadIcs(obligation)">
 						<LnxIcon icon="lucide:calendar-plus" />
 					</LnxButton>
-					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(obligation)">
+					<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(obligation)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(obligation)">
+					<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(obligation)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>

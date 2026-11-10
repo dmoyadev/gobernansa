@@ -98,12 +98,12 @@ const figures = computed(() => {
 					{{ figure.label }}
 				</span>
 				<template v-if="figure.value">
-					<strong class="value tabular ux-appear">{{ figure.value }}</strong>
-					<small class="ux-appear">{{ figure.detail }}</small>
+					<strong class="value tabular lnx-appear">{{ figure.value }}</strong>
+					<small class="lnx-appear">{{ figure.detail }}</small>
 				</template>
 				<template v-else-if="loading">
-					<span class="skeleton-item skeleton-item--title" style="width: 45%" />
-					<span class="skeleton-item skeleton-item--small" style="width: 75%" />
+					<span class="lnx-skeleton lnx-skeleton--title" style="width: 45%" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 75%" />
 				</template>
 				<small v-else>Sin datos</small>
 			</RouterLink>

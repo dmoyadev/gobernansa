@@ -5,7 +5,7 @@ import { activityAreas } from '@gobernansa/shared/domain/activity.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { collection, endBefore, getDocs, limit, orderBy, query, startAfter } from 'firebase/firestore';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxRadioGroup } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
@@ -71,7 +71,7 @@ const ROW_WIDTHS = [70, 50, 80, 60, 45];
 
 // Filtered here, among the loaded ones, so it needs no index
 const areaFilter = ref<ActivityArea | ''>('');
-const areaOptions = computed(() => (Object.keys(activityAreas) as ActivityArea[]).filter(area => entries.value.some(entry => entry.area === area)));
+const areaOptions = computed(() => (Object.keys(activityAreas) as ActivityArea[]).filter(area => entries.value.some(entry => entry.area === area)).map(area => ({ value: area, ...activityAreas[area] })));
 const visibleEntries = computed(() => entries.value.filter(entry => !areaFilter.value || entry.area === areaFilter.value));
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle: 'short' });
@@ -84,19 +84,14 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	</header>
 
 	<section class="card" :aria-busy="loading && !entries.length">
-		<fieldset v-if="areaOptions.length > 1" class="chips">
-			<legend class="sr-only">
-				Filtrar por área
-			</legend>
-			<label>
-				<input v-model="areaFilter" type="radio" class="sr-only" value="">
-				<span>Todo</span>
-			</label>
-			<label v-for="area in areaOptions" :key="area">
-				<input v-model="areaFilter" type="radio" class="sr-only" :value="area">
-				<span><LnxIcon :icon="activityAreas[area].icon" />{{ activityAreas[area].label }}</span>
-			</label>
-		</fieldset>
+		<LnxRadioGroup
+			v-if="areaOptions.length > 1"
+			v-model="areaFilter"
+			:options="[{ value: '', label: 'Todo' }, ...areaOptions]"
+			hide-legend
+		>
+			Filtrar por área
+		</LnxRadioGroup>
 
 		<p v-if="error" class="error" role="alert">
 			No se ha podido cargar: {{ error.message }}
@@ -104,14 +99,14 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 		<ul v-if="loading && !entries.length" class="list">
 			<li v-for="width in ROW_WIDTHS" :key="width" class="entry">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" style="width: 30%" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 30%" />
 				</div>
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="visibleEntries.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="visibleEntries.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="entry in visibleEntries" :key="entry.id" class="entry" :class="{ 'ux-row': entry.link }">
 				<LnxIcon :icon="activityAreas[entry.area]?.icon ?? 'lucide:history'" :title="activityAreas[entry.area]?.label" />
 				<div class="what">
@@ -226,46 +221,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 	small {
 		color: var(--color-gray-6);
-	}
-}
-
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--lnx-spacing-1);
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-	}
-
-	label:hover span {
-		background: var(--color-gray-1);
-	}
-
-	label:active span {
-		scale: var(--press-scale);
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
 	}
 }
 

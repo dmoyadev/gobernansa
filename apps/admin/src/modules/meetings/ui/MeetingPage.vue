@@ -3,17 +3,12 @@ import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, MeetingVote
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { attendanceStatus, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
 import { totalCoefficient } from '@gobernansa/shared/domain/property.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
 import {
@@ -38,6 +33,8 @@ import MeetingMinutes from './MeetingMinutes.vue';
 import MeetingNotices from './MeetingNotices.vue';
 
 const props = defineProps<{ id: string; meetingId: string }>();
+
+const ask = useConfirm();
 
 const router = useRouter();
 const isNew = computed(() => props.meetingId === 'new');
@@ -152,9 +149,8 @@ function toggleVoting() {
 	});
 }
 
-function remove() {
-	// eslint-disable-next-line no-alert
-	if (window.confirm('¿Borrar este borrador de junta?')) {
+async function remove() {
+	if (await ask({ title: '¿Borrar este borrador de junta?', confirmText: 'Borrar', variant: 'danger' })) {
 		// Kept to bring it back as it was
 		const deleted = meeting.value!;
 		void optimistic(deleteMeeting(deleted), { done: 'Borrador borrado', failed: 'No se ha podido borrar', revert: async () => restoreMeeting(deleted) });
@@ -167,7 +163,7 @@ const formElement = ref<HTMLFormElement>();
 useShortcut('mod+enter', () => {
 	const typingIn = document.activeElement?.closest('form');
 	(typingIn ?? formElement.value)?.requestSubmit();
-}, 'Guardar');
+}, { description: 'Guardar' });
 
 // Attendance
 
@@ -271,7 +267,7 @@ async function copyMinutes() {
 		await navigator.clipboard.writeText(composedText());
 		copied.value = true;
 	} catch (e) {
-		toast(`No se ha podido copiar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido copiar: ${(e as Error).message}`, { variant: 'danger' });
 	}
 }
 
@@ -288,7 +284,7 @@ function print() {
 		</h1>
 		<span v-if="meeting" class="status" :class="`status--${meeting.status}`">{{ meetingStatus[meeting.status] }}</span>
 		<!-- The ordinary one approves the accounts of the year before: the liquidación to attach to the convocatoria -->
-		<LnxButton v-if="meeting?.type === 'ordinary'" mode="outline" class="size-small" @click="router.push(`/communities/${id}/annual-report?year=${meeting.date.toDate().getFullYear() - 1}`)">
+		<LnxButton v-if="meeting?.type === 'ordinary'" mode="outline" class="lnx-size-small" @click="router.push(`/communities/${id}/annual-report?year=${meeting.date.toDate().getFullYear() - 1}`)">
 			<LnxIcon icon="lucide:file-chart-column" />
 			Liquidación {{ meeting.date.toDate().getFullYear() - 1 }}
 		</LnxButton>
@@ -306,19 +302,19 @@ function print() {
 
 	<div v-else-if="loading" class="screen-only" aria-busy="true">
 		<section class="card">
-			<span class="skeleton-item skeleton-item--small" style="width: 25%" />
-			<span class="skeleton-item skeleton-item--title" style="width: 100%" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 25%" />
+			<span class="lnx-skeleton lnx-skeleton--title" style="width: 100%" />
 			<div class="fields">
-				<span v-for="field in 5" :key="field" class="skeleton-item skeleton-item--title" />
+				<span v-for="field in 5" :key="field" class="lnx-skeleton lnx-skeleton--title" />
 			</div>
-			<span class="skeleton-item skeleton-item--small" style="width: 30%" />
-			<span v-for="width in ['70%', '55%', '62%']" :key="width" class="skeleton-item" :style="{ width }" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 30%" />
+			<span v-for="width in ['70%', '55%', '62%']" :key="width" class="lnx-skeleton" :style="{ width }" />
 		</section>
 		<section class="card">
-			<span class="skeleton-item skeleton-item--small" style="width: 20%" />
-			<span class="skeleton-item" style="width: 60%" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 20%" />
+			<span class="lnx-skeleton" style="width: 60%" />
 			<div class="actions">
-				<span v-for="width in ['110px', '150px']" :key="width" class="skeleton-item skeleton-item--title" :style="{ width }" />
+				<span v-for="width in ['110px', '150px']" :key="width" class="lnx-skeleton lnx-skeleton--title" :style="{ width }" />
 			</div>
 		</section>
 	</div>
@@ -334,7 +330,6 @@ function print() {
 					v-model.convert="form.type"
 					:options="typeOptions"
 					:convert-fn="option => option.value"
-					search-placeholder-text="Buscar..."
 				>
 					Tipo
 					<template #option="{ option }">
@@ -344,9 +339,9 @@ function print() {
 						{{ meetingTypes[value as Meeting['type']] }}
 					</template>
 				</LnxSelect>
-				<DatePicker v-model="form.date" required>
+				<LnxDatePicker v-model="form.date" value-format="iso-date" required>
 					Fecha
-				</DatePicker>
+				</LnxDatePicker>
 				<LnxInput v-model="form.time" type="time" required>
 					Hora
 				</LnxInput>
@@ -376,13 +371,13 @@ function print() {
 						<LnxCheckbox v-model="item.votable" class="check">
 							Se vota
 						</LnxCheckbox>
-						<LnxButton type="button" mode="clear" class="size-small" shape="circle" aria-label="Subir" title="Subir" :disabled="index === 0" @click="moveItem(index, -1)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Subir" title="Subir" :disabled="index === 0" @click="moveItem(index, -1)">
 							<LnxIcon icon="lucide:arrow-up" />
 						</LnxButton>
-						<LnxButton type="button" mode="clear" class="size-small" shape="circle" aria-label="Bajar" title="Bajar" :disabled="index === form.agenda.length - 1" @click="moveItem(index, 1)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Bajar" title="Bajar" :disabled="index === form.agenda.length - 1" @click="moveItem(index, 1)">
 							<LnxIcon icon="lucide:arrow-down" />
 						</LnxButton>
-						<LnxButton type="button" mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Quitar punto" title="Quitar punto" @click="form.agenda.splice(index, 1)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Quitar punto" title="Quitar punto" @click="form.agenda.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 						</LnxButton>
 					</div>
@@ -393,14 +388,14 @@ function print() {
 			</p>
 
 			<footer class="form-actions">
-				<LnxButton type="button" mode="outline" @click="addItem()">
+				<LnxButton mode="outline" @click="addItem()">
 					<LnxIcon icon="lucide:plus" />
 					Añadir punto
 				</LnxButton>
 				<LnxButton type="submit">
 					<LnxIcon icon="lucide:save" />
 					{{ isNew ? 'Crear borrador' : 'Guardar cambios' }}
-					<Kbd combo="mod+enter" />
+					<LnxKbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</form>
@@ -477,7 +472,7 @@ function print() {
 								· {{ formatPercent(coefficientByOwner[entry.uid] ?? 0) }}
 							</small>
 						</div>
-						<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" @click="unrecordAttendance(entry)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" @click="unrecordAttendance(entry)">
 							<LnxIcon icon="lucide:x" />
 						</LnxButton>
 					</li>
@@ -491,7 +486,6 @@ function print() {
 						v-model.convert="attendanceForm.uid"
 						:options="personOptions"
 						:convert-fn="option => option.value"
-						search-placeholder-text="Buscar..."
 					>
 						Vecino
 						<template #option="{ option }">
@@ -505,7 +499,6 @@ function print() {
 						v-model.convert="attendanceForm.status"
 						:options="attendanceOptions"
 						:convert-fn="option => option.value"
-						search-placeholder-text="Buscar..."
 					>
 						Respuesta
 						<template #option="{ option }">
@@ -548,7 +541,7 @@ function print() {
 								<LnxButton
 									v-for="choice in choices"
 									:key="choice"
-									class="size-small"
+									class="lnx-size-small"
 									:mode="ballotOf(item, property)?.choice === choice ? undefined : 'outline'"
 									@click="vote(item, property, choice)"
 								>
@@ -557,7 +550,7 @@ function print() {
 								<LnxButton
 									v-if="ballotOf(item, property)"
 									mode="clear"
-									class="size-small"
+									class="lnx-size-small"
 									shape="circle"
 									variant="danger"
 									aria-label="Anular voto"
@@ -575,11 +568,11 @@ function print() {
 			<section v-if="meeting.status !== 'held' || minutes === null" class="card">
 				<header class="minutes-header screen-only">
 					<h2>Acta</h2>
-					<LnxButton mode="outline" class="size-small" @click="copyMinutes()">
+					<LnxButton mode="outline" class="lnx-size-small" @click="copyMinutes()">
 						<LnxIcon :icon="copied ? 'lucide:check' : 'lucide:copy'" />
 						{{ copied ? 'Copiado' : 'Copiar texto' }}
 					</LnxButton>
-					<LnxButton class="size-small" @click="print()">
+					<LnxButton class="lnx-size-small" @click="print()">
 						<LnxIcon icon="lucide:printer" />
 						Imprimir o guardar PDF
 					</LnxButton>

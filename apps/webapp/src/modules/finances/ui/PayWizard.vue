@@ -77,15 +77,15 @@ function print() {
 					{{ unavailable }}
 				</p>
 				<slot name="unavailable">
-					<LnxButton :to="back" mode="outline" class="size-large" is-block>
+					<LnxButton :to="back" mode="outline" class="lnx-size-large" is-block>
 						{{ backLabel }}
 					</LnxButton>
 				</slot>
 			</template>
 
 			<div v-else-if="loading" class="loading" aria-busy="true" aria-label="Cargando">
-				<span class="skeleton-item skeleton-item--title" style="width: 50%" />
-				<span v-for="width in [80, 65, 70, 55]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--title" style="width: 50%" />
+				<span v-for="width in [80, 65, 70, 55]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 			</div>
 
 			<template v-else>
@@ -107,7 +107,7 @@ function print() {
 
 				<slot />
 
-				<LnxButton class="size-large" is-block @click="goTo(1)">
+				<LnxButton class="lnx-size-large" is-block @click="goTo(1)">
 					{{ continueLabel ?? 'Continuar al pago' }}
 					<template #suffix>
 						<LnxIcon icon="lucide:arrow-right" />
@@ -133,7 +133,7 @@ function print() {
 			</div>
 
 			<div class="actions">
-				<LnxButton class="size-large" is-block @click="print()">
+				<LnxButton class="lnx-size-large" is-block @click="print()">
 					<template #prefix>
 						<LnxIcon icon="lucide:download" />
 					</template>

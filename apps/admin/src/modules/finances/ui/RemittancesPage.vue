@@ -11,18 +11,13 @@ import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { creditorId, matchReturns, parseReturns, remittanceStatuses, remittanceXml, returnReasons, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useFileCheck } from '../application/useFileCheck.ts';
 import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
@@ -30,6 +25,8 @@ import { createRemittance, deleteRemittance, loadRemittances, logReturnsReport, 
 import FileCheck from './FileCheck.vue';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const ALL = '';
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
@@ -219,7 +216,7 @@ async function save(id: string, data: RemittanceData, xml: string) {
 	}
 }
 
-useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), 'Generar la remesa');
+useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), { description: 'Generar la remesa' });
 
 /* Remittances */
 
@@ -260,8 +257,7 @@ async function advance(remittance: Remittance) {
 }
 
 async function remove(remittance: Remittance) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar la remesa ${remittance.reference}? Sus recibos podrán ir en otra.`)) {
+	if (!await ask({ title: `¿Borrar la remesa ${remittance.reference}?`, message: 'Sus recibos podrán ir en otra.', confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	await run(remittance.id, async () => {
@@ -327,7 +323,7 @@ const applying = ref(false);
 const ready = computed(() => report.value?.matches.filter(match => !match.problem) ?? []);
 const unmatched = computed(() => report.value?.matches.filter(match => match.problem) ?? []);
 
-useShortcut('i', () => reportInput.value?.click(), 'Importar devoluciones', () => !loading.value);
+useShortcut('i', () => reportInput.value?.click(), { description: 'Importar devoluciones', enabled: () => !loading.value });
 
 async function readReport(event: Event) {
 	const input = event.target as HTMLInputElement;
@@ -395,10 +391,10 @@ async function applyReport() {
 	<header class="page-header">
 		<h1>Remesas</h1>
 		<input ref="reportInput" type="file" accept=".xml,application/xml,text/xml" hidden @change="readReport">
-		<LnxButton class="size-small" mode="outline" :disabled="loading" @click="reportInput?.click()">
+		<LnxButton class="lnx-size-small" mode="outline" :disabled="loading" @click="reportInput?.click()">
 			<LnxIcon icon="lucide:file-input" />
 			Importar devoluciones
-			<Kbd combo="i" />
+			<LnxKbd combo="i" />
 		</LnxButton>
 		<NewButton v-if="!open" label="Nueva remesa" :disabled="!remote.remittances" @click="show()" />
 	</header>
@@ -411,7 +407,7 @@ async function applyReport() {
 	<p v-if="reportError && !report" class="error card-gap" role="alert">
 		{{ reportError }}
 	</p>
-	<section v-if="report" class="card ux-appear">
+	<section v-if="report" class="card lnx-appear">
 		<h2>Devoluciones de {{ report.name }}</h2>
 		<p class="hint">
 			Cada adeudo devuelto se busca en las remesas por su referencia (EndToEndId) y su importe. Al registrarlas, los recibos vuelven a quedar pendientes, como al hacerlo a mano.
@@ -456,7 +452,7 @@ async function applyReport() {
 			<p v-if="reportError" class="error" role="alert">
 				{{ reportError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="report = undefined">
+			<LnxButton mode="clear" @click="report = undefined">
 				Cancelar
 			</LnxButton>
 			<LnxButton :is-loading="applying" :disabled="!ready.length" @click="applyReport()">
@@ -468,7 +464,7 @@ async function applyReport() {
 	<p v-if="!remote.remittances" class="card warning" role="note">
 		La generación de remesas está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
 	</p>
-	<form v-else-if="open" ref="generateForm" class="card ux-appear" @submit.prevent="generate()">
+	<form v-else-if="open" ref="generateForm" class="card lnx-appear" @submit.prevent="generate()">
 		<h2>Nueva remesa</h2>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
 			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
@@ -482,17 +478,16 @@ async function applyReport() {
 		</p>
 
 		<div class="fields">
-			<DatePicker v-model="dueUntil">
+			<LnxDatePicker v-model="dueUntil" value-format="iso-date">
 				Vencidos hasta
 				<template #helper>
 					Vacío, todos los pendientes
 				</template>
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxSelect
 				v-model.convert="batch"
 				:options="batchOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Lote
 				<template #option="{ option }">
@@ -502,18 +497,18 @@ async function applyReport() {
 					{{ batchOptions.find(option => option.value === value)?.label ?? 'Todos' }}
 				</template>
 			</LnxSelect>
-			<DatePicker v-model="collectionDate" :min="tomorrow" required>
+			<LnxDatePicker v-model="collectionDate" value-format="iso-date" :min="tomorrow" required>
 				Fecha de cargo
-			</DatePicker>
+			</LnxDatePicker>
 		</div>
 
 		<ul v-if="(propertiesPending || chargesPending) && !shown.length" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="charge">
-				<span class="skeleton-item" :style="{ width: `${width}%` }" />
-				<span class="skeleton-item skeleton-item--small" style="width: 70px" />
+				<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 70px" />
 			</li>
 		</ul>
-		<ul v-else-if="shown.length" class="list ux-appear">
+		<ul v-else-if="shown.length" class="list lnx-appear">
 			<li v-for="charge in shown" :key="charge.id" class="charge">
 				<LnxCheckbox :model-value="!excluded.has(charge.id)" @update:model-value="value => toggleCharge(charge, !!value)">
 					<span class="what">
@@ -556,14 +551,14 @@ async function applyReport() {
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'recibo' : 'recibos' }} · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit" :is-loading="generating" :disabled="!selected.length || !community">
 				<LnxIcon icon="lucide:file-down" />
 				Generar y descargar
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -581,14 +576,14 @@ async function applyReport() {
 			<li v-for="width in [50, 40]" :key="width" class="item">
 				<div class="row">
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 					</div>
-					<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="remittances.length" class="list ux-appear">
+		<ul v-else-if="remittances.length" class="list lnx-appear">
 			<li v-for="remittance in remittances" :key="remittance.id" class="item">
 				<div class="row">
 					<button type="button" class="what ux-row" :aria-expanded="openId === remittance.id" @click="openId = openId === remittance.id ? undefined : remittance.id">
@@ -600,16 +595,16 @@ async function applyReport() {
 					</button>
 					<span class="chip" :class="{ ok: remittance.status === 'collected' }">{{ remittanceStatuses[remittance.status] }}</span>
 					<div class="item-actions">
-						<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
-						<LnxButton v-if="remittance.status !== 'collected'" mode="clear" class="size-small" :is-loading="busyId === remittance.id" @click="advance(remittance)">
+						<LnxButton v-if="remittance.status !== 'collected'" mode="clear" class="lnx-size-small" :is-loading="busyId === remittance.id" @click="advance(remittance)">
 							{{ remittance.status === 'generated' ? 'Marcar enviada' : 'Marcar cobrada' }}
 						</LnxButton>
 						<LnxButton
 							v-if="remittance.status === 'generated'"
 							mode="clear"
-							class="size-small"
+							class="lnx-size-small"
 							shape="circle"
 							variant="danger"
 							aria-label="Borrar"
@@ -653,19 +648,18 @@ async function applyReport() {
 								<LnxButton
 									v-if="remittance.status !== 'generated' && !item.returned && returning !== item.chargeId"
 									mode="clear"
-									class="size-small"
+									class="lnx-size-small"
 									@click="startReturn(item)"
 								>
 									Devolución
 								</LnxButton>
 							</div>
-							<form v-if="returning === item.chargeId" class="return ux-appear" @submit.prevent="confirmReturn(remittance, item)">
+							<form v-if="returning === item.chargeId" class="return lnx-appear" @submit.prevent="confirmReturn(remittance, item)">
 								<div class="fields">
 									<LnxSelect
 										v-model.convert="returnForm.reason"
 										:options="reasonOptions"
 										:convert-fn="option => option.value"
-										search-placeholder-text="Buscar..."
 									>
 										Motivo
 										<template #option="{ option }">
@@ -675,9 +669,9 @@ async function applyReport() {
 											{{ reasonOptions.find(option => option.value === value)?.label }}
 										</template>
 									</LnxSelect>
-									<DatePicker v-model="returnForm.date" required>
+									<LnxDatePicker v-model="returnForm.date" value-format="iso-date" required>
 										Fecha
-									</DatePicker>
+									</LnxDatePicker>
 									<LnxInput v-model="returnForm.fee" inputmode="decimal" placeholder="0,00">
 										Gastos de devolución (€)
 										<template #helper>
@@ -689,7 +683,7 @@ async function applyReport() {
 									<p v-if="returnError" class="error" role="alert">
 										{{ returnError }}
 									</p>
-									<LnxButton type="button" mode="clear" @click="returning = undefined">
+									<LnxButton mode="clear" @click="returning = undefined">
 										Cancelar
 									</LnxButton>
 									<LnxButton type="submit" :is-loading="busyId === remittance.id">
@@ -821,8 +815,8 @@ button.what {
 	align-items: center;
 	gap: var(--lnx-spacing-3);
 
-	:deep(.checkbox),
-	:deep(.label) {
+	:deep(.lnx-checkbox),
+	:deep(.text) {
 		min-width: 0;
 	}
 }

@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/community.ts';
 import { commonAreaIcons, formatSchedule, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, useConfirm, useShortcut } from 'lnxjs-components';
 import { ref, toRaw, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import IconPicker from '@/app/ux/IconPicker.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { useSortable } from '@/app/ux/sortable.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { saveCommonAreas } from '../application/useBookings.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const DEFAULT_BOOKING: BookingSettings = { days: [1, 2, 3, 4, 5, 6, 7], opens: '09:00', closes: '21:00', slotMinutes: 60 };
 
@@ -84,10 +83,9 @@ function save() {
 	});
 }
 
-function remove(area: CommonArea) {
-	const bookingsNote = area.booking ? ' Sus reservas ya hechas se mantienen hasta que las anules.' : '';
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Quitar «${area.name}»?${bookingsNote}`)) {
+async function remove(area: CommonArea) {
+	const bookingsNote = area.booking ? 'Sus reservas ya hechas se mantienen hasta que las anules.' : undefined;
+	if (!await ask({ title: `¿Quitar «${area.name}»?`, message: bookingsNote, confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 
@@ -131,7 +129,7 @@ function persist(next: CommonArea[], summary: string, done: string, revert?: () 
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la zona');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la zona' });
 </script>
 
 <template>
@@ -148,7 +146,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la z
 		{{ loadError }}
 	</p>
 
-	<form v-if="open" ref="formElement" class="card form ux-appear" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card form lnx-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar zona común' : 'Nueva zona común' }}</h2>
 		<div class="named">
 			<IconPicker v-model="draft.icon" :options="commonAreaIcons" />
@@ -164,29 +162,29 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la z
 			<p v-if="error" class="error" role="alert">
 				{{ error }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
 
 	<ul v-if="loading" class="card list" aria-busy="true">
 		<li v-for="width in [30, 45, 25, 38]" :key="width" class="row">
-			<span class="skeleton-item skeleton-item--icon icon" />
+			<span class="lnx-skeleton lnx-skeleton--circle icon" />
 			<span class="name">
-				<span class="skeleton-item" :style="{ width: `${width}%` }" />
-				<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 20}%`, marginTop: '4px' }" />
+				<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 20}%`, marginTop: '4px' }" />
 			</span>
 		</li>
 	</ul>
 
-	<TransitionGroup v-else-if="!loadError || areas.length" tag="ul" name="row" class="card list sortable ux-appear" :class="{ sorting }">
+	<TransitionGroup v-else-if="!loadError || areas.length" tag="ul" name="row" class="card list sortable lnx-appear" :class="{ sorting }">
 		<li v-if="!areas.length" key="empty" class="empty">
 			Aún no hay zonas comunes: portal, garaje, piscina…
 		</li>
@@ -219,7 +217,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la z
 					</small>
 				</span>
 				<div class="actions">
-					<LnxButton v-if="area.booking" :to="`/communities/${id}/locations/${area.id}`" mode="outline" class="size-small">
+					<LnxButton v-if="area.booking" :to="`/communities/${id}/locations/${area.id}`" mode="outline" class="lnx-size-small">
 						<LnxIcon icon="lucide:calendar-clock" />
 						Reservas
 					</LnxButton>

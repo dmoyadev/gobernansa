@@ -87,7 +87,7 @@ const payLink = computed(() => {
 					</span>
 					<span class="body">
 						<strong>Hacer un pago pendiente</strong>
-						<span class="skeleton-item skeleton-item--small" style="width: 50%" />
+						<span class="lnx-skeleton lnx-skeleton--small" style="width: 50%" />
 					</span>
 				</div>
 				<RouterLink v-else-if="paymentsError" class="action" to="/neighborhood/charges">

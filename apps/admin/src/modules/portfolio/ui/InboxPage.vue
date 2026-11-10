@@ -2,7 +2,7 @@
 import type { IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import type { InboxIssue } from '../application/usePortfolio.ts';
 import { findIssueCategory, getIssueCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxRadioGroup, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
@@ -85,22 +85,15 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 		</LnxButton>
 	</header>
 
-	<fieldset class="chips">
-		<legend class="sr-only">
-			Estado
-		</legend>
-		<label v-for="option in issueStatus" :key="option.value">
-			<input v-model="statuses" type="checkbox" class="sr-only" :value="option.value">
-			<span>{{ option.label }}</span>
-		</label>
-	</fieldset>
+	<LnxRadioGroup v-model="statuses" class="statuses" :options="issueStatus" multiple hide-legend>
+		Estado
+	</LnxRadioGroup>
 
 	<div class="filters">
 		<LnxSelect
 			v-model.convert="communityId"
 			:options="communityOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 			placeholder="Todas"
 		>
 			Comunidad
@@ -115,7 +108,6 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 			v-model.convert="age"
 			:options="ageOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 			placeholder="Cualquiera"
 		>
 			Antigüedad
@@ -130,7 +122,6 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 			v-model.convert="zone"
 			:options="zoneOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 			placeholder="Todas"
 		>
 			Zona
@@ -150,15 +141,15 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 
 		<ul v-if="(loading || communitiesLoading) && !issues.length" class="list">
 			<li v-for="width in ROW_WIDTHS" :key="width" class="issue">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 				</div>
-				<span class="skeleton-item skeleton-item--small" style="width: 64px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 64px" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="filtered.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="filtered.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="issue in filtered" :key="`${issue.communityId}/${issue.id}`">
 				<RouterLink class="issue ux-row" :to="`/communities/${issue.communityId}/issues/${issue.id}`">
 					<LnxIcon class="category" :icon="categoryOf(issue).icon" :size="20" />
@@ -214,44 +205,8 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	gap: var(--lnx-spacing-4);
 }
 
-.chips {
+.statuses {
 	margin-bottom: var(--lnx-spacing-4);
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-	}
-
-	label:hover span {
-		background: var(--color-gray-1);
-	}
-
-	label:active span {
-		scale: var(--press-scale);
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
-	}
 }
 
 .filters {

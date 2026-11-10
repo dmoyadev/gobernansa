@@ -4,10 +4,9 @@ import type { MeetingNotice, Minutes, Signature, SignerRole } from '@gobernansa/
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { tallyVotes } from '@gobernansa/shared/domain/meeting.ts';
 import { isFullySigned, minutesHash, signerRoles, tallyWithAbsent } from '@gobernansa/shared/domain/minutes.ts';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import SignaturePad from '@gobernansa/shared/ui/SignaturePad.vue';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxSelect, LnxTextarea, useConfirm } from 'lnxjs-components';
 import { renderSVG } from 'uqr';
 import { computed, ref, watch } from 'vue';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -24,6 +23,8 @@ const props = defineProps<{
 	// The acta as the page composes it, to start from
 	compose: () => string;
 }>();
+
+const ask = useConfirm();
 
 const { user } = useAuth();
 const roles = Object.keys(signerRoles) as SignerRole[];
@@ -98,10 +99,9 @@ function undoPolish() {
 	polishNote.value = undefined;
 }
 
-function save() {
+async function save() {
 	const minutes = props.minutes;
-	// eslint-disable-next-line no-alert
-	if (minutes && Object.keys(minutes.signatures).length && !window.confirm('Al guardar se quitan las firmas que ya tiene. ¿Guardar?')) {
+	if (minutes && Object.keys(minutes.signatures).length && !await ask({ title: '¿Guardar el acta?', message: 'Al guardar se quitan las firmas que ya tiene.', confirmText: 'Guardar', variant: 'danger' })) {
 		return;
 	}
 	const signer = (uid: string) => ({ uid, name: signerOptions.value.find(option => option.value === uid)!.label });
@@ -195,7 +195,6 @@ function print() {
 				v-model.convert="form[role]"
 				:options="signerOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				required
 			>
 				{{ signerRoles[role] }}
@@ -216,11 +215,11 @@ function print() {
 		<footer class="form-actions">
 			<template v-if="minutes && polishable">
 				<WritingSource source="device" />
-				<LnxButton v-if="unpolished !== undefined" type="button" mode="clear" :disabled="!!polishing" @click="undoPolish()">
+				<LnxButton v-if="unpolished !== undefined" mode="clear" :disabled="!!polishing" @click="undoPolish()">
 					<LnxIcon icon="lucide:undo-2" />
 					Deshacer
 				</LnxButton>
-				<LnxButton type="button" mode="outline" :is-loading="!!polishing" :disabled="!form.text.trim()" @click="improve()">
+				<LnxButton mode="outline" :is-loading="!!polishing" :disabled="!form.text.trim()" @click="improve()">
 					<LnxIcon icon="lucide:spell-check" />
 					{{ polishing ?? 'Mejorar redacción' }}
 				</LnxButton>
@@ -235,7 +234,7 @@ function print() {
 	<section v-if="minutes" class="card">
 		<header class="minutes-header screen-only">
 			<h2>{{ minutes.closedAt ? 'Acta firmada' : 'Acta para firmar' }}</h2>
-			<LnxButton class="size-small" @click="print()">
+			<LnxButton class="lnx-size-small" @click="print()">
 				<LnxIcon icon="lucide:printer" />
 				Imprimir o guardar PDF
 			</LnxButton>
@@ -252,17 +251,17 @@ function print() {
 					<form v-else-if="signing === role" class="signing screen-only" @submit.prevent="sign()">
 						<SignaturePad v-model="path" />
 						<div class="form-actions">
-							<LnxButton type="button" mode="clear" class="size-small" @click="signing = undefined">
+							<LnxButton mode="clear" class="lnx-size-small" @click="signing = undefined">
 								Cancelar
 							</LnxButton>
-							<LnxButton type="submit" class="size-small" :is-loading="busy" :disabled="!path">
+							<LnxButton type="submit" class="lnx-size-small" :is-loading="busy" :disabled="!path">
 								<LnxIcon icon="lucide:signature" />
 								Firmar como {{ minutes[role].name }}
 							</LnxButton>
 						</div>
 					</form>
 					<div v-else class="unsigned">
-						<LnxButton v-if="!isFullySigned(minutes)" class="screen-only size-small" mode="outline" :disabled="!!signing" @click="startSigning(role)">
+						<LnxButton v-if="!isFullySigned(minutes)" class="screen-only lnx-size-small" mode="outline" :disabled="!!signing" @click="startSigning(role)">
 							<LnxIcon icon="lucide:signature" />
 							{{ minutes[role].uid === user?.id ? 'Firmar' : 'Firmar en persona' }}
 						</LnxButton>

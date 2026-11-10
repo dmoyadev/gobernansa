@@ -12,13 +12,9 @@ import { checkFile, checkJournalCsv, checkXdiario } from '@gobernansa/shared/dom
 import { chargeTypes, isOverdue, outstanding, payableAmount, paymentMethods } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadLedgerData } from '../application/useAccounting.ts';
 import { importCharges, loadBalances, loadImportedIds, loadInvoices, loadProperties, loadYearCharges } from '../application/useExchange.ts';
 import { useFileCheck } from '../application/useFileCheck.ts';
@@ -96,7 +92,7 @@ async function runExport(item: typeof exports[number]) {
 			download(file);
 		}
 	} catch (e) {
-		toast(`No se ha podido exportar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido exportar: ${(e as Error).message}`, { variant: 'danger' });
 	} finally {
 		busy.value = undefined;
 	}
@@ -218,7 +214,7 @@ const reading = ref(false);
 const importing = ref(false);
 const importError = ref<string>();
 
-useShortcut('i', () => fileInput.value?.click(), 'Importar saldos');
+useShortcut('i', () => fileInput.value?.click(), { description: 'Importar saldos' });
 
 function downloadTemplate() {
 	download(csvFile('plantilla-saldos', importTemplate));
@@ -298,7 +294,6 @@ async function importDraft() {
 			aria-label="Año"
 			:options="yearOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -320,7 +315,7 @@ async function importDraft() {
 					<strong>{{ item.title }}{{ item.yearly ? ` ${year}` : '' }}</strong>
 					<span class="hint">{{ item.description }}</span>
 				</div>
-				<LnxButton mode="outline" class="size-small" :disabled="!!busy" @click="runExport(item)">
+				<LnxButton mode="outline" class="lnx-size-small" :disabled="!!busy" @click="runExport(item)">
 					<LnxIcon :icon="busy === item.key ? 'lucide:loader-circle' : 'lucide:download'" :class="{ spin: busy === item.key }" />
 					Descargar
 				</LnxButton>
@@ -351,7 +346,7 @@ async function importDraft() {
 		</p>
 		<div class="import-actions">
 			<input ref="checkInput" type="file" accept=".xml,.txt,.dbf,.csv,text/xml,application/xml,text/plain,text/csv" hidden @change="pickCheck">
-			<LnxButton class="size-small" mode="outline" @click="checkInput?.click()">
+			<LnxButton class="lnx-size-small" mode="outline" @click="checkInput?.click()">
 				<LnxIcon icon="lucide:file-search" />
 				Elegir fichero
 			</LnxButton>
@@ -369,21 +364,21 @@ async function importDraft() {
 			Las propiedades se buscan por su nombre en el censo. Importar el mismo fichero otra vez solo añade lo que falte.
 		</p>
 		<div class="import-actions">
-			<DatePicker v-model="balanceDate" required>
+			<LnxDatePicker v-model="balanceDate" value-format="iso-date" required>
 				Fecha de los saldos
 				<template #helper>
 					Para las filas sin vencimiento
 				</template>
-			</DatePicker>
-			<LnxButton mode="clear" class="size-small" @click="downloadTemplate()">
+			</LnxDatePicker>
+			<LnxButton mode="clear" class="lnx-size-small" @click="downloadTemplate()">
 				<LnxIcon icon="lucide:file-spreadsheet" />
 				Descargar plantilla
 			</LnxButton>
 			<input ref="fileInput" type="file" accept=".csv,.txt,text/csv,text/plain" hidden @change="readFile">
-			<LnxButton class="size-small" :disabled="reading || importing" @click="fileInput?.click()">
+			<LnxButton class="lnx-size-small" :disabled="reading || importing" @click="fileInput?.click()">
 				<LnxIcon icon="lucide:upload" />
 				Elegir fichero
-				<Kbd combo="i" />
+				<LnxKbd combo="i" />
 			</LnxButton>
 		</div>
 
@@ -391,7 +386,7 @@ async function importDraft() {
 			{{ importError }}
 		</p>
 		<div v-if="reading" class="lines" aria-busy="true" aria-label="Leyendo">
-			<span v-for="width in [90, 80, 95]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [90, 80, 95]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
 
 		<template v-else-if="draft">
@@ -406,7 +401,7 @@ async function importDraft() {
 				</template>
 			</p>
 			<div class="table">
-				<table class="ux-appear">
+				<table class="lnx-appear">
 					<thead>
 						<tr>
 							<th>Fila</th>

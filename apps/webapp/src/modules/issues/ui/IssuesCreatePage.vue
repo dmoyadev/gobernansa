@@ -6,9 +6,8 @@ import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { getIssueCategories, issueCategoryStyle } from '@gobernansa/shared/domain/issue.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
-import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput, LnxTextarea } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -305,7 +304,7 @@ async function submit() {
 				</LnxInput>
 				<LnxButton
 					type="submit"
-					class="size-large"
+					class="lnx-size-large"
 					is-block
 					:disabled="!otherPlace.trim()"
 				>
@@ -328,7 +327,6 @@ async function submit() {
 					</span>
 					<span class="value">{{ category.name }}</span>
 					<LnxButton
-						type="button"
 						mode="link"
 						aria-label="Cambiar qué ha pasado"
 						@click="goTo(0)"
@@ -342,7 +340,6 @@ async function submit() {
 					</span>
 					<span class="value">{{ place.reference }}</span>
 					<LnxButton
-						type="button"
 						mode="link"
 						aria-label="Cambiar dónde ha pasado"
 						@click="goTo(1)"
@@ -369,7 +366,7 @@ async function submit() {
 				<LnxIcon :icon="suggestedCategory.icon" :size="20" />
 				<span class="value">¿Es de <strong>{{ suggestedCategory.name }}</strong>?</span>
 				<WritingSource :source="suggestion.source" />
-				<LnxButton type="button" mode="link" @click="category = suggestedCategory">
+				<LnxButton mode="link" @click="category = suggestedCategory">
 					Cambiar
 				</LnxButton>
 			</div>
@@ -442,7 +439,7 @@ async function submit() {
 			<div class="send">
 				<LnxButton
 					type="submit"
-					class="size-large"
+					class="lnx-size-large"
 					is-block
 					:is-loading="saving"
 					:disabled="saving || !!user?.blocked"

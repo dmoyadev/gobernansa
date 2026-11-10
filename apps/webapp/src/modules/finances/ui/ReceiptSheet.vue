@@ -27,8 +27,8 @@ const areaName = computed(() => getBookableAreas(userCommunity.value).find(area 
 
 <template>
 	<article v-if="!charge && !booking" class="sheet" aria-busy="true" aria-label="Cargando">
-		<span class="skeleton-item skeleton-item--title" style="width: 60%" />
-		<span v-for="width in [80, 70, 75, 50]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+		<span class="lnx-skeleton lnx-skeleton--title" style="width: 60%" />
+		<span v-for="width in [80, 70, 75, 50]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 	</article>
 	<article v-else class="sheet">
 		<header>

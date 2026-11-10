@@ -21,19 +21,20 @@ import { installMonitoring, reportError } from '@gobernansa/shared/infrastructur
 import 'iconify-icon';
 
 /* CSS Utils */
-import '@gobernansa/shared/theme/skeleton.scss';
 import '@gobernansa/shared/theme/colors.scss';
 import '@gobernansa/shared/theme/typography.scss';
 
 /* Components Library */
 import 'lnxjs-components/dist/base.css';
 import '@gobernansa/shared/theme/custom-theme.scss';
+import { lnx } from '@gobernansa/shared/ui/lnx.ts';
 import './app/ux/interactions.scss';
 import './app/ux/sortable.scss';
 
 const app = createApp(App as Component);
 installMonitoring(app, router, 'admin');
 app.use(router);
+app.use(lnx);
 installViewTransitions(router);
 installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/providers', '/mail', '/billing']);
 

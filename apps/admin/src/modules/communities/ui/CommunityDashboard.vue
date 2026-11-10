@@ -9,10 +9,9 @@ import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
 import { propertyTypeLabels, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, toast } from 'lnxjs-components';
 import { computed, onActivated, ref, shallowReactive, watch } from 'vue';
 import { onRevalidate, remember } from '@/app/ux/navigation.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { dashboardMonths, dashboardSources } from '../application/useCommunityDashboard.ts';
 
 // The community's categories, the defaults until it has loaded
@@ -414,13 +413,13 @@ function reset() {
 			<!-- Shaped like the widget: a figure and its line, or rows for the lists and charts -->
 			<div v-else-if="state(widget) === 'loading'" class="skeleton" aria-hidden="true">
 				<template v-if="widget.size === 1">
-					<span class="skeleton-item skeleton-item--title" style="width: 38%" />
-					<span class="skeleton-item skeleton-item--small" style="width: 70%" />
+					<span class="lnx-skeleton lnx-skeleton--title" style="width: 38%" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 70%" />
 				</template>
 				<template v-else>
-					<span class="skeleton-item skeleton-item--title" style="width: 24%" />
-					<span class="skeleton-item skeleton-item--small" style="width: 62%" />
-					<span class="skeleton-item skeleton-item--small" style="width: 48%" />
+					<span class="lnx-skeleton lnx-skeleton--title" style="width: 24%" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 62%" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 48%" />
 				</template>
 			</div>
 
@@ -766,16 +765,15 @@ function reset() {
 				@dragend="draggedIndex = undefined"
 			>
 				<LnxIcon class="grip" icon="lucide:grip-vertical" :size="16" aria-hidden="true" />
-				<label>
-					<input type="checkbox" :checked="!item.hidden" @change="toggle(item)">
+				<LnxCheckbox :model-value="!item.hidden" @update:model-value="toggle(item)">
 					<LnxIcon :icon="widgetsByKey.get(item.key)!.icon" :size="16" aria-hidden="true" />
 					{{ widgetsByKey.get(item.key)!.title }}
 					<small v-if="widgetsByKey.get(item.key)!.size === 2" class="muted">ancho</small>
-				</label>
+				</LnxCheckbox>
 				<LnxButton
 					mode="clear"
 					shape="circle"
-					class="size-small"
+					class="lnx-size-small"
 					:disabled="index === 0"
 					:aria-label="`Subir ${widgetsByKey.get(item.key)!.title}`"
 					aria-describedby="customize-help"
@@ -786,7 +784,7 @@ function reset() {
 				<LnxButton
 					mode="clear"
 					shape="circle"
-					class="size-small"
+					class="lnx-size-small"
 					:disabled="index === layout.length - 1"
 					:aria-label="`Bajar ${widgetsByKey.get(item.key)!.title}`"
 					aria-describedby="customize-help"
@@ -800,11 +798,11 @@ function reset() {
 			{{ announcement }}
 		</p>
 		<footer>
-			<LnxButton mode="clear" class="size-small" @click="reset()">
+			<LnxButton mode="clear" class="lnx-size-small" @click="reset()">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Restablecer
 			</LnxButton>
-			<LnxButton class="size-small" @click="dialog?.close()">
+			<LnxButton class="lnx-size-small" @click="dialog?.close()">
 				<LnxIcon icon="lucide:check" />
 				Listo
 			</LnxButton>
@@ -1299,7 +1297,7 @@ function reset() {
 			background: var(--color-gray-1);
 		}
 
-		&.hidden label {
+		&.hidden .lnx-checkbox {
 			color: var(--color-gray-6);
 		}
 
@@ -1314,27 +1312,10 @@ function reset() {
 		cursor: grab;
 	}
 
-	label {
+	.lnx-checkbox {
 		flex: 1;
 		min-width: 0;
 		padding: var(--lnx-spacing-1) 0;
-		display: flex;
-		align-items: center;
-		gap: var(--lnx-spacing-2);
-		cursor: pointer;
-
-		&:active {
-			scale: .99;
-		}
-	}
-
-	// The native checkbox, the global reset hides it
-	input {
-		flex-shrink: 0;
-		width: 16px;
-		height: 16px;
-		appearance: auto;
-		accent-color: var(--color-primary);
 	}
 }
 

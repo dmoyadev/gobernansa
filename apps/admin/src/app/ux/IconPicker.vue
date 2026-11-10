@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { LnxIcon } from 'lnxjs-components';
+import { LnxIcon, useEventListener } from 'lnxjs-components';
 import { ref, useId } from 'vue';
-import { useEventListener } from './shortcuts.ts';
 
 // The icon of something being edited (a common area, a category), picked from a list under its button
 const props = defineProps<{ options: { icon: string; label: string }[] }>();

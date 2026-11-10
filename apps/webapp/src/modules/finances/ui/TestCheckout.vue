@@ -109,7 +109,7 @@ async function submit() {
 			<LnxInput v-model="cvc" inputmode="numeric" autocomplete="off" placeholder="123" maxlength="4" required>
 				CVC
 			</LnxInput>
-			<LnxButton type="button" class="wide size-small" mode="clear" @click="useTestCard()">
+			<LnxButton class="wide lnx-size-small" mode="clear" @click="useTestCard()">
 				Usar la tarjeta de prueba
 			</LnxButton>
 		</div>
@@ -128,7 +128,7 @@ async function submit() {
 		</p>
 
 		<div class="actions">
-			<LnxButton type="button" mode="clear" :disabled="busy" @click="emit('cancel')">
+			<LnxButton mode="clear" :disabled="busy" @click="emit('cancel')">
 				Cancelar
 			</LnxButton>
 			<LnxButton type="submit" :is-loading="busy">

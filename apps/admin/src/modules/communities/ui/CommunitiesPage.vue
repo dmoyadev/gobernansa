@@ -5,9 +5,8 @@ import { computed, reactive, ref, useTemplateRef, watch } from 'vue';
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, useShortcut } from 'lnxjs-components';
 import NewButton from '@/app/ux/NewButton.vue';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { loadNeighbourCount, useCommunities } from '../application/useCommunities.ts';
 
 // Neighbours per community, null while loading and undefined when it failed
@@ -33,7 +32,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 const SKELETON_ROWS = [[48, 72], [36, 58], [54, 80], [42, 64]];
 
 const searchField = useTemplateRef<{ $el: HTMLElement }>('searchField');
-useShortcut('/', () => searchField.value?.$el.querySelector('input')?.focus(), 'Buscar comunidades');
+useShortcut('/', () => searchField.value?.$el.querySelector('input')?.focus(), { description: 'Buscar comunidades' });
 
 // One aggregation per community, only for the ones not counted yet: the live list changes on every edit, not just on new ones.
 // The counts live in the module (above), so coming back to the list doesn't count them again
@@ -86,13 +85,13 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 	<ul v-else-if="loading" class="list" aria-busy="true">
 		<li v-for="([title, address], index) in SKELETON_ROWS" :key="index" class="row">
 			<span class="icon">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 			</span>
 			<span class="body">
-				<span class="skeleton-item" :style="{ width: `${title}%` }" />
-				<span class="skeleton-item skeleton-item--small" :style="{ width: `${address}%` }" />
+				<span class="lnx-skeleton" :style="{ width: `${title}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${address}%` }" />
 			</span>
-			<span class="skeleton-item skeleton-item--small meta-skeleton" />
+			<span class="lnx-skeleton lnx-skeleton--small meta-skeleton" />
 		</li>
 	</ul>
 
@@ -104,7 +103,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 			</template>
 		</LnxInput>
 
-		<TransitionGroup v-if="filtered.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-if="filtered.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="community in filtered" :key="community.id">
 				<RouterLink class="row ux-row" :to="`/communities/${community.id}`">
 					<span class="icon">
@@ -117,7 +116,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 					<span class="meta tabular">
 						<span :title="neighbours[community.id] == null ? 'Vecinos' : plural(neighbours[community.id]!, 'vecino', 'vecinos')">
 							<LnxIcon icon="lucide:users" :size="14" />
-							<span v-if="neighbours[community.id] === null" class="skeleton-item skeleton-item--count" aria-hidden="true" />
+							<span v-if="neighbours[community.id] === null" class="lnx-skeleton count-skeleton" aria-hidden="true" />
 							<template v-else>{{ neighbours[community.id] ?? '–' }}</template>
 							<span class="sr-only">vecinos</span>
 						</span>
@@ -184,7 +183,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 	width: 100%;
 }
 
-.skeleton-item--count {
+.count-skeleton {
 	width: 1.5em;
 	height: 1em;
 }
@@ -236,7 +235,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 			text-wrap: balance;
 		}
 
-		.skeleton-item + .skeleton-item {
+		.lnx-skeleton + .lnx-skeleton {
 			margin-top: 6px;
 		}
 

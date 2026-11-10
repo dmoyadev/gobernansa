@@ -6,17 +6,17 @@ import { agingBuckets, agingOf, claimChannels, claimLevels, debtCaseStatus, form
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { issueInterestCharge, loadDebtCases, loadInterestCharges, removeClaim, restoreClaims, saveLateInterest, setDebtCaseStatus } from '../application/useArrears.ts';
 import { deleteCharge, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const { data: properties, pending: propertiesPending, error: propertiesError } = useCommunityProperties(props.id);
 const { data: unpaid, pending: chargesPending, error: chargesError } = useUnpaidCharges(props.id);
@@ -141,8 +141,7 @@ async function invoiceInterest(row: typeof rows.value[number]) {
 	if (!interest?.total || invoicing.value) {
 		return;
 	}
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Emitir a ${row.property.name} un recibo de ${formatCents(interest.total)} por los intereses de demora hasta el ${dateFormat.format(interestDate.value)}?`)) {
+	if (!await ask({ title: `¿Emitir a ${row.property.name} un recibo de ${formatCents(interest.total)} por los intereses de demora hasta el ${dateFormat.format(interestDate.value)}?`, confirmText: 'Emitir recibo' })) {
 		return;
 	}
 	invoicing.value = row.property.id;
@@ -158,7 +157,7 @@ async function invoiceInterest(row: typeof rows.value[number]) {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido emitir: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido emitir: ${(e as Error).message}`, { variant: 'danger' });
 	} finally {
 		invoicing.value = undefined;
 	}
@@ -189,9 +188,8 @@ function changeStatus(debtCase: DebtCase, status: DebtCaseStatus) {
 	});
 }
 
-function removeOne(debtCase: DebtCase, claim: Claim) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Quitar la reclamación del ${claim.date.split('-').reverse().join('/')} del registro?`)) {
+async function removeOne(debtCase: DebtCase, claim: Claim) {
+	if (!await ask({ title: `¿Quitar la reclamación del ${claim.date.split('-').reverse().join('/')} del registro?`, confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 	const before = { ...debtCase, id: debtCase.id };
@@ -233,26 +231,26 @@ function lastClaim(debtCase?: DebtCase) {
 		<div class="totals tabular" :aria-busy="loading">
 			<div>
 				<small>Deuda vencida</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 110px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 110px" />
 				<strong v-else :class="{ debt: totals.total }">{{ formatCents(totals.total) }}</strong>
 			</div>
 			<div>
 				<small>Recibos vencidos</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 40px" />
 				<strong v-else>{{ totals.count }}</strong>
 			</div>
 			<div>
 				<small>Propiedades con deuda</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 40px" />
 				<strong v-else>{{ rows.filter(row => row.aging.count).length }}</strong>
 			</div>
 			<div v-if="settings">
 				<small>Intereses de demora</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 90px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 90px" />
 				<strong v-else>{{ formatCents(interestTotal) }}</strong>
 			</div>
 		</div>
-		<ol v-if="!loading && totals.total" class="aging tabular ux-appear">
+		<ol v-if="!loading && totals.total" class="aging tabular lnx-appear">
 			<li v-for="(bucket, index) in agingBuckets" :key="bucket.label" :class="`age-${index}`">
 				<span class="bar" :style="{ width: `${Math.round(totals.buckets[index] / totals.total * 100)}%` }" />
 				<small>{{ bucket.label }}</small>
@@ -270,7 +268,7 @@ function lastClaim(debtCase?: DebtCase) {
 		<p class="hint">
 			Interés simple sobre lo que queda por pagar de cada recibo vencido, desde su vencimiento más los días de gracia. Aplícalos solo si lo ha aprobado la junta o lo prevén los estatutos, y comprueba el interés legal del dinero vigente, que fija cada año la Ley de Presupuestos. El {{ formatRate(SUGGESTED_INTEREST_RATE) }} que se propone es solo un punto de partida.
 		</p>
-		<span v-if="settings === undefined" class="skeleton-item" style="height: 40px" />
+		<span v-if="settings === undefined" class="lnx-skeleton" style="height: 40px" />
 		<div v-else class="fields">
 			<LnxCheckbox v-model="interestForm.enabled">
 				Aplicar intereses de demora
@@ -290,22 +288,22 @@ function lastClaim(debtCase?: DebtCase) {
 	<section class="card">
 		<div class="section-head">
 			<h2>Deudores</h2>
-			<DatePicker v-if="settings" v-model="interestTo" class="until" :max="today">
+			<LnxDatePicker v-if="settings" v-model="interestTo" value-format="iso-date" class="until" :max="today">
 				Intereses hasta
-			</DatePicker>
+			</LnxDatePicker>
 		</div>
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
 				<div class="row">
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 					</div>
-					<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
 				</div>
 			</li>
 		</ul>
-		<div v-else-if="rows.length" class="table ux-appear">
+		<div v-else-if="rows.length" class="table lnx-appear">
 			<table>
 				<thead>
 					<tr>
@@ -356,7 +354,7 @@ function lastClaim(debtCase?: DebtCase) {
 								<LnxButton
 									:to="`/communities/${id}/arrears/${row.property.id}/claim`"
 									mode="clear"
-									class="size-small"
+									class="lnx-size-small"
 									shape="circle"
 									aria-label="Carta de reclamación"
 									title="Carta de reclamación"
@@ -366,7 +364,7 @@ function lastClaim(debtCase?: DebtCase) {
 								<LnxButton
 									:to="`/communities/${id}/arrears/${row.property.id}/monitorio`"
 									mode="clear"
-									class="size-small"
+									class="lnx-size-small"
 									shape="circle"
 									aria-label="Procedimiento monitorio"
 									title="Procedimiento monitorio"
@@ -414,7 +412,7 @@ function lastClaim(debtCase?: DebtCase) {
 											</tr>
 										</tbody>
 									</table>
-									<LnxButton class="size-small" mode="outline" :is-loading="invoicing === row.property.id" @click="invoiceInterest(row)">
+									<LnxButton class="lnx-size-small" mode="outline" :is-loading="invoicing === row.property.id" @click="invoiceInterest(row)">
 										<LnxIcon icon="lucide:receipt-euro" />
 										Generar recibo de intereses ({{ formatCents(row.interest.total) }})
 									</LnxButton>
@@ -425,7 +423,6 @@ function lastClaim(debtCase?: DebtCase) {
 										class="status"
 										:options="statusOptions"
 										:convert-fn="option => option.value"
-										search-placeholder-text="Buscar..."
 										@update:model-value="(status?: DebtCaseStatus) => status && changeStatus(row.debtCase!, status)"
 									>
 										Estado
@@ -451,7 +448,7 @@ function lastClaim(debtCase?: DebtCase) {
 													<template v-if="claim.tracking"> · {{ claim.tracking }} <span class="chip test">Prueba</span></template>
 												</small>
 											</div>
-											<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar del registro" @click="removeOne(row.debtCase!, claim)">
+											<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar del registro" @click="removeOne(row.debtCase!, claim)">
 												<LnxIcon icon="lucide:trash-2" />
 											</LnxButton>
 										</li>

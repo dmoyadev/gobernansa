@@ -2,21 +2,22 @@
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { formatCoefficient, propertyTypeIcons, propertyTypeLabels, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { usePeople } from '@/modules/people/application/usePeople.ts';
 import { deleteProperty, restoreProperty, saveProperty, toPropertyForm, useProperties } from '../application/useProperties.ts';
 
 const props = defineProps<{ id: string }>();
 
+const ask = useConfirm();
+
 const typeOptions = Object.entries(propertyTypeLabels).map(([value, label]) => ({ value: value as Property['type'], label }));
 const types = Object.keys(propertyTypeLabels) as Property['type'][];
+const typeFilters = [{ value: '', label: 'Todas' }, ...types.map(type => ({ value: type, label: propertyTypeLabels[type] }))];
 
 const { data: properties, pending, error } = useProperties(props.id);
 // Owners with an account are picked from the community's, the rest are typed in
@@ -89,12 +90,11 @@ function save() {
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la propiedad');
-useShortcut('/', () => searchInput.value?.querySelector('input')?.focus(), 'Buscar en el censo');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la propiedad' });
+useShortcut('/', () => searchInput.value?.querySelector('input')?.focus(), { description: 'Buscar en el censo' });
 
-function remove(property: Property) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${property.name}»?`)) {
+async function remove(property: Property) {
+	if (!await ask({ title: `¿Borrar «${property.name}»?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 
@@ -122,7 +122,7 @@ function ownerLabel(property: Property) {
 		<NewButton v-if="!open" label="Nueva propiedad" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar propiedad' : 'Nueva propiedad' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.name" placeholder="2A, Plaza 14…" required>
@@ -132,7 +132,6 @@ function ownerLabel(property: Property) {
 				v-model.convert="form.type"
 				:options="typeOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Tipo
 				<template #option="{ option }">
@@ -150,7 +149,6 @@ function ownerLabel(property: Property) {
 				class="wide"
 				:options="ownerOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="Sin cuenta en gobernança"
 			>
 				Propietario
@@ -184,14 +182,14 @@ function ownerLabel(property: Property) {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -209,33 +207,25 @@ function ownerLabel(property: Property) {
 		<div class="filters">
 			<div ref="searchInput">
 				<LnxInput v-model="search" type="search" placeholder="Nombre, propietario o inquilino">
-					Buscar <Kbd combo="/" />
+					Buscar <LnxKbd combo="/" />
 				</LnxInput>
 			</div>
-			<fieldset class="chips">
-				<legend>Tipo</legend>
-				<label>
-					<input v-model="typeFilter" type="radio" class="sr-only" value="">
-					<span>Todas</span>
-				</label>
-				<label v-for="type in types" :key="type">
-					<input v-model="typeFilter" type="radio" class="sr-only" :value="type">
-					<span>{{ propertyTypeLabels[type] }}</span>
-				</label>
-			</fieldset>
+			<LnxRadioGroup v-model="typeFilter" :options="typeFilters">
+				Tipo
+			</LnxRadioGroup>
 		</div>
 
 		<ul v-if="pending && !properties.length" class="list" aria-busy="true">
 			<li v-for="width in [20, 28, 16, 24]" :key="width" class="item">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 30}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 30}%` }" />
 				</div>
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="groups.length" tag="div" name="row" class="groups ux-appear">
+		<TransitionGroup v-else-if="groups.length" tag="div" name="row" class="groups lnx-appear">
 			<section v-for="group in groups" :key="group.type">
 				<h3 class="tabular">
 					{{ propertyTypeLabels[group.type] }} · {{ group.properties.length }} · {{ totalCoefficient(group.properties).toLocaleString('es') }} %
@@ -250,10 +240,10 @@ function ownerLabel(property: Property) {
 							</small>
 						</div>
 						<div class="item-actions">
-							<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
+							<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
 								<LnxIcon icon="lucide:pencil" />
 							</LnxButton>
-							<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
+							<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
 								<LnxIcon icon="lucide:trash-2" />
 							</LnxButton>
 						</div>
@@ -384,51 +374,6 @@ h3 {
 	display: flex;
 	flex-direction: column;
 	gap: var(--lnx-spacing-3);
-}
-
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	legend {
-		width: 100%;
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-	}
-
-	label:hover input:not(:checked) + span {
-		background: var(--color-gray-1);
-	}
-
-	label:active span {
-		scale: var(--press-scale);
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
-	}
 }
 
 .hint,

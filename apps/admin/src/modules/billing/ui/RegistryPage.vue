@@ -64,7 +64,7 @@ function downloadYear() {
 	<header class="page-header">
 		<BackButton to="/billing" label="Volver a honorarios" />
 		<h1>Registro Verifactu</h1>
-		<LnxButton mode="clear" class="size-small" :disabled="!records.length" @click="downloadYear()">
+		<LnxButton mode="clear" class="lnx-size-small" :disabled="!records.length" @click="downloadYear()">
 			<LnxIcon icon="lucide:file-code" />
 			Descargar XML del año
 		</LnxButton>
@@ -102,12 +102,12 @@ function downloadYear() {
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [60, 45, 55]" :key="width" class="entry">
 				<span class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 20}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 20}%` }" />
 				</span>
 			</li>
 		</ul>
-		<ol v-else-if="records.length" class="list ux-appear">
+		<ol v-else-if="records.length" class="list lnx-appear">
 			<li v-for="record in records" :key="record.id" class="entry">
 				<span class="seq tabular">{{ record.seq }}</span>
 				<RouterLink :to="`/billing/${record.invoiceId}`" class="what">

@@ -65,7 +65,7 @@ async function runSummary() {
 		</template>
 
 		<div v-if="hasComments" class="summary">
-			<LnxButton mode="outline" class="size-small" :is-loading="!!summarizing" @click="runSummary()">
+			<LnxButton mode="outline" class="lnx-size-small" :is-loading="!!summarizing" @click="runSummary()">
 				<LnxIcon icon="lucide:list" />
 				{{ summarizing ?? (summary ? 'Resumir de nuevo' : 'Resumir') }}
 			</LnxButton>

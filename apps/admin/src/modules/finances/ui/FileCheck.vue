@@ -29,12 +29,12 @@ const summary = computed(() => [
 </script>
 
 <template>
-	<section class="file-check ux-appear" :class="`tone-${tone}`" role="status">
+	<section class="file-check lnx-appear" :class="`tone-${tone}`" role="status">
 		<header>
 			<LnxIcon :icon="tone === 'ok' ? 'lucide:circle-check' : tone === 'error' ? 'lucide:circle-x' : 'lucide:triangle-alert'" />
 			<strong>Comprobación del fichero</strong>
 			<span class="summary">{{ summary }}</span>
-			<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Cerrar" title="Cerrar" @click="emit('dismiss')">
+			<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Cerrar" title="Cerrar" @click="emit('dismiss')">
 				<LnxIcon icon="lucide:x" />
 			</LnxButton>
 		</header>
@@ -66,10 +66,10 @@ const summary = computed(() => [
 		</p>
 		<footer v-if="held">
 			<span class="hint">Con errores, {{ kind === 'aeat' ? 'la AEAT' : kind === 'sepa' ? 'el banco' : 'el programa' }} puede rechazarlo.</span>
-			<LnxButton type="button" mode="clear" class="size-small" @click="emit('dismiss')">
+			<LnxButton mode="clear" class="lnx-size-small" @click="emit('dismiss')">
 				Cancelar
 			</LnxButton>
-			<LnxButton class="size-small" variant="danger" @click="emit('confirm')">
+			<LnxButton class="lnx-size-small" variant="danger" @click="emit('confirm')">
 				{{ confirmLabel }}
 			</LnxButton>
 		</footer>

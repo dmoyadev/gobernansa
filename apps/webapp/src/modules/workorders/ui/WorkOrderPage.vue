@@ -5,10 +5,8 @@ import { getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/communi
 import { DEFAULT_ISSUE_CATEGORIES, findIssueCategory } from '@gobernansa/shared/domain/issue.ts';
 import { WORK_ORDER_LIMITS, workOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxTextarea } from 'lnxjs-components';
 import { computed, onUnmounted, ref } from 'vue';
 import { canUploadMedia, uploadMedia } from '@/shared/infrastructure/cloudinary.ts';
 import { useWorkOrder } from '../application/useWorkOrder.ts';
@@ -111,8 +109,8 @@ async function send(status: WorkOrderStatus) {
 		</p>
 
 		<section v-if="loading" class="panel" aria-busy="true" aria-label="Cargando">
-			<span class="skeleton-item skeleton-item--title" style="width: 70%" />
-			<span v-for="width in [90, 75, 60]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span class="lnx-skeleton lnx-skeleton--title" style="width: 70%" />
+			<span v-for="width in [90, 75, 60]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</section>
 
 		<section v-else-if="!workOrder" class="panel empty">
@@ -168,17 +166,17 @@ async function send(status: WorkOrderStatus) {
 					</p>
 					<div class="actions">
 						<template v-if="workOrder.status === 'sent'">
-							<LnxButton class="size-large" is-block :is-loading="sending === 'accepted'" :disabled="!!sending" @click="send('accepted')">
+							<LnxButton class="lnx-size-large" is-block :is-loading="sending === 'accepted'" :disabled="!!sending" @click="send('accepted')">
 								<LnxIcon icon="lucide:thumbs-up" />
 								Aceptar
 							</LnxButton>
-							<LnxButton mode="outline" class="size-large" is-block :disabled="!!sending" @click="open('scheduled')">
+							<LnxButton mode="outline" class="lnx-size-large" is-block :disabled="!!sending" @click="open('scheduled')">
 								<LnxIcon icon="lucide:calendar-plus" />
 								Aceptar y programar visita
 							</LnxButton>
 						</template>
 						<template v-else>
-							<LnxButton class="size-large" is-block :disabled="!!sending" @click="open('done')">
+							<LnxButton class="lnx-size-large" is-block :disabled="!!sending" @click="open('done')">
 								<LnxIcon icon="lucide:circle-check" />
 								Trabajo terminado
 							</LnxButton>
@@ -186,7 +184,7 @@ async function send(status: WorkOrderStatus) {
 							<LnxButton
 								v-if="workOrder.history.length < WORK_ORDER_LIMITS.steps - 1"
 								mode="outline"
-								class="size-large"
+								class="lnx-size-large"
 								is-block
 								:disabled="!!sending"
 								@click="open('scheduled')"
@@ -208,9 +206,9 @@ async function send(status: WorkOrderStatus) {
 				<form v-else class="step-form" @submit.prevent="send(form!)">
 					<h2>{{ form === 'rejected' ? 'Rechazar el trabajo' : form === 'scheduled' ? 'Programar visita' : 'Trabajo terminado' }}</h2>
 					<template v-if="form === 'scheduled'">
-						<DatePicker v-model="date" :min="today" required>
+						<LnxDatePicker v-model="date" value-format="iso-date" :min="today" required>
 							Día
-						</DatePicker>
+						</LnxDatePicker>
 						<LnxInput v-model="time" type="time" required>
 							Hora
 						</LnxInput>

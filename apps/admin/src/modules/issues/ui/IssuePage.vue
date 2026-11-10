@@ -7,15 +7,11 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { claimStatus, findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useConfirm, useEventListener, useShortcut } from 'lnxjs-components';
 import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
-import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { setBlocked } from '@/modules/people/application/useModeration.ts';
@@ -26,6 +22,8 @@ import IssueAge from './IssueAge.vue';
 import WorkOrderPanel from './WorkOrderPanel.vue';
 
 const props = defineProps<{ id: string; issueId: string }>();
+
+const ask = useConfirm();
 
 const router = useRouter();
 const { user: me } = useAuth();
@@ -213,8 +211,7 @@ async function toggleBlocked(comment: IssueComment) {
 	if (!author) {
 		return;
 	}
-	// eslint-disable-next-line no-alert
-	if (author.blocked || window.confirm(`¿Bloquear a ${author.name}? No podrá crear incidencias ni comentar.`)) {
+	if (author.blocked || await ask({ title: `¿Bloquear a ${author.name}?`, message: 'No podrá crear incidencias ni comentar.', confirmText: 'Bloquear', variant: 'danger' })) {
 		const blocked = !author.blocked;
 		void optimistic(setBlocked(author.id, props.id, blocked, author.name), {
 			done: blocked ? 'Vecino bloqueado' : 'Vecino desbloqueado',
@@ -239,9 +236,8 @@ function sendReply() {
 	});
 }
 
-function deleteIssue() {
-	// eslint-disable-next-line no-alert
-	if (window.confirm('¿Borrar esta incidencia? Dejará de verse en la app.')) {
+async function deleteIssue() {
+	if (await ask({ title: '¿Borrar esta incidencia?', message: 'Dejará de verse en la app.', confirmText: 'Borrar', variant: 'danger' })) {
 		const uid = me.value!.id;
 		void optimistic(remove(uid), {
 			done: 'Incidencia borrada',
@@ -260,7 +256,7 @@ useShortcut('mod+enter', () => {
 	} else {
 		sendReply();
 	}
-}, 'Enviar el formulario o la respuesta');
+}, { description: 'Enviar el formulario o la respuesta' });
 useEventListener(window, 'keydown', (event) => {
 	if (event.key !== 'Escape' || event.defaultPrevented) {
 		return;
@@ -288,36 +284,36 @@ useEventListener(window, 'keydown', (event) => {
 	</p>
 	<div v-else-if="loading" aria-busy="true">
 		<section class="hero" aria-hidden="true">
-			<span class="skeleton-item skeleton-item--big-square tile" />
+			<span class="lnx-skeleton lnx-skeleton--rect tile" />
 			<div class="heading skeleton-stack">
-				<span class="skeleton-item skeleton-item--small" style="width: 90px" />
-				<span class="skeleton-item skeleton-item--title" style="width: 58%" />
-				<span class="skeleton-item skeleton-item--small" style="width: 72%" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
+				<span class="lnx-skeleton lnx-skeleton--title" style="width: 58%" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 72%" />
 			</div>
 		</section>
 		<div class="facts" aria-hidden="true">
 			<div v-for="width in [70, 55, 62]" :key="width" class="skeleton-stack">
-				<span class="skeleton-item skeleton-item--small" style="width: 40%" />
-				<span class="skeleton-item" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
+				<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
 			</div>
 		</div>
 		<div class="layout" aria-hidden="true">
 			<section class="card">
-				<span class="skeleton-item skeleton-item--small" style="width: 30%" />
-				<span class="skeleton-item" style="width: 92%" />
-				<span class="skeleton-item" style="width: 78%" />
-				<span class="skeleton-item" style="width: 45%" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 30%" />
+				<span class="lnx-skeleton" style="width: 92%" />
+				<span class="lnx-skeleton" style="width: 78%" />
+				<span class="lnx-skeleton" style="width: 45%" />
 			</section>
 			<section class="card">
-				<span class="skeleton-item skeleton-item--small" style="width: 40%" />
-				<span class="skeleton-item skeleton-item--big-square" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
+				<span class="lnx-skeleton lnx-skeleton--rect" />
 			</section>
 		</div>
 	</div>
 
 	<template v-else-if="issue">
 		<section
-			class="hero ux-appear"
+			class="hero lnx-appear"
 			:style="{
 				...(category && issueCategoryStyle(category)),
 				'--status-color': `var(--color-issue-status-${issue.status})`,
@@ -475,11 +471,11 @@ useEventListener(window, 'keydown', (event) => {
 									{{ comment.message }}
 								</p>
 								<div class="moderation">
-									<LnxButton mode="clear" class="size-small" @click="toggleHidden(comment)">
+									<LnxButton mode="clear" class="lnx-size-small" @click="toggleHidden(comment)">
 										<LnxIcon :icon="comment.hiddenAt ? 'lucide:eye' : 'lucide:eye-off'" />
 										{{ comment.hiddenAt ? 'Mostrar' : 'Ocultar' }}
 									</LnxButton>
-									<LnxButton v-if="authorOf(comment)" mode="clear" class="size-small" @click="toggleBlocked(comment)">
+									<LnxButton v-if="authorOf(comment)" mode="clear" class="lnx-size-small" @click="toggleBlocked(comment)">
 										<LnxIcon :icon="authorOf(comment)?.blocked ? 'lucide:user-check' : 'lucide:user-x'" />
 										{{ authorOf(comment)?.blocked ? 'Desbloquear vecino' : 'Bloquear vecino' }}
 									</LnxButton>
@@ -496,7 +492,7 @@ useEventListener(window, 'keydown', (event) => {
 						<LnxButton type="submit" :disabled="!message.trim()">
 							<LnxIcon icon="lucide:send" />
 							Responder
-							<Kbd combo="mod+enter" />
+							<LnxKbd combo="mod+enter" />
 						</LnxButton>
 					</form>
 				</section>
@@ -510,7 +506,7 @@ useEventListener(window, 'keydown', (event) => {
 						<LnxButton
 							v-if="issue.provider && !editingAssignment"
 							mode="clear"
-							class="size-small"
+							class="lnx-size-small"
 							@click="editingAssignment = true"
 						>
 							<LnxIcon icon="lucide:pencil" />
@@ -527,11 +523,11 @@ useEventListener(window, 'keydown', (event) => {
 							</div>
 						</div>
 						<div class="quick-actions">
-							<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" class="size-small">
+							<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" class="lnx-size-small">
 								<LnxIcon icon="lucide:phone" />
 								Llamar
 							</LnxButton>
-							<LnxButton v-if="providerMail" :href="providerMail" mode="outline" class="size-small">
+							<LnxButton v-if="providerMail" :href="providerMail" mode="outline" class="lnx-size-small">
 								<LnxIcon icon="lucide:mail" />
 								Enviar aviso
 							</LnxButton>
@@ -557,7 +553,6 @@ useEventListener(window, 'keydown', (event) => {
 							v-model.convert="assignment.providerId"
 							:options="providerOptions"
 							:convert-fn="option => option.value"
-							search-placeholder-text="Buscar..."
 							placeholder="Sin asignar"
 						>
 							Proveedor
@@ -573,9 +568,9 @@ useEventListener(window, 'keydown', (event) => {
 							¿No está? Añádelo al directorio
 						</RouterLink>
 						<div>
-							<DatePicker v-model="assignment.expectedAt">
+							<LnxDatePicker v-model="assignment.expectedAt" value-format="iso-date">
 								Fecha prevista
-							</DatePicker>
+							</LnxDatePicker>
 							<div class="quick-dates">
 								<button v-for="quick in quickDates" :key="quick.days" type="button" @click="setExpectedIn(quick.days)">
 									{{ quick.label }}
@@ -586,13 +581,13 @@ useEventListener(window, 'keydown', (event) => {
 							Nota interna (los vecinos no la ven)
 						</LnxTextarea>
 						<footer class="form-actions">
-							<LnxButton v-if="issue.provider" type="button" mode="clear" @click="resetAssignment(); editingAssignment = false">
+							<LnxButton v-if="issue.provider" mode="clear" @click="resetAssignment(); editingAssignment = false">
 								Cancelar
 							</LnxButton>
 							<LnxButton type="submit">
 								<LnxIcon icon="lucide:check" />
 								{{ issue.provider ? 'Guardar' : 'Asignar' }}
-								<Kbd combo="mod+enter" />
+								<LnxKbd combo="mod+enter" />
 							</LnxButton>
 						</footer>
 					</form>
@@ -621,7 +616,7 @@ useEventListener(window, 'keydown', (event) => {
 						<LnxButton
 							v-if="adminData?.claim && !claimForm"
 							mode="clear"
-							class="size-small"
+							class="lnx-size-small"
 							@click="openClaimForm()"
 						>
 							<LnxIcon icon="lucide:pencil" />
@@ -678,7 +673,7 @@ useEventListener(window, 'keydown', (event) => {
 						</LnxButton>
 					</div>
 
-					<form v-if="claimForm" class="claim ux-appear" @submit.prevent="submitClaim()">
+					<form v-if="claimForm" class="claim lnx-appear" @submit.prevent="submitClaim()">
 						<LnxInput v-model="claimForm.insurer" required>
 							Aseguradora
 						</LnxInput>
@@ -696,13 +691,13 @@ useEventListener(window, 'keydown', (event) => {
 							Qué ha pasado
 						</LnxTextarea>
 						<footer class="form-actions">
-							<LnxButton type="button" mode="clear" @click="claimForm = undefined">
+							<LnxButton mode="clear" @click="claimForm = undefined">
 								Cancelar
 							</LnxButton>
 							<LnxButton type="submit">
 								<LnxIcon icon="lucide:check" />
 								{{ adminData?.claim ? 'Guardar' : 'Abrir parte' }}
-								<Kbd combo="mod+enter" />
+								<LnxKbd combo="mod+enter" />
 							</LnxButton>
 						</footer>
 					</form>

@@ -7,13 +7,11 @@ import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { DEFAULT_MONTHLY_VOTES, getIssueCategories } from '@gobernansa/shared/domain/issue.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, toast, useEventListener, useShortcut } from 'lnxjs-components';
 import { computed, nextTick, onActivated, onDeactivated, onMounted, ref, useId, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate, useRevalidated } from '@/app/ux/navigation.ts';
-import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
 import { loadTileFigures } from '@/modules/finances/application/useFinanceSummary.ts';
 import { WEBAPP_URL } from '@/modules/mail/application/mail.ts';
@@ -90,7 +88,7 @@ onMounted(load);
 onRevalidate(load);
 
 const router = useRouter();
-useShortcut('e', () => void router.push(`/communities/${props.id}/info`), 'Editar los datos de la comunidad');
+useShortcut('e', () => void router.push(`/communities/${props.id}/info`), { description: 'Editar los datos de la comunidad' });
 
 // What the tiles show, from the community already loaded: no reads of their own
 const contacts = computed(() => community.value?.contacts ?? []);
@@ -474,7 +472,7 @@ useEventListener(window, 'pointerup', disarm);
 	<header class="page-header">
 		<BackButton to="/" label="Volver a comunidades" />
 		<h1 :style="{ viewTransitionName: `community-${id}` }">
-			<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40%" />
+			<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 40%" />
 			<template v-else>
 				{{ community?.name || 'Comunidad' }}
 			</template>
@@ -584,11 +582,11 @@ useEventListener(window, 'pointerup', disarm);
 			<p id="edit-help">
 				Arrastra cada tarjeta por su asa, o muévela con las flechas, y cambia su tamaño con su botón.
 			</p>
-			<LnxButton mode="clear" class="size-small" @click="resetLayout()">
+			<LnxButton mode="clear" class="lnx-size-small" @click="resetLayout()">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Restablecer
 			</LnxButton>
-			<LnxButton ref="doneButton" class="size-small" @click="stopEditing()">
+			<LnxButton ref="doneButton" class="lnx-size-small" @click="stopEditing()">
 				<LnxIcon icon="lucide:check" />
 				Listo
 			</LnxButton>
@@ -641,7 +639,7 @@ useEventListener(window, 'pointerup', disarm);
 						</RouterLink>
 					</CommunityBusinessCard>
 					<div v-if="tile.size === 4" class="card-actions">
-						<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" class="size-small" @click="copy(label, value)">
+						<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" class="lnx-size-small" @click="copy(label, value)">
 							<LnxIcon :icon="copied === label ? 'lucide:check' : 'lucide:copy'" />
 							{{ copied === label ? 'Copiado' : `Copiar ${label}` }}
 						</LnxButton>
@@ -676,7 +674,7 @@ useEventListener(window, 'pointerup', disarm);
 					</header>
 
 					<div v-if="(loading && dataKeys.includes(tile.key)) || (tile.key === 'finances' && financesLoading) || (tile.key === 'people' && neighboursLoading)" class="body" aria-hidden="true">
-						<span v-for="width in skeletonLines(tile.size)" :key="width" class="skeleton-item skeleton-item--small" :style="{ width: `${width}%` }" />
+						<span v-for="width in skeletonLines(tile.size)" :key="width" class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width}%` }" />
 					</div>
 
 					<div v-else-if="tile.key === 'info'" class="body">
@@ -786,7 +784,7 @@ useEventListener(window, 'pointerup', disarm);
 					<LnxButton
 						mode="clear"
 						shape="circle"
-						class="handle size-small"
+						class="handle lnx-size-small"
 						:data-handle="tile.key"
 						:aria-label="`Mover ${tile.title}`"
 						:title="`Mover ${tile.title}`"
@@ -799,7 +797,7 @@ useEventListener(window, 'pointerup', disarm);
 					<LnxButton
 						mode="clear"
 						shape="circle"
-						class="size-small"
+						class="lnx-size-small"
 						:aria-label="`Cambiar tamaño de ${tile.title} (ahora ${sizeLabels[tile.size]}, pasará a ${sizeLabels[nextSize(tile)]})`"
 						:title="`Cambiar tamaño de ${tile.title} (ahora ${sizeLabels[tile.size]}, pasará a ${sizeLabels[nextSize(tile)]})`"
 						@click="resize(index)"

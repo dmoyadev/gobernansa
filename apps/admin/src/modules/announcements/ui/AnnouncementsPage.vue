@@ -4,23 +4,20 @@ import type { Event } from '@gobernansa/shared/domain/event.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
 import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, LnxTextarea, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate, remember } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
+
+const ask = useConfirm();
 
 const eventsRef = collection(db, 'events');
 
@@ -80,8 +77,7 @@ const drafting = ref<string>();
 const drafted = ref<Draft['source']>();
 
 async function writeDraft() {
-	// eslint-disable-next-line no-alert
-	if ((form.value.title.trim() || form.value.description.trim()) && !window.confirm('¿Sustituir el título y la descripción por el borrador?')) {
+	if ((form.value.title.trim() || form.value.description.trim()) && !await ask({ title: '¿Sustituir el título y la descripción por el borrador?', confirmText: 'Sustituir' })) {
 		return;
 	}
 	drafting.value = 'Redactando…';
@@ -95,7 +91,7 @@ async function writeDraft() {
 		drafted.value = result.source;
 	} catch {
 		// Its code couldn't load, e.g. offline
-		toast('No se ha podido redactar, revisa la conexión', { tone: 'error' });
+		toast('No se ha podido redactar, revisa la conexión', { variant: 'danger' });
 	} finally {
 		drafting.value = undefined;
 	}
@@ -228,9 +224,8 @@ onRevalidate(() => {
 });
 
 // Only the copies in the selected communities, the rules don't let a query reach the rest
-function remove(broadcast: Broadcast) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${broadcast.title}» de ${broadcast.copies.length} comunidad(es)?`)) {
+async function remove(broadcast: Broadcast) {
+	if (!await ask({ title: `¿Borrar «${broadcast.title}» de ${broadcast.copies.length} comunidad(es)?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 
@@ -268,7 +263,7 @@ async function restoreBroadcast(broadcast: Broadcast) {
 	await batch.commit();
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el comunicado');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar el comunicado' });
 </script>
 
 <template>
@@ -287,8 +282,8 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 			</p>
 			<template v-if="loading && !communities.length">
 				<span v-for="width in [20, 60, 45, 70, 50]" :key="width" class="skeleton-row" :class="{ all: width === 20 }" aria-hidden="true">
-					<span class="skeleton-item skeleton-item--icon" />
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--circle" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
 				</span>
 			</template>
 			<template v-else-if="communities.length">
@@ -305,7 +300,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 		</fieldset>
 	</section>
 
-	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="send()">
+	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="send()">
 		<h2>Nuevo comunicado</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
@@ -315,7 +310,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 				v-model.convert="form.type"
 				:options="typeOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Tipo
 				<template #option="{ option }">
@@ -325,9 +319,9 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 					{{ eventTypes[value]?.label }}
 				</template>
 			</LnxSelect>
-			<DatePicker v-model="form.date" required>
+			<LnxDatePicker v-model="form.date" value-format="iso-date" required>
 				Fecha
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxTextarea v-model="form.description" rows="3" placeholder="Por ejemplo: el martes de 9:00 a 14:00 no habrá agua por obras en la red." class="wide">
 				Descripción
 			</LnxTextarea>
@@ -344,16 +338,12 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 			<LnxTextarea v-model="draft.points" rows="3" placeholder="Un punto por línea, por ejemplo:&#10;corte de agua el martes de 9:00 a 14:00&#10;obras en la red general">
 				Puntos clave
 			</LnxTextarea>
-			<fieldset class="tones">
-				<legend>Tono</legend>
-				<label v-for="tone in tones" :key="tone.value">
-					<input v-model="draft.tone" type="radio" class="sr-only" name="tone" :value="tone.value">
-					<span>{{ tone.label }}</span>
-				</label>
-			</fieldset>
+			<LnxRadioGroup v-model="draft.tone" :options="tones" mode="segmented">
+				Tono
+			</LnxRadioGroup>
 			<footer class="form-actions">
 				<WritingSource v-if="drafted && !drafting" :source="drafted" />
-				<LnxButton type="button" mode="outline" :is-loading="!!drafting" :disabled="!draft.points.trim()" @click="writeDraft()">
+				<LnxButton mode="outline" :is-loading="!!drafting" :disabled="!draft.points.trim()" @click="writeDraft()">
 					<LnxIcon icon="lucide:file-pen-line" />
 					{{ drafting ?? 'Redactar' }}
 				</LnxButton>
@@ -364,14 +354,14 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit" :disabled="!selected.length">
 				<LnxIcon icon="lucide:send" />
 				Enviar a <span class="tabular">{{ selected.length }}</span> comunidad{{ selected.length === 1 ? '' : 'es' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -384,15 +374,15 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 
 		<ul v-if="recentLoading && !recent.length" class="list" aria-busy="true" aria-label="Cargando comunicados">
 			<li v-for="width in [50, 35, 62]" :key="width" class="item">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" style="width: 140px" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 25}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 140px" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 25}%` }" />
 				</div>
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="recent.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="recent.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="broadcast in recent" :key="broadcast.id" class="item">
 				<LnxIcon class="type" :icon="eventTypes[broadcast.type]?.icon ?? 'lucide:info'" :size="20" />
 				<div class="what">
@@ -407,7 +397,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 						{{ broadcast.copies.map(copy => communityNames.get(copy.communityId) ?? copy.communityId).join(', ') }}
 					</small>
 				</div>
-				<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
+				<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
@@ -502,40 +492,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el co
 		font-size: var(--lnx-font-size-small);
 		font-weight: var(--lnx-font-weight-bold);
 		cursor: pointer;
-	}
-}
-
-.tones {
-	border: 0;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-
-	legend {
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		padding: 4px var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-3);
-		border-radius: var(--lnx-radius-5);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-		font-weight: var(--lnx-font-weight-bold);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
 	}
 }
 

@@ -6,14 +6,15 @@ import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { collection, collectionGroup, doc, getDoc, getDocs, limit, orderBy, query, startAfter, Timestamp, where, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { countErrorAlerts } from '../application/useErrorAlerts.ts';
 import ErrorGroupDetail from './ErrorGroupDetail.vue';
 import PerformancePanel from './PerformancePanel.vue';
+
+const ask = useConfirm();
 
 /*
  * Errores (MON-8, docs/fiabilidad.md): the failures the apps reported, for the team. 25 groups at a time and once, not
@@ -193,8 +194,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyl
  */
 const cleaning = ref(false);
 async function clean() {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar las muestras de más de 30 días y los errores resueltos o ignorados que llevan ${STALE_DAYS} días sin repetirse? No se puede deshacer.`)) {
+	if (!await ask({ title: '¿Limpiar el registro de errores?', message: `Se borran las muestras de más de 30 días y los errores resueltos o ignorados que llevan ${STALE_DAYS} días sin repetirse. No se puede deshacer.`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 
@@ -228,7 +228,7 @@ async function clean() {
 			void load();
 		}
 	} catch (e) {
-		toast(`No se ha podido limpiar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido limpiar: ${(e as Error).message}`, { variant: 'danger' });
 		reportError(e, { source: 'action', action: 'No se ha podido limpiar' });
 	} finally {
 		cleaning.value = false;
@@ -240,7 +240,7 @@ async function clean() {
 	<header class="page-header">
 		<BackButton to="/" label="Volver" />
 		<h1>Errores</h1>
-		<LnxButton mode="outline" class="size-small" :is-loading="cleaning" @click="clean()">
+		<LnxButton mode="outline" class="lnx-size-small" :is-loading="cleaning" @click="clean()">
 			<LnxIcon icon="lucide:eraser" />
 			Limpiar caducadas
 		</LnxButton>
@@ -271,7 +271,7 @@ async function clean() {
 		</p>
 
 		<div class="filters">
-			<LnxSelect v-model.convert="status" :options="statusOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+			<LnxSelect v-model.convert="status" :options="statusOptions" :convert-fn="option => option.value">
 				Estado
 				<template #option="{ option }">
 					{{ option.label }}
@@ -280,7 +280,7 @@ async function clean() {
 					{{ statusOptions.find(option => option.value === value)?.label }}
 				</template>
 			</LnxSelect>
-			<LnxSelect v-model.convert="app" :options="appOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+			<LnxSelect v-model.convert="app" :options="appOptions" :convert-fn="option => option.value">
 				App
 				<template #option="{ option }">
 					{{ option.label }}
@@ -289,7 +289,7 @@ async function clean() {
 					{{ appOptions.find(option => option.value === value)?.label }}
 				</template>
 			</LnxSelect>
-			<LnxSelect v-model.convert="code" :options="codeOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+			<LnxSelect v-model.convert="code" :options="codeOptions" :convert-fn="option => option.value">
 				Tipo
 				<template #option="{ option }">
 					{{ option.label }}
@@ -298,7 +298,7 @@ async function clean() {
 					{{ codeOptions.find(option => option.value === value)?.label }}
 				</template>
 			</LnxSelect>
-			<LnxSelect v-model.convert="release" :options="releaseOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+			<LnxSelect v-model.convert="release" :options="releaseOptions" :convert-fn="option => option.value">
 				Versión
 				<template #option="{ option }">
 					{{ option.label }}
@@ -317,15 +317,15 @@ async function clean() {
 			<ul v-if="loading && !shown.length" class="list">
 				<li v-for="width in [70, 50, 80, 60]" :key="width" class="group">
 					<div class="row">
-						<span class="skeleton-item skeleton-item--icon" />
+						<span class="lnx-skeleton lnx-skeleton--circle" />
 						<div class="what">
-							<span class="skeleton-item" :style="{ width: `${width}%` }" />
-							<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+							<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+							<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 						</div>
 					</div>
 				</li>
 			</ul>
-			<ul v-else-if="shown.length" class="list ux-appear">
+			<ul v-else-if="shown.length" class="list lnx-appear">
 				<li v-for="group in shown" :key="group.id" class="group">
 					<button type="button" class="row" :aria-expanded="open === group.id" @click="open = open === group.id ? undefined : group.id">
 						<span v-if="hasReturned(group)" class="status is-returned">

@@ -2,15 +2,13 @@
 import type { Community, CommunityContact } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm, CommunitySection } from '../domain/communityForm.ts';
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
 import { duplicateCommunity } from '../application/duplicateCommunity.ts';
@@ -21,6 +19,9 @@ import CommunityDocumentFields from './CommunityDocumentFields.vue';
 
 // Without an id, a new community is created from its general info and settings, prefilled from another one with ?from=<id>
 const props = withDefaults(defineProps<{ id?: string; section?: CommunitySection }>(), { section: 'info' });
+
+const ask = useConfirm();
+
 const route = useRoute();
 // Read again each time the page comes back, as the kept page is reused for any ?from=
 const queryFrom = () => props.id ? undefined : route.query.from as string | undefined;
@@ -49,8 +50,7 @@ let pristine = '';
 const isPristine = () => JSON.stringify(form.value) === pristine;
 
 // Leaving it, or moving to another section from the nav, would lose what was typed
-// eslint-disable-next-line no-alert
-const confirmLeave = () => saving.value || isPristine() || window.confirm('¿Descartar los cambios sin guardar?');
+const confirmLeave = async () => saving.value || isPristine() || await ask({ title: '¿Descartar los cambios sin guardar?', confirmText: 'Descartar', cancelText: 'Seguir editando', variant: 'danger' });
 onBeforeRouteLeave(confirmLeave);
 onBeforeRouteUpdate(confirmLeave);
 
@@ -191,7 +191,7 @@ async function save(done = props.id ? 'Guardado' : 'Comunidad creada') {
 	});
 }
 
-useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.requestSubmit(), props.id ? 'Guardar cambios' : 'Crear comunidad');
+useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.requestSubmit(), { description: props.id ? 'Guardar cambios' : 'Crear comunidad' });
 </script>
 
 <template>
@@ -205,24 +205,24 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 		</template>
 	</header>
 
-	<form v-if="adding" ref="newElement" class="card new ux-appear" @submit.prevent="add()">
+	<form v-if="adding" ref="newElement" class="card new lnx-appear" @submit.prevent="add()">
 		<h2>{{ section === 'contacts' ? 'Nuevo contacto' : 'Nuevo documento' }}</h2>
 		<CommunityContactFields v-if="section === 'contacts'" v-model="newContact" />
 		<CommunityDocumentFields v-else v-model="newDocument" />
 
 		<footer class="form-actions">
-			<LnxButton v-if="section === 'contacts'" type="button" mode="clear" class="size-small add-schedule" @click="addSchedule(newContact)">
+			<LnxButton v-if="section === 'contacts'" mode="clear" class="lnx-size-small add-schedule" @click="addSchedule(newContact)">
 				<LnxIcon icon="lucide:clock" />
 				Añadir horario
 			</LnxButton>
-			<LnxButton type="button" mode="clear" @click="closeNew()">
+			<LnxButton mode="clear" @click="closeNew()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon icon="lucide:plus" />
 				Añadir
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -230,11 +230,11 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 	<form ref="formElement" @submit.prevent="save()">
 		<!-- Shaped like the first card: its title and fields -->
 		<section v-if="loading" class="card" aria-busy="true">
-			<span class="skeleton-item skeleton-item--small" style="width: 22%" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 22%" />
 			<div class="fields">
 				<span v-for="width in [92, 88, 46]" :key="width" class="skeleton-field">
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width / 3}%` }" />
-					<span class="skeleton-item skeleton-item--big-square" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width / 3}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--rect" :style="{ width: `${width}%` }" />
 				</span>
 			</div>
 		</section>
@@ -252,7 +252,7 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 		</section>
 
 		<template v-else>
-			<p v-if="source" class="hint duplicate ux-appear">
+			<p v-if="source" class="hint duplicate lnx-appear">
 				<LnxIcon icon="lucide:copy" aria-hidden="true" />
 				Se copiarán las zonas comunes, contactos, zonas reservables, obligaciones y proveedores de «{{ source.name }}».
 			</p>
@@ -330,11 +330,11 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 					<CommunityContactFields v-model="form.contacts[index]" />
 
 					<div class="item-actions">
-						<LnxButton type="button" mode="clear" class="size-small" @click="addSchedule(contact)">
+						<LnxButton mode="clear" class="lnx-size-small" @click="addSchedule(contact)">
 							<LnxIcon icon="lucide:clock" />
 							Añadir horario
 						</LnxButton>
-						<LnxButton type="button" mode="clear" class="size-small" variant="danger" @click="form.contacts.splice(index, 1)">
+						<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="form.contacts.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 							Quitar contacto
 						</LnxButton>
@@ -353,7 +353,7 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 					</legend>
 					<CommunityDocumentFields v-model="form.documents[index]" />
 					<div class="item-actions">
-						<LnxButton type="button" mode="clear" class="size-small" variant="danger" @click="form.documents.splice(index, 1)">
+						<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="form.documents.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 							Quitar documento
 						</LnxButton>
@@ -371,7 +371,7 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 				<LnxButton type="submit" :is-loading="saving">
 					<LnxIcon icon="lucide:save" />
 					{{ id ? 'Guardar cambios' : 'Crear comunidad' }}
-					<Kbd combo="mod+enter" />
+					<LnxKbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</template>
@@ -447,7 +447,7 @@ form {
 	flex-direction: column;
 	gap: var(--lnx-spacing-1);
 
-	.skeleton-item--big-square {
+	.lnx-skeleton--rect {
 		height: 40px;
 		border-radius: var(--lnx-radius-2);
 	}

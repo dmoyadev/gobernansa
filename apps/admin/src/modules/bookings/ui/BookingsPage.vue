@@ -5,19 +5,18 @@ import { bookingTotal, getSlots, getWeek, toDateString } from '@gobernansa/share
 import { getCommonAreas, WEEKDAYS } from '@gobernansa/shared/domain/community.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { cancelBooking, restoreBooking, saveCommonAreas, setBookingPaid, setDepositReturned, useBookingsOf, useHeldDeposits } from '../application/useBookings.ts';
 
 const props = defineProps<{ id: string; areaId: string }>();
+
+const ask = useConfirm();
 
 // Numbers as text, as the inputs give them, so an empty optional one can be told apart
 type BookingForm = Omit<BookingSettings, 'slotMinutes' | 'maxPerWeek' | 'advanceDays' | 'rules' | 'price' | 'deposit'>
@@ -107,7 +106,7 @@ function save() {
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la configuración');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la configuración' });
 
 /* Weekly agenda */
 const today = toDateString(new Date());
@@ -187,11 +186,10 @@ function toggleDeposit(booking: Booking) {
 
 const bookedCount = computed(() => agenda.value.days.reduce((total, day) => total + day.bookings.filter(Boolean).length, 0) + agenda.value.others.length);
 
-function cancel(booking: Booking) {
+async function cancel(booking: Booking) {
 	// Cancelling doesn't give anything back: what was paid is returned by transfer or at the office
-	const paidNote = booking.paidAt && bookingTotal(booking) ? ` Ya pagó ${formatCents(bookingTotal(booking))}: devuélveselo aparte.` : '';
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Anular la reserva de ${booking.name} el ${formatDay(booking.date, { weekday: 'long', day: 'numeric', month: 'long' })} a las ${booking.from}?${paidNote}`)) {
+	const paidNote = booking.paidAt && bookingTotal(booking) ? `Ya pagó ${formatCents(bookingTotal(booking))}: devuélveselo aparte.` : undefined;
+	if (!await ask({ title: `¿Anular la reserva de ${booking.name} el ${formatDay(booking.date, { weekday: 'long', day: 'numeric', month: 'long' })} a las ${booking.from}?`, message: paidNote, confirmText: 'Anular reserva', variant: 'danger' })) {
 		return;
 	}
 
@@ -210,9 +208,9 @@ function cancel(booking: Booking) {
 		<span v-if="area" class="icon">
 			<LnxIcon :icon="area.icon" :size="20" />
 		</span>
-		<span v-else-if="loading" class="skeleton-item skeleton-item--icon icon" />
+		<span v-else-if="loading" class="lnx-skeleton lnx-skeleton--circle icon" />
 		<h1 :style="{ viewTransitionName: `area-${areaId}` }">
-			<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 12em" />
+			<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 12em" />
 			<template v-else>
 				Reservas{{ area ? ` · ${area.name}` : '' }}
 			</template>
@@ -221,13 +219,13 @@ function cancel(booking: Booking) {
 
 	<template v-if="loading">
 		<section class="card" aria-busy="true">
-			<span class="skeleton-item skeleton-item--small" style="width: 8em" />
-			<span v-for="row in 6" :key="row" class="skeleton-item" style="height: 32px; border-radius: var(--lnx-radius-2)" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 8em" />
+			<span v-for="row in 6" :key="row" class="lnx-skeleton" style="height: 32px; border-radius: var(--lnx-radius-2)" />
 		</section>
 		<section class="card" aria-busy="true">
-			<span class="skeleton-item skeleton-item--small" style="width: 7em" />
-			<span class="skeleton-item" style="width: 60%; height: 40px; border-radius: var(--lnx-radius-2)" />
-			<span class="skeleton-item" style="width: 45%; height: 40px; border-radius: var(--lnx-radius-2)" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 7em" />
+			<span class="lnx-skeleton" style="width: 60%; height: 40px; border-radius: var(--lnx-radius-2)" />
+			<span class="lnx-skeleton" style="width: 45%; height: 40px; border-radius: var(--lnx-radius-2)" />
 		</section>
 	</template>
 	<p v-else-if="loadError && !area" class="error" role="alert">
@@ -245,14 +243,14 @@ function cancel(booking: Booking) {
 			<header class="week-header">
 				<h2>Agenda semanal</h2>
 				<div class="week-nav">
-					<LnxButton mode="clear" shape="circle" class="size-small" aria-label="Semana anterior" title="Semana anterior" @click="weekStart = addDays(weekStart, -7)">
+					<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Semana anterior" title="Semana anterior" @click="weekStart = addDays(weekStart, -7)">
 						<LnxIcon icon="lucide:chevron-left" />
 					</LnxButton>
 					<span class="week-label" aria-live="polite">{{ weekLabel }}</span>
-					<LnxButton mode="clear" shape="circle" class="size-small" aria-label="Semana siguiente" title="Semana siguiente" @click="weekStart = addDays(weekStart, 7)">
+					<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Semana siguiente" title="Semana siguiente" @click="weekStart = addDays(weekStart, 7)">
 						<LnxIcon icon="lucide:chevron-right" />
 					</LnxButton>
-					<LnxButton mode="outline" class="size-small" :disabled="dates.includes(today)" @click="weekStart = getWeek(today).from">
+					<LnxButton mode="outline" class="lnx-size-small" :disabled="dates.includes(today)" @click="weekStart = getWeek(today).from">
 						Hoy
 					</LnxButton>
 				</div>
@@ -262,7 +260,7 @@ function cancel(booking: Booking) {
 			</p>
 			<!-- The slots come from the settings, so the table is there at once and only its bookings arrive -->
 			<p class="hint">
-				<span v-if="pending" class="skeleton-item skeleton-item--small" style="width: 9em" />
+				<span v-if="pending" class="lnx-skeleton lnx-skeleton--small" style="width: 9em" />
 				<span v-else class="tabular">{{ bookedCount === 1 ? '1 reserva' : `${bookedCount} reservas` }} esta semana.</span>
 				<span class="legend free">Libre</span>
 				<span class="legend booked">Reservado</span>
@@ -315,7 +313,7 @@ function cancel(booking: Booking) {
 						<span class="tabular">{{ formatDay(booking.date, { weekday: 'short', day: 'numeric' }) }} · {{ booking.from }}–{{ booking.to }} · {{ booking.name }}</span>
 						<LnxButton
 							mode="clear"
-							class="size-small"
+							class="lnx-size-small"
 							shape="circle"
 							variant="danger"
 							:aria-label="`Anular la reserva de ${booking.name}`"
@@ -354,10 +352,10 @@ function cancel(booking: Booking) {
 						{{ booking.depositReturnedAt ? 'Fianza devuelta' : 'Fianza retenida' }}
 					</span>
 					<span class="item-actions">
-						<LnxButton mode="clear" class="size-small" @click="togglePaid(booking)">
+						<LnxButton mode="clear" class="lnx-size-small" @click="togglePaid(booking)">
 							{{ booking.payment ? 'Anular pago de prueba' : booking.paidAt ? 'Marcar pendiente' : 'Marcar pagada' }}
 						</LnxButton>
-						<LnxButton v-if="booking.deposit && booking.paidAt" mode="clear" class="size-small" @click="toggleDeposit(booking)">
+						<LnxButton v-if="booking.deposit && booking.paidAt" mode="clear" class="lnx-size-small" @click="toggleDeposit(booking)">
 							{{ booking.depositReturnedAt ? 'Retener fianza' : 'Devolver fianza' }}
 						</LnxButton>
 					</span>
@@ -371,13 +369,9 @@ function cancel(booking: Booking) {
 		<form ref="formElement" class="card" @submit.prevent="save()">
 			<h2>Configuración</h2>
 			<div class="fields">
-				<fieldset class="days wide">
-					<legend>Días</legend>
-					<label v-for="(weekday, dayIndex) in WEEKDAYS" :key="weekday">
-						<input v-model="form.days" type="checkbox" class="sr-only" :value="dayIndex + 1">
-						<span>{{ weekday }}</span>
-					</label>
-				</fieldset>
+				<LnxRadioGroup v-model="form.days" class="wide" :options="WEEKDAYS.map((day, index) => ({ value: index + 1, label: day }))" multiple>
+					Días
+				</LnxRadioGroup>
 				<LnxInput v-model="form.opens" type="time" required>
 					Abre
 				</LnxInput>
@@ -411,7 +405,7 @@ function cancel(booking: Booking) {
 				<LnxButton type="submit">
 					<LnxIcon icon="lucide:save" />
 					Guardar
-					<Kbd combo="mod+enter" />
+					<LnxKbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</form>
@@ -722,53 +716,6 @@ td .booked {
 
 	.wide {
 		grid-column: 1 / -1;
-	}
-}
-
-.days {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	legend {
-		width: 100%;
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 44px;
-		height: 40px;
-		padding: 0 var(--lnx-spacing-2);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-
-		&:hover {
-			background: var(--color-gray-1);
-		}
-
-		&:active {
-			scale: var(--press-scale);
-		}
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
 	}
 }
 

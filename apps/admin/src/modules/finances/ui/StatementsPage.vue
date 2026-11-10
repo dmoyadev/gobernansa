@@ -54,25 +54,25 @@ function print() {
 		<div class="totals tabular" :aria-busy="loading">
 			<div>
 				<small>Saldo deudor</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 110px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 110px" />
 				<strong v-else :class="{ debt: totalBalance }">{{ formatCents(totalBalance) }}</strong>
 			</div>
 			<div>
 				<small>Por vencer</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 95px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 95px" />
 				<strong v-else>{{ formatCents(totalPending) }}</strong>
 			</div>
 			<div>
 				<small>Deudores</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 40px" />
 				<strong v-else>{{ debtors }} de {{ rows.length }}</strong>
 			</div>
 		</div>
 
 		<div v-if="loading" class="lines" aria-busy="true" aria-label="Cargando">
-			<span v-for="width in [90, 80, 95, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [90, 80, 95, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
-		<table v-else-if="rows.length" class="ux-appear">
+		<table v-else-if="rows.length" class="lnx-appear">
 			<thead>
 				<tr>
 					<th>Propiedad</th>

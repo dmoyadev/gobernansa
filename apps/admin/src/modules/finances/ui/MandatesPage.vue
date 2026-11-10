@@ -6,8 +6,7 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { isValidIban, normalizeIban } from '@gobernansa/shared/domain/fiscal.ts';
 import { creditorId, isValidBic, mandateStatuses, newMandateReference, sepaId } from '@gobernansa/shared/domain/sepa.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -16,6 +15,8 @@ import { useCommunityProperties } from '../application/useFinances.ts';
 import { saveMandate } from '../application/useRemittances.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const SPACES_REGEX = /\s/g;
 const statusOptions = Object.entries(mandateStatuses).map(([value, label]) => ({ value: value as SepaMandate['status'], label }));
@@ -111,10 +112,9 @@ function save(property: Property) {
 	});
 }
 
-function remove(property: Property) {
+async function remove(property: Property) {
 	const previous = property.mandate;
-	// eslint-disable-next-line no-alert
-	if (!previous || !window.confirm(`¿Quitar el mandato de ${property.name}? Sus recibos dejarán de domiciliarse.`)) {
+	if (!previous || !await ask({ title: `¿Quitar el mandato de ${property.name}?`, message: 'Sus recibos dejarán de domiciliarse.', confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 	editingId.value = undefined;
@@ -151,8 +151,8 @@ function remove(property: Property) {
 			</div>
 		</dl>
 		<div v-else-if="!communityError" class="creditor" aria-busy="true">
-			<span class="skeleton-item" style="width: 60%" />
-			<span class="skeleton-item" style="width: 45%" />
+			<span class="lnx-skeleton" style="width: 60%" />
+			<span class="lnx-skeleton" style="width: 45%" />
 		</div>
 		<p v-if="community && (!community.cif || !community.iban)" class="warning">
 			<LnxIcon icon="lucide:triangle-alert" />
@@ -179,14 +179,14 @@ function remove(property: Property) {
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
 				<div class="row">
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 					</div>
-					<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="sorted.length" class="list ux-appear">
+		<ul v-else-if="sorted.length" class="list lnx-appear">
 			<li v-for="property in sorted" :key="property.id" class="item">
 				<div class="row">
 					<div class="what">
@@ -202,12 +202,12 @@ function remove(property: Property) {
 						{{ mandateStatuses[property.mandate.status] }}
 					</span>
 					<span v-else class="chip">Sin mandato</span>
-					<LnxButton mode="clear" class="size-small" @click="editingId === property.id ? editingId = undefined : edit(property)">
+					<LnxButton mode="clear" class="lnx-size-small" @click="editingId === property.id ? editingId = undefined : edit(property)">
 						{{ editingId === property.id ? 'Cerrar' : property.mandate ? 'Editar' : 'Añadir' }}
 					</LnxButton>
 				</div>
 
-				<form v-if="editingId === property.id" class="mandate ux-appear" @submit.prevent="save(property)">
+				<form v-if="editingId === property.id" class="mandate lnx-appear" @submit.prevent="save(property)">
 					<div class="fields">
 						<LnxInput v-model="form.debtorName" required>
 							Titular de la cuenta
@@ -221,14 +221,13 @@ function remove(property: Property) {
 						<LnxInput v-model="form.reference" maxlength="35" required>
 							Referencia del mandato
 						</LnxInput>
-						<DatePicker v-model="form.signedAt" :max="toDateString(new Date())" required>
+						<LnxDatePicker v-model="form.signedAt" value-format="iso-date" :max="toDateString(new Date())" required>
 							Fecha de firma
-						</DatePicker>
+						</LnxDatePicker>
 						<LnxSelect
 							v-model.convert="form.status"
 							:options="statusOptions"
 							:convert-fn="option => option.value"
-							search-placeholder-text="Buscar..."
 						>
 							Estado
 							<template #option="{ option }">
@@ -249,7 +248,7 @@ function remove(property: Property) {
 						<p v-if="formError" class="error" role="alert">
 							{{ formError }}
 						</p>
-						<LnxButton v-if="property.mandate" type="button" mode="clear" variant="danger" @click="remove(property)">
+						<LnxButton v-if="property.mandate" mode="clear" variant="danger" @click="remove(property)">
 							Quitar
 						</LnxButton>
 						<LnxButton type="submit">

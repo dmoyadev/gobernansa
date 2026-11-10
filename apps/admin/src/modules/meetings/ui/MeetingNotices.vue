@@ -4,8 +4,7 @@ import type { MeetingNotice, NoticeKind, NoticeOwner } from '@gobernansa/shared/
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { dissentAt, dissentDeadline, ownersOf } from '@gobernansa/shared/domain/minutes.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxSelect, useConfirm } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { optimistic } from '@/app/ux/toast.ts';
 import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
@@ -20,6 +19,8 @@ const props = defineProps<{
 	ballots: MeetingVote[];
 	people: { id: string; name: string }[];
 }>();
+
+const ask = useConfirm();
 
 const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium' });
 const format = (timestamp?: { toDate: () => Date } | null) => timestamp ? dateFormat.format(timestamp.toDate()) : '';
@@ -45,8 +46,7 @@ const what = computed(() => props.kind === 'call' ? 'la convocatoria' : 'el acta
 const sending = ref(false);
 async function send() {
 	const owners = pending.value;
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Notificar ${what.value} a ${owners.length} propietarios? No se puede deshacer.`)) {
+	if (!await ask({ title: `¿Notificar ${what.value} a ${owners.length} propietarios?`, message: 'No se puede deshacer.', confirmText: 'Notificar' })) {
 		return;
 	}
 	sending.value = true;
@@ -116,7 +116,7 @@ function record() {
 	<section class="card" :class="{ 'screen-only': !sent.length }">
 		<header class="header">
 			<h2>Notificación de {{ what }}</h2>
-			<LnxButton v-if="pending.length" class="screen-only size-small" :is-loading="sending" @click="send()">
+			<LnxButton v-if="pending.length" class="screen-only lnx-size-small" :is-loading="sending" @click="send()">
 				<LnxIcon icon="lucide:send" />
 				{{ sent.length ? `Notificar a ${pending.length} que faltan` : kind === 'call' ? 'Notificar convocatoria' : 'Notificar a los propietarios' }}
 			</LnxButton>
@@ -174,7 +174,6 @@ function record() {
 					v-model.convert="recording.noticeId"
 					:options="ownerOptions"
 					:convert-fn="option => option.value"
-					search-placeholder-text="Buscar..."
 					required
 				>
 					Propietario ausente
@@ -189,7 +188,6 @@ function record() {
 					v-model.convert="recording.itemId"
 					:options="itemOptions"
 					:convert-fn="option => option.value"
-					search-placeholder-text="Buscar..."
 					required
 				>
 					Acuerdo
@@ -200,10 +198,10 @@ function record() {
 						{{ itemOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<DatePicker v-model="recording.receivedOn" :max="today" required>
+				<LnxDatePicker v-model="recording.receivedOn" value-format="iso-date" :max="today" required>
 					Recibida el
-				</DatePicker>
-				<LnxButton type="submit" class="size-small" :disabled="!recording.noticeId || !recording.itemId || !recording.receivedOn">
+				</LnxDatePicker>
+				<LnxButton type="submit" class="lnx-size-small" :disabled="!recording.noticeId || !recording.itemId || !recording.receivedOn">
 					<LnxIcon icon="lucide:file-x" />
 					Anotar discrepancia
 				</LnxButton>

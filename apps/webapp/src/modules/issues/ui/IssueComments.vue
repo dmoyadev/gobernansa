@@ -4,11 +4,13 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
 import { computed, ref, toRef } from 'vue';
 import { useIssueComments } from '../application/useIssueComments.ts';
 
 const props = defineProps<{ issue: Issue }>();
+
+const ask = useConfirm();
 
 const { user } = useAuth();
 const { comments, addComment, deleteComment } = useIssueComments(toRef(props, 'issue'));
@@ -39,8 +41,7 @@ async function send() {
 }
 
 async function remove(comment: IssueComment) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm('¿Eliminar tu comentario?')) {
+	if (!await ask({ title: '¿Eliminar tu comentario?', confirmText: 'Eliminar', variant: 'danger' })) {
 		return;
 	}
 
@@ -100,7 +101,7 @@ function authorName(comment: IssueComment) {
 					</div>
 					<LnxButton
 						v-if="isMine(comment)"
-						class="delete size-small"
+						class="delete lnx-size-small"
 						mode="clear"
 						variant="grayscale"
 						shape="circle"

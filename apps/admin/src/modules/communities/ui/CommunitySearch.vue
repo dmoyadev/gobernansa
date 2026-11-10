@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
-import { LnxIcon } from 'lnxjs-components';
+import { LnxIcon, LnxKbd, useEventListener, useShortcut } from 'lnxjs-components';
 import { computed, ref, useId, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import Kbd from '@/app/ux/Kbd.vue';
-import { useEventListener, useShortcut } from '@/app/ux/shortcuts.ts';
 import { useCommunitySearch } from '../application/useCommunitySearch.ts';
 
 const props = defineProps<{ communityId: string; community?: Community }>();
@@ -70,8 +68,8 @@ function focus() {
 	input.value?.focus();
 	input.value?.select();
 }
-useShortcut('mod+k', focus, 'Buscar en la comunidad');
-useShortcut('/', focus, 'Buscar en la comunidad');
+useShortcut('mod+k', focus, { description: 'Buscar en la comunidad' });
+useShortcut('/', focus, { description: 'Buscar en la comunidad' });
 
 // Closes when the focus leaves it, e.g. with Tab
 function onFocusout(event: FocusEvent) {
@@ -121,7 +119,7 @@ useEventListener(document, 'pointerdown', onPointerdown);
 				@input="show()"
 				@keydown="onKeydown"
 			>
-			<Kbd combo="mod+k" />
+			<LnxKbd combo="mod+k" />
 		</label>
 
 		<!-- The focus stays in the input, or leaving it would close the list before the click -->

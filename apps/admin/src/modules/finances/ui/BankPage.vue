@@ -6,15 +6,11 @@ import { commonConcepts, csvMovements, decodeText, demoMovements, guessColumns, 
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidIban } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { ignoreMovement, importMovements, loadBankMovements, loadGatewayPayments, matchMovement, removeMovements, saveBankFeed, unignoreMovement, unmatchMovement } from '../application/useBank.ts';
 import { useBudget, useUnpaidCharges, useUnpaidInvoices } from '../application/useFinances.ts';
@@ -265,7 +261,7 @@ const draft = ref<{ name: string; statement?: ParsedStatement; rows?: string[][]
 const importing = ref(false);
 const importError = ref<string>();
 
-useShortcut('i', () => fileInput.value?.click(), 'Importar un extracto');
+useShortcut('i', () => fileInput.value?.click(), { description: 'Importar un extracto' });
 
 async function readFile(event: Event) {
 	const input = event.target as HTMLInputElement;
@@ -391,10 +387,10 @@ function downloadSample() {
 	<header class="page-header">
 		<h1>Conciliación bancaria</h1>
 		<input ref="fileInput" type="file" accept=".n43,.aeb,.q43,.txt,.csv,text/plain,text/csv" hidden @change="readFile">
-		<LnxButton class="size-small" @click="fileInput?.click()">
+		<LnxButton class="lnx-size-small" @click="fileInput?.click()">
 			<LnxIcon icon="lucide:upload" />
 			Importar extracto
-			<Kbd combo="i" />
+			<LnxKbd combo="i" />
 		</LnxButton>
 	</header>
 
@@ -433,7 +429,7 @@ function downloadSample() {
 		</template>
 		<template v-else-if="draft.columns && csvResult">
 			<div class="fields">
-				<LnxSelect v-model.convert="draft.columns.date" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
+				<LnxSelect v-model.convert="draft.columns.date" :options="columnOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
 					Fecha
 					<template #option="{ option }">
 						{{ option.label }}
@@ -442,7 +438,7 @@ function downloadSample() {
 						{{ columnOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.concept" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
+				<LnxSelect v-model.convert="draft.columns.concept" :options="columnOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
 					Concepto
 					<template #option="{ option }">
 						{{ option.label }}
@@ -451,7 +447,7 @@ function downloadSample() {
 						{{ columnOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.amount" :options="columnOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
+				<LnxSelect v-model.convert="draft.columns.amount" :options="columnOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
 					Importe
 					<template #option="{ option }">
 						{{ option.label }}
@@ -460,7 +456,7 @@ function downloadSample() {
 						{{ columnOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.balance" :options="balanceOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar..." :placeholder="columnOptions[0]?.label">
+				<LnxSelect v-model.convert="draft.columns.balance" :options="balanceOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
 					Saldo
 					<template #option="{ option }">
 						{{ option.label }}
@@ -492,7 +488,7 @@ function downloadSample() {
 				{{ importError }}
 			</p>
 			<span v-else class="hint">Los movimientos que ya estaban importados no se duplican.</span>
-			<LnxButton type="button" mode="clear" @click="draft = undefined">
+			<LnxButton mode="clear" @click="draft = undefined">
 				Cancelar
 			</LnxButton>
 			<LnxButton :is-loading="importing" :disabled="!draftMovements.length || !!draft.statement?.errors.length" @click="importDraft()">
@@ -508,11 +504,11 @@ function downloadSample() {
 		<h2>Saldos</h2>
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li class="line">
-				<span class="skeleton-item" style="width: 50%" />
-				<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+				<span class="lnx-skeleton" style="width: 50%" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
 			</li>
 		</ul>
-		<div v-for="balance in balances" v-else :key="balance.account" class="balances ux-appear">
+		<div v-for="balance in balances" v-else :key="balance.account" class="balances lnx-appear">
 			<p class="hint tabular">
 				Cuenta {{ accountLabel(balance.account) }}<template v-if="!balance.ours && account">
 					· no es la cuenta de la comunidad
@@ -585,28 +581,28 @@ function downloadSample() {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton mode="clear" class="size-small" :disabled="!account" @click="downloadSample()">
+			<LnxButton mode="clear" class="lnx-size-small" :disabled="!account" @click="downloadSample()">
 				<LnxIcon icon="lucide:file-down" />
 				Descargar extracto de ejemplo (Norma 43)
 			</LnxButton>
 			<template v-if="feed">
-				<LnxButton mode="clear" class="size-small" @click="disconnect()">
+				<LnxButton mode="clear" class="lnx-size-small" @click="disconnect()">
 					Desconectar
 				</LnxButton>
-				<LnxButton class="size-small" :is-loading="syncing" :disabled="!account" @click="sync()">
+				<LnxButton class="lnx-size-small" :is-loading="syncing" :disabled="!account" @click="sync()">
 					<LnxIcon icon="lucide:refresh-cw" />
 					Sincronizar
 				</LnxButton>
 			</template>
 			<template v-else-if="consenting">
-				<LnxButton type="button" mode="clear" class="size-small" @click="consenting = false">
+				<LnxButton mode="clear" class="lnx-size-small" @click="consenting = false">
 					Cancelar
 				</LnxButton>
-				<LnxButton class="size-small" :is-loading="syncing" :disabled="!account" @click="sync(true)">
+				<LnxButton class="lnx-size-small" :is-loading="syncing" :disabled="!account" @click="sync(true)">
 					Autorizar en el banco de pruebas
 				</LnxButton>
 			</template>
-			<LnxButton v-else class="size-small" :disabled="!account || loading" @click="consenting = true">
+			<LnxButton v-else class="lnx-size-small" :disabled="!account || loading" @click="consenting = true">
 				<LnxIcon icon="lucide:plug" />
 				Conectar banco
 			</LnxButton>
@@ -622,14 +618,14 @@ function downloadSample() {
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
 				<div class="row">
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 					</div>
-					<span class="skeleton-item skeleton-item--small" style="width: 80px" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 80px" />
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="pending.length" class="list ux-appear">
+		<ul v-else-if="pending.length" class="list lnx-appear">
 			<li v-for="movement in pending" :key="movement.id" class="item">
 				<div class="row">
 					<div class="what">
@@ -640,10 +636,10 @@ function downloadSample() {
 					</div>
 					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
 					<div class="item-actions">
-						<LnxButton mode="clear" class="size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'match'" @click="openPanel(movement, 'match')">
+						<LnxButton mode="clear" class="lnx-size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'match'" @click="openPanel(movement, 'match')">
 							Conciliar a mano
 						</LnxButton>
-						<LnxButton mode="clear" class="size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'ignore'" @click="openPanel(movement, 'ignore')">
+						<LnxButton mode="clear" class="lnx-size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'ignore'" @click="openPanel(movement, 'ignore')">
 							Apartar
 						</LnxButton>
 					</div>
@@ -655,7 +651,7 @@ function downloadSample() {
 						<span>{{ suggestions.get(movement.id)!.candidate.label }}</span>
 						<small>{{ suggestions.get(movement.id)!.score ? 'Coinciden el importe y el nombre o la referencia' : 'Coincide el importe' }}</small>
 					</span>
-					<LnxButton class="size-small" :is-loading="busyId === movement.id" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
+					<LnxButton class="lnx-size-small" :is-loading="busyId === movement.id" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
 						Aceptar
 					</LnxButton>
 				</div>
@@ -684,7 +680,7 @@ function downloadSample() {
 							Seleccionado {{ formatCents(pickedTotal()) }}<template v-if="pickedTotal() !== movement.amount"> · faltan {{ formatCents(movement.amount - pickedTotal()) }} para cuadrar</template>
 						</span>
 						<LnxButton
-							class="size-small"
+							class="lnx-size-small"
 							:is-loading="busyId === movement.id"
 							:disabled="typeof pickedCandidate !== 'object' || pickedCandidate.amount !== movement.amount"
 							@click="acceptManual(movement)"
@@ -707,7 +703,6 @@ function downloadSample() {
 							v-model.convert="ignoreForm.itemId"
 							:options="itemOptions"
 							:convert-fn="option => option.value"
-							search-placeholder-text="Buscar..."
 							placeholder="Sin partida"
 						>
 							Partida de {{ ignoreYear }}
@@ -723,7 +718,7 @@ function downloadSample() {
 						Registrarlo como gasto pagado
 					</LnxCheckbox>
 					<footer class="form-actions">
-						<LnxButton type="submit" class="size-small" :is-loading="busyId === movement.id">
+						<LnxButton type="submit" class="lnx-size-small" :is-loading="busyId === movement.id">
 							Apartar
 						</LnxButton>
 					</footer>
@@ -740,7 +735,7 @@ function downloadSample() {
 
 	<section v-if="done.length" class="card">
 		<h2>Conciliados en los últimos {{ RECENT_DAYS }} días</h2>
-		<ul class="list ux-appear">
+		<ul class="list lnx-appear">
 			<li v-for="movement in done" :key="movement.id" class="item">
 				<div class="row">
 					<div class="what">
@@ -752,7 +747,7 @@ function downloadSample() {
 						</small>
 					</div>
 					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
-					<LnxButton mode="clear" class="size-small" :is-loading="busyId === movement.id" @click="undoDone(movement)">
+					<LnxButton mode="clear" class="lnx-size-small" :is-loading="busyId === movement.id" @click="undoDone(movement)">
 						Deshacer
 					</LnxButton>
 				</div>
@@ -854,8 +849,8 @@ function downloadSample() {
 	align-items: center;
 	gap: var(--lnx-spacing-3);
 
-	:deep(.checkbox),
-	:deep(.label) {
+	:deep(.lnx-checkbox),
+	:deep(.text) {
 		min-width: 0;
 	}
 }

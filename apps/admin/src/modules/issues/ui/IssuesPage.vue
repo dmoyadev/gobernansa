@@ -4,16 +4,13 @@ import type { Issue, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxTextarea, useShortcut } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { createIssue, useIssues } from '../application/useIssues.ts';
@@ -98,7 +95,7 @@ function create() {
 	void router.push(link);
 }
 
-useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
+useShortcut('mod+enter', create, { description: 'Crear la incidencia', enabled: () => open.value });
 </script>
 
 <template>
@@ -112,7 +109,7 @@ useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 		<NewButton v-if="!open" label="Nueva incidencia" @click="openForm()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card new ux-appear" @submit.prevent="create()">
+	<form v-if="open" ref="formElement" class="card new lnx-appear" @submit.prevent="create()">
 		<h2>Nueva incidencia</h2>
 		<fieldset class="categories">
 			<legend>Categoría</legend>
@@ -129,24 +126,12 @@ useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 			<LnxInput v-model="form.title" class="wide" :placeholder="defaultTitle(form.category)">
 				Título
 			</LnxInput>
-			<fieldset class="chips wide">
-				<legend>Dónde</legend>
-				<label>
-					<input v-model="form.place" type="radio" class="sr-only" name="place" value="">
-					<span>Sin indicar</span>
-				</label>
-				<label v-for="(label, value) in issueLocationTypes" :key="value">
-					<input v-model="form.place" type="radio" class="sr-only" name="place" :value="value">
-					<span>{{ label }}</span>
-				</label>
-			</fieldset>
-			<fieldset v-if="form.place === 'common_area' && areas?.length" class="chips wide">
-				<legend>Zona común</legend>
-				<label v-for="area in areas" :key="area.id">
-					<input v-model="form.reference" type="radio" class="sr-only" name="area" :value="area.name">
-					<span><LnxIcon :icon="area.icon" :size="16" />{{ area.name }}</span>
-				</label>
-			</fieldset>
+			<LnxRadioGroup v-model="form.place" class="wide" :options="[{ value: '', label: 'Sin indicar' }, ...Object.entries(issueLocationTypes).map(([value, label]) => ({ value, label }))]">
+				Dónde
+			</LnxRadioGroup>
+			<LnxRadioGroup v-if="form.place === 'common_area' && areas?.length" v-model="form.reference" class="wide" :options="areas.map(area => ({ value: area.name, label: area.name, icon: area.icon }))">
+				Zona común
+			</LnxRadioGroup>
 			<LnxInput v-if="form.place" v-model="form.reference" :placeholder="form.place === 'property' ? 'Portal 2, 3ºB' : 'Garaje, planta -1'">
 				Referencia
 			</LnxInput>
@@ -155,31 +140,30 @@ useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 			</LnxTextarea>
 		</div>
 		<footer class="form-actions">
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon icon="lucide:plus" />
 				Crear incidencia
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
 
-	<fieldset class="chips filters">
-		<legend class="sr-only">
-			Estado
-		</legend>
-		<label>
-			<input type="radio" class="sr-only" name="status" :checked="!status" @change="filter()">
-			<span>Todas</span>
-		</label>
-		<label v-for="option in issueStatus" :key="option.value">
-			<input type="radio" class="sr-only" name="status" :checked="status === option.value" @change="filter(option.value)">
-			<span><i :style="{ background: `var(--color-issue-status-${option.value})` }" />{{ option.label }}</span>
-		</label>
-	</fieldset>
+	<LnxRadioGroup
+		class="filters"
+		:model-value="status ?? ''"
+		:options="[{ value: '', label: 'Todas' }, ...issueStatus]"
+		hide-legend
+		@update:model-value="value => filter((value || undefined) as IssueStatus | undefined)"
+	>
+		Estado
+		<template #option="{ option }">
+			<i v-if="option.value" :style="{ background: `var(--color-issue-status-${option.value})` }" />{{ option.label }}
+		</template>
+	</LnxRadioGroup>
 
 	<section class="card list-card" :aria-busy="pending && !issues.length">
 		<p v-if="error" class="error" role="alert">
@@ -188,17 +172,17 @@ useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 
 		<ul v-if="pending && !issues.length" class="list" aria-hidden="true">
 			<li v-for="width in [62, 45, 74, 38, 56]" :key="width" class="issue">
-				<span class="skeleton-item skeleton-item--big-square tile" />
+				<span class="lnx-skeleton lnx-skeleton--rect tile" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width / 2 + 10}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width / 2 + 10}%` }" />
 				</div>
-				<span class="skeleton-item skeleton-item--small" style="width: 56px" />
-				<span class="skeleton-item skeleton-item--small" style="width: 80px" />
-				<span class="skeleton-item skeleton-item--small badge-skeleton" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 56px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 80px" />
+				<span class="lnx-skeleton lnx-skeleton--small badge-skeleton" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="issues.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="issues.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="issue in issues" :key="issue.id">
 				<RouterLink
 					class="issue ux-row"
@@ -356,54 +340,14 @@ useShortcut('mod+enter', create, 'Crear la incidencia', () => open.value);
 	}
 }
 
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--lnx-spacing-2);
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-	}
-
-	label:hover input:not(:checked) + span {
-		background: var(--color-gray-1);
-	}
-
-	label:active span {
-		scale: var(--press-scale);
-	}
+.filters {
+	margin-bottom: var(--lnx-spacing-4);
 
 	i {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
 	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
-	}
-}
-
-.filters {
-	margin-bottom: var(--lnx-spacing-4);
 }
 
 .list {

@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, useShortcut } from 'lnxjs-components';
 import { onBeforeMount, ref, useTemplateRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
-import Kbd from '@/app/ux/Kbd.vue';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 
 const { completeMagicLink, sendMagicLink, signInWithPassword } = useAuth();
 const route = useRoute();
@@ -64,12 +62,12 @@ useShortcut('mod+enter', () => {
 	if (!loading.value && !emailSent.value) {
 		form.value?.requestSubmit();
 	}
-}, 'Entrar');
+}, { description: 'Entrar' });
 </script>
 
 <template>
 	<main>
-		<form ref="form" class="ux-appear" @submit.prevent="signIn()">
+		<form ref="form" class="lnx-appear" @submit.prevent="signIn()">
 			<header>
 				<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="180">
 				<h1>Administración</h1>
@@ -112,7 +110,7 @@ useShortcut('mod+enter', () => {
 			<LnxButton type="submit" :is-loading="loading" :disabled="emailSent" is-block>
 				<LnxIcon :icon="emailSent ? 'lucide:check' : 'lucide:arrow-right'" />
 				{{ emailSent ? '¡Enviado!' : 'Entrar' }}
-				<Kbd v-if="!emailSent" combo="mod+enter" />
+				<LnxKbd v-if="!emailSent" combo="mod+enter" />
 			</LnxButton>
 		</form>
 	</main>

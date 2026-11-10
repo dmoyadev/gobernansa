@@ -4,13 +4,10 @@ import { balances, beforeClosing, buildLedger, incomeStatement } from '@gobernan
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadAnnualReportData } from '../application/useExchange.ts';
 
 const props = defineProps<{ id: string }>();
@@ -56,7 +53,7 @@ async function load(refresh = false) {
 		error.value = loaded.community ? undefined : 'No existe esta comunidad.';
 	} catch (e) {
 		if (cache.has(wanted)) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
 			error.value = `No se ha podido cargar la liquidación: ${(e as Error).message}`;
 		}
@@ -176,7 +173,7 @@ function print() {
 	window.print();
 }
 
-useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !error.value);
+useShortcut('p', print, { description: 'Imprimir la liquidación', enabled: () => !loading.value && !error.value });
 </script>
 
 <template>
@@ -188,7 +185,6 @@ useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !err
 			aria-label="Ejercicio"
 			:options="yearOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -200,7 +196,7 @@ useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !err
 		<LnxButton :disabled="loading || !!error" @click="print()">
 			<LnxIcon icon="lucide:printer" />
 			Imprimir / Guardar PDF
-			<Kbd combo="p" />
+			<LnxKbd combo="p" />
 		</LnxButton>
 	</header>
 
@@ -222,15 +218,15 @@ useShortcut('p', print, 'Imprimir la liquidación', () => !loading.value && !err
 	</p>
 	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
 		<header>
-			<span class="skeleton-item" style="width: 55%" />
-			<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+			<span class="lnx-skeleton" style="width: 55%" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 		</header>
-		<span class="skeleton-item skeleton-item--title" style="width: 60%; align-self: center" />
+		<span class="lnx-skeleton lnx-skeleton--title" style="width: 60%; align-self: center" />
 		<div class="lines">
-			<span v-for="width in [100, 96, 100, 70, 88, 100, 64]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [100, 96, 100, 70, 88, 100, 64]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
 	</article>
-	<article v-else-if="community && statement" class="sheet ux-appear">
+	<article v-else-if="community && statement" class="sheet lnx-appear">
 		<header>
 			<strong>Comunidad de propietarios {{ community.name }}</strong>
 			<span>{{ community.address }}</span>

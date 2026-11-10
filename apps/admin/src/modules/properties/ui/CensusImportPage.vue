@@ -10,19 +10,14 @@ import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { censusFields, censusTemplate, communityFields, groupByCommunity, guessCensusColumns, guessHeaderRow, importedTotal, readCensus } from '@gobernansa/shared/domain/census.ts';
 import { formatCoefficient, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { columnIndex, columnLetter, readXlsx } from '@gobernansa/shared/utils/xlsx.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, toast, useShortcut } from 'lnxjs-components';
 import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { loadProperties } from '@/modules/finances/application/useExchange.ts';
 import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
@@ -56,7 +51,7 @@ const error = ref<string>();
 // The communities whose review shows all their rows, by groupKey. A new file shows the first ones again
 const expanded = ref<string[]>([]);
 
-useShortcut('i', () => fileInput.value?.click(), 'Elegir el fichero');
+useShortcut('i', () => fileInput.value?.click(), { description: 'Elegir el fichero' });
 
 function open(name: string, sheets: Sheet[]) {
 	const first = sheets.findIndex(item => item.rows.length);
@@ -288,7 +283,7 @@ async function apply() {
 		await router.push(props.id ? `/communities/${props.id}/properties` : '/');
 	} catch (e) {
 		// What was written stays: compared again, what's left is what to import again
-		toast(`No se ha podido terminar de importar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido terminar de importar: ${(e as Error).message}`, { variant: 'danger' });
 	} finally {
 		loaded.clear();
 		importing.value = false;
@@ -321,7 +316,7 @@ async function apply() {
 			<LnxButton :disabled="reading || importing" @click="fileInput?.click()">
 				<LnxIcon :icon="reading ? 'lucide:loader-circle' : 'lucide:upload'" :class="{ spin: reading }" />
 				Elegir fichero
-				<Kbd combo="i" />
+				<LnxKbd combo="i" />
 			</LnxButton>
 			<LnxButton mode="clear" @click="downloadTemplate()">
 				<LnxIcon icon="lucide:file-spreadsheet" />
@@ -347,7 +342,6 @@ async function apply() {
 				v-model.convert="sheet"
 				:options="sheetOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Hoja
 				<template #option="{ option }">
@@ -362,7 +356,6 @@ async function apply() {
 				class="wide"
 				:options="headerOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Fila con los títulos
 				<template #option="{ option }">
@@ -378,7 +371,6 @@ async function apply() {
 				v-model.convert="letters[field]"
 				:options="columnOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="Ninguna"
 			>
 				{{ censusFields[field] }}
@@ -399,7 +391,7 @@ async function apply() {
 	<section v-if="source && !missingColumn" class="card">
 		<h2>3. Revisión</h2>
 		<div v-if="comparing && !groups.length" class="lines" aria-busy="true" aria-label="Comparando con el censo">
-			<span v-for="width in [90, 80, 95]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [90, 80, 95]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
 		<template v-else>
 			<p class="summary">
@@ -428,7 +420,7 @@ async function apply() {
 						Los coeficientes suman {{ formatCoefficient(group.total) }}{{ group.total === 100 ? '' : `: ${group.total < 100 ? 'faltan' : 'sobran'} ${difference(group.total)}` }}
 					</p>
 					<div class="table">
-						<table class="ux-appear">
+						<table class="lnx-appear">
 							<thead>
 								<tr>
 									<th>Fila</th>
@@ -474,7 +466,7 @@ async function apply() {
 					</div>
 					<LnxButton
 						v-if="group.rows.length > PREVIEW_ROWS && !expanded.includes(groupKey(group))"
-						class="more size-small"
+						class="more lnx-size-small"
 						mode="clear"
 						@click="expanded.push(groupKey(group))"
 					>

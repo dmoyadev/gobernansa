@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import type { Workspace, WorkspaceSection } from './workspaces.ts';
-import { LnxIcon } from 'lnxjs-components';
+import { LnxIcon, useEventListener } from 'lnxjs-components';
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { useEventListener } from '@/app/ux/shortcuts.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 
 // Beside every page of a workspace, kept mounted by the layout while moving between them

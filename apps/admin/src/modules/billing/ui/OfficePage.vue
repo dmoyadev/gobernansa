@@ -2,13 +2,10 @@
 import type { VatRate } from '@gobernansa/shared/domain/finance.ts';
 import { officeVatRates, officeWithholdings } from '@gobernansa/shared/domain/billing.ts';
 import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { saveOffice, useOffice } from '../application/useBilling.ts';
 
 const SERIES_REGEX = /^[A-Z0-9]{1,10}$/;
@@ -93,7 +90,7 @@ async function save() {
 }
 
 const officeForm = useTemplateRef('officeForm');
-useShortcut('mod+enter', () => officeForm.value?.requestSubmit(), 'Guardar los datos fiscales');
+useShortcut('mod+enter', () => officeForm.value?.requestSubmit(), { description: 'Guardar los datos fiscales' });
 </script>
 
 <template>
@@ -106,9 +103,9 @@ useShortcut('mod+enter', () => officeForm.value?.requestSubmit(), 'Guardar los d
 		No se han podido cargar: {{ error.message }}
 	</p>
 	<div v-else-if="pending && !office" class="card" aria-busy="true" aria-label="Cargando">
-		<span v-for="width in [60, 80, 50]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+		<span v-for="width in [60, 80, 50]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 	</div>
-	<form v-else ref="officeForm" class="card ux-appear" @submit.prevent="save()">
+	<form v-else ref="officeForm" class="card lnx-appear" @submit.prevent="save()">
 		<p class="hint">
 			Son los datos con los que el despacho factura sus honorarios a las comunidades.
 		</p>
@@ -173,7 +170,7 @@ useShortcut('mod+enter', () => officeForm.value?.requestSubmit(), 'Guardar los d
 			</p>
 			<LnxButton type="submit" :is-loading="saving">
 				Guardar
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>

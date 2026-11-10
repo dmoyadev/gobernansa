@@ -102,7 +102,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 			v-model.convert="communityId"
 			:options="communityOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			Comunidad
 			<template #option="{ option }">
@@ -122,15 +121,15 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		<ul v-if="loading && !mails.length" class="list">
 			<li v-for="width in [70, 50, 80, 60]" :key="width" class="mail">
 				<div class="row">
-					<span class="skeleton-item skeleton-item--icon" />
+					<span class="lnx-skeleton lnx-skeleton--circle" />
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 					</div>
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="mails.length" class="list ux-appear">
+		<ul v-else-if="mails.length" class="list lnx-appear">
 			<li v-for="mail in mails" :key="mail.id" class="mail">
 				<button type="button" class="row" :aria-expanded="open === mail.id" @click="open = open === mail.id ? undefined : mail.id">
 					<LnxIcon :icon="mailKinds[mail.kind]?.icon ?? 'lucide:mail'" :title="mailKinds[mail.kind]?.label" />

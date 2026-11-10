@@ -3,14 +3,11 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { assignableRoles, roles } from '@gobernansa/shared/domain/user.ts';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { mailOutcome } from '@/modules/mail/application/mail.ts';
@@ -20,6 +17,9 @@ import { cancelInvitation, invite, removePerson, resendInvitation, restoreInvita
 
 // A community's neighbours and managers or, without one, the administrators
 const props = defineProps<{ id?: string }>();
+
+const ask = useConfirm();
+
 const communityId = props.id ?? '';
 const scopeRoles: Role[] = communityId ? ['user', 'manager'] : ['admin', 'superadmin'];
 const roleOrder = Object.keys(roles);
@@ -28,6 +28,7 @@ const { user: me } = useAuth();
 const { people, invitations, loading, error } = usePeople(communityId);
 // To assign them to administrators
 const communities = communityId ? computed<Community[]>(() => []) : useCommunities().communities;
+const communityOptions = computed(() => communities.value.map(community => ({ value: community.id, label: community.name || 'Sin nombre' })));
 
 // What the rules let the user give here
 const roleOptions = computed(() => assignableRoles(me.value, communityId).filter(role => scopeRoles.includes(role)));
@@ -78,12 +79,11 @@ function sendInvitation() {
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar la invitación');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar la invitación' });
 
-function remove(person: User & { id: string }) {
+async function remove(person: User & { id: string }) {
 	const question = communityId ? `¿Quitar a ${person.name} de la comunidad?` : `¿Quitar el acceso de ${person.name}?`;
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(question)) {
+	if (!await ask({ title: question, confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 
@@ -94,12 +94,11 @@ function remove(person: User & { id: string }) {
 	});
 }
 
-function toggleBlocked(person: User & { id: string }) {
-	const question = person.blocked
-		? `¿Desbloquear a ${person.name}? Podrá volver a reportar, comentar, votar y reservar.`
-		: `¿Bloquear a ${person.name}? Podrá seguir leyendo, pero no reportar, comentar, votar ni reservar.`;
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(question)) {
+async function toggleBlocked(person: User & { id: string }) {
+	const confirmed = await ask(person.blocked
+		? { title: `¿Desbloquear a ${person.name}?`, message: 'Podrá volver a reportar, comentar, votar y reservar.', confirmText: 'Desbloquear' }
+		: { title: `¿Bloquear a ${person.name}?`, message: 'Podrá seguir leyendo, pero no reportar, comentar, votar ni reservar.', confirmText: 'Bloquear', variant: 'danger' });
+	if (!confirmed) {
 		return;
 	}
 
@@ -121,7 +120,13 @@ function toggleManager(person: User & { id: string }) {
 	});
 }
 
-function toggleAssigned(person: User & { id: string }, community: Community, assigned: boolean) {
+// The chips give the whole list: the community clicked is the one that changed
+function toggleAssigned(person: User & { id: string }, ids: string[]) {
+	const community = communities.value.find(({ id }) => ids.includes(id) !== !!person.communityIds?.includes(id));
+	if (!community) {
+		return;
+	}
+	const assigned = ids.includes(community.id);
 	const name = community.name || 'Sin nombre';
 	void optimistic(setCommunityAssigned(person.id, community.id, assigned, person.name), {
 		done: `${name} ${assigned ? 'asignada' : 'desasignada'}`,
@@ -155,7 +160,7 @@ function cancel(invitation: Invitation & { id: string }) {
 		<NewButton v-if="!open && roleOptions.length" label="Invitar a alguien" @click="show()" />
 	</header>
 
-	<form v-if="open && roleOptions.length" ref="formElement" class="card ux-appear" @submit.prevent="sendInvitation()">
+	<form v-if="open && roleOptions.length" ref="formElement" class="card lnx-appear" @submit.prevent="sendInvitation()">
 		<h2>Invitar a alguien</h2>
 		<p class="hint">
 			Su cuenta se crea la primera vez que entre en gobernança con este email.
@@ -172,7 +177,6 @@ function cancel(invitation: Invitation & { id: string }) {
 				v-model.convert="form.role"
 				:options="roleSelectOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Rol
 				<template #option="{ option }">
@@ -184,13 +188,9 @@ function cancel(invitation: Invitation & { id: string }) {
 			</LnxSelect>
 		</div>
 
-		<fieldset v-if="form.role === 'admin'" class="chips">
-			<legend>Comunidades que administra</legend>
-			<label v-for="community in communities" :key="community.id">
-				<input v-model="form.communityIds" type="checkbox" class="sr-only" :value="community.id">
-				<span>{{ community.name || 'Sin nombre' }}</span>
-			</label>
-		</fieldset>
+		<LnxRadioGroup v-if="form.role === 'admin'" v-model="form.communityIds" :options="communityOptions" multiple>
+			Comunidades que administra
+		</LnxRadioGroup>
 
 		<div>
 			<LnxCheckbox v-model="byEmail">
@@ -206,14 +206,14 @@ function cancel(invitation: Invitation & { id: string }) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon icon="lucide:send" />
 				Invitar
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -227,14 +227,14 @@ function cancel(invitation: Invitation & { id: string }) {
 		<ul v-if="loading && !people.length" class="list" aria-busy="true">
 			<li v-for="width in [38, 52, 30, 45]" :key="width" class="person">
 				<div class="who">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 15}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 15}%` }" />
 				</div>
-				<span class="skeleton-item skeleton-item--small" style="width: 64px" />
-				<span class="skeleton-item skeleton-item--small" style="width: 96px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 64px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 96px" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="sortedPeople.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="sortedPeople.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="person in sortedPeople" :key="person.id" class="person">
 				<div class="who">
 					<strong :style="communityId ? { viewTransitionName: `person-${person.id}` } : undefined">{{ person.name }}<template v-if="person.id === me?.id"> (tú)</template></strong>
@@ -246,14 +246,14 @@ function cancel(invitation: Invitation & { id: string }) {
 				</span>
 
 				<div v-if="communityId || canEdit(person)" class="person-actions">
-					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" class="size-small">
+					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" class="lnx-size-small">
 						<LnxIcon icon="lucide:file-text" />
 						Documentos
 					</LnxButton>
 					<LnxButton
 						v-if="communityId && person.role === 'user' && canEdit(person)"
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						@click="toggleBlocked(person)"
 					>
 						<LnxIcon :icon="person.blocked ? 'lucide:shield-check' : 'lucide:shield-ban'" />
@@ -262,13 +262,13 @@ function cancel(invitation: Invitation & { id: string }) {
 					<LnxButton
 						v-if="canEdit(person) && communityId && roleOptions.includes('manager')"
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						@click="toggleManager(person)"
 					>
 						<LnxIcon :icon="person.role === 'manager' ? 'lucide:user-minus' : 'lucide:user-check'" />
 						{{ person.role === 'manager' ? 'Quitar gestión' : 'Hacer gestor' }}
 					</LnxButton>
-					<LnxButton v-if="canEdit(person)" mode="clear" class="size-small" variant="danger" @click="remove(person)">
+					<LnxButton v-if="canEdit(person)" mode="clear" class="lnx-size-small" variant="danger" @click="remove(person)">
 						<LnxIcon icon="lucide:trash-2" />
 						{{ communityId ? 'Quitar de la comunidad' : 'Quitar acceso' }}
 					</LnxButton>
@@ -277,18 +277,17 @@ function cancel(invitation: Invitation & { id: string }) {
 				<p v-if="person.role === 'superadmin'" class="hint wide">
 					Todas las comunidades
 				</p>
-				<fieldset v-else-if="!communityId" class="chips wide" :disabled="!canEdit(person)">
-					<legend>Comunidades que administra</legend>
-					<label v-for="community in communities" :key="community.id">
-						<input
-							type="checkbox"
-							class="sr-only"
-							:checked="person.communityIds?.includes(community.id)"
-							@change="toggleAssigned(person, community, ($event.target as HTMLInputElement).checked)"
-						>
-						<span>{{ community.name || 'Sin nombre' }}</span>
-					</label>
-				</fieldset>
+				<LnxRadioGroup
+					v-else-if="!communityId"
+					class="wide"
+					:model-value="person.communityIds ?? []"
+					:options="communityOptions"
+					:disabled="!canEdit(person)"
+					multiple
+					@update:model-value="ids => toggleAssigned(person, ids as string[])"
+				>
+					Comunidades que administra
+				</LnxRadioGroup>
 			</li>
 		</TransitionGroup>
 		<p v-else class="hint">
@@ -306,13 +305,13 @@ function cancel(invitation: Invitation & { id: string }) {
 				</div>
 				<span class="badge">{{ roles[invitation.role]?.label }}</span>
 				<div v-if="assignableRoles(me, invitation.communityId).includes(invitation.role)" class="person-actions">
-					<LnxButton mode="clear" class="size-small" @click="resend(invitation)">
+					<LnxButton mode="clear" class="lnx-size-small" @click="resend(invitation)">
 						<LnxIcon icon="lucide:mail" />
 						Reenviar invitación por email
 					</LnxButton>
 					<LnxButton
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						variant="danger"
 						@click="cancel(invitation)"
 					>
@@ -445,55 +444,6 @@ function cancel(invitation: Invitation & { id: string }) {
 	flex-wrap: wrap;
 	justify-content: flex-end;
 	gap: var(--lnx-spacing-1);
-}
-
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	legend {
-		width: 100%;
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-	}
-
-	label:hover input:not(:checked, :disabled) + span {
-		background: var(--color-gray-1);
-	}
-
-	label:active input:not(:disabled) + span {
-		scale: var(--press-scale);
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
-	}
-
-	&:disabled span {
-		cursor: default;
-	}
 }
 
 .error {

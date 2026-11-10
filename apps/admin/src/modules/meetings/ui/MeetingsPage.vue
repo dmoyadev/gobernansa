@@ -29,15 +29,15 @@ const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeSty
 
 		<ul v-if="pending && !meetings.length" class="list">
 			<li v-for="width in ['55%', '40%', '65%', '45%']" :key="width" class="item">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width }" />
-					<span class="skeleton-item skeleton-item--small" style="width: 35%" />
+					<span class="lnx-skeleton" :style="{ width }" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 35%" />
 				</div>
-				<span class="skeleton-item skeleton-item--small" style="width: 80px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 80px" />
 			</li>
 		</ul>
-		<ul v-else-if="sortedMeetings.length" class="list ux-appear">
+		<ul v-else-if="sortedMeetings.length" class="list lnx-appear">
 			<li v-for="meeting in sortedMeetings" :key="meeting.id">
 				<RouterLink :to="`/communities/${id}/meetings/${meeting.id}`" class="item ux-row">
 					<LnxIcon class="icon" icon="lucide:gavel" :size="20" />

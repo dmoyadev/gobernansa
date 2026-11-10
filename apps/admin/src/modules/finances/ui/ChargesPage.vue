@@ -7,20 +7,19 @@ import { chargeTypes, collectionMethods, isOverdue, outstanding } from '@goberna
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { addCollection, deleteCharge, issueCharges, loadBatch, loadPropertyCharges, removeCollection, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const { data: properties, pending: propertiesPending, error: propertiesError } = useCommunityProperties(props.id);
 const { data: unpaid, pending: chargesPending, error: chargesError } = useUnpaidCharges(props.id);
@@ -89,8 +88,11 @@ async function issue() {
 	// Issued already, e.g. from another tab or before reloading: the live unpaid ones say so, with no reads
 	const dueDate = toDueDate(form.value.dueDate).toMillis();
 	const same = retry ? 0 : unpaid.value.filter(charge => charge.concept === form.value.concept.trim() && charge.dueDate.toMillis() === dueDate).length;
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`${same ? `Ya hay ${same} ${same === 1 ? 'recibo' : 'recibos'} «${form.value.concept.trim()}» sin pagar con ese vencimiento. ` : ''}¿Emitir «${form.value.concept.trim()}» a ${shares.value.length} propiedades por ${formatCents(sharesTotal.value)} en total?`)) {
+	if (!await ask({
+		title: `¿Emitir «${form.value.concept.trim()}» a ${shares.value.length} propiedades por ${formatCents(sharesTotal.value)} en total?`,
+		message: same ? `Ya hay ${same} ${same === 1 ? 'recibo' : 'recibos'} «${form.value.concept.trim()}» sin pagar con ese vencimiento.` : undefined,
+		confirmText: 'Emitir',
+	})) {
 		return;
 	}
 	if (!retry) {
@@ -123,7 +125,7 @@ async function issue() {
 	}
 }
 
-useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), 'Emitir los recibos');
+useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), { description: 'Emitir los recibos' });
 
 // Arrears, from the live unpaid charges
 const rows = computed(() => {
@@ -260,15 +262,14 @@ async function collect(charge: Charge) {
 }
 
 async function uncollect(charge: Charge, item: ChargeCollection) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Deshacer la entrega a cuenta de ${formatCents(item.amount)} del ${dateFormat.format(item.date.toDate())}?`)) {
+	if (!await ask({ title: `¿Deshacer la entrega a cuenta de ${formatCents(item.amount)} del ${dateFormat.format(item.date.toDate())}?`, confirmText: 'Deshacer entrega', variant: 'danger' })) {
 		return;
 	}
 	try {
 		patchHistory(charge.id, await removeCollection(props.id, charge.id, item));
 		toast('Entrega deshecha', { undo: async () => patchHistory(charge.id, await addCollection(props.id, charge.id, item)) });
 	} catch (e) {
-		toast(`No se ha podido deshacer: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido deshacer: ${(e as Error).message}`, { variant: 'danger' });
 	}
 }
 
@@ -310,9 +311,8 @@ function setPaymentsMode(next: 'test' | null) {
 	});
 }
 
-function remove(charge: Charge) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${charge.concept}» de ${charge.propertyName}${charge.collections?.length ? ' con sus entregas a cuenta' : ''}?`)) {
+async function remove(charge: Charge) {
+	if (!await ask({ title: `¿Borrar «${charge.concept}» de ${charge.propertyName}${charge.collections?.length ? ' con sus entregas a cuenta' : ''}?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	// What it had, to put it back as it was
@@ -336,14 +336,13 @@ function remove(charge: Charge) {
 		<NewButton v-if="!open" label="Emitir recibos" :disabled="!properties.length" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="issueForm" class="card ux-appear" @submit.prevent="issue()">
+	<form v-if="open" ref="issueForm" class="card lnx-appear" @submit.prevent="issue()">
 		<h2>Emitir recibos o derrama</h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="form.type"
 				:options="typeOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Tipo
 				<template #option="{ option }">
@@ -361,7 +360,6 @@ function remove(charge: Charge) {
 				v-model.convert="form.split"
 				:options="splitOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Reparto
 				<template #option="{ option }">
@@ -374,9 +372,9 @@ function remove(charge: Charge) {
 			<LnxInput v-model="form.amount" inputmode="decimal" placeholder="1.250,00" required>
 				{{ split === 'fixed' ? 'Importe por propiedad (€)' : 'Importe total (€)' }}
 			</LnxInput>
-			<DatePicker v-model="form.dueDate" required>
+			<LnxDatePicker v-model="form.dueDate" value-format="iso-date" required>
 				Vencimiento
-			</DatePicker>
+			</LnxDatePicker>
 		</div>
 
 		<p v-if="shares.length" class="hint tabular">
@@ -393,14 +391,14 @@ function remove(charge: Charge) {
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit" :is-loading="issuing" :disabled="!properties.length">
 				<LnxIcon icon="lucide:receipt-euro" />
 				Emitir
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -416,13 +414,12 @@ function remove(charge: Charge) {
 			Los vecinos pagan sus recibos y las reservas de pago desde la app. En modo de prueba no se mueve dinero ni tiene coste: solo se aceptan las tarjetas de prueba (4242 4242 4242 4242) y un Bizum simulado. Para cobrar de verdad hará falta contratar una pasarela (Redsys, Stripe…).
 		</p>
 		<div class="fields">
-			<span v-if="onlinePayments === undefined" class="skeleton-item" style="height: 40px" />
+			<span v-if="onlinePayments === undefined" class="lnx-skeleton" style="height: 40px" />
 			<LnxSelect
 				v-else
 				v-model.convert="paymentsMode"
 				:options="paymentsOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Pagos online
 				<template #option="{ option }">
@@ -438,7 +435,7 @@ function remove(charge: Charge) {
 	<section class="card">
 		<div class="section-head">
 			<h2>Morosidad</h2>
-			<LnxButton :to="`/communities/${id}/arrears`" mode="clear" class="size-small">
+			<LnxButton :to="`/communities/${id}/arrears`" mode="clear" class="lnx-size-small">
 				<LnxIcon icon="lucide:mail-warning" />
 				Antigüedad y reclamaciones
 			</LnxButton>
@@ -453,17 +450,17 @@ function remove(charge: Charge) {
 		<div class="totals tabular" :aria-busy="loading">
 			<div>
 				<small>Deuda vencida</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 110px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 110px" />
 				<strong v-else :class="{ debt: totalOverdue }">{{ formatCents(totalOverdue) }}</strong>
 			</div>
 			<div>
 				<small>Pendiente de cobro</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 95px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 95px" />
 				<strong v-else>{{ formatCents(totalPending) }}</strong>
 			</div>
 			<div>
 				<small>Propiedades con deuda</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 40px" />
 				<strong v-else>{{ debtors }}</strong>
 			</div>
 		</div>
@@ -472,15 +469,15 @@ function remove(charge: Charge) {
 			<li v-for="width in [55, 40, 65, 48]" :key="width" class="item">
 				<div class="row">
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 					</div>
-					<span class="skeleton-item skeleton-item--small" style="width: 90px" />
-					<span class="skeleton-item skeleton-item--icon" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
+					<span class="lnx-skeleton lnx-skeleton--circle" />
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="rows.length" class="list ux-appear">
+		<ul v-else-if="rows.length" class="list lnx-appear">
 			<li v-for="row in rows" :key="row.property.id" class="item">
 				<div class="row">
 					<button type="button" class="what ux-row" :aria-expanded="openId === row.property.id" @click="toggle(row.property)">
@@ -497,7 +494,7 @@ function remove(charge: Charge) {
 					<LnxButton
 						:to="`/communities/${id}/statements/${row.property.id}`"
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						shape="circle"
 						aria-label="Estado de cuenta"
 						title="Estado de cuenta"
@@ -507,7 +504,7 @@ function remove(charge: Charge) {
 					<LnxButton
 						:to="`/communities/${id}/charges/certificate/${row.property.id}`"
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						shape="circle"
 						aria-label="Certificado de pagos"
 						title="Certificado de pagos"
@@ -533,13 +530,13 @@ function remove(charge: Charge) {
 							</div>
 							<strong class="tabular">{{ formatCents(charge.amount) }}</strong>
 							<div class="item-actions">
-								<LnxButton v-if="!charge.paidAt && !charge.remittanceId" mode="clear" class="size-small" :aria-expanded="collecting?.chargeId === charge.id" @click="openCollection(charge)">
+								<LnxButton v-if="!charge.paidAt && !charge.remittanceId" mode="clear" class="lnx-size-small" :aria-expanded="collecting?.chargeId === charge.id" @click="openCollection(charge)">
 									Entrega a cuenta
 								</LnxButton>
-								<LnxButton v-if="!paidByCollections(charge) && !(charge.remittanceId && !charge.paidAt)" mode="clear" class="size-small" :is-loading="toggling.has(charge.id)" @click="togglePaid(charge)">
+								<LnxButton v-if="!paidByCollections(charge) && !(charge.remittanceId && !charge.paidAt)" mode="clear" class="lnx-size-small" :is-loading="toggling.has(charge.id)" @click="togglePaid(charge)">
 									{{ charge.payment ? 'Anular pago de prueba' : charge.paidAt ? 'Marcar pendiente' : charge.collections?.length ? 'Marcar resto pagado' : 'Marcar pagado' }}
 								</LnxButton>
-								<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
+								<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
 									<LnxIcon icon="lucide:trash-2" />
 								</LnxButton>
 							</div>
@@ -550,7 +547,7 @@ function remove(charge: Charge) {
 									<LnxButton
 										v-if="!charge.remittanceId && (!charge.paidAt || paidByCollections(charge))"
 										mode="clear"
-										class="size-small"
+										class="lnx-size-small"
 										shape="circle"
 										aria-label="Deshacer entrega"
 										title="Deshacer entrega"
@@ -565,14 +562,13 @@ function remove(charge: Charge) {
 									<LnxInput v-model="collecting.amount" inputmode="decimal" :placeholder="(outstanding(charge) / 100).toFixed(2).replace('.', ',')" required>
 										Importe (€)
 									</LnxInput>
-									<DatePicker v-model="collecting.date" :max="toDateString(new Date())" required>
+									<LnxDatePicker v-model="collecting.date" value-format="iso-date" :max="toDateString(new Date())" required>
 										Fecha
-									</DatePicker>
+									</LnxDatePicker>
 									<LnxSelect
 										v-model.convert="collecting.method"
 										:options="methodOptions"
 										:convert-fn="option => option.value"
-										search-placeholder-text="Buscar..."
 									>
 										Forma de pago
 										<template #option="{ option }">
@@ -590,10 +586,10 @@ function remove(charge: Charge) {
 									<p v-if="collectError" class="error" role="alert">
 										{{ collectError }}
 									</p>
-									<LnxButton type="button" mode="clear" class="size-small" @click="collecting = undefined">
+									<LnxButton mode="clear" class="lnx-size-small" @click="collecting = undefined">
 										Cancelar
 									</LnxButton>
-									<LnxButton type="submit" class="size-small" :is-loading="savingCollection">
+									<LnxButton type="submit" class="lnx-size-small" :is-loading="savingCollection">
 										Registrar entrega
 									</LnxButton>
 								</footer>
@@ -603,7 +599,7 @@ function remove(charge: Charge) {
 					<p v-else class="hint">
 						{{ history ? 'No tiene recibos.' : 'No tiene nada pendiente.' }}
 					</p>
-					<LnxButton v-if="!history" mode="clear" class="size-small" :is-loading="historyLoading" @click="loadHistory(row.property.id)">
+					<LnxButton v-if="!history" mode="clear" class="lnx-size-small" :is-loading="historyLoading" @click="loadHistory(row.property.id)">
 						Ver también pagados
 					</LnxButton>
 				</div>

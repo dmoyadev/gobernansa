@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import type { IssueCategory, IssueCategoryColor } from '@gobernansa/shared/domain/issue.ts';
 import { DEFAULT_ISSUE_CATEGORIES, getIssueCategories, issueCategoryColors, issueCategoryIcons, issueCategoryStyle } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, useConfirm, useShortcut } from 'lnxjs-components';
 import { ref, toRaw, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import IconPicker from '@/app/ux/IconPicker.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { useSortable } from '@/app/ux/sortable.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { saveIssueCategories } from '../application/useIssues.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const colors = Object.entries(issueCategoryColors) as [IssueCategoryColor, string][];
 
@@ -79,15 +79,14 @@ function save() {
 	});
 }
 
-function remove(category: IssueCategory) {
+async function remove(category: IssueCategory) {
 	if (categories.value.length === 1) {
 		error.value = 'Tiene que quedar al menos una categoría, para que los vecinos puedan dar avisos.';
 		return;
 	}
 	// Removed defaults still show with their name, see findIssueCategory()
 	const kept = DEFAULT_ISSUE_CATEGORIES.some(other => other.id === category.id) ? 'con su nombre' : 'como «Sin categoría»';
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Quitar «${category.name}»? Los vecinos ya no la podrán elegir, y las incidencias que la tienen se verán ${kept}.`)) {
+	if (!await ask({ title: `¿Quitar «${category.name}»?`, message: `Los vecinos ya no la podrán elegir, y las incidencias que la tienen se verán ${kept}.`, confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 
@@ -131,7 +130,7 @@ function persist(next: IssueCategory[], summary: string, done: string, revert?: 
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la categoría');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la categoría' });
 </script>
 
 <template>
@@ -152,7 +151,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la c
 	</p>
 
 	<!-- In the category's colors, as neighbours see it -->
-	<form v-if="open" ref="formElement" class="card form ux-appear" :style="issueCategoryStyle(draft)" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card form lnx-appear" :style="issueCategoryStyle(draft)" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar categoría' : 'Nueva categoría' }}</h2>
 		<div class="fields">
 			<div class="named">
@@ -181,29 +180,29 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Guardar la c
 			<p v-if="error" class="error" role="alert">
 				{{ error }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
 
 	<ul v-if="loading" class="card list" aria-busy="true">
 		<li v-for="width in [30, 45, 25, 38]" :key="width" class="row">
-			<span class="skeleton-item skeleton-item--icon icon" />
+			<span class="lnx-skeleton lnx-skeleton--circle icon" />
 			<span class="name">
-				<span class="skeleton-item" :style="{ width: `${width}%` }" />
-				<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 20}%`, marginTop: '4px' }" />
+				<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 20}%`, marginTop: '4px' }" />
 			</span>
 		</li>
 	</ul>
 
-	<TransitionGroup v-else-if="!loadError || categories.length" tag="ul" name="row" class="card list sortable ux-appear" :class="{ sorting }">
+	<TransitionGroup v-else-if="!loadError || categories.length" tag="ul" name="row" class="card list sortable lnx-appear" :class="{ sorting }">
 		<li
 			v-for="category in categories"
 			:key="category.id"

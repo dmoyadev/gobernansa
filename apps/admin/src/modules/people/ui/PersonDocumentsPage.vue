@@ -7,16 +7,18 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS } from '@gobernansa/shared/domain/user.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { Bytes, collection, doc, getDoc, orderBy, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxKbd, LnxRadioGroup, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
+
+const props = defineProps<{ id: string; uid: string }>();
+
+const ask = useConfirm();
 
 // The same shape as the webapp's, which lists them to the neighbour along with the ones they upload
 interface PersonDocument {
@@ -30,8 +32,6 @@ interface PersonDocument {
 	// Who sent it from the administration, none for the ones the neighbour uploaded
 	uploadedBy?: string;
 }
-
-const props = defineProps<{ id: string; uid: string }>();
 
 // Files live inside Firestore documents to stay on the free plan, as the webapp does
 
@@ -67,7 +67,7 @@ function reset() {
 
 const { open, show, close } = useNewForm(formElement, reset);
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Enviar el documento elegido');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar el documento elegido' });
 
 function fileRef(id: string) {
 	return doc(db, 'users', props.uid, 'documentFiles', id);
@@ -135,9 +135,8 @@ async function download(document: PersonDocument) {
 
 // Only the ones sent by the administration, the neighbour's own are theirs to remove. No undo: the file itself isn't
 // in the page (it's only read to download it), and reading it first just in case would cost a read per delete
-function remove(document: PersonDocument) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${document.name}»? ${person.value?.name ?? 'El vecino'} dejará de verlo.`)) {
+async function remove(document: PersonDocument) {
+	if (!await ask({ title: `¿Borrar «${document.name}»?`, message: `${person.value?.name ?? 'El vecino'} dejará de verlo.`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 
@@ -168,7 +167,7 @@ function formatSize(bytes: number) {
 		<NewButton v-if="!open" label="Enviar un documento" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="upload()">
+	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="upload()">
 		<h2>Enviar un documento</h2>
 		<p class="hint">
 			Lo verá en su perfil, con tu nombre. Hasta 1 MB.
@@ -179,38 +178,26 @@ function formatSize(bytes: number) {
 			@change="file = ($event.target as HTMLInputElement).files?.[0]"
 		>
 
-		<fieldset class="chips">
-			<legend>Categoría</legend>
-			<label v-for="option in categories" :key="option.value">
-				<input v-model="category" type="radio" class="sr-only" :value="option.value">
-				<span><LnxIcon :icon="option.icon" />{{ option.label }}</span>
-			</label>
-		</fieldset>
+		<LnxRadioGroup v-model="category" :options="categories">
+			Categoría
+		</LnxRadioGroup>
 
-		<fieldset v-if="properties.length" class="chips">
-			<legend>Propiedad</legend>
-			<label>
-				<input v-model="propertyId" type="radio" class="sr-only" value="">
-				<span>Ninguna</span>
-			</label>
-			<label v-for="property in properties" :key="property.id">
-				<input v-model="propertyId" type="radio" class="sr-only" :value="property.id">
-				<span>{{ property.name }}</span>
-			</label>
-		</fieldset>
+		<LnxRadioGroup v-if="properties.length" v-model="propertyId" :options="[{ value: '', label: 'Ninguna' }, ...properties.map(property => ({ value: property.id, label: property.name }))]">
+			Propiedad
+		</LnxRadioGroup>
 
 		<footer class="form-actions">
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit" :is-loading="sending">
 				<LnxIcon icon="lucide:send" />
 				Enviar
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -226,15 +213,15 @@ function formatSize(bytes: number) {
 
 		<ul v-if="pending && !documents.length" class="list" aria-busy="true">
 			<li v-for="width in [42, 60, 34]" :key="width" class="document">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 25}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 25}%` }" />
 				</div>
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="documents.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="documents.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="document in documents" :key="document.id" class="document">
 				<LnxIcon :icon="categories.find(option => option.value === document.category)?.icon ?? 'lucide:file'" />
 				<div class="what">
@@ -247,13 +234,13 @@ function formatSize(bytes: number) {
 					</small>
 				</div>
 				<div class="actions">
-					<LnxButton mode="clear" class="size-small" :aria-label="`Descargar ${document.name}`" :title="`Descargar ${document.name}`" @click="download(document)">
+					<LnxButton mode="clear" class="lnx-size-small" :aria-label="`Descargar ${document.name}`" :title="`Descargar ${document.name}`" @click="download(document)">
 						<LnxIcon icon="lucide:download" />
 					</LnxButton>
 					<LnxButton
 						v-if="document.uploadedBy"
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						variant="danger"
 						:aria-label="`Borrar ${document.name}`"
 						:title="`Borrar ${document.name}`"
@@ -355,52 +342,6 @@ function formatSize(bytes: number) {
 .actions {
 	display: flex;
 	gap: var(--lnx-spacing-1);
-}
-
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	legend {
-		width: 100%;
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--lnx-spacing-1);
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-	}
-
-	label:hover input:not(:checked) + span {
-		background: var(--color-gray-1);
-	}
-
-	label:active span {
-		scale: var(--press-scale);
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
-	}
 }
 
 .error {

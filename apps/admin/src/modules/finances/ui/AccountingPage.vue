@@ -5,21 +5,19 @@ import type { Timestamp } from 'firebase/firestore';
 import { balances, balanceSheet, beforeClosing, buildLedger, closeYear, closingMatches, entryKinds, incomeStatement, isBalanced, isValidAccountCode, sortedAccounts, toCsv } from '@gobernansa/shared/domain/accounting.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { closeForm, openForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { closeFiscalYear, deleteManualEntry, loadLedgerData, reopenFiscalYear, restoreFiscalYear, restoreManualEntry, saveCustomAccounts, saveManualEntry } from '../application/useAccounting.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 type LedgerData = Awaited<ReturnType<typeof loadLedgerData>>;
 
@@ -68,7 +66,7 @@ async function load(refresh = false) {
 		error.value = undefined;
 	} catch (e) {
 		if (cache.has(wanted)) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
 			error.value = `No se ha podido cargar la contabilidad: ${(e as Error).message}`;
 		}
@@ -266,12 +264,12 @@ async function removeEntry(entry: JournalEntry) {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido borrar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido borrar: ${(e as Error).message}`, { variant: 'danger' });
 	}
 }
 
-useShortcut('mod+enter', () => entryForm.value?.requestSubmit(), 'Guardar el asiento', () => !!editor.value);
-useShortcut('escape', cancelEntry, 'Cancelar el asiento', () => !!editor.value);
+useShortcut('mod+enter', () => entryForm.value?.requestSubmit(), { description: 'Guardar el asiento', enabled: () => !!editor.value });
+useShortcut('escape', cancelEntry, { description: 'Cancelar el asiento', enabled: () => !!editor.value });
 
 /* Cierre */
 
@@ -284,8 +282,7 @@ async function close() {
 		return;
 	}
 	const { result, regularization, closing: lines } = proposedClosing.value;
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Cerrar el ejercicio ${closedYear}? Se regularizan gastos e ingresos (${result >= 0 ? 'excedente' : 'déficit'} de ${formatCents(Math.abs(result))}), se cierra y se abre ${closedYear + 1} con sus saldos. No se podrán añadir asientos a ${closedYear} hasta reabrirlo.`)) {
+	if (!await ask({ title: `¿Cerrar el ejercicio ${closedYear}?`, message: `Se regularizan gastos e ingresos (${result >= 0 ? 'excedente' : 'déficit'} de ${formatCents(Math.abs(result))}), se cierra y se abre ${closedYear + 1} con sus saldos. No se podrán añadir asientos a ${closedYear} hasta reabrirlo.`, confirmText: 'Cerrar ejercicio' })) {
 		return;
 	}
 	// The accounts' names, for when an owner, provider, partida or added account is gone
@@ -306,7 +303,7 @@ async function close() {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido cerrar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido cerrar: ${(e as Error).message}`, { variant: 'danger' });
 	} finally {
 		closingBusy.value = false;
 	}
@@ -319,8 +316,7 @@ async function reopen() {
 	if (!target || !stored || closingBusy.value) {
 		return;
 	}
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Reabrir el ejercicio ${reopenedYear}? Se quitan su regularización y su cierre, y ${reopenedYear + 1} se queda sin asiento de apertura hasta volver a cerrarlo.`)) {
+	if (!await ask({ title: `¿Reabrir el ejercicio ${reopenedYear}?`, message: `Se quitan su regularización y su cierre, y ${reopenedYear + 1} se queda sin asiento de apertura hasta volver a cerrarlo.`, confirmText: 'Reabrir ejercicio' })) {
 		return;
 	}
 	closingBusy.value = true;
@@ -336,7 +332,7 @@ async function reopen() {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido reabrir: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido reabrir: ${(e as Error).message}`, { variant: 'danger' });
 	} finally {
 		closingBusy.value = false;
 	}
@@ -455,7 +451,6 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 			aria-label="Ejercicio"
 			:options="yearOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -464,11 +459,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				{{ value }}
 			</template>
 		</LnxSelect>
-		<LnxButton mode="outline" class="size-small" :disabled="!ledger" @click="exportCsv()">
+		<LnxButton mode="outline" class="lnx-size-small" :disabled="!ledger" @click="exportCsv()">
 			<LnxIcon icon="lucide:file-spreadsheet" />
 			CSV
 		</LnxButton>
-		<LnxButton class="size-small" :disabled="!ledger" @click="print()">
+		<LnxButton class="lnx-size-small" :disabled="!ledger" @click="print()">
 			<LnxIcon icon="lucide:printer" />
 			Imprimir
 		</LnxButton>
@@ -482,7 +477,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 	<template v-else>
 		<section class="card status">
 			<div v-if="loading || !ledger" class="status-row" aria-busy="true" aria-label="Cargando">
-				<span class="skeleton-item" style="width: 40%" />
+				<span class="lnx-skeleton" style="width: 40%" />
 			</div>
 			<template v-else>
 				<div class="status-row">
@@ -495,11 +490,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 						<template v-if="closed && closedAt"> · cerrado el {{ dateFormat.format(closedAt) }}</template>
 						· {{ (closed ? closing!.result : proposedClosing.result) >= 0 ? 'excedente' : 'déficit' }} de {{ formatCents(Math.abs(closed ? closing!.result : proposedClosing.result)) }}
 					</span>
-					<LnxButton v-if="closed" mode="clear" class="size-small" :is-loading="closingBusy" @click="reopen()">
+					<LnxButton v-if="closed" mode="clear" class="lnx-size-small" :is-loading="closingBusy" @click="reopen()">
 						<LnxIcon icon="lucide:lock-open" />
 						Reabrir
 					</LnxButton>
-					<LnxButton v-else class="size-small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
+					<LnxButton v-else class="lnx-size-small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
 						<LnxIcon icon="lucide:lock" />
 						Cerrar el ejercicio
 					</LnxButton>
@@ -517,12 +512,12 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 			</template>
 		</section>
 
-		<form v-if="editor" ref="entryForm" class="card ux-appear" @submit.prevent="submitEntry()">
+		<form v-if="editor" ref="entryForm" class="card lnx-appear" @submit.prevent="submitEntry()">
 			<h2>{{ editor.existing ? 'Editar asiento' : 'Nuevo asiento' }}</h2>
 			<div class="fields">
-				<DatePicker v-model="editor.date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
+				<LnxDatePicker v-model="editor.date" value-format="iso-date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
 					Fecha
-				</DatePicker>
+				</LnxDatePicker>
 				<LnxInput v-model="editor.concept" placeholder="Pago de retenciones del 3T (modelo 111)" required>
 					Concepto
 				</LnxInput>
@@ -551,7 +546,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 					</LnxInput>
 					<LnxButton
 						mode="clear"
-						class="size-small"
+						class="lnx-size-small"
 						shape="circle"
 						variant="danger"
 						aria-label="Quitar línea"
@@ -564,7 +559,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				</li>
 			</ul>
 			<div>
-				<LnxButton mode="clear" class="size-small" @click="editor.lines.push(emptyLine())">
+				<LnxButton mode="clear" class="lnx-size-small" @click="editor.lines.push(emptyLine())">
 					<LnxIcon icon="lucide:plus" />
 					Añadir línea
 				</LnxButton>
@@ -576,13 +571,13 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				<span v-else class="hint tabular" :class="{ unbalanced: draftDebit !== draftCredit }">
 					Debe {{ formatCents(draftDebit) }} · Haber {{ formatCents(draftCredit) }}<template v-if="draftDebit !== draftCredit"> · descuadre de {{ formatCents(Math.abs(draftDebit - draftCredit)) }}</template>
 				</span>
-				<LnxButton type="button" mode="clear" @click="cancelEntry()">
+				<LnxButton mode="clear" @click="cancelEntry()">
 					Cancelar
-					<Kbd combo="escape" />
+					<LnxKbd combo="escape" />
 				</LnxButton>
 				<LnxButton type="submit" :is-loading="saving">
 					Guardar
-					<Kbd combo="mod+enter" />
+					<LnxKbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</form>
@@ -594,9 +589,9 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 		</div>
 
 		<article v-if="loading || !ledger" class="sheet" aria-busy="true" aria-label="Cargando">
-			<span v-for="width in [55, 100, 96, 100, 92, 100, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [55, 100, 96, 100, 92, 100, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</article>
-		<article v-else class="sheet ux-appear">
+		<article v-else class="sheet lnx-appear">
 			<header class="sheet-header">
 				<strong>Comunidad de propietarios {{ community?.name }}</strong>
 				<span v-if="community?.cif">CIF {{ community.cif }}</span>
@@ -630,10 +625,10 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 							<div class="entry-title">
 								<span>{{ entry.concept }} <small>{{ entryKinds[entry.kind] }}</small></span>
 								<span v-if="entry.manualId && !closed" class="entry-actions no-print">
-									<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="openEntry(manualOf(entry))">
+									<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="openEntry(manualOf(entry))">
 										<LnxIcon icon="lucide:pencil" />
 									</LnxButton>
-									<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeEntry(entry)">
+									<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeEntry(entry)">
 										<LnxIcon icon="lucide:trash-2" />
 									</LnxButton>
 								</span>
@@ -925,7 +920,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 								<LnxButton
 									v-if="account.custom && !closed"
 									mode="clear"
-									class="size-small"
+									class="lnx-size-small"
 									shape="circle"
 									variant="danger"
 									aria-label="Borrar cuenta"

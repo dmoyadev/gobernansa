@@ -31,12 +31,12 @@ const dismissed = useStorage('install-hint-dismissed', false);
 			</ol>
 		</div>
 
-		<LnxButton v-if="canInstall" class="size-small" @click="install()">
+		<LnxButton v-if="canInstall" class="lnx-size-small" @click="install()">
 			Instalar
 		</LnxButton>
 		<LnxButton
 			v-if="dismissible"
-			class="close size-small"
+			class="close lnx-size-small"
 			mode="clear"
 			shape="circle"
 			variant="grayscale"

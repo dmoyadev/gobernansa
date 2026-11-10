@@ -5,16 +5,17 @@ import type { VerifactuRecord } from '@gobernansa/shared/domain/verifactu.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { qrUrl, recordKinds, suministroXml } from '@gobernansa/shared/domain/verifactu.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { renderSVG } from 'uqr';
 import { computed, onMounted, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { annulInvoice, loadBudgetItems, loadInvoice, loadInvoiceRecords, recordInBooks, useOffice } from '../application/useBilling.ts';
 
 const props = defineProps<{ invoiceId: string }>();
+
+const ask = useConfirm();
 
 const ADMINISTRATION_REGEX = /administra/i;
 
@@ -33,7 +34,7 @@ async function load() {
 		error.value = invoice.value ? undefined : 'No existe esta factura.';
 	} catch (e) {
 		if (invoice.value) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
 			error.value = `No se ha podido cargar: ${(e as Error).message}`;
 		}
@@ -60,8 +61,7 @@ const busy = ref(false);
 const actionError = ref<string>();
 
 async function annul() {
-	// eslint-disable-next-line no-alert
-	if (!invoice.value || !window.confirm(`¿Anular el registro de la ${invoice.value.number}? Solo si la factura no llegó a emitirse: si la comunidad ya la tiene, haz una rectificativa.`)) {
+	if (!invoice.value || !await ask({ title: `¿Anular el registro de la ${invoice.value.number}?`, message: 'Solo si la factura no llegó a emitirse: si la comunidad ya la tiene, haz una rectificativa.', confirmText: 'Anular registro', variant: 'danger' })) {
 		return;
 	}
 	busy.value = true;
@@ -127,9 +127,9 @@ async function record() {
 		{{ error }}
 	</p>
 	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
-		<span class="skeleton-item" style="width: 55%" />
-		<span class="skeleton-item skeleton-item--small" style="width: 40%" />
-		<span v-for="width in [100, 96, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+		<span class="lnx-skeleton" style="width: 55%" />
+		<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
+		<span v-for="width in [100, 96, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 	</article>
 	<template v-else-if="invoice">
 		<section class="panel">
@@ -138,23 +138,23 @@ async function record() {
 				<span v-if="invoice.annulled" class="chip debt">Anulada</span>
 				<span v-for="number in invoice.rectifiedBy ?? []" :key="number" class="chip">Rectificada por {{ number }}</span>
 				<span class="spacer" />
-				<LnxButton v-if="!invoice.annulled" :to="`/billing/${invoice.id}/rectify`" mode="clear" class="size-small">
+				<LnxButton v-if="!invoice.annulled" :to="`/billing/${invoice.id}/rectify`" mode="clear" class="lnx-size-small">
 					<LnxIcon icon="lucide:file-pen" />
 					Rectificar
 				</LnxButton>
-				<LnxButton v-if="!invoice.annulled && !invoice.expenseId && !items" mode="clear" class="size-small" :disabled="!office" @click="startRecording()">
+				<LnxButton v-if="!invoice.annulled && !invoice.expenseId && !items" mode="clear" class="lnx-size-small" :disabled="!office" @click="startRecording()">
 					<LnxIcon icon="lucide:book-plus" />
 					Anotar en sus cuentas
 				</LnxButton>
 				<RouterLink v-if="invoice.expenseId" :to="`/communities/${invoice.communityId}/payables`" class="chip ok">
 					En sus cuentas
 				</RouterLink>
-				<LnxButton v-if="!invoice.annulled && !invoice.rectifiedBy?.length && !invoice.expenseId" mode="clear" class="size-small" variant="danger" :is-loading="busy" @click="annul()">
+				<LnxButton v-if="!invoice.annulled && !invoice.rectifiedBy?.length && !invoice.expenseId" mode="clear" class="lnx-size-small" variant="danger" :is-loading="busy" @click="annul()">
 					Anular registro
 				</LnxButton>
 			</div>
 
-			<form v-if="items" class="record ux-appear" @submit.prevent="record()">
+			<form v-if="items" class="record lnx-appear" @submit.prevent="record()">
 				<template v-if="items.length">
 					<LnxSelect v-model.convert="itemId" :options="itemOptions" :convert-fn="option => option.value">
 						Partida del presupuesto {{ invoice.year }}
@@ -176,7 +176,7 @@ async function record() {
 					</RouterLink>
 				</p>
 				<footer class="form-actions">
-					<LnxButton type="button" mode="clear" @click="items = undefined">
+					<LnxButton mode="clear" @click="items = undefined">
 						Cancelar
 					</LnxButton>
 					<LnxButton type="submit" :is-loading="busy" :disabled="!itemId">
@@ -189,7 +189,7 @@ async function record() {
 			</p>
 		</section>
 
-		<article class="sheet ux-appear">
+		<article class="sheet lnx-appear">
 			<header class="parties">
 				<div>
 					<strong>{{ invoice.issuer.name }}</strong>
@@ -296,7 +296,7 @@ async function record() {
 							· Enviado (simulado, entorno de pruebas), CSV {{ item.submission.csv }}
 						</small>
 					</div>
-					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Descargar XML" title="Descargar XML" @click="download(item)">
+					<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Descargar XML" title="Descargar XML" @click="download(item)">
 						<LnxIcon icon="lucide:download" />
 					</LnxButton>
 				</li>

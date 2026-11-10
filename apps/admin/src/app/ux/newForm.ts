@@ -1,8 +1,8 @@
 import type { Ref } from 'vue';
+import { useShortcut } from 'lnxjs-components';
 import { nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { pageSettled } from './navigation.ts';
-import { useShortcut } from './shortcuts.ts';
 
 const FIRST_FIELD = 'input:not([type="hidden"]), textarea, select, button';
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -131,6 +131,6 @@ export function useNewForm(form: Readonly<Ref<HTMLElement | null | undefined>>, 
 		}
 	});
 
-	useShortcut('escape', close, 'Cerrar el formulario', () => open.value);
+	useShortcut('escape', close, { description: 'Cerrar el formulario', enabled: () => open.value });
 	return { open, show, close };
 }

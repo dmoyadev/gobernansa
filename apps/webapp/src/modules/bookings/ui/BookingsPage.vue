@@ -6,12 +6,14 @@ import { getBookableAreas } from '@gobernansa/shared/domain/community.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { FirebaseError } from 'firebase/app';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useBookings } from '../application/useBookings.ts';
+
+const ask = useConfirm();
 
 const DEFAULT_ADVANCE_DAYS = 14;
 
@@ -137,8 +139,7 @@ async function confirm() {
 }
 
 async function remove(booking: Booking) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Anular tu reserva del ${formatDay(booking.date)} a las ${booking.from}?`)) {
+	if (!await ask({ title: `¿Anular tu reserva del ${formatDay(booking.date)} a las ${booking.from}?`, confirmText: 'Anular reserva', variant: 'danger' })) {
 		return;
 	}
 
@@ -295,7 +296,7 @@ function formatDay(day: string) {
 						</span>
 						<LnxButton
 							v-if="!blocked && canPayOnline && booking.paidAt === null"
-							class="size-small"
+							class="lnx-size-small"
 							:to="`/neighborhood/bookings/${booking.id}/pay`"
 						>
 							Pagar

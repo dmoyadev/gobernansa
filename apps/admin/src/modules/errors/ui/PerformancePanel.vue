@@ -82,7 +82,7 @@ const percent = new Intl.NumberFormat('es', { style: 'percent' });
 	</p>
 
 	<div class="filters">
-		<LnxSelect v-model.convert="days" :options="dayOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+		<LnxSelect v-model.convert="days" :options="dayOptions" :convert-fn="option => option.value">
 			Periodo
 			<template #option="{ option }">
 				{{ option.label }}
@@ -99,9 +99,9 @@ const percent = new Intl.NumberFormat('es', { style: 'percent' });
 			No se ha podido cargar: {{ error }}
 		</p>
 		<div v-else-if="loading" class="skeleton-rows">
-			<span v-for="width in [70, 50, 80]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [70, 50, 80]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
-		<div v-else-if="item.screens.length" class="table ux-appear">
+		<div v-else-if="item.screens.length" class="table lnx-appear">
 			<table>
 				<thead>
 					<tr>

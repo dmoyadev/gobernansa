@@ -5,20 +5,19 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { averageRating, providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { canRestoreProvider, deleteProvider, findProviderError, loadRatings, rateProvider, restoreProvider, saveProvider } from '../application/providerActions.ts';
 import { useProviders } from '../application/useProviders.ts';
+
+const ask = useConfirm();
 
 // One directory for every community the user manages, each provider shared with the ones they choose
 const { user: me } = useAuth();
@@ -114,9 +113,8 @@ function save() {
 	});
 }
 
-function remove(provider: Provider) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Eliminar ${provider.name} del directorio de todas sus comunidades?`)) {
+async function remove(provider: Provider) {
+	if (!await ask({ title: `¿Eliminar ${provider.name} del directorio de todas sus comunidades?`, confirmText: 'Eliminar', variant: 'danger' })) {
 		return;
 	}
 
@@ -214,9 +212,9 @@ function focusFirst(element: HTMLElement | undefined, selector: string) {
 	element?.querySelector<HTMLElement>(selector)?.focus();
 }
 
-useShortcut('/', () => focusFirst(filtersElement.value, 'input[type="search"]'), 'Buscar proveedores');
+useShortcut('/', () => focusFirst(filtersElement.value, 'input[type="search"]'), { description: 'Buscar proveedores' });
 // The rating's form when writing in it, the provider's otherwise
-useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formElement.value)?.requestSubmit(), 'Guardar');
+useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formElement.value)?.requestSubmit(), { description: 'Guardar' });
 </script>
 
 <template>
@@ -226,7 +224,7 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 		<NewButton v-if="!open" label="Nuevo proveedor" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar proveedor' : 'Nuevo proveedor' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.name" required>
@@ -236,7 +234,6 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 				v-model.convert="form.category"
 				:options="categoryOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Categoría
 				<template #option="{ option }">
@@ -269,26 +266,22 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 			</LnxTextarea>
 		</div>
 
-		<fieldset class="chips">
-			<legend>Compartido con</legend>
-			<label v-for="community in communities" :key="community.id">
-				<input v-model="form.communityIds" type="checkbox" class="sr-only" :value="community.id">
-				<span>{{ community.name || 'Sin nombre' }}</span>
-			</label>
-		</fieldset>
+		<LnxRadioGroup v-model="form.communityIds" :options="communities.map(community => ({ value: community.id, label: community.name || 'Sin nombre' }))" multiple>
+			Compartido con
+		</LnxRadioGroup>
 
 		<footer class="form-actions">
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
 				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -303,7 +296,6 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 				v-model.convert="category"
 				:options="filterOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Categoría
 				<template #option="{ option }">
@@ -321,15 +313,15 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 
 		<ul v-if="loading && !providers.length" class="list" aria-busy="true" aria-label="Cargando proveedores">
 			<li v-for="width in [45, 30, 55, 38]" :key="width" class="provider">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="who">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 20}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 20}%` }" />
 				</div>
-				<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="visibleProviders.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="visibleProviders.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="provider in visibleProviders" :key="provider.id" class="provider">
 				<LnxIcon :icon="providerCategories[provider.category]?.icon ?? 'lucide:hammer'" class="category-icon" />
 				<div class="who">
@@ -354,11 +346,11 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 					<small class="tabular">({{ provider.ratingCount }})</small>
 				</button>
 				<div class="provider-actions">
-					<LnxButton mode="clear" class="size-small" @click="edit(provider)">
+					<LnxButton mode="clear" class="lnx-size-small" @click="edit(provider)">
 						<LnxIcon icon="lucide:pencil" />
 						Editar
 					</LnxButton>
-					<LnxButton v-if="canDelete(provider)" mode="clear" class="size-small" variant="danger" @click="remove(provider)">
+					<LnxButton v-if="canDelete(provider)" mode="clear" class="lnx-size-small" variant="danger" @click="remove(provider)">
 						<LnxIcon icon="lucide:trash-2" />
 						Eliminar
 					</LnxButton>
@@ -373,13 +365,9 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 
 				<div v-if="openedId === provider.id" class="ratings wide">
 					<form class="rate" @submit.prevent="rate(provider)">
-						<fieldset class="chips">
-							<legend>Tu valoración</legend>
-							<label v-for="n in 5" :key="n">
-								<input v-model="rating.score" type="radio" class="sr-only" :value="n" :name="`score-${provider.id}`">
-								<span>{{ n }} <LnxIcon icon="lucide:star" /></span>
-							</label>
-						</fieldset>
+						<LnxRadioGroup v-model="rating.score" :options="[1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n), icon: 'lucide:star' }))">
+							Tu valoración
+						</LnxRadioGroup>
 						<LnxTextarea v-model="rating.comment" rows="2">
 							Comentario
 						</LnxTextarea>
@@ -387,18 +375,18 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 							<p v-if="ratingsError" class="error" role="alert">
 								{{ ratingsError }}
 							</p>
-							<LnxButton type="submit" class="size-small">
+							<LnxButton type="submit" class="lnx-size-small">
 								<LnxIcon icon="lucide:star" />
 								Valorar
-								<Kbd combo="mod+enter" />
+								<LnxKbd combo="mod+enter" />
 							</LnxButton>
 						</footer>
 					</form>
 
 					<ul v-if="ratingsLoading && !ratings.length" class="list" aria-busy="true" aria-label="Cargando valoraciones">
 						<li v-for="width in [35, 50, 28]" :key="width" class="rating-item">
-							<span class="skeleton-item" :style="{ width: `${width}%` }" />
-							<span class="skeleton-item skeleton-item--small wide" :style="{ width: `${width + 30}%` }" />
+							<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+							<span class="lnx-skeleton lnx-skeleton--small wide" :style="{ width: `${width + 30}%` }" />
 						</li>
 					</ul>
 					<ul v-else-if="ratings.length" class="list">
@@ -618,52 +606,6 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 
 	.wide {
 		width: 100%;
-	}
-}
-
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-1);
-
-	legend {
-		width: 100%;
-		margin-bottom: var(--lnx-spacing-1);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	span {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--lnx-spacing-1);
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-4);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background-color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), scale var(--duration-fast) var(--ease-out);
-
-		&:hover {
-			background: var(--color-gray-1);
-		}
-
-		&:active {
-			scale: var(--press-scale);
-		}
-	}
-
-	input:checked + span {
-		border-color: var(--color-primary);
-		background: var(--color-primary);
-		color: var(--color-primary-accent);
-	}
-
-	input:focus-visible + span {
-		outline: 2px solid var(--color-primary);
-		outline-offset: 2px;
 	}
 }
 

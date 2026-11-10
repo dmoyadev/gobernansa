@@ -1,6 +1,6 @@
 import type { Ref } from 'vue';
+import { useEventListener } from 'lnxjs-components';
 import { nextTick, ref } from 'vue';
-import { useEventListener } from './shortcuts.ts';
 
 interface Sorting {
 	id: string;

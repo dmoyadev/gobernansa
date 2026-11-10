@@ -35,7 +35,7 @@ function markPaid(invoice: Expense) {
 <template>
 	<header class="page-header">
 		<h1>Facturas pendientes</h1>
-		<LnxButton :to="`/communities/${id}/payments`" mode="clear" class="size-small">
+		<LnxButton :to="`/communities/${id}/payments`" mode="clear" class="lnx-size-small">
 			<LnxIcon icon="lucide:send" />
 			Pagar por transferencia
 		</LnxButton>
@@ -50,17 +50,17 @@ function markPaid(invoice: Expense) {
 		<div class="totals tabular" :aria-busy="loading">
 			<div>
 				<small>Pendiente de pago</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 110px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 110px" />
 				<strong v-else>{{ formatCents(totalPending) }}</strong>
 			</div>
 			<div>
 				<small>Vencido</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 95px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 95px" />
 				<strong v-else :class="{ overdue: totalOverdue }">{{ formatCents(totalOverdue) }}</strong>
 			</div>
 			<div>
 				<small>Facturas</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 40px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 40px" />
 				<strong v-else>{{ invoices.length }}<template v-if="overdue.length"> · {{ overdue.length }} {{ overdue.length === 1 ? 'vencida' : 'vencidas' }}</template></strong>
 			</div>
 		</div>
@@ -68,14 +68,14 @@ function markPaid(invoice: Expense) {
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 				</div>
-				<span class="skeleton-item" style="width: 80px" />
-				<span class="skeleton-item skeleton-item--small" style="width: 110px" />
+				<span class="lnx-skeleton" style="width: 80px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 110px" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="invoices.length" tag="ul" name="row" class="list ux-appear">
+		<TransitionGroup v-else-if="invoices.length" tag="ul" name="row" class="list lnx-appear">
 			<li v-for="invoice in invoices" :key="invoice.id" class="item" :class="{ late: isOverdue(invoice) }">
 				<div class="what">
 					<strong>{{ invoice.provider?.name ?? 'Sin proveedor' }} · {{ invoice.concept }}</strong>
@@ -93,7 +93,7 @@ function markPaid(invoice: Expense) {
 					<strong>{{ formatCents(payableAmount(invoice)) }}</strong>
 					<small v-if="invoice.withholding">total {{ formatCents(invoice.amount) }}, retención {{ formatCents(invoice.withholding) }}</small>
 				</div>
-				<LnxButton mode="clear" class="size-small" @click="markPaid(invoice)">
+				<LnxButton mode="clear" class="lnx-size-small" @click="markPaid(invoice)">
 					<LnxIcon icon="lucide:check" />
 					Marcar pagada
 				</LnxButton>

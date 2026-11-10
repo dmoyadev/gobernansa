@@ -6,9 +6,9 @@ import { roles } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxSelect, toast } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 
 // One group of the Errores page: its samples, with what the user did before, and what the team does with it
 const props = defineProps<{
@@ -113,7 +113,7 @@ async function copy(text: string) {
 		await navigator.clipboard.writeText(text);
 		toast('Pila copiada');
 	} catch {
-		toast('No se ha podido copiar la pila', { tone: 'error' });
+		toast('No se ha podido copiar la pila', { variant: 'danger' });
 	}
 }
 
@@ -160,20 +160,20 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 		</dl>
 
 		<div v-if="!resolving" class="actions">
-			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" class="size-small" @click="resolving = true">
+			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" class="lnx-size-small" @click="resolving = true">
 				<LnxIcon icon="lucide:check" />
 				Resolver
 			</LnxButton>
-			<LnxButton v-if="group.status === 'new'" mode="outline" class="size-small" @click="change({ status: 'ignored' }, { status: 'ignored' }, { done: 'Error ignorado', failed: 'No se ha podido ignorar' })">
+			<LnxButton v-if="group.status === 'new'" mode="outline" class="lnx-size-small" @click="change({ status: 'ignored' }, { status: 'ignored' }, { done: 'Error ignorado', failed: 'No se ha podido ignorar' })">
 				<LnxIcon icon="lucide:eye-off" />
 				Ignorar
 			</LnxButton>
-			<LnxButton v-if="group.status !== 'new'" mode="outline" class="size-small" @click="change({ status: 'new' }, { status: 'new' }, { done: 'Error reabierto', failed: 'No se ha podido reabrir' })">
+			<LnxButton v-if="group.status !== 'new'" mode="outline" class="lnx-size-small" @click="change({ status: 'new' }, { status: 'new' }, { done: 'Error reabierto', failed: 'No se ha podido reabrir' })">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Reabrir
 			</LnxButton>
 			<form v-if="mergeOptions.length" class="merge" @submit.prevent="merge()">
-				<LnxSelect v-model.convert="mergeTarget" :options="mergeOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+				<LnxSelect v-model.convert="mergeTarget" :options="mergeOptions" :convert-fn="option => option.value">
 					Es el mismo fallo que
 					<template #option="{ option }">
 						{{ option.label }}
@@ -182,7 +182,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 						{{ mergeOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxButton type="submit" mode="outline" class="size-small" :disabled="!mergeTarget">
+				<LnxButton type="submit" mode="outline" class="lnx-size-small" :disabled="!mergeTarget">
 					<LnxIcon icon="lucide:merge" />
 					Fusionar
 				</LnxButton>
@@ -196,11 +196,11 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 				Nota
 			</LnxInput>
 			<div class="actions">
-				<LnxButton type="submit" class="size-small">
+				<LnxButton type="submit" class="lnx-size-small">
 					<LnxIcon icon="lucide:check" />
 					Marcar como resuelto
 				</LnxButton>
-				<LnxButton type="button" mode="clear" class="size-small" @click="resolving = false">
+				<LnxButton mode="clear" class="lnx-size-small" @click="resolving = false">
 					Cancelar
 				</LnxButton>
 			</div>
@@ -211,7 +211,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 			No se han podido cargar: {{ error }}
 		</p>
 		<p v-else-if="loading" class="hint">
-			<span class="skeleton-item" style="width: 60%" />
+			<span class="lnx-skeleton" style="width: 60%" />
 		</p>
 		<p v-else-if="!samples.length" class="hint">
 			Sin muestras: caducan a los 30 días.
@@ -270,7 +270,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 
 			<h4>
 				Pila
-				<LnxButton v-if="sample.stack" mode="clear" class="size-small" @click="copy(sample.stack)">
+				<LnxButton v-if="sample.stack" mode="clear" class="lnx-size-small" @click="copy(sample.stack)">
 					<LnxIcon icon="lucide:copy" />
 					Copiar
 				</LnxButton>

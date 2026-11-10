@@ -6,14 +6,11 @@ import { invoiceTypes, monthLabel, monthlyInvoiceId } from '@gobernansa/shared/d
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { issueInvoices, loadInvoices, MAX_RUN_INVOICES, useOffice } from '../application/useBilling.ts';
 
@@ -155,18 +152,18 @@ async function run() {
 }
 
 const runForm = useTemplateRef('runForm');
-useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las facturas del mes');
+useShortcut('mod+enter', () => runForm.value?.requestSubmit(), { description: 'Emitir las facturas del mes' });
 </script>
 
 <template>
 	<header class="page-header">
 		<BackButton to="/" label="Volver a comunidades" />
 		<h1>Honorarios</h1>
-		<LnxButton to="/billing/registry" mode="clear" class="size-small">
+		<LnxButton to="/billing/registry" mode="clear" class="lnx-size-small">
 			<LnxIcon icon="lucide:shield-check" />
 			Registro Verifactu
 		</LnxButton>
-		<LnxButton to="/billing/office" mode="clear" class="size-small">
+		<LnxButton to="/billing/office" mode="clear" class="lnx-size-small">
 			<LnxIcon icon="lucide:briefcase" />
 			Datos fiscales
 		</LnxButton>
@@ -182,7 +179,7 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las factu
 		No se han podido cargar: {{ (officeError ?? communitiesError)?.message }}
 	</p>
 
-	<section v-if="!office && !officePending" class="card empty ux-appear">
+	<section v-if="!office && !officePending" class="card empty lnx-appear">
 		<LnxIcon icon="lucide:briefcase" :size="32" />
 		<p>Para facturar los honorarios a tus comunidades, completa antes los datos fiscales del despacho.</p>
 		<LnxButton to="/billing/office">
@@ -233,7 +230,7 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las factu
 			<LnxButton type="submit" :is-loading="running" :disabled="!runnable.length">
 				<LnxIcon icon="lucide:files" />
 				Emitir facturas de {{ period ? monthLabel(period) : 'el mes' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -250,7 +247,7 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las factu
 					{{ value }}
 				</template>
 			</LnxSelect>
-			<LnxSelect v-model.convert="communityFilter" :options="communityOptions" :convert-fn="option => option.value" search-placeholder-text="Buscar...">
+			<LnxSelect v-model.convert="communityFilter" :options="communityOptions" :convert-fn="option => option.value">
 				Comunidad
 				<template #option="{ option }">
 					{{ option.label }}
@@ -276,13 +273,13 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), 'Emitir las factu
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [50, 40, 60]" :key="width" class="invoice">
 				<span class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 				</span>
-				<span class="skeleton-item skeleton-item--small" style="width: 80px" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 80px" />
 			</li>
 		</ul>
-		<ul v-else-if="shown.length" class="list ux-appear">
+		<ul v-else-if="shown.length" class="list lnx-appear">
 			<li v-for="invoice in shown" :key="invoice.id">
 				<RouterLink :to="`/billing/${invoice.id}`" class="invoice ux-row">
 					<span class="what">

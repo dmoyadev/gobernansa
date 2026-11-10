@@ -7,18 +7,13 @@ import { checkAeat } from '@gobernansa/shared/domain/fileChecks.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 import { deleteManualEntry, restoreManualEntry } from '../application/useAccounting.ts';
 import { useFileCheck } from '../application/useFileCheck.ts';
@@ -66,7 +61,7 @@ async function load(refresh = false) {
 		error.value = loaded.community ? undefined : 'No existe esta comunidad.';
 	} catch (e) {
 		if (cache.has(wanted)) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
 			error.value = `No se han podido cargar los datos: ${(e as Error).message}`;
 		}
@@ -269,7 +264,7 @@ async function removeIncome(entry: ManualEntry) {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido borrar: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se ha podido borrar: ${(e as Error).message}`, { variant: 'danger' });
 	}
 }
 
@@ -284,7 +279,7 @@ async function addDeadlines() {
 		const added = await addTaxDeadlines(props.id, deadlines.value.filter(deadline => new Date(`${deadline.due}T23:59`) >= new Date()));
 		toast(added ? `${added} ${added === 1 ? 'plazo añadido' : 'plazos añadidos'} a las obligaciones` : 'Los plazos ya estaban en las obligaciones');
 	} catch (e) {
-		toast(`No se han podido añadir: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se han podido añadir: ${(e as Error).message}`, { variant: 'danger' });
 	} finally {
 		addingDeadlines.value = false;
 	}
@@ -293,8 +288,8 @@ async function addDeadlines() {
 // The files can be turned off from the console (ROB-5) while one of them is being fixed
 const canDownload = computed(() => !loading.value && !error.value && !cifProblem.value && remote.aeatFiles);
 const downloads: Record<Model, () => void> = { 347: download347, 190: download190, 184: download184 };
-useShortcut('d', () => downloads[model.value](), 'Descargar el fichero', () => canDownload.value);
-useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el ingreso', () => model.value === '184' && open.value);
+useShortcut('d', () => downloads[model.value](), { description: 'Descargar el fichero', enabled: () => canDownload.value });
+useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { description: 'Guardar el ingreso', enabled: () => model.value === '184' && open.value });
 </script>
 
 <template>
@@ -306,7 +301,6 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 			aria-label="Ejercicio"
 			:options="yearOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -350,11 +344,11 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 		</div>
 
 		<div v-if="loading" class="card" aria-busy="true" aria-label="Cargando">
-			<span v-for="width in [40, 100, 92, 100, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [40, 100, 92, 100, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
 
 		<!-- 347 -->
-		<section v-else-if="model === '347'" class="card ux-appear">
+		<section v-else-if="model === '347'" class="card lnx-appear">
 			<h2>Modelo 347 · {{ year }}</h2>
 			<p class="hint">
 				Proveedores a los que la comunidad ha pagado más de {{ formatCents(THRESHOLD_347) }} en el año (IVA incluido, por la fecha de las facturas),
@@ -416,14 +410,14 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				<LnxButton :disabled="!canDownload || !ready347.length" @click="download347()">
 					<LnxIcon icon="lucide:download" />
 					Descargar fichero 347
-					<Kbd combo="d" />
+					<LnxKbd combo="d" />
 				</LnxButton>
 			</footer>
 		</section>
 
 		<!-- 111, 115, 190 and 180 -->
 		<template v-else-if="model === '190'">
-			<section class="card ux-appear">
+			<section class="card lnx-appear">
 				<h2>Modelo 111 · Retenciones trimestrales {{ year }}</h2>
 				<p class="hint">
 					Rendimientos de actividades profesionales: las facturas con retención, por la fecha en que se pagaron.
@@ -464,7 +458,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				</p>
 			</section>
 
-			<section v-if="landlords.length" class="card ux-appear">
+			<section v-if="landlords.length" class="card lnx-appear">
 				<h2>Modelo 115 · Retenciones de alquileres {{ year }}</h2>
 				<table>
 					<thead>
@@ -502,7 +496,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				</p>
 			</section>
 
-			<section class="card ux-appear">
+			<section class="card lnx-appear">
 				<h2>Modelo 190 · Resumen anual {{ year }}</h2>
 				<p v-if="!professionals.length" class="empty">
 					En {{ year }} no se pagaron facturas con retención a profesionales.
@@ -566,7 +560,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 					<LnxButton :disabled="!canDownload || !ready190.length" @click="download190()">
 						<LnxIcon icon="lucide:download" />
 						Descargar fichero 190
-						<Kbd combo="d" />
+						<LnxKbd combo="d" />
 					</LnxButton>
 				</footer>
 			</section>
@@ -574,7 +568,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 
 		<!-- 184 -->
 		<template v-else>
-			<section class="card ux-appear">
+			<section class="card lnx-appear">
 				<h2>Ingresos de la comunidad en {{ year }}</h2>
 				<p class="hint">
 					Lo que la comunidad cobra a terceros, como el alquiler de la azotea a una operadora o los intereses de la cuenta.
@@ -592,7 +586,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 							{{ formatCents(incomeAmounts(entry).gross) }}
 							<small v-if="incomeAmounts(entry).withholding" class="hint">retenido {{ formatCents(incomeAmounts(entry).withholding) }}</small>
 						</span>
-						<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeIncome(entry)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeIncome(entry)">
 							<LnxIcon icon="lucide:trash-2" />
 						</LnxButton>
 					</li>
@@ -602,17 +596,16 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 				</p>
 			</section>
 
-			<form v-if="open" ref="incomeElement" class="card ux-appear" @submit.prevent="saveIncome()">
+			<form v-if="open" ref="incomeElement" class="card lnx-appear" @submit.prevent="saveIncome()">
 				<h2>Nuevo ingreso</h2>
 				<div class="fields">
-					<DatePicker v-model="incomeForm.date" required>
+					<LnxDatePicker v-model="incomeForm.date" value-format="iso-date" required>
 						Fecha de cobro
-					</DatePicker>
+					</LnxDatePicker>
 					<LnxSelect
 						v-model.convert="incomeForm.kind"
 						:options="kindOptions"
 						:convert-fn="option => option.value"
-						search-placeholder-text="Buscar..."
 					>
 						Tipo
 						<template #option="{ option }">
@@ -645,19 +638,19 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 					<span v-else-if="incomeGross > 0" class="summary">
 						Cobrado en el banco {{ formatCents(incomeGross - incomeWithholding) }}<template v-if="incomeWithholding">, retenido {{ formatCents(incomeWithholding) }}</template>
 					</span>
-					<LnxButton type="button" mode="clear" @click="close()">
+					<LnxButton mode="clear" @click="close()">
 						Cancelar
-						<Kbd combo="escape" />
+						<LnxKbd combo="escape" />
 					</LnxButton>
 					<LnxButton type="submit" :is-loading="savingIncome">
 						<LnxIcon icon="lucide:plus" />
 						Añadir ingreso
-						<Kbd combo="mod+enter" />
+						<LnxKbd combo="mod+enter" />
 					</LnxButton>
 				</footer>
 			</form>
 
-			<section class="card ux-appear">
+			<section class="card lnx-appear">
 				<h2>Modelo 184 · Atribución de rentas {{ year }}</h2>
 				<p class="hint">
 					La comunidad, como entidad en régimen de atribución de rentas, declara sus ingresos y la parte de cada propietario por su coeficiente;
@@ -739,7 +732,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), 'Guardar el
 						<LnxButton :disabled="!canDownload || !ready184.length" @click="download184()">
 							<LnxIcon icon="lucide:download" />
 							Descargar fichero 184
-							<Kbd combo="d" />
+							<LnxKbd combo="d" />
 						</LnxButton>
 					</footer>
 				</template>

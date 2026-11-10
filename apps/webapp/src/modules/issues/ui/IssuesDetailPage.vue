@@ -3,7 +3,7 @@ import type { IssueStatus, IssueVote } from '@gobernansa/shared/domain/issue.ts'
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { findIssueCategory, getIssueCategories, getIssueStep, getVotingMonth, issueCategoryStyle, issueLifecycle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -14,6 +14,8 @@ import { useIssueActions } from '../application/useIssueActions.ts';
 import IssueComments from './IssueComments.vue';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const VIDEO_EXTENSION_REGEX = /\.(?:mp4|mov)$/i;
 
@@ -83,8 +85,7 @@ async function onChangeStatus(status: IssueStatus) {
 }
 
 async function onDelete() {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm('¿Eliminar esta incidencia? Dejará de verse en la comunidad.')) {
+	if (!await ask({ title: '¿Eliminar esta incidencia?', message: 'Dejará de verse en la comunidad.', confirmText: 'Eliminar', variant: 'danger' })) {
 		return;
 	}
 
@@ -137,7 +138,7 @@ async function share() {
 			class="hero vt-morph"
 			:style="{ '--vt-name': `issue-media-${id}` }"
 		>
-			<span v-if="loading && !issue" class="skeleton-item hero-placeholder" />
+			<span v-if="loading && !issue" class="lnx-skeleton hero-placeholder" />
 
 			<template v-else-if="assets.length">
 				<ul class="gallery" @scroll.passive="onGalleryScroll">
@@ -263,7 +264,7 @@ async function share() {
 							v-for="option in issueStatus.filter(({ value }) => value !== issue!.status)"
 							:key="option.value"
 							mode="outline"
-							class="size-small"
+							class="lnx-size-small"
 							:style="{ '--lnx-button-color': `var(--color-issue-status-${option.value})` }"
 							:is-loading="changingStatus === option.value"
 							:disabled="!!changingStatus"
@@ -343,11 +344,11 @@ async function share() {
 			</template>
 
 			<template v-else-if="loading">
-				<span class="skeleton-item skeleton-item--small" style="width: 30%" />
-				<span class="skeleton-item skeleton-item--title" />
-				<span class="skeleton-item skeleton-item--big-square" />
-				<span class="skeleton-item" />
-				<span class="skeleton-item" style="width: 70%" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 30%" />
+				<span class="lnx-skeleton lnx-skeleton--title" />
+				<span class="lnx-skeleton lnx-skeleton--rect" />
+				<span class="lnx-skeleton" />
+				<span class="lnx-skeleton" style="width: 70%" />
 			</template>
 
 			<div v-else class="empty">

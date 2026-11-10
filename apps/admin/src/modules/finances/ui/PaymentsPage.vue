@@ -10,18 +10,13 @@ import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@goberna
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { paymentOrderStatuses, paymentOrderXml, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxKbd, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 import { useFileCheck } from '../application/useFileCheck.ts';
@@ -30,6 +25,8 @@ import { createPaymentOrder, deletePaymentOrder, loadPaymentOrders, MAX_PAYMENT_
 import FileCheck from './FileCheck.vue';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 
@@ -201,7 +198,7 @@ async function save(id: string, data: PaymentOrderData, xml: string) {
 	}
 }
 
-useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), 'Generar la orden de pago');
+useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), { description: 'Generar la orden de pago' });
 
 /* Orders */
 
@@ -237,8 +234,7 @@ async function execute(order: PaymentOrder) {
 }
 
 async function remove(order: PaymentOrder) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar la orden de pago ${order.reference}? Sus facturas podrán ir en otra.`)) {
+	if (!await ask({ title: `¿Borrar la orden de pago ${order.reference}?`, message: 'Sus facturas podrán ir en otra.', confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	await run(order.id, async () => {
@@ -269,7 +265,7 @@ async function remove(order: PaymentOrder) {
 	<p v-if="!remote.remittances" class="card warning" role="note">
 		La generación de órdenes de pago está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
 	</p>
-	<form v-else-if="open" ref="generateForm" class="card ux-appear" @submit.prevent="generate()">
+	<form v-else-if="open" ref="generateForm" class="card lnx-appear" @submit.prevent="generate()">
 		<h2>Nueva orden de pago</h2>
 		<p v-if="invoicesError || providersError" class="error" role="alert">
 			No se han podido cargar: {{ (invoicesError ?? providersError)?.message }}
@@ -283,21 +279,21 @@ async function remove(order: PaymentOrder) {
 		</p>
 
 		<div class="fields">
-			<DatePicker v-model="executionDate" :min="today" required>
+			<LnxDatePicker v-model="executionDate" value-format="iso-date" :min="today" required>
 				Fecha de ejecución
 				<template #helper>
 					El día que el banco envía las transferencias
 				</template>
-			</DatePicker>
+			</LnxDatePicker>
 		</div>
 
 		<ul v-if="(invoicesPending || providersLoading) && !candidates.length" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="invoice">
-				<span class="skeleton-item" :style="{ width: `${width}%` }" />
-				<span class="skeleton-item skeleton-item--small" style="width: 70px" />
+				<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--small" style="width: 70px" />
 			</li>
 		</ul>
-		<ul v-else-if="candidates.length" class="list ux-appear">
+		<ul v-else-if="candidates.length" class="list lnx-appear">
 			<li v-for="invoice in candidates" :key="invoice.id" class="invoice">
 				<LnxCheckbox :model-value="!excluded.has(invoice.id)" @update:model-value="value => toggleInvoice(invoice, !!value)">
 					<span class="what">
@@ -338,14 +334,14 @@ async function remove(order: PaymentOrder) {
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'factura' : 'facturas' }} · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit" :is-loading="generating" :disabled="!selected.length || !community">
 				<LnxIcon icon="lucide:file-down" />
 				Generar y descargar
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -363,14 +359,14 @@ async function remove(order: PaymentOrder) {
 			<li v-for="width in [50, 40]" :key="width" class="item">
 				<div class="row">
 					<div class="what">
-						<span class="skeleton-item" :style="{ width: `${width}%` }" />
-						<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 15}%` }" />
+						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
 					</div>
-					<span class="skeleton-item skeleton-item--small" style="width: 90px" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 90px" />
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="orders.length" class="list ux-appear">
+		<ul v-else-if="orders.length" class="list lnx-appear">
 			<li v-for="order in orders" :key="order.id" class="item">
 				<div class="row">
 					<button type="button" class="what ux-row" :aria-expanded="openId === order.id" @click="openId = openId === order.id ? undefined : order.id">
@@ -381,16 +377,16 @@ async function remove(order: PaymentOrder) {
 					</button>
 					<span class="chip" :class="{ ok: order.status === 'executed' }">{{ paymentOrderStatuses[order.status] }}</span>
 					<div class="item-actions">
-						<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(order)">
+						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(order)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
-						<LnxButton v-if="order.status === 'generated'" mode="clear" class="size-small" :is-loading="busyId === order.id" @click="execute(order)">
+						<LnxButton v-if="order.status === 'generated'" mode="clear" class="lnx-size-small" :is-loading="busyId === order.id" @click="execute(order)">
 							Marcar ejecutada
 						</LnxButton>
 						<LnxButton
 							v-if="order.status === 'generated'"
 							mode="clear"
-							class="size-small"
+							class="lnx-size-small"
 							shape="circle"
 							variant="danger"
 							aria-label="Borrar"
@@ -555,8 +551,8 @@ button.what {
 	align-items: center;
 	gap: var(--lnx-spacing-3);
 
-	:deep(.checkbox),
-	:deep(.label) {
+	:deep(.lnx-checkbox),
+	:deep(.text) {
 		min-width: 0;
 	}
 }

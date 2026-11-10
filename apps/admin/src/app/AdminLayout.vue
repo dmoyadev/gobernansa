@@ -3,14 +3,12 @@ import { canInstall, install } from '@gobernansa/shared/application/pwa.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxShortcutsSheet, shortcutTitle, useShortcut } from 'lnxjs-components';
 import { computed, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { errorAlerts, watchErrorAlerts } from '@/modules/errors/application/useErrorAlerts.ts';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 import { useSearchHighlight } from './useSearchHighlight.ts';
-import { shortcutTitle, useShortcut } from './ux/shortcuts.ts';
-import Toaster from './ux/Toaster.vue';
 import WorkspaceNav from './workspace/WorkspaceNav.vue';
 import { workspaceMove, workspacePage } from './workspace/workspaces.ts';
 import WorkspaceTabs from './workspace/WorkspaceTabs.vue';
@@ -75,7 +73,7 @@ for (const section of SECTIONS) {
 		if (sections.value.includes(section) && access.value !== 'loading' && access.value !== 'denied') {
 			void router.push(section.to);
 		}
-	}, `Ir a ${section.label.toLowerCase()}`);
+	}, { description: `Ir a ${section.label.toLowerCase()}` });
 }
 
 // MON-9: the team sees on Errores how many urgent or come-back errors wait
@@ -106,7 +104,7 @@ const KEPT_PAGES = 6;
 			<small>Versión {{ RELEASE }}</small>
 		</span>
 		<!-- Only while the browser offers it, not once installed -->
-		<LnxButton v-if="canInstall" mode="clear" class="size-small" title="Instalar gobernança admin como app" @click="install()">
+		<LnxButton v-if="canInstall" mode="clear" class="lnx-size-small" title="Instalar gobernança admin como app" @click="install()">
 			<LnxIcon icon="lucide:monitor-down" />
 			Instalar
 		</LnxButton>
@@ -129,7 +127,7 @@ const KEPT_PAGES = 6;
 			</RouterView>
 
 			<p v-if="access === 'loading'" class="status">
-				<span class="skeleton-item" />
+				<span class="lnx-skeleton" />
 			</p>
 
 			<section v-else-if="access === 'forbidden'" class="status">
@@ -165,7 +163,7 @@ const KEPT_PAGES = 6;
 		</main>
 	</div>
 
-	<Toaster />
+	<LnxShortcutsSheet :rows="[{ description: 'Deshacer lo último', combos: ['mod+z'] }]" />
 </template>
 
 <style lang="scss" scoped>

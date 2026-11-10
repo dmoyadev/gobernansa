@@ -4,21 +4,19 @@ import type { ExpenseData } from '../application/useFinances.ts';
 import { invoiceAmounts, isOverdue, MIN_RESERVE_PERCENT, minReserve, paymentMethods, vatRates, withholdings } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain/property.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxCheckbox from '@gobernansa/shared/ui/LnxCheckbox.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
 import { addExpense, deleteExpense, restoreExpense, saveBudget, toDueDate, useBudget, useCommunityProperties, useExpenses } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + 1 - i).map(year => ({ value: year, label: String(year) }));
@@ -220,13 +218,12 @@ function submitExpense() {
 }
 
 // The form being filled in
-useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), 'Guardar el formulario');
+useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), { description: 'Guardar el formulario' });
 
 const sortedExpenses = computed(() => [...expenses.value].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
 
-function remove(expense: Expense) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar ${expense.invoiceNumber ? `la factura ${expense.invoiceNumber}` : 'el gasto'} «${expense.concept}»?`)) {
+async function remove(expense: Expense) {
+	if (!await ask({ title: `¿Borrar ${expense.invoiceNumber ? `la factura ${expense.invoiceNumber}` : 'el gasto'} «${expense.concept}»?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	// What it had, to put it back as it was
@@ -248,7 +245,6 @@ function remove(expense: Expense) {
 			aria-label="Año"
 			:options="yearOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -267,9 +263,9 @@ function remove(expense: Expense) {
 		</p>
 		<ul v-if="budgetPending && !items.length" class="items" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [70, 55, 62]" :key="width" class="budget-item">
-				<span class="skeleton-item skeleton-item--title" :style="{ width: `${width}%` }" />
-				<span class="skeleton-item skeleton-item--title" />
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--title" :style="{ width: `${width}%` }" />
+				<span class="lnx-skeleton lnx-skeleton--title" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 			</li>
 		</ul>
 		<TransitionGroup v-else-if="items.length" tag="ul" name="row" class="items">
@@ -280,7 +276,7 @@ function remove(expense: Expense) {
 				<LnxInput v-model="item.amount" inputmode="decimal" placeholder="1.250,00">
 					Importe anual (€)
 				</LnxInput>
-				<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Quitar partida" title="Quitar partida" @click="items.splice(index, 1)">
+				<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Quitar partida" title="Quitar partida" @click="items.splice(index, 1)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>
@@ -301,7 +297,7 @@ function remove(expense: Expense) {
 		<p v-if="reserveShort" class="warning">
 			<LnxIcon icon="lucide:triangle-alert" />
 			Es el {{ reservePercent.toLocaleString('es') }} % del presupuesto ordinario. La ley exige al menos el {{ MIN_RESERVE_PERCENT }} % ({{ formatCents(minReserve(typedOrdinary)) }}).
-			<LnxButton mode="clear" class="size-small" @click="proposeReserve()">
+			<LnxButton mode="clear" class="lnx-size-small" @click="proposeReserve()">
 				Poner el mínimo
 			</LnxButton>
 		</p>
@@ -320,7 +316,7 @@ function remove(expense: Expense) {
 			<LnxButton type="submit">
 				<LnxIcon icon="lucide:save" />
 				Guardar presupuesto
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -376,14 +372,13 @@ function remove(expense: Expense) {
 		</p>
 	</section>
 
-	<form v-if="open" ref="expenseFormElement" class="card ux-appear" @submit.prevent="submitExpense()">
+	<form v-if="open" ref="expenseFormElement" class="card lnx-appear" @submit.prevent="submitExpense()">
 		<h2>Nuevo gasto o factura</h2>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="expenseForm.itemId"
 				:options="itemOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Partida
 				<template #option="{ option }">
@@ -397,7 +392,6 @@ function remove(expense: Expense) {
 				v-model.convert="expenseForm.providerId"
 				:options="providerOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="Sin proveedor"
 			>
 				Proveedor
@@ -414,9 +408,9 @@ function remove(expense: Expense) {
 			<LnxInput v-model="expenseForm.invoiceNumber" placeholder="2026/0142">
 				Nº de factura
 			</LnxInput>
-			<DatePicker v-model="expenseForm.date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
+			<LnxDatePicker v-model="expenseForm.date" value-format="iso-date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
 				Fecha de la factura
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxInput v-model="expenseForm.base" inputmode="decimal" placeholder="120,50" required>
 				Base imponible (€)
 			</LnxInput>
@@ -424,7 +418,6 @@ function remove(expense: Expense) {
 				v-model.convert="expenseForm.vatRate"
 				:options="vatOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="0 %"
 			>
 				IVA
@@ -439,7 +432,6 @@ function remove(expense: Expense) {
 				v-model.convert="expenseForm.withholding"
 				:options="withholdingOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="Sin retención"
 			>
 				Retención IRPF
@@ -450,14 +442,13 @@ function remove(expense: Expense) {
 					{{ withholdings[value as number]?.label }}
 				</template>
 			</LnxSelect>
-			<DatePicker v-model="expenseForm.dueDate" :min="expenseForm.date || undefined">
+			<LnxDatePicker v-model="expenseForm.dueDate" value-format="iso-date" :min="expenseForm.date || undefined">
 				Vencimiento
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxSelect
 				v-model.convert="expenseForm.paymentMethod"
 				:options="methodOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Forma de pago
 				<template #option="{ option }">
@@ -487,14 +478,14 @@ function remove(expense: Expense) {
 			<p v-if="expenseError" class="error" role="alert">
 				{{ expenseError }}
 			</p>
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit" :disabled="!itemOptions.length">
 				<LnxIcon icon="lucide:plus" />
 				Añadir gasto
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -507,11 +498,11 @@ function remove(expense: Expense) {
 		<ul v-if="expensesPending && !sortedExpenses.length" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [60, 45, 70, 50]" :key="width" class="item">
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width - 10}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 10}%` }" />
 				</div>
-				<span class="skeleton-item" style="width: 70px" />
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton" style="width: 70px" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 			</li>
 		</ul>
 		<TransitionGroup v-else-if="sortedExpenses.length" tag="ul" name="row" class="list">
@@ -532,7 +523,7 @@ function remove(expense: Expense) {
 						{{ isOverdue(expense) ? 'Vencida' : 'Pendiente de pago' }}
 					</RouterLink>
 				</div>
-				<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
+				<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(expense)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>

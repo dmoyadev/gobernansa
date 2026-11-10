@@ -113,10 +113,10 @@ onUnmounted(() => {
 					aria-hidden="true"
 				>
 					<span class="row">
-						<span class="skeleton-item thumb" />
-						<span class="skeleton-item skeleton-item--title" />
+						<span class="lnx-skeleton thumb" />
+						<span class="lnx-skeleton lnx-skeleton--title" />
 					</span>
-					<span class="skeleton-item skeleton-item--small" />
+					<span class="lnx-skeleton lnx-skeleton--small" />
 				</li>
 			</template>
 

@@ -10,11 +10,11 @@ import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { isEmail } from '@gobernansa/shared/domain/mail.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxSelect, toast } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { communityLine, MAIL_MODE, mailOutcome } from '@/modules/mail/application/mail.ts';
 import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
@@ -54,7 +54,7 @@ async function load() {
 		error.value = !loadedCommunity || account.property?.communityId !== props.id ? 'No existe esta comunidad o propiedad.' : undefined;
 	} catch (e) {
 		if (community.value) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
 			error.value = `No se ha podido cargar: ${(e as Error).message}`;
 		}
@@ -200,7 +200,6 @@ function printAndRecord() {
 			aria-label="Nivel"
 			:options="levelOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -261,14 +260,14 @@ function printAndRecord() {
 	</p>
 	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
 		<header>
-			<span class="skeleton-item" style="width: 55%" />
-			<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+			<span class="lnx-skeleton" style="width: 55%" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 		</header>
 		<div class="lines">
-			<span v-for="width in [100, 96, 100, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [100, 96, 100, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
 	</article>
-	<article v-else-if="community && property" class="sheet ux-appear">
+	<article v-else-if="community && property" class="sheet lnx-appear">
 		<header>
 			<strong>Comunidad de propietarios {{ community.name }}</strong>
 			<span>{{ community.address }}</span>

@@ -2,8 +2,7 @@
 import type { CommunityDocument } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm } from '../domain/communityForm.ts';
 import { documentTypes } from '@gobernansa/shared/domain/community.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxDatePicker, LnxInput, LnxSelect } from 'lnxjs-components';
 
 // A document's fields, in the community's list and in the form that adds one (CommunityFormPage.vue)
 const communityDocument = defineModel<CommunityForm['documents'][number]>({ required: true });
@@ -17,7 +16,6 @@ const typeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({
 			v-model.convert="communityDocument.type"
 			:options="typeOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			Tipo
 			<template #option="{ option }">
@@ -27,9 +25,9 @@ const typeOptions = Object.entries(documentTypes).map(([value, { label }]) => ({
 				{{ documentTypes[value]?.label }}
 			</template>
 		</LnxSelect>
-		<DatePicker v-model="communityDocument.date" required>
+		<LnxDatePicker v-model="communityDocument.date" value-format="iso-date" required>
 			Fecha
-		</DatePicker>
+		</LnxDatePicker>
 		<LnxInput v-model="communityDocument.title" class="wide" required>
 			Título
 		</LnxInput>

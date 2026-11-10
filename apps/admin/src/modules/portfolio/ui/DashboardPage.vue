@@ -77,11 +77,11 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 
 	<dl v-if="pending" class="totals" aria-busy="true">
 		<div v-for="width in TILE_WIDTHS" :key="width">
-			<dt><span class="skeleton-item skeleton-item--small" :style="{ width: `${width}%` }" /></dt>
-			<dd><span class="skeleton-item skeleton-item--title" style="width: 40%" /></dd>
+			<dt><span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width}%` }" /></dt>
+			<dd><span class="lnx-skeleton lnx-skeleton--title" style="width: 40%" /></dd>
 		</div>
 	</dl>
-	<dl v-else class="totals ux-appear">
+	<dl v-else class="totals lnx-appear">
 		<div>
 			<dt>Incidencias abiertas</dt>
 			<dd>{{ totals.openIssues }}</dd>
@@ -113,11 +113,11 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 	<section class="card" :aria-busy="pending">
 		<div v-if="pending" class="skeleton-rows">
 			<div v-for="width in ROW_WIDTHS" :key="width">
-				<span class="skeleton-item" :style="{ width: `${width}%` }" />
-				<span v-for="column in 5" :key="column" class="skeleton-item skeleton-item--small" />
+				<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+				<span v-for="column in 5" :key="column" class="lnx-skeleton lnx-skeleton--small" />
 			</div>
 		</div>
-		<div v-else-if="stats.length" class="table ux-appear">
+		<div v-else-if="stats.length" class="table lnx-appear">
 			<table>
 				<thead>
 					<tr>

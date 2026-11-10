@@ -9,12 +9,10 @@ import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { chargeTypes, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, toast } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useMeetings } from '@/modules/meetings/application/useMeetings.ts';
 import { loadDebtCase, saveMonitorio } from '../application/useArrears.ts';
@@ -56,7 +54,7 @@ async function load() {
 		error.value = !loadedCommunity || account.property?.communityId !== props.id ? 'No existe esta comunidad o propiedad.' : undefined;
 	} catch (e) {
 		if (community.value) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { tone: 'error' });
+			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
 			error.value = `No se ha podido cargar: ${(e as Error).message}`;
 		}
@@ -165,7 +163,6 @@ function print() {
 				:model-value="form.meetingId"
 				:options="meetingOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 				placeholder="Otra junta (escribe su fecha)"
 				@update:model-value="pickMeeting"
 			>
@@ -177,23 +174,22 @@ function print() {
 					{{ meetingOptions.find(option => option.value === value)?.label }}
 				</template>
 			</LnxSelect>
-			<DatePicker v-model="form.meetingDate" :max="toDateString(new Date())" required @update:model-value="form.meetingId = ''">
+			<LnxDatePicker v-model="form.meetingDate" value-format="iso-date" :max="toDateString(new Date())" required @update:model-value="form.meetingId = ''">
 				Fecha de la junta
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxInput v-model="form.secretary" required>
 				Secretario/a
 			</LnxInput>
 			<LnxInput v-model="form.president" required>
 				Presidente/a
 			</LnxInput>
-			<DatePicker v-model="form.notifiedAt" :min="form.meetingDate || undefined">
+			<LnxDatePicker v-model="form.notifiedAt" value-format="iso-date" :min="form.meetingDate || undefined">
 				Notificada al deudor el
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxSelect
 				v-model.convert="form.notification"
 				:options="notificationOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Forma de notificación
 				<template #option="{ option }">
@@ -225,15 +221,15 @@ function print() {
 	</p>
 	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
 		<header>
-			<span class="skeleton-item" style="width: 55%" />
-			<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+			<span class="lnx-skeleton" style="width: 55%" />
+			<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 		</header>
 		<div class="lines">
-			<span v-for="width in [100, 96, 100, 70]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+			<span v-for="width in [100, 96, 100, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
 	</article>
 	<template v-else-if="community && property">
-		<article class="sheet ux-appear">
+		<article class="sheet lnx-appear">
 			<header>
 				<strong>Comunidad de propietarios {{ community.name }}</strong>
 				<span>{{ community.address }}</span>
@@ -342,7 +338,7 @@ function print() {
 			</footer>
 		</article>
 
-		<article class="sheet notice ux-appear">
+		<article class="sheet notice lnx-appear">
 			<header>
 				<strong>Comunidad de propietarios {{ community.name }}</strong>
 				<span>{{ community.address }}</span>

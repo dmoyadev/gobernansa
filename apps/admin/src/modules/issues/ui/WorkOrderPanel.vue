@@ -7,9 +7,9 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
 import { isEmail } from '@gobernansa/shared/domain/mail.ts';
 import { workOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref } from 'vue';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { mailOutcome } from '@/modules/mail/application/mail.ts';
 import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
 import { workOrderUrl } from '../application/useIssues.ts';
@@ -26,7 +26,10 @@ const props = defineProps<{
 	mail?: string;
 	actions: Pick<ReturnType<typeof useIssue>, 'createWorkOrder' | 'updateWorkOrderDate' | 'revokeWorkOrder' | 'reply'>;
 }>();
+
 const emit = defineEmits<{ resolve: [] }>();
+
+const ask = useConfirm();
 
 const { user: me } = useAuth();
 
@@ -45,8 +48,7 @@ const creating = ref(false);
 
 // Also for a new link, which revokes the current one in the same write
 async function create() {
-	// eslint-disable-next-line no-alert
-	if (props.workOrder && !window.confirm('¿Crear un enlace nuevo? El actual dejará de funcionar.')) {
+	if (props.workOrder && !await ask({ title: '¿Crear un enlace nuevo?', message: 'El actual dejará de funcionar.', confirmText: 'Crear enlace' })) {
 		return;
 	}
 	creating.value = true;
@@ -55,9 +57,8 @@ async function create() {
 	creating.value = false;
 }
 
-function revoke() {
-	// eslint-disable-next-line no-alert
-	if (window.confirm(`¿Anular el parte? ${props.workOrder!.provider.name} ya no podrá abrir el enlace.`)) {
+async function revoke() {
+	if (await ask({ title: '¿Anular el parte?', message: `${props.workOrder!.provider.name} ya no podrá abrir el enlace.`, confirmText: 'Anular parte', variant: 'danger' })) {
 		void optimistic(props.actions.revokeWorkOrder(me.value!), { done: 'Parte anulado', failed: 'No se ha podido anular el parte' });
 	}
 }
@@ -93,8 +94,8 @@ function notify() {
 
 <template>
 	<div v-if="workOrder === undefined" class="empty" aria-busy="true">
-		<span class="skeleton-item" style="width: 60%" />
-		<span class="skeleton-item skeleton-item--small" style="width: 40%" />
+		<span class="lnx-skeleton" style="width: 60%" />
+		<span class="lnx-skeleton lnx-skeleton--small" style="width: 40%" />
 	</div>
 
 	<div v-else-if="!workOrder" class="empty">
@@ -121,15 +122,15 @@ function notify() {
 		</p>
 
 		<div class="share">
-			<LnxButton mode="outline" class="size-small" @click="copy()">
+			<LnxButton mode="outline" class="lnx-size-small" @click="copy()">
 				<LnxIcon icon="lucide:copy" />
 				Copiar enlace
 			</LnxButton>
-			<LnxButton v-if="whatsapp" :href="whatsapp" target="_blank" rel="noopener" mode="outline" class="size-small">
+			<LnxButton v-if="whatsapp" :href="whatsapp" target="_blank" rel="noopener" mode="outline" class="lnx-size-small">
 				<LnxIcon icon="lucide:message-circle" />
 				WhatsApp
 			</LnxButton>
-			<LnxButton v-if="mail" :href="mail" mode="outline" class="size-small">
+			<LnxButton v-if="mail" :href="mail" mode="outline" class="lnx-size-small">
 				<LnxIcon icon="lucide:mail" />
 				Email
 			</LnxButton>
@@ -182,11 +183,11 @@ function notify() {
 		</p>
 
 		<footer>
-			<LnxButton mode="clear" class="size-small" :disabled="creating" @click="create()">
+			<LnxButton mode="clear" class="lnx-size-small" :disabled="creating" @click="create()">
 				<LnxIcon icon="lucide:refresh-cw" />
 				Nuevo enlace
 			</LnxButton>
-			<LnxButton mode="clear" class="size-small" variant="danger" @click="revoke()">
+			<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="revoke()">
 				<LnxIcon icon="lucide:link-2-off" />
 				Anular
 			</LnxButton>

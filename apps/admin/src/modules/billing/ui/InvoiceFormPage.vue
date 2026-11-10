@@ -4,15 +4,11 @@ import { feeInvoiceAmounts } from '@gobernansa/shared/domain/billing.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { toast } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { issueInvoices, loadInvoice, useOffice } from '../application/useBilling.ts';
 
@@ -140,7 +136,7 @@ async function issue() {
 }
 
 const invoiceForm = useTemplateRef('invoiceForm');
-useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la factura');
+useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description: 'Emitir la factura' });
 </script>
 
 <template>
@@ -153,9 +149,9 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la fa
 		{{ loadError ?? `No se han podido cargar: ${(officeError ?? communitiesError)?.message}` }}
 	</p>
 	<div v-else-if="loading" class="card" aria-busy="true" aria-label="Cargando">
-		<span v-for="width in [60, 80, 50]" :key="width" class="skeleton-item" :style="{ width: `${width}%` }" />
+		<span v-for="width in [60, 80, 50]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 	</div>
-	<form v-else ref="invoiceForm" class="card ux-appear" @submit.prevent="issue()">
+	<form v-else ref="invoiceForm" class="card lnx-appear" @submit.prevent="issue()">
 		<p v-if="original" class="hint">
 			<LnxIcon icon="lucide:info" />
 			Rectifica la {{ original.number }} por diferencias: cada línea es lo que cambia, en negativo para rebajar. Tal cual está, la anula entera.
@@ -166,7 +162,6 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la fa
 				:options="communityOptions"
 				:convert-fn="option => option.value"
 				:disabled="!!original"
-				search-placeholder-text="Buscar..."
 				required
 			>
 				Comunidad
@@ -177,9 +172,9 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la fa
 					{{ communityOptions.find(option => option.value === value)?.label ?? original?.recipient.name ?? 'Elige una' }}
 				</template>
 			</LnxSelect>
-			<DatePicker v-model="form.date" :min="original?.date" :max="today" required>
+			<LnxDatePicker v-model="form.date" value-format="iso-date" :min="original?.date" :max="today" required>
 				Fecha de expedición
-			</DatePicker>
+			</LnxDatePicker>
 		</div>
 
 		<ul class="lines">
@@ -191,9 +186,8 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la fa
 					Base (€)
 				</LnxInput>
 				<LnxButton
-					type="button"
 					mode="clear"
-					class="size-small"
+					class="lnx-size-small"
 					shape="circle"
 					aria-label="Quitar línea"
 					title="Quitar línea"
@@ -204,7 +198,7 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la fa
 				</LnxButton>
 			</li>
 		</ul>
-		<LnxButton type="button" mode="clear" class="add size-small" @click="addLine()">
+		<LnxButton mode="clear" class="add lnx-size-small" @click="addLine()">
 			<LnxIcon icon="lucide:plus" />
 			Añadir línea
 		</LnxButton>
@@ -240,7 +234,7 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), 'Emitir la fa
 			<LnxButton type="submit" :is-loading="issuing" :disabled="!office">
 				<LnxIcon icon="lucide:file-check" />
 				Emitir
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>

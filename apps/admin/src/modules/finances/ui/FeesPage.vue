@@ -3,17 +3,16 @@ import type { Charge, Expense, FeeMonths, FeePlan } from '@gobernansa/shared/dom
 import { feeBatchId, feePeriodicities, MIN_RESERVE_PERCENT, minReserve, planFees, reserveUsed } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
-import { optimistic, toast } from '@/app/ux/toast.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { deleteCharges, issueFees, loadExpenses, loadFees, restoreCharges, useBudget, useCommunityProperties } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + 1 - i).map(year => ({ value: year, label: String(year) }));
@@ -124,8 +123,7 @@ async function issue() {
 	if (unbalanced.value || foreign.value.length || !missingCount.value) {
 		return;
 	}
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Emitir ${missingCount.value} recibos de cuotas de ${year.value}?`)) {
+	if (!await ask({ title: `¿Emitir ${missingCount.value} recibos de cuotas de ${year.value}?`, confirmText: 'Emitir' })) {
 		return;
 	}
 
@@ -150,7 +148,7 @@ async function issue() {
 }
 
 const issueForm = useTemplateRef('issueForm');
-useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), 'Emitir las cuotas');
+useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), { description: 'Emitir las cuotas' });
 
 const unpaidFees = computed(() => fees.value.filter(fee => !fee.paidAt));
 // Those with entregas a cuenta stay too, what was collected would be lost with them, and those in a remittance, which
@@ -159,8 +157,7 @@ const annullable = computed(() => unpaidFees.value.filter(fee => !fee.collection
 const annulling = ref(false);
 
 async function annul() {
-	// eslint-disable-next-line no-alert
-	if (annulling.value || !window.confirm(`¿Anular ${annullable.value.length} recibos de cuotas de ${year.value} sin pagar? Los pagados, los que tienen entregas a cuenta y los domiciliados en una remesa se quedan.`)) {
+	if (annulling.value || !await ask({ title: `¿Anular ${annullable.value.length} recibos de cuotas de ${year.value} sin pagar?`, message: 'Los pagados, los que tienen entregas a cuenta y los domiciliados en una remesa se quedan.', confirmText: 'Anular', variant: 'danger' })) {
 		return;
 	}
 	annulling.value = true;
@@ -169,7 +166,7 @@ async function annul() {
 	try {
 		fees.value = await loadFees(props.id, year.value, true);
 	} catch (e) {
-		toast(`No se han podido anular: ${(e as Error).message}`, { tone: 'error' });
+		toast(`No se han podido anular: ${(e as Error).message}`, { variant: 'danger' });
 		return;
 	} finally {
 		annulling.value = false;
@@ -210,7 +207,6 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 			aria-label="Año"
 			:options="yearOptions"
 			:convert-fn="option => option.value"
-			search-placeholder-text="Buscar..."
 		>
 			<template #option="{ option }">
 				{{ option.label }}
@@ -228,8 +224,8 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 	<form ref="issueForm" class="card" @submit.prevent="issue()">
 		<h2>Cuotas de {{ year }}</h2>
 		<div v-if="budgetPending && !budget" class="lines" aria-busy="true" aria-label="Cargando">
-			<span class="skeleton-item skeleton-item--title" style="width: 60%" />
-			<span class="skeleton-item" style="width: 40%" />
+			<span class="lnx-skeleton lnx-skeleton--title" style="width: 60%" />
+			<span class="lnx-skeleton" style="width: 40%" />
 		</div>
 		<p v-else-if="!ordinary && !reserve" class="hint">
 			Guarda el <RouterLink :to="`/communities/${id}/budget`">
@@ -253,7 +249,6 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 					v-model.convert="form.months"
 					:options="monthsOptions"
 					:convert-fn="option => option.value"
-					search-placeholder-text="Buscar..."
 				>
 					Periodicidad
 					<template #option="{ option }">
@@ -263,9 +258,9 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 						{{ feePeriodicities[value as FeeMonths] }}
 					</template>
 				</LnxSelect>
-				<DatePicker v-model="form.firstDue" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
+				<LnxDatePicker v-model="form.firstDue" value-format="iso-date" :min="`${year}-01-01`" :max="`${year}-12-31`" required>
 					Primer vencimiento
-				</DatePicker>
+				</LnxDatePicker>
 			</div>
 
 			<table v-if="sortedProperties.length">
@@ -315,7 +310,7 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 					<span>{{ period.concept }}</span>
 					<small>vence {{ dateFormat.format(period.dueDate) }}</small>
 					<strong>{{ formatCents(period.total) }}</strong>
-					<span v-if="loading" class="skeleton-item skeleton-item--small" style="width: 70px" />
+					<span v-if="loading" class="lnx-skeleton lnx-skeleton--small" style="width: 70px" />
 					<span v-else-if="!period.missing.length" class="chip ok">Emitida</span>
 					<span v-else-if="period.missing.length < period.shares.length" class="chip">Faltan {{ period.missing.length }}</span>
 					<span v-else class="chip">Por emitir</span>
@@ -345,7 +340,7 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 				<LnxButton type="submit" :is-loading="issuing" :disabled="loading || !missingCount || !!unbalanced || !!foreign.length">
 					<LnxIcon icon="lucide:receipt-euro" />
 					{{ missingCount ? `Emitir ${missingCount} recibos` : 'Todo emitido' }}
-					<Kbd combo="mod+enter" />
+					<LnxKbd combo="mod+enter" />
 				</LnxButton>
 			</footer>
 		</template>
@@ -360,17 +355,17 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 			</div>
 			<div>
 				<small>Cobrado con las cuotas</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 90px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 90px" />
 				<strong v-else>+{{ formatCents(collected) }}</strong>
 			</div>
 			<div>
 				<small>Pagado del fondo</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 90px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 90px" />
 				<strong v-else>−{{ formatCents(usedTotal) }}</strong>
 			</div>
 			<div>
 				<small>Saldo</small>
-				<span v-if="loading" class="skeleton-item skeleton-item--title" style="width: 110px" />
+				<span v-if="loading" class="lnx-skeleton lnx-skeleton--title" style="width: 110px" />
 				<strong v-else :class="{ debt: balance < 0 }">{{ formatCents(balance) }}</strong>
 			</div>
 		</div>

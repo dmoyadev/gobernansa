@@ -48,8 +48,8 @@ function minutesHint(meeting: Meeting) {
 		</ul>
 
 		<template v-else-if="loading">
-			<span class="skeleton-item" />
-			<span class="skeleton-item" />
+			<span class="lnx-skeleton" />
+			<span class="lnx-skeleton" />
 		</template>
 
 		<p v-else class="empty">

@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxKbd, shortcutTitle, useShortcut } from 'lnxjs-components';
 import { useRouter } from 'vue-router';
-import Kbd from './Kbd.vue';
 import { goToNew } from './navigation.ts';
 import { pressNew } from './newForm.ts';
-import { shortcutTitle, useShortcut } from './shortcuts.ts';
 
 // «Nuevo», the same on every page: last in its header, it opens the form for a new one (useNewForm) or goes to its page
 // (`to`), also with N. `label` says what it creates, as its tooltip and in the shortcuts sheet
@@ -30,14 +28,14 @@ function open() {
 	}
 }
 
-useShortcut('n', open, props.label, () => !props.disabled);
+useShortcut('n', open, { description: props.label, enabled: () => !props.disabled });
 </script>
 
 <template>
-	<LnxButton class="new-button" :to="disabled ? undefined : to" :type="disabled || !to ? 'button' : undefined" :disabled="disabled" :title="shortcutTitle(label, 'n')" @click="press()">
+	<LnxButton class="new-button" :to="disabled ? undefined : to" :disabled="disabled" :title="shortcutTitle(label, 'n')" @click="press()">
 		<LnxIcon icon="lucide:plus" />
 		Nuevo
-		<Kbd combo="n" />
+		<LnxKbd combo="n" />
 	</LnxButton>
 </template>
 

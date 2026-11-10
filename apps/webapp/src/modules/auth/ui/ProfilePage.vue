@@ -5,7 +5,7 @@ import { propertyTypeIcons, propertyTypeLabels } from '@gobernansa/shared/domain
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
 import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
-import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxSwitch, useConfirm } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
@@ -17,9 +17,12 @@ import { usePushNotifications } from '../application/usePushNotifications.ts';
 import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS, useUserDocuments } from '../application/useUserDocuments.ts';
 import { userDocumentCategories } from '../domain/user.ts';
 
+const ask = useConfirm();
+
 const { user, logout, changePassword } = useAuth();
 const { userCommunity } = useUserCommunity();
 const { userProperties, selectedProperty } = useUserProperties();
+const propertyChoices = computed(() => userProperties.value.map(property => ({ value: property, label: property.name, icon: propertyTypeIcons[property.type] })));
 
 /* Documents */
 const { documents, uploadDocument, openDocument, deleteDocument } = useUserDocuments();
@@ -70,8 +73,7 @@ async function open(document: UserDocument) {
 }
 
 async function remove(document: UserDocument) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Eliminar «${document.name}»? No se puede deshacer.`)) {
+	if (!await ask({ title: `¿Eliminar «${document.name}»?`, message: 'No se puede deshacer.', confirmText: 'Eliminar', variant: 'danger' })) {
 		return;
 	}
 
@@ -197,21 +199,9 @@ async function savePassword() {
 				</div>
 			</TiltCard>
 
-			<fieldset v-if="userProperties.length > 1" class="chips">
-				<legend class="sr-only">
-					Propiedad
-				</legend>
-				<label
-					v-for="property in userProperties"
-					:key="property.id"
-					class="chip"
-					:class="{ active: selectedProperty.id === property.id }"
-				>
-					<input v-model="selectedProperty" type="radio" name="property" :value="property">
-					<LnxIcon :icon="propertyTypeIcons[property.type]" :size="16" />
-					{{ property.name }}
-				</label>
-			</fieldset>
+			<LnxRadioGroup v-if="userProperties.length > 1" v-model="selectedProperty" class="property-picker" :options="propertyChoices" hide-legend>
+				Propiedad
+			</LnxRadioGroup>
 		</section>
 
 		<section>
@@ -243,32 +233,18 @@ async function savePassword() {
 			</p>
 
 			<form v-if="adding" class="upload" @submit.prevent>
-				<fieldset class="chips">
-					<legend>¿Qué documento es?</legend>
-					<label
-						v-for="option in userDocumentCategories"
-						:key="option.value"
-						class="chip"
-						:class="{ active: category === option.value }"
-					>
-						<input v-model="category" type="radio" name="category" :value="option.value">
-						<LnxIcon :icon="option.icon" :size="16" />
-						{{ option.label }}
-					</label>
-				</fieldset>
+				<LnxRadioGroup v-model="category" :options="userDocumentCategories">
+					¿Qué documento es?
+				</LnxRadioGroup>
 
-				<fieldset v-if="userProperties.length > 1" class="chips">
-					<legend>¿De qué propiedad?</legend>
-					<label
-						v-for="property in userProperties"
-						:key="property.id"
-						class="chip"
-						:class="{ active: (propertyId ?? selectedProperty?.id) === property.id }"
-					>
-						<input v-model="propertyId" type="radio" name="document-property" :value="property.id">
-						{{ property.name }}
-					</label>
-				</fieldset>
+				<LnxRadioGroup
+					v-if="userProperties.length > 1"
+					:model-value="propertyId ?? selectedProperty?.id"
+					:options="userProperties.map(property => ({ value: property.id, label: property.name }))"
+					@update:model-value="value => propertyId = value as string"
+				>
+					¿De qué propiedad?
+				</LnxRadioGroup>
 
 				<label class="file-button" :class="{ disabled: uploading }">
 					<input
@@ -315,25 +291,26 @@ async function savePassword() {
 			<InstallApp />
 			<ul class="list">
 				<li>
-					<label class="row">
-						<span class="icon">
-							<LnxIcon icon="lucide:bell" :size="20" />
+					<LnxSwitch
+						class="setting"
+						label-position="start"
+						:model-value="push.enabled.value"
+						:disabled="!push.supported || push.permission.value === 'denied'"
+						:is-loading="pushBusy"
+						@update:model-value="togglePush()"
+					>
+						<span class="row">
+							<span class="icon">
+								<LnxIcon icon="lucide:bell" :size="20" />
+							</span>
+							<span class="body">
+								<strong>Notificaciones</strong>
+								<small :class="{ 'error-text': pushError }">
+									{{ pushError ? 'No se han podido cambiar. Inténtalo de nuevo.' : pushStatus }}
+								</small>
+							</span>
 						</span>
-						<span class="body">
-							<strong>Notificaciones</strong>
-							<small :class="{ 'error-text': pushError }">
-								{{ pushError ? 'No se han podido cambiar. Inténtalo de nuevo.' : pushStatus }}
-							</small>
-						</span>
-						<input
-							class="switch"
-							type="checkbox"
-							role="switch"
-							:checked="push.enabled.value"
-							:disabled="!push.supported || push.permission.value === 'denied' || pushBusy"
-							@change="togglePush()"
-						>
-					</label>
+					</LnxSwitch>
 				</li>
 				<li>
 					<details class="password">
@@ -518,52 +495,12 @@ section {
 	}
 }
 
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-2);
-
-	legend {
-		margin-bottom: var(--lnx-spacing-2);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	.chip {
-		display: flex;
-		align-items: center;
-		gap: var(--lnx-spacing-1);
-		padding: var(--lnx-spacing-1) var(--lnx-spacing-3);
-		border: 1px solid var(--color-gray-3);
-		border-radius: var(--lnx-radius-4);
-		background: var(--color-gray-0);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		cursor: pointer;
-		transition: background .15s, color .15s, border-color .15s;
-
-		&.active {
-			border-color: var(--color-primary);
-			background: var(--color-primary);
-			color: var(--color-primary-accent);
-		}
-
-		&:has(:focus-visible) {
-			outline: 2px solid var(--color-primary-light);
-			outline-offset: 2px;
-		}
-
-		input {
-			position: absolute;
-			opacity: 0;
-			pointer-events: none;
-		}
-	}
-}
-
-section > .chips {
+.property-picker {
 	margin-top: var(--lnx-spacing-2);
-	justify-content: center;
+
+	:deep(.options) {
+		justify-content: center;
+	}
 }
 
 .list {
@@ -670,46 +607,21 @@ li.row {
 	}
 }
 
-.switch {
-	flex-shrink: 0;
-	position: relative;
-	width: 44px;
-	height: 26px;
-	border-radius: 26px;
-	background: var(--color-gray-4);
-	appearance: none;
-	cursor: pointer;
-	transition: background .2s;
+// The setting's row is what toggles it, the switch at its end
+.setting {
+	padding-right: var(--lnx-spacing-3);
 
-	&::after {
-		content: '';
-		position: absolute;
-		top: 3px;
-		left: 3px;
-		width: 20px;
-		height: 20px;
-		border-radius: var(--lnx-radius-circle);
-		background: var(--color-gray-0);
-		box-shadow: 0 1px 3px #00000033;
-		transition: transform .2s;
+	:deep(label) {
+		align-items: center;
 	}
 
-	&:checked {
-		background: var(--color-issue-status-resolved);
+	// Only the switch dims when it can't be used: the text below says why
+	&.lnx-switch :deep(label:has(input:disabled:not([aria-busy]))) {
+		opacity: 1;
 
-		&::after {
-			transform: translateX(18px);
+		.track {
+			opacity: .5;
 		}
-	}
-
-	&:disabled {
-		opacity: .5;
-		cursor: not-allowed;
-	}
-
-	&:focus-visible {
-		outline: 2px solid var(--color-primary-light);
-		outline-offset: 2px;
 	}
 }
 

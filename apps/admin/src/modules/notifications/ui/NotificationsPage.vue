@@ -2,22 +2,20 @@
 import type { Event } from '@gobernansa/shared/domain/event.ts';
 import type { NotificationForm } from '../application/useNotifications.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
-import DatePicker from '@gobernansa/shared/ui/DatePicker.vue';
-import LnxTextarea from '@gobernansa/shared/ui/LnxTextarea.vue';
-import { LnxButton, LnxIcon, LnxInput, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
-import Kbd from '@/app/ux/Kbd.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
-import { useShortcut } from '@/app/ux/shortcuts.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 import { deleteNotification, loadNotification, restoreNotification, saveNotification, useNotifications } from '../application/useNotifications.ts';
 
 const props = defineProps<{ id: string }>();
+
+const ask = useConfirm();
 
 const PAGE_SIZE = 20;
 
@@ -98,9 +96,8 @@ function save() {
 	});
 }
 
-function remove(notification: Event) {
-	// eslint-disable-next-line no-alert
-	if (!window.confirm(`¿Borrar «${notification.title}»?`)) {
+async function remove(notification: Event) {
+	if (!await ask({ title: `¿Borrar «${notification.title}»?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 
@@ -114,7 +111,7 @@ function remove(notification: Event) {
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o guardar el aviso');
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Publicar o guardar el aviso' });
 </script>
 
 <template>
@@ -124,7 +121,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 		<NewButton v-if="!open" label="Nuevo aviso" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card ux-appear" @submit.prevent="save()">
+	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
 		<h2>{{ editingId ? 'Editar aviso' : 'Nuevo aviso' }}</h2>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
@@ -134,7 +131,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 				v-model.convert="form.type"
 				:options="typeOptions"
 				:convert-fn="option => option.value"
-				search-placeholder-text="Buscar..."
 			>
 				Tipo
 				<template #option="{ option }">
@@ -144,23 +140,23 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 					{{ eventTypes[value]?.label }}
 				</template>
 			</LnxSelect>
-			<DatePicker v-model="form.date" required>
+			<LnxDatePicker v-model="form.date" value-format="iso-date" required>
 				Fecha
-			</DatePicker>
+			</LnxDatePicker>
 			<LnxTextarea v-model="form.description" rows="3" class="wide">
 				Descripción
 			</LnxTextarea>
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton type="button" mode="clear" @click="close()">
+			<LnxButton mode="clear" @click="close()">
 				Cancelar
-				<Kbd combo="escape" />
+				<LnxKbd combo="escape" />
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:send'" />
 				{{ editingId ? 'Guardar cambios' : 'Publicar' }}
-				<Kbd combo="mod+enter" />
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
 	</form>
@@ -173,15 +169,15 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 
 		<ul v-if="pending && !notifications.length" class="list">
 			<li v-for="width in [55, 70, 40]" :key="width" class="item">
-				<span class="skeleton-item skeleton-item--icon" />
+				<span class="lnx-skeleton lnx-skeleton--circle" />
 				<div class="what">
-					<span class="skeleton-item" :style="{ width: `${width}%` }" />
-					<span class="skeleton-item skeleton-item--small" style="width: 9em" />
-					<span class="skeleton-item skeleton-item--small" :style="{ width: `${width + 25}%` }" />
+					<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
+					<span class="lnx-skeleton lnx-skeleton--small" style="width: 9em" />
+					<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width + 25}%` }" />
 				</div>
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="notifications.length" tag="ul" name="item" class="list ux-appear">
+		<TransitionGroup v-else-if="notifications.length" tag="ul" name="item" class="list lnx-appear">
 			<li v-for="notification in notifications" :key="notification.id" class="item">
 				<LnxIcon class="type" :icon="eventTypes[notification.type]?.icon ?? 'lucide:info'" :size="20" />
 				<div class="what">
@@ -194,10 +190,10 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton mode="clear" class="size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
+					<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" class="size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
+					<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>
@@ -303,7 +299,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), 'Publicar o g
 		color: var(--color-gray-6);
 	}
 
-	.skeleton-item + .skeleton-item {
+	.lnx-skeleton + .lnx-skeleton {
 		margin-top: var(--lnx-spacing-1);
 	}
 
