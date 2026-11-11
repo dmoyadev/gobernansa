@@ -1,0 +1,70 @@
+{
+	"indexes": [
+		{
+			"collectionGroup": "votes",
+			"queryScope": "COLLECTION_GROUP",
+			"fields": [
+				{ "fieldPath": "voterId", "order": "ASCENDING" },
+				{ "fieldPath": "votedAt", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "authorKey", "order": "ASCENDING" },
+				{ "fieldPath": "createdAt", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "charges",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "paidAt", "order": "ASCENDING" },
+				{ "fieldPath": "dueDate", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "errors",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "status", "order": "ASCENDING" },
+				{ "fieldPath": "lastSeen", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "errors",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "app", "order": "ASCENDING" },
+				{ "fieldPath": "lastSeen", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "errors",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "code", "order": "ASCENDING" },
+				{ "fieldPath": "lastSeen", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "errors",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "firstRelease", "order": "ASCENDING" },
+				{ "fieldPath": "lastSeen", "order": "DESCENDING" }
+			]
+		}
+	],
+	"fieldOverrides": [
+		{
+			"collectionGroup": "samples",
+			"fieldPath": "expiresAt",
+			"indexes": [
+				{ "order": "ASCENDING", "queryScope": "COLLECTION" },
+				{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+			]
+		}
+	]
+}

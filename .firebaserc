@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "dmoyadev-gobernansa"
+    "default": "dmoyadev-gobernansa",
+    "demo": "gobernansa-demo"
   },
   "targets": {
     "dmoyadev-gobernansa": {
@@ -10,6 +11,16 @@
         ],
         "admin": [
           "gobernansa-admin"
+        ]
+      }
+    },
+    "gobernansa-demo": {
+      "hosting": {
+        "webapp": [
+          "gobernansa-demo"
+        ],
+        "admin": [
+          "gobernansa-demo-admin"
         ]
       }
     }

@@ -6,11 +6,6 @@
 		"apps/*",
 		"packages/*"
 	],
-	"overrides": {
-		"@firebase/firestore": {
-			"@grpc/grpc-js": "^1.14.6"
-		}
-	},
 	"scripts": {
 		"dev:webapp": "npm run dev -w apps/webapp",
 		"dev:admin": "npm run dev -w apps/admin",
@@ -19,9 +14,11 @@
 		"lint": "eslint --fix",
 		"check-typing": "npm run check-typing -w apps/webapp -w apps/admin",
 		"check-deps": "npx taze -r",
-		"seed-firebase": "node ./scripts/firebase-test/seed.js",
+		"seed-firebase": "node --env-file-if-exists=.env.demo.local ./scripts/firebase-test/seed.js",
+		"seed-firebase:demo": "node --env-file-if-exists=.env.demo.local ./scripts/firebase-test/seed.js --demo --reset",
 		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js",
 		"start:firebase:emulators": "firebase emulators:start",
+		"deploy:demo": "node ./scripts/deploy-demo.js",
 		"backup": "node ./scripts/backup/backup.js",
 		"restore": "node ./scripts/backup/restore.js",
 		"symbolicate": "node ./scripts/symbolicate.js"
@@ -52,5 +49,10 @@
 		"vite-plugin-mkcert": "^1.17.12",
 		"vite-plugin-vue-devtools": "^8.2.1",
 		"vue-tsc": "^3.3.13"
+	},
+	"overrides": {
+		"@firebase/firestore": {
+			"@grpc/grpc-js": "^1.14.6"
+		}
 	}
 }

@@ -19,11 +19,11 @@ npm run seed-firebase
 
 It asks, step by step:
 
-1. **Where**: the local emulators (start them first with `npm run start:firebase:emulators`) or the live project, which has to be confirmed by typing its id. `npm run seed-firebase:emulators` skips this question.
+1. **Where**: the local emulators (start them first with `npm run start:firebase:emulators`), the demo project (`serviceAccountKey.demo.local.json`, see docs/firebase.md, section 8) or the live project, which has to be confirmed by typing its id. `npm run seed-firebase:emulators` skips this question.
 2. **What to do**: leave the whole demo as new (empties every demo collection and loads everything) or choose.
 3. **What to delete**, by group, with how many documents each has now, and **how**: exactly the documents the seed makes (what was created by hand stays, even under them), or the whole collections (also what was created by hand, and other groups' documents in them, which it offers to load again).
 4. **What to load**, by group, adding the groups the chosen ones need when they aren't there, and **how**: overwriting the demo documents or creating only the missing ones.
-5. **Auth** (emulator only): recreate the demo accounts, so each one signs in with a magic link.
+5. **Auth** (emulator and demo project only): recreate the demo accounts, so each one signs in with a magic link, and on the demo project also with `DEMO_PASSWORD` from `.env.demo.local`.
 
 Before touching anything it shows a summary, with the quota it spends on the live project, and asks to go on.
 
@@ -55,7 +55,8 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:909
 - `--only=<groups>` loads only those groups (all by default)
 - `--reset` empties their collections first
 - `--yes` loads everything without other flags
-- Without `FIRESTORE_EMULATOR_HOST` it writes to the live project, and then it needs `--project=<project id>` to confirm it
+- `--demo` writes to the demo project, accounts included (`npm run seed-firebase:demo` is `--demo --reset`)
+- Without `FIRESTORE_EMULATOR_HOST` nor `--demo` it writes to the live project, and then it needs `--project=<project id>` to confirm it
 
 ## ⚠️ Limitations
 

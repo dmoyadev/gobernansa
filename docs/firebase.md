@@ -119,6 +119,32 @@ Both apps read these switches from **Firebase console → Remote Config** when t
 
 Remote Config needs the **Firebase Installations API** and the **Firebase Remote Config API**, which a new Firebase project has on. If the API key is ever restricted (ROB-8), keep both in its list of APIs, or every app keeps the defaults.
 
+## 8. Demo project
+
+What's shown to the offices runs on its own Firebase project, `gobernansa-demo`, on the free plan: its own data, quota and accounts, so a demo never touches production nor spends its customers' quota. `.firebaserc` calls it `demo`; if that id is taken, create it with another and change both mentions there. Indexes are in `firestore.indexes.json` (section 2), which only the demo deploys: CI still deploys only the rules to production.
+
+Once:
+
+1. **Firebase console → Add project** `gobernansa-demo`, without Analytics. **Firestore → Create database** in `europe-southwest1` (Madrid), production mode.
+2. **Authentication → Sign-in method → Email/Password**, with **Email link** on.
+3. **Project settings → Your apps → Web**, and **Cloud Messaging → Web Push certificates → Generate**. Copy `.env.example` to `.env.demo.local` at the root and fill it with that config and:
+   - `VITE_FIREBASE_EMULATORS='false'`, `VITE_ENV_NAME='demo'` (the tab reads «gobernança DEMO») and `VITE_MAIL_MODE='demo'`;
+   - `VITE_WEBAPP_URL='https://gobernansa-demo.web.app'`;
+   - the Cloudinary ones as in `.env.local` (the demo's photos land in the same account until GAR-3);
+   - `DEMO_PASSWORD`, at least 6 characters: the password of every demo account. Only the seed reads it, the apps never get it.
+
+   The build reads `.env.local` too, and `.env.demo.local` wins: anything left out comes from there, so `npm run deploy:demo` stops unless the project is the demo one, the emulators are off and `VITE_WEBAPP_URL` is set.
+4. **Hosting → Add another site** `gobernansa-demo-admin`, and **Authentication → Settings → Authorized domains → Add** `gobernansa-demo-admin.web.app` (the default site's domains are already there).
+5. **Project settings → Service accounts → Generate new private key**, saved as `scripts/firebase-test/serviceAccountKey.demo.local.json`. The seed refuses it unless its project is the `demo` of `.firebaserc`.
+6. `npx firebase login --reauth` if the CLI asks, then `npm run deploy:demo` and `npm run seed-firebase:demo`.
+
+Then:
+
+- **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day, and recreates its accounts with `DEMO_PASSWORD` (they also take a magic link, within the free plan's daily emails). It spends about the demo's size in writes of the demo project's own quota.
+- **After a release worth showing:** `npm run deploy:demo`, by hand, never on each push. It builds both apps in `demo` mode with a `VITE_RELEASE` like CI's and deploys the rules, the indexes and both sites.
+- **Errors** of the demo go to its own **Errores** page: sign in as the team's demo account.
+- Custom domains (`demo.` and `demo-admin.`) come with the product's own domain (A2 in [v1.md](v1.md)).
+
 ## Roles
 
 Each profile in `users/{uid}` has a `role`. The rules enforce it, and `packages/shared/domain/user.ts` mirrors them so the apps only offer what's allowed:

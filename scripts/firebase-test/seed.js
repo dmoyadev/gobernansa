@@ -29,12 +29,24 @@ const bold = text => styleText('bold', String(text));
 const dim = text => styleText('dim', String(text));
 const number = value => value.toLocaleString('es');
 
-function readKey() {
+function readJson(file) {
 	try {
-		return JSON.parse(readFileSync(new URL('./serviceAccountKey.local.json', import.meta.url), 'utf-8'));
+		return JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf-8'));
 	} catch {
 		return null;
 	}
+}
+
+const KEYS = { live: './serviceAccountKey.local.json', demo: './serviceAccountKey.demo.local.json' };
+const projects = readJson('../../.firebaserc')?.projects ?? {};
+
+// The demo's key has to be the project .firebaserc calls demo, so a copied key can never point it at the real one
+function readKey(target) {
+	const key = readJson(KEYS[target]);
+	if (target === 'demo' && key && (key.project_id !== projects.demo || key.project_id === projects.default)) {
+		throw new Error(`serviceAccountKey.demo.local.json es de ${key.project_id}, no del proyecto demo de .firebaserc (${projects.demo})`);
+	}
+	return key;
 }
 
 // Each group's docs by path, recorded without writing them, so it's known what will be written and what the seed made
@@ -61,10 +73,17 @@ async function emulatorsUp() {
 	return false;
 }
 
-async function chooseTarget(key) {
+async function chooseTarget() {
 	if (process.env.FIRESTORE_EMULATOR_HOST) {
 		return 'emulator';
 	}
+	if (flags.demo) {
+		if (!readKey('demo')) {
+			throw new Error('Falta serviceAccountKey.demo.local.json, la clave del proyecto de demo');
+		}
+		return 'demo';
+	}
+	const key = readKey('live');
 	if (!interactive) {
 		// Never the live project by accident: a script has to name it
 		if (!key || flags.project !== key.project_id) {
@@ -77,6 +96,7 @@ async function chooseTarget(key) {
 		message: '¿Dónde cargar los datos?',
 		choices: [
 			{ name: `Emuladores locales (Firestore ${EMULATORS.firestore}, Auth ${EMULATORS.auth})`, value: 'emulator' },
+			{ name: `Proyecto de demo ${projects.demo ?? ''}`, value: 'demo', description: 'El que se enseña a los despachos: gasta su propia cuota, no la de los clientes', disabled: !readKey('demo') && '(falta serviceAccountKey.demo.local.json)' },
 			{ name: `Proyecto real ${key?.project_id ?? ''}`, value: 'live', description: 'Lo que usa la gente: cada lectura, escritura y borrado gasta la cuota diaria del plan gratuito', disabled: !key && '(falta serviceAccountKey.local.json)' },
 		],
 	});
@@ -122,7 +142,7 @@ async function empty(db, group) {
 }
 
 async function load(db, target, docs, mode) {
-	const writer = db.bulkWriter({ throttling: target === 'live' });
+	const writer = db.bulkWriter({ throttling: target !== 'emulator' });
 	let skipped = 0;
 	const failed = [];
 	writer.onWriteError((error) => {
@@ -143,19 +163,21 @@ async function load(db, target, docs, mode) {
 	return { written: docs.size - skipped - failed.length, skipped, failed };
 }
 
-// The demo's accounts, so each can sign in with a magic link. Others signed in before go, or their emails would map to other uids
-async function resetAuth() {
+// The demo's accounts, so each can sign in with a magic link, and on the demo project also with DEMO_PASSWORD, which doesn't
+// depend on the daily quota of sign-in emails. Others signed in before go, or their emails would map to other uids
+async function resetAuth(target) {
 	// Never the live project's accounts
-	if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-		throw new Error('Las cuentas solo se recrean en el emulador de Auth');
+	if (target === 'live') {
+		throw new Error('Las cuentas del proyecto real no se tocan');
 	}
+	const password = target === 'demo' ? process.env.DEMO_PASSWORD : undefined;
 	const auth = admin.auth();
 	const { users: existing } = await auth.listUsers(1000);
 	await auth.deleteUsers(existing.map(user => user.uid));
-	await Promise.all(users.map(async ({ uid, email, name }) => auth.createUser({ uid, email, displayName: name, emailVerified: true })));
+	await Promise.all(users.map(async ({ uid, email, name }) => auth.createUser({ uid, email, displayName: name, emailVerified: true, password })));
 }
 
-async function ask(db, planned) {
+async function ask(db, planned, ownsAuth) {
 	console.log(dim('Contando lo que hay…'));
 	const counts = Object.fromEntries(await Promise.all(GROUPS.map(async group => [group.id, await count(db, group)])));
 	const describe = group => `${group.label} ${dim(`· ${number(counts[group.id])} ahora, ${number(planned[group.id].size)} en la demo`)}`;
@@ -169,7 +191,7 @@ async function ask(db, planned) {
 	});
 	if (what === 'fresh') {
 		const ids = GROUPS.map(group => group.id);
-		return { remove: ids, removeMode: 'empty', add: ids, addMode: 'set', auth: !!process.env.FIREBASE_AUTH_EMULATOR_HOST };
+		return { remove: ids, removeMode: 'empty', add: ids, addMode: 'set', auth: ownsAuth };
 	}
 
 	// Asked only when there's something to delete, a checkbox with every choice disabled can't be answered
@@ -213,21 +235,25 @@ async function ask(db, planned) {
 		],
 	});
 
-	const auth = !!process.env.FIREBASE_AUTH_EMULATOR_HOST && await confirm({
-		message: `¿Recrear en el emulador de Auth las ${users.length} cuentas de la demo? Borra las demás del emulador`,
+	const auth = ownsAuth && await confirm({
+		message: `¿Recrear las ${users.length} cuentas de la demo? Borra las demás de ${process.env.FIREBASE_AUTH_EMULATOR_HOST ? 'el emulador' : 'Auth del proyecto de demo'}`,
 		default: add.includes('core'),
 	});
 	return { remove, removeMode, add, addMode, auth };
 }
 
 async function main() {
-	const key = readKey();
-	const target = await chooseTarget(key);
-	const projectId = target === 'live' ? key.project_id : process.env.GCLOUD_PROJECT ?? key?.project_id ?? 'demo-gobernansa';
+	const target = await chooseTarget();
+	const key = readKey(target === 'emulator' ? 'live' : target);
+	const projectId = target === 'emulator' ? process.env.GCLOUD_PROJECT ?? key?.project_id ?? 'demo-gobernansa' : key.project_id;
+	const ownsAuth = target === 'demo' || (target === 'emulator' && !!process.env.FIREBASE_AUTH_EMULATOR_HOST);
+	if (target === 'demo' && !process.env.DEMO_PASSWORD) {
+		throw new Error('Falta DEMO_PASSWORD en .env.demo.local: es la contraseña de las cuentas de la demo');
+	}
 	if (target === 'emulator' && !await emulatorsUp()) {
 		throw new Error(`No hay emulador de Firestore en ${process.env.FIRESTORE_EMULATOR_HOST}: arráncalo con npm run start:firebase:emulators`);
 	}
-	admin.initializeApp(target === 'live' ? { credential: admin.credential.cert(key) } : { projectId });
+	admin.initializeApp(target === 'emulator' ? { projectId } : { credential: admin.credential.cert(key) });
 	const db = admin.firestore();
 	db.settings({ ignoreUndefinedProperties: true });
 
@@ -244,14 +270,14 @@ async function main() {
 
 	let choice;
 	if (interactive) {
-		choice = await ask(db, planned);
+		choice = await ask(db, planned, ownsAuth);
 	} else {
 		const ids = flags.only ? String(flags.only).split(',') : GROUPS.map(group => group.id);
 		const unknown = ids.filter(id => !GROUPS.some(group => group.id === id));
 		if (unknown.length) {
 			throw new Error(`No existen los grupos ${unknown.join(', ')}. Son: ${GROUPS.map(group => group.id).join(', ')}`);
 		}
-		choice = { remove: flags.reset ? ids : [], removeMode: 'empty', add: ids, addMode: 'set', auth: !!process.env.FIREBASE_AUTH_EMULATOR_HOST };
+		choice = { remove: flags.reset ? ids : [], removeMode: 'empty', add: ids, addMode: 'set', auth: ownsAuth };
 		const emptied = GROUPS.filter(group => choice.remove.includes(group.id));
 		const caught = GROUPS.filter(group => !ids.includes(group.id) && [...planned[group.id].keys()].some(path => wipes(emptied, path)));
 		if (caught.length) {
@@ -261,13 +287,13 @@ async function main() {
 
 	const chosen = ids => GROUPS.filter(group => ids.includes(group.id));
 	const writes = chosen(choice.add).reduce((total, group) => total + planned[group.id].size, 0);
-	console.log(`\n${bold('Destino')}     ${target === 'live' ? styleText('red', `proyecto real ${projectId}`) : `emulador ${process.env.FIRESTORE_EMULATOR_HOST} (${projectId})`}`);
+	console.log(`\n${bold('Destino')}     ${{ live: styleText('red', `proyecto real ${projectId}`), demo: `proyecto de demo ${projectId}`, emulator: `emulador ${process.env.FIRESTORE_EMULATOR_HOST} (${projectId})` }[target]}`);
 	console.log(`${bold('Borrar')}      ${choice.remove.length ? `${chosen(choice.remove).map(group => group.label).join(', ')} ${dim(choice.removeMode === 'empty' ? '(colecciones enteras)' : '(solo lo del seed)')}` : dim('nada')}`);
 	console.log(`${bold('Cargar')}      ${choice.add.length ? `${number(writes)} documentos de ${chosen(choice.add).map(group => group.label).join(', ')} ${dim(choice.addMode === 'set' ? '(sobrescribe)' : '(solo los que falten)')}` : dim('nada')}`);
 	if (choice.auth) {
-		console.log(`${bold('Auth')}        recrear ${users.length} cuentas en el emulador ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
+		console.log(`${bold('Auth')}        recrear ${users.length} cuentas en ${target === 'demo' ? 'el proyecto de demo, con DEMO_PASSWORD' : `el emulador ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`}`);
 	}
-	if (target === 'live') {
+	if (target !== 'emulator') {
 		console.log(styleText('yellow', `Gasta unas ${number(writes)} escrituras, más un borrado por documento borrado (y al vaciar, una lectura), de las ${number(DAILY_WRITES)} diarias del plan gratuito`));
 	}
 	if (!choice.remove.length && !choice.add.length && !choice.auth) {
@@ -292,11 +318,11 @@ async function main() {
 		failed.slice(0, 5).forEach(line => console.log(styleText('red', `  ${line}`)));
 	}
 	if (choice.auth) {
-		await resetAuth();
-		console.log(`${styleText('green', '✔')} Cuentas del emulador de Auth`);
+		await resetAuth(target);
+		console.log(`${styleText('green', '✔')} Cuentas de la demo`);
 	}
 
-	console.log(`\n${bold('Cuentas de la demo')} ${dim('(se entra con enlace mágico al correo)')}`);
+	console.log(`\n${bold('Cuentas de la demo')} ${dim(target === 'demo' ? '(se entra con DEMO_PASSWORD o con enlace mágico al correo)' : '(se entra con enlace mágico al correo)')}`);
 	for (const user of users) {
 		console.log(`  ${user.name.padEnd(20)} ${roles[user.role].label.padEnd(18)} ${user.email}${user.blocked ? dim(' · bloqueado') : ''}`);
 	}
