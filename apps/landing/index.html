@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-	<meta name="theme-color" content="#f1e9de">
+	<meta name="theme-color" content="#f7fafc">
 	<title>gobernança · El programa del despacho y la app del vecino, en uno</title>
 	<meta name="description" content="Recibos y remesas SEPA, contabilidad, modelos de la AEAT y juntas con acta firmada para despachos de administración de fincas, con una app que los vecinos sí usan.">
 	<meta property="og:title" content="gobernança para despachos de administración de fincas">
@@ -26,8 +26,10 @@
 		}
 
 		:root {
-			--paper: #fbf6ef;
-			--sand: #efe6da;
+			/* The neutrals of the apps themselves (packages/shared/theme), so the page looks like what the office will use */
+			--paper: #f7fafc;
+			--sand: #edf2f7;
+			--line: #e2e8f0;
 			--primary: #094067;
 			--primary-dark: #022842;
 			--accent: #e16162;
@@ -36,8 +38,10 @@
 			--ink: #022842;
 			--text: #3b4a5a;
 			--muted: #6b7684;
-			--radius: 20px;
-			--hard: 4px 4px 0 var(--ink);
+			/* Three radii, on purpose: controls, cards, devices drawn as devices */
+			--radius-s: 6px;
+			--radius: 12px;
+			--hard: none;
 			--heading: 'Plus Jakarta Sans', system-ui, sans-serif;
 			color-scheme: light;
 		}
@@ -51,10 +55,8 @@
 			scroll-behavior: smooth;
 		}
 
-		/* The whole site is one framed sheet: a fine ink border and a hard little shadow */
 		body {
-			padding: 8px 12px 14px 8px;
-			background: #f1e9de;
+			background: var(--paper);
 			color: var(--text);
 			font: 17px/1.6 'Inter Tight', system-ui, sans-serif;
 			-webkit-font-smoothing: antialiased;
@@ -63,10 +65,6 @@
 
 		.page {
 			overflow: clip;
-			border: 1.5px solid var(--ink);
-			border-radius: 22px;
-			background: var(--paper);
-			box-shadow: var(--hard);
 		}
 
 		h1, h2, h3 {
@@ -102,14 +100,6 @@
 			margin-inline: auto;
 		}
 
-		.kicker {
-			display: inline-block;
-			color: var(--accent-ink);
-			font: 700 13px var(--heading);
-			letter-spacing: 0.12em;
-			text-transform: uppercase;
-		}
-
 		.button {
 			display: inline-flex;
 			align-items: center;
@@ -118,7 +108,7 @@
 			min-height: 52px;
 			padding: 0 26px;
 			border: 0;
-			border-radius: 999px;
+			border-radius: var(--radius-s);
 			background: var(--primary);
 			color: #fff;
 			font: 700 16px var(--heading);
@@ -129,7 +119,6 @@
 
 		.button:hover {
 			background: var(--primary-dark);
-			transform: translateY(-1px);
 		}
 
 		.button:active {
@@ -141,8 +130,10 @@
 			outline-offset: 3px;
 		}
 
-		/* Header */
+		/* Header: above the hero's night, which reaches up behind it */
 		.top {
+			position: relative;
+			z-index: 1;
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
@@ -154,6 +145,19 @@
 			width: 132px;
 		}
 
+		/* The same logo with white letters, laid on top at night */
+		.logo {
+			display: grid;
+		}
+
+		.logo img {
+			grid-area: 1 / 1;
+		}
+
+		.night-logo {
+			opacity: 0;
+		}
+
 		.top .button {
 			min-height: 42px;
 			padding-inline: 18px;
@@ -162,9 +166,115 @@
 
 		/* Hero */
 		.hero {
+			position: relative;
+			isolation: isolate;
 			display: grid;
 			gap: 28px;
 			padding-block: 24px 48px;
+		}
+
+		/* The night the building brings: a circle that grows from its sun over the whole hero, up behind the header
+		   (.page clips what is above it) and down to the marquee, whose navy rises into it as the footer's clouds do */
+		.hero-sky {
+			position: absolute;
+			inset: -200px calc(50% - 50vw) 0;
+			z-index: -1;
+			background: linear-gradient(to top, #12406b, #0c3253 240px, #061a2b 640px);
+			clip-path: circle(0px at var(--sun, 80% 30%));
+			pointer-events: none;
+		}
+
+		/* Only while night comes or goes, so at rest the circle moves to the sun at once and grows from there.
+		   An ease-out the script inverts, to change each text's colour as the edge passes over it */
+		.dusking .hero-sky {
+			transition: clip-path 1.2s cubic-bezier(0.5, 1, 0.89, 1);
+		}
+
+		.hero-sky::before,
+		.hero-sky::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			mask: linear-gradient(to top, transparent 40px, #000 50%);
+		}
+
+		/* Stars in two tiles of different sizes, so they never line up, at any width */
+		.hero-sky::before {
+			background:
+				radial-gradient(1.5px 1.5px at 8% 14%, #fff 60%, transparent),
+				radial-gradient(1.5px 1.5px at 31% 62%, #ffffffaa 60%, transparent),
+				radial-gradient(2px 2px at 47% 27%, #ffffffcc 60%, transparent),
+				radial-gradient(1.5px 1.5px at 66% 8%, #fff 60%, transparent),
+				radial-gradient(1.5px 1.5px at 78% 71%, #ffffff99 60%, transparent),
+				radial-gradient(2px 2px at 92% 38%, #ffffffbb 60%, transparent),
+				radial-gradient(1.5px 1.5px at 19% 88%, #ffffff88 60%, transparent);
+			background-size: 340px 280px;
+		}
+
+		.hero-sky::after {
+			background:
+				radial-gradient(2.5px 2.5px at 24% 30%, #fff 60%, transparent),
+				radial-gradient(2.5px 2.5px at 70% 64%, #fff 60%, transparent);
+			background-size: 520px 430px;
+			animation: twinkle 2.4s ease-in-out infinite alternate paused;
+		}
+
+		/* The footer's clouds upside down: the front bank is the marquee's own navy, so night ends without a line */
+		/* A pixel into the marquee, so no hairline shows between them on fractional pixels */
+		.hero-sky .sm-cloud {
+			top: auto;
+			bottom: -1px;
+			z-index: 1;
+			scale: 1 -1;
+		}
+
+		.hero-sky .sm-back {
+			background: #0a3050;
+		}
+
+		.hero-sky .sm-front {
+			background: var(--primary-dark);
+		}
+
+		.night .hero-sky {
+			clip-path: circle(var(--reach, 150%) at var(--sun, 80% 30%));
+		}
+
+		.night .hero-sky::after,
+		.night .hero-sky .sm-cloud {
+			animation-play-state: running;
+		}
+
+		/* While night comes or goes, each of these changes as the edge passes it: the script sets --at */
+		.dusking [data-dusk] {
+			transition: color 0.4s var(--at, 0s), background-color 0.4s var(--at, 0s), opacity 0.4s var(--at, 0s);
+		}
+
+		.night .night-logo {
+			opacity: 1;
+		}
+
+		.night .top .button,
+		.night .actions .button {
+			background: var(--accent);
+			/* The night's darkest navy: --primary-dark falls just short of AA on coral */
+			color: #061a2b;
+		}
+
+		.night .hero h1 {
+			color: #fff;
+		}
+
+		.night .hero .lead {
+			color: #c9d6e3;
+		}
+
+		.night .actions .more {
+			color: #fdf1c7;
+		}
+
+		.night .hint {
+			color: #9fb3c6;
 		}
 
 		.hero h1 {
@@ -232,25 +342,6 @@
 		.stage:focus-visible {
 			outline-offset: 8px;
 			border-radius: 28px;
-		}
-
-		.night-sky {
-			position: absolute;
-			inset: 2% -3% 4%;
-			z-index: -2;
-			border-radius: 28px;
-			background:
-				radial-gradient(1.5px 1.5px at 12% 18%, #fff 60%, transparent),
-				radial-gradient(1.5px 1.5px at 30% 8%, #fff 60%, transparent),
-				radial-gradient(2px 2px at 46% 22%, #ffffffcc 60%, transparent),
-				radial-gradient(1.5px 1.5px at 8% 46%, #ffffffaa 60%, transparent),
-				radial-gradient(1.5px 1.5px at 92% 40%, #fff 60%, transparent),
-				radial-gradient(2px 2px at 88% 8%, #ffffffcc 60%, transparent),
-				radial-gradient(1.5px 1.5px at 20% 64%, #ffffff99 60%, transparent),
-				radial-gradient(1.5px 1.5px at 96% 66%, #ffffffaa 60%, transparent),
-				linear-gradient(#061a2b, #0c3253);
-			clip-path: circle(0% at 76% 17%);
-			transition: clip-path 0.9s cubic-bezier(0.65, 0, 0.35, 1);
 		}
 
 		.sun {
@@ -344,31 +435,36 @@
 			background: var(--primary-dark);
 		}
 
-		.stage.night .night-sky {
-			clip-path: circle(150% at 76% 17%);
-		}
-
-		.stage.night .sun {
+		.night .stage .sun {
 			background: #fdf1c7;
 			box-shadow: 0 0 0 12px #fdf1c714, 0 0 60px #fdf1c780;
 			transform: scale(0.62);
 		}
 
-		.stage.night .building {
+		.night .stage .building {
 			background: #135587;
 			transform: translateY(-4px);
 		}
 
-		.stage.night .building span:not(.door, .help) {
+		.night .stage .building span:not(.door, .help) {
 			background: #ffdca0;
 			transition-delay: var(--d, 0s);
 		}
 
-		.stage.night .tree.left {
+		.night .stage .tree.left {
 			background: #3d7564;
 		}
 
-		.stage.night .tree.right {
+		.night .stage .ground {
+			background: #ffffff26;
+		}
+
+		/* Going back to day, the building is the last thing the night leaves, so it waits for it */
+		.dusking:not(.night) .stage :is(.sun, .building, .building span, .tree) {
+			transition-delay: 0.6s;
+		}
+
+		.night .stage .tree.right {
 			background: #4b8a75;
 		}
 
@@ -671,7 +767,7 @@
 			gap: 10px;
 			margin-top: 12px;
 			padding: 10px 12px;
-			border: 1px solid #e2d8cb;
+			border: 1px solid var(--line);
 			border-radius: 14px;
 			background: var(--paper);
 			color: var(--ink);
@@ -752,9 +848,6 @@
 			margin-top: 14px;
 		}
 
-		.showcase .kicker {
-			color: #f59d9a;
-		}
 
 		.screens {
 			position: relative;
@@ -802,24 +895,6 @@
 			margin-top: 14px;
 		}
 
-		/* The hero's hand-drawn underline, once more, under the word that matters here */
-		.fx-head em {
-			position: relative;
-			z-index: 0;
-			font-style: normal;
-			white-space: nowrap;
-		}
-
-		.fx-head em::after {
-			content: '';
-			position: absolute;
-			left: -2%;
-			right: -2%;
-			bottom: -0.06em;
-			z-index: -1;
-			height: 0.28em;
-			background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M4 11 C 60 4, 140 3, 196 12' fill='none' stroke='%23e16162' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
-		}
 
 		/* Each area brings its own soft tint, the same family as the avatars of the log */
 		.fx-sun {
@@ -860,18 +935,18 @@
 			grid-column: 1 / -1;
 		}
 
-		/* Flat at rest so the section stays light; the hard shadow only shows up on the one you point at */
+		/* An index, not a wall of cards: each area hangs from a rule, like the contents page of a manual */
 		.fx-tile {
 			position: relative;
 			width: 100%;
-			border: 1.5px solid var(--ink);
-			border-radius: var(--radius);
-			background: #fff;
+			border: 0;
+			border-top: 1.5px solid var(--ink);
+			border-radius: 0;
+			background: transparent;
 			color: var(--text);
 			font: inherit;
 			text-align: start;
-			box-shadow: 0 0 0 var(--ink);
-			transition: transform 0.2s, box-shadow 0.2s;
+			transition: background 0.15s;
 		}
 
 		.fx-face {
@@ -896,21 +971,10 @@
 		.fx-icon {
 			display: grid;
 			place-items: center;
-			width: 64px;
-			height: 64px;
-			border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%;
-			background: var(--fx-tint);
-			transition: transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1), border-radius 0.4s;
+			width: auto;
+			height: auto;
 		}
 
-		/* Not every blob is cut the same, so the grid feels drawn by hand */
-		.fx-grid > li:nth-child(3n + 2) .fx-icon {
-			border-radius: 56% 44% 48% 52% / 46% 56% 44% 54%;
-		}
-
-		.fx-grid > li:nth-child(3n) .fx-icon {
-			border-radius: 50% 50% 42% 58% / 58% 48% 52% 42%;
-		}
 
 		.fx-icon svg {
 			width: 42px;
@@ -975,19 +1039,12 @@
 		}
 
 		.fx-tile:is(:focus-visible, :has(> :focus-visible)) {
-			transform: translate(-2px, -2px);
-			box-shadow: var(--hard);
+			background: var(--paper);
 		}
 
 		@media (hover: hover) {
 			.fx-tile:hover {
-				transform: translate(-2px, -2px);
-				box-shadow: var(--hard);
-			}
-
-			.fx-tile:hover .fx-icon {
-				border-radius: 58% 42% 40% 60% / 44% 58% 42% 56%;
-				transform: rotate(-8deg) scale(1.06);
+				background: var(--paper);
 			}
 
 			.fx-tile:not([open]):hover .fx-plus {
@@ -998,8 +1055,7 @@
 
 		/* After the hover rules, so pressing always wins; an open card doesn't jump when you select its text */
 		.fx-tile:not([open]):active {
-			transform: translate(1px, 1px);
-			box-shadow: 0 0 0 var(--ink);
+			transform: translateY(1px);
 		}
 
 		.fx-list {
@@ -1064,10 +1120,9 @@
 			margin: auto 12px calc(12px + env(safe-area-inset-bottom)) 8px;
 			padding: 0;
 			border: 1.5px solid var(--ink);
-			border-radius: 26px;
+			border-radius: var(--radius);
 			background: #fff;
 			color: var(--text);
-			box-shadow: var(--hard);
 			overscroll-behavior: contain;
 		}
 
@@ -1243,11 +1298,10 @@
 			border: 1.5px solid var(--ink);
 			border-radius: 999px;
 			background: #fff;
-			box-shadow: 3px 3px 0 var(--ink);
 			color: var(--ink);
 			font: 700 13px var(--heading);
 			white-space: nowrap;
-			transform: translateX(-50%) rotate(-4deg);
+			transform: translateX(-50%);
 		}
 
 		.app-sticker svg {
@@ -1261,8 +1315,8 @@
 		}
 
 		.app-phone {
-			--app-bg: #f8f4ee;
-			--app-line: #e8dfd3;
+			--app-bg: var(--paper);
+			--app-line: var(--line);
 			position: relative;
 			z-index: 1;
 			width: 22em;
@@ -2085,7 +2139,7 @@
 		}
 
 		.app-taken {
-			background: repeating-linear-gradient(-45deg, #f4efe8 0 0.45em, #ece5db 0.45em 0.9em);
+			background: repeating-linear-gradient(-45deg, #f1f5f9 0 0.45em, #e8edf3 0.45em 0.9em);
 			color: var(--muted);
 		}
 
@@ -2297,9 +2351,7 @@
 		/* Dressed like the phone: ink with a coral shadow */
 		.app-live .app-flow[aria-current='true'] .app-num {
 			background: var(--ink);
-			box-shadow: 2px 2px 0 var(--accent);
 			color: #fff;
-			transform: rotate(-8deg);
 		}
 
 		.app-anim .app-flow[aria-current='true'] .app-progress {
@@ -2355,45 +2407,25 @@
 		}
 
 		.pl-head {
-			max-width: 660px;
+			max-width: 880px;
 			margin-inline: auto;
-			text-align: center;
 		}
 
 		.pl-head p {
 			max-width: 30em;
-			margin: 14px auto 0;
+			margin: 14px 0 0;
 			font-size: 18px;
 		}
 
 		/* The hero's hand-drawn underline, under «sin pagar» */
-		.pl-mark {
-			position: relative;
-			z-index: 0;
-			font-style: normal;
-			white-space: nowrap;
-		}
-
-		.pl-mark::after {
-			content: '';
-			position: absolute;
-			left: -2%;
-			right: -2%;
-			bottom: -0.08em;
-			height: 0.28em;
-			background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 14 C 50 4, 120 2, 197 9' fill='none' stroke='%23e16162' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
-			z-index: -1;
-		}
 
 		.pl-ticket {
 			display: grid;
 			max-width: 880px;
 			margin: 48px auto 0;
-			border-radius: 24px;
+			border-radius: var(--radius);
 			background: var(--primary);
 			color: #d6e2ee;
-			box-shadow: 5px 5px 0 var(--accent);
-			rotate: -1deg;
 		}
 
 		.pl-label {
@@ -2408,7 +2440,7 @@
 		.pl-stub {
 			position: relative;
 			padding: 26px 24px 24px;
-			border-radius: 24px 24px 0 0;
+			border-radius: var(--radius) var(--radius) 0 0;
 			background: repeating-radial-gradient(circle at 0 100%, #ffffff0d 0 1px, #0000 1.5px 9px);
 		}
 
@@ -2600,8 +2632,7 @@
 		/* The ticket gives under the blow, like a pressed button */
 		@keyframes pl-thud {
 			35% {
-				translate: 3px 3px;
-				box-shadow: 2px 2px 0 var(--accent);
+				translate: 0 3px;
 			}
 		}
 
@@ -2612,9 +2643,6 @@
 			color: var(--primary-dark);
 		}
 
-		.contact .kicker {
-			color: var(--primary-dark);
-		}
 
 		.contact header p {
 			margin-top: 14px;
@@ -2627,10 +2655,9 @@
 			margin-top: 32px;
 			padding: 24px 20px;
 			border: 1.5px solid var(--ink);
-			border-radius: 24px;
+			border-radius: var(--radius);
 			background: #fff;
 			color: var(--text);
-			box-shadow: 6px 6px 0 var(--ink);
 		}
 
 		label {
@@ -2650,8 +2677,8 @@
 			width: 100%;
 			min-height: 50px;
 			padding: 12px 16px;
-			border: 1.5px solid #e2d8cb;
-			border-radius: 14px;
+			border: 1.5px solid var(--line);
+			border-radius: var(--radius-s);
 			background: var(--paper);
 			color: var(--ink);
 			font: 16px 'Inter Tight', system-ui, sans-serif;
@@ -2680,7 +2707,7 @@
 
 		#status {
 			padding: 12px 16px;
-			border-radius: 14px;
+			border-radius: var(--radius-s);
 			background: #dcefeb;
 			color: var(--ink);
 		}
@@ -3013,16 +3040,6 @@
 		}
 
 		@media (min-width: 860px) {
-			body {
-				padding: 14px 20px 22px 14px;
-			}
-
-			.page {
-				border-radius: 32px;
-				--hard: 5px 5px 0 var(--ink);
-				box-shadow: 6px 6px 0 var(--ink);
-			}
-
 			.sticky {
 				display: none;
 			}
@@ -3216,14 +3233,9 @@
 				padding: 24px 22px 26px;
 			}
 
-			.fx-icon {
-				width: 88px;
-				height: 88px;
-			}
-
 			.fx-icon svg {
-				width: 56px;
-				height: 56px;
+				width: 48px;
+				height: 48px;
 			}
 
 			.fx-name {
@@ -3250,7 +3262,6 @@
 				width: min(520px, 100% - 48px);
 				max-height: calc(100% - 48px);
 				margin: auto;
-				border-radius: 28px;
 			}
 
 			.fx-sheet[open] {
@@ -3259,11 +3270,6 @@
 
 			.fx-sheet-head {
 				padding: 24px 20px 22px 24px;
-			}
-
-			.fx-sheet .fx-icon {
-				width: 64px;
-				height: 64px;
 			}
 
 			.fx-sheet .fx-icon svg {
@@ -3327,7 +3333,7 @@
 				display: flex;
 				flex-direction: column;
 				padding: 40px 36px 36px 44px;
-				border-radius: 24px 0 0 24px;
+				border-radius: var(--radius) 0 0 var(--radius);
 			}
 
 			.pl-code {
@@ -3416,30 +3422,35 @@
 <body>
 	<div class="page">
 		<header class="wrap top">
-			<a href="/" aria-label="gobernança, inicio"><img src="/img/logo.svg" alt="gobernança" width="1108" height="234"></a>
-			<a class="button" href="#demo">Pide una demo</a>
+			<a class="logo" href="/" aria-label="gobernança, inicio">
+				<img src="img/logo.svg" alt="gobernança" width="1108" height="234">
+				<img class="night-logo" src="img/logo-night.svg" alt="" width="1108" height="234" data-dusk>
+			</a>
+			<a class="button" href="#demo" data-dusk>Pide una demo</a>
 		</header>
 
 		<main>
 			<section class="wrap hero" id="hero">
+				<div class="hero-sky" aria-hidden="true">
+					<div class="sm-cloud sm-back"></div>
+					<div class="sm-cloud sm-front"></div>
+				</div>
 				<div>
-					<span class="kicker">Para despachos de administración de fincas</span>
-					<h1>El programa del despacho y la app del vecino, <em>en uno</em>.</h1>
-					<p class="lead">
+					<h1 data-dusk>El programa del despacho y la app del vecino, <em>en uno</em>.</h1>
+					<p class="lead" data-dusk>
 						Recibos, remesas SEPA, contabilidad, la AEAT y las juntas, en el navegador.
 						Y tus vecinos avisan, votan y pagan desde el móvil, sin llamarte.
 					</p>
 					<div class="actions">
-						<a class="button" href="#demo">Pide una demo de 15 minutos</a>
-						<a class="more" href="#dia">Mira un día cualquiera ↓</a>
+						<a class="button" href="#demo" data-dusk>Pide una demo de 15 minutos</a>
+						<a class="more" href="#dia" data-dusk>Mira un día cualquiera ↓</a>
 					</div>
 				</div>
 
 				<div>
 					<div class="stage" role="button" tabindex="0" aria-pressed="false" aria-label="Un edificio con las ventanas encendidas y los mensajes de sus vecinos. Púlsalo para que se haga de noche.">
-						<div class="night-sky"></div>
 						<div class="sun"></div>
-						<div class="ground"></div>
+						<div class="ground" data-dusk></div>
 						<div class="tree left"></div>
 						<div class="tree right"></div>
 						<div class="building">
@@ -3454,7 +3465,7 @@
 						<div class="bubble b2" aria-hidden="true"><i></i><div><strong>Fontanero avisado</strong><small>Por WhatsApp · va a las 17:00</small></div></div>
 						<div class="bubble b3" aria-hidden="true"><i></i><div><strong>Gotera arreglada</strong><small>El 3º A ya lo ve en su app</small></div></div>
 					</div>
-					<p class="hint" aria-hidden="true">✦ <span class="mouse">Pasa el ratón por el edificio</span><span class="touch">Toca el edificio</span></p>
+					<p class="hint" aria-hidden="true" data-dusk>✦ <span class="mouse">Pasa el ratón por el edificio</span><span class="touch">Toca el edificio</span></p>
 				</div>
 			</section>
 
@@ -3467,7 +3478,6 @@
 
 			<section class="wrap tl" id="dia">
 				<header class="tl-head">
-					<span class="kicker">Un martes cualquiera</span>
 					<h2>Lucía avisa, Marta lo resuelve y nadie llama a nadie.</h2>
 					<p>Un día en Residencial Los Olivos, contado desde el móvil de una vecina y desde el despacho que lleva la comunidad.</p>
 				</header>
@@ -3541,16 +3551,15 @@
 			<section class="showcase">
 				<div class="wrap">
 					<header>
-						<span class="kicker">Por dentro</span>
 						<h2>Todo el despacho en una pantalla. Todo el portal en un móvil.</h2>
 						<p>Tú, con el panel de la cartera: lo que se ha quedado atrás en cada comunidad. El vecino, con una app que se abre desde el correo y no hay que descargar.</p>
 					</header>
 					<figure class="screens">
 						<div class="browser">
-							<img src="/img/cartera.png" width="800" height="500" alt="El panel de cartera: incidencias abiertas, morosidad y obligaciones de cada comunidad del despacho">
+							<img src="img/cartera.png" width="800" height="500" alt="El panel de cartera: incidencias abiertas, morosidad y obligaciones de cada comunidad del despacho">
 						</div>
 						<div class="phone">
-							<img src="/img/vecino.jpg" width="390" height="800" alt="La app del vecino: dar un aviso, sus incidencias, sus votos y los contactos de la comunidad">
+							<img src="img/vecino.jpg" width="390" height="800" alt="La app del vecino: dar un aviso, sus incidencias, sus votos y los contactos de la comunidad">
 						</div>
 					</figure>
 				</div>
@@ -3559,8 +3568,7 @@
 			<section class="wrap fx-features" id="funciones">
 				<div class="fx-head">
 					<div>
-						<span class="kicker">Todo lo que hace</span>
-						<h2>Un programa <em>entero</em>, no un portal más.</h2>
+						<h2>Un programa entero, no un portal más.</h2>
 					</div>
 					<p>El despacho y el móvil de tus vecinos, sobre los mismos datos.</p>
 				</div>
@@ -3720,7 +3728,6 @@
 
 			<section class="wrap app-section">
 				<header class="app-head">
-					<span class="kicker">La app del vecino</span>
 					<h2>La app que tus vecinos sí abren.</h2>
 					<p>Les llega un enlace al correo y ya están dentro: nada que descargar, ninguna contraseña que olvidar. Avisan, votan y reservan desde el sofá, y tú lo ves todo desde el despacho.</p>
 				</header>
@@ -3772,7 +3779,7 @@
 
 							<div class="app-view app-v-home">
 								<div class="app-top">
-									<img src="/img/logo.svg" alt="" width="1108" height="234">
+									<img src="img/logo.svg" alt="" width="1108" height="234">
 									<span class="app-bell"><svg class="app-i" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg></span>
 								</div>
 								<div>
@@ -3928,8 +3935,7 @@
 
 			<section class="wrap pl-section" id="piloto">
 				<header class="pl-head">
-					<span class="kicker">El piloto</span>
-					<h2>Pruébalo con tus comunidades, <em class="pl-mark">sin pagar</em>.</h2>
+					<h2>Pruébalo con tus comunidades, sin pagar.</h2>
 					<p>Sin cambiar de golpe: empiezas con unas pocas y el resto lo pasas cuando quieras.</p>
 				</header>
 				<div class="pl-ticket">
@@ -3989,7 +3995,6 @@
 			<section id="demo" class="contact">
 				<div class="wrap">
 					<header>
-						<span class="kicker">Hablamos</span>
 						<h2>Quince minutos y lo ves con comunidades como las tuyas.</h2>
 						<p>En tu despacho o por videollamada. Trato directo con quien lo hace: te contesto yo, normalmente el mismo día.</p>
 					</header>
@@ -4115,29 +4120,60 @@
 		document.querySelector('.skyline').innerHTML = shapes;
 
 		// The hero's building
+		const page = document.querySelector('.page');
 		const stage = document.querySelector('.stage');
 		const windows = [...stage.querySelectorAll('.building span:not(.door)')];
 		windows.forEach((window) => window.style.setProperty('--d', `${(Math.random() * 0.7).toFixed(2)}s`));
 
+		// Its night grows from its sun as a circle over the whole hero. Each text changes colour as the edge passes it:
+		// the inverse of the circle's ease-out (a quadratic) says when the radius reaches it, growing or shrinking
+		const sky = document.querySelector('.hero-sky');
+		const sun = stage.querySelector('.sun');
+		const dusky = [...document.querySelectorAll('[data-dusk]')];
+		const SWEEP = 1.2; // the circle's transition, and the texts' below, in the CSS
+		const FADE = 0.4;
+		let settle;
+
 		const setNight = (night) => {
-			stage.classList.toggle('night', night);
+			const box = sky.getBoundingClientRect();
+			const top = Math.max(box.top, page.getBoundingClientRect().top);
+			const light = sun.getBoundingClientRect();
+			const x = light.left + light.width / 2;
+			const y = light.top + light.height / 2;
+			const reach = Math.max(...[box.left, box.right].flatMap((cornerX) => [top, box.bottom].map((cornerY) => Math.hypot(cornerX - x, cornerY - y))));
+			sky.style.setProperty('--sun', `${x - box.left}px ${y - box.top}px`);
+			sky.style.setProperty('--reach', `${reach}px`);
+			getComputedStyle(sky).clipPath; // at rest it has no transition, so the circle jumps to where the sun is now
+			dusky.forEach((element) => {
+				const rect = element.getBoundingClientRect();
+				const share = Math.min(1, Math.hypot(rect.left + rect.width / 2 - x, rect.top + rect.height / 2 - y) / reach);
+				const time = night ? 1 - Math.sqrt(1 - share) : 1 - Math.sqrt(share);
+				element.style.setProperty('--at', `${(time * SWEEP - FADE / 2).toFixed(2)}s`);
+			});
+			page.classList.add('dusking');
+			clearTimeout(settle);
+			settle = setTimeout(() => page.classList.remove('dusking'), (SWEEP + FADE) * 1000);
+			page.classList.toggle('night', night);
 			stage.setAttribute('aria-pressed', String(night));
 		};
 		stage.addEventListener('pointerenter', (event) => event.pointerType === 'mouse' && setNight(true));
 		stage.addEventListener('pointerleave', (event) => event.pointerType === 'mouse' && setNight(false));
-		stage.addEventListener('click', (event) => event.pointerType !== 'mouse' && setNight(!stage.classList.contains('night')));
+		stage.addEventListener('click', (event) => event.pointerType !== 'mouse' && setNight(!page.classList.contains('night')));
 		stage.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter' || event.key === ' ') {
 				event.preventDefault();
-				setNight(!stage.classList.contains('night'));
+				// Holding the key would flash the whole hero at the repeat rate
+				if (!event.repeat) setNight(!page.classList.contains('night'));
 			}
 		});
+		// A turned phone or a resized window moves the sun: night follows it, so no corner is left in daylight
+		new ResizeObserver(() => page.classList.contains('night') && setNight(true)).observe(sky);
 
 		if (!calm) {
 			// Someone is always switching a light on or off
 			setInterval(() => {
 				const window = windows[Math.floor(Math.random() * windows.length)];
-				if (!stage.classList.contains('night') && !window.classList.contains('help')) {
+				if (!page.classList.contains('night') && !window.classList.contains('help')) {
 					window.classList.toggle('on');
 				}
 			}, 1400);
