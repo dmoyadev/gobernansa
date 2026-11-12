@@ -8,6 +8,7 @@ import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput, useShortcut } from 'lnxjs-components';
 import NewButton from '@/app/ux/NewButton.vue';
 import { loadNeighbourCount, useCommunities } from '../application/useCommunities.ts';
+import { useNeighbourSearch } from '../application/useCommunitySearch.ts';
 
 // Neighbours per community, null while loading and undefined when it failed
 // ponytail: kept until the page reloads, a new neighbour shows up then
@@ -25,6 +26,15 @@ const filtered = computed(() => {
 				return words.every(word => text.includes(word));
 			})
 		: communities.value;
+});
+
+// Neighbours in any of them, by name, home, NIF, email or phone. Their census is read once something is typed
+const census = useNeighbourSearch(communities);
+const people = computed(() => census.search(search.value));
+watch(() => !!search.value.trim(), (typed) => {
+	if (typed) {
+		void census.loadIndex();
+	}
 });
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -96,8 +106,8 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 	</ul>
 
 	<template v-else-if="communities.length">
-		<LnxInput ref="searchField" v-model="search" class="search" type="search" placeholder="Buscar por nombre o dirección">
-			<span class="sr-only">Buscar comunidades</span>
+		<LnxInput ref="searchField" v-model="search" class="search" type="search" placeholder="Busca una comunidad o un vecino: nombre, piso, NIF, teléfono…">
+			<span class="sr-only">Buscar comunidades y vecinos</span>
 			<template #icon>
 				<LnxIcon icon="lucide:search" />
 			</template>
@@ -136,9 +146,41 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 			</li>
 		</TransitionGroup>
 
-		<section v-else class="empty" role="status">
+		<section v-if="search.trim() && (people.length || census.loading.value)" class="people" aria-live="polite">
+			<h2>Vecinos</h2>
+			<ul v-if="people.length" class="list">
+				<li v-for="(person, index) in people" :key="`${person.to}-${index}`">
+					<RouterLink class="row ux-row" :to="person.to">
+						<span class="icon">
+							<LnxIcon :icon="person.icon" :size="20" />
+						</span>
+						<span class="body">
+							<strong>
+								<template v-for="(segment, part) in person.titleSegments" :key="part">
+									<mark v-if="segment.mark">{{ segment.text }}</mark>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</strong>
+							<small>
+								{{ person.section }} ·
+								<template v-for="(segment, part) in person.textSegments" :key="part">
+									<mark v-if="segment.mark">{{ segment.text }}</mark>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</small>
+						</span>
+						<LnxIcon class="chevron" icon="lucide:chevron-right" :size="18" />
+					</RouterLink>
+				</li>
+			</ul>
+			<p v-else class="hint">
+				Buscando entre los vecinos…
+			</p>
+		</section>
+
+		<section v-else-if="!filtered.length" class="empty" role="status">
 			<LnxIcon icon="lucide:search-x" :size="40" />
-			<p>Ninguna comunidad coincide con «{{ search.trim() }}». Prueba con otra parte del nombre o de la dirección.</p>
+			<p>Nada coincide con «{{ search.trim() }}». Prueba con otra parte del nombre, la dirección, el piso o el NIF.</p>
 		</section>
 	</template>
 
@@ -292,6 +334,26 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 .row-leave-active {
 	position: absolute;
 	width: 100%;
+}
+
+.people {
+	margin-top: var(--lnx-spacing-5);
+
+	h2 {
+		margin-bottom: var(--lnx-spacing-3);
+		font-size: var(--lnx-font-size-subtitle);
+	}
+
+	mark {
+		border-radius: 2px;
+		background: #fde68a;
+		color: inherit;
+	}
+}
+
+.hint {
+	color: var(--color-gray-6);
+	font-size: var(--lnx-font-size-small);
 }
 
 .empty {

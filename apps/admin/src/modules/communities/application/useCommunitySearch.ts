@@ -210,6 +210,25 @@ function snippet(text: string, words: string[]) {
 	return `${start > 0 ? '…' : ''}${piece}${start + SNIPPET_LENGTH < text.length ? '…' : ''}`;
 }
 
+// The best ones for the text, with its words marked in the title and around them in the text
+export function rank(entries: SearchEntry[], text: string) {
+	const words = searchWords(text);
+	if (!words.length) {
+		return [];
+	}
+	const phrase = words.join(' ');
+	return entries
+		.map(entry => ({ entry, score: score(entry, phrase, words) }))
+		.filter(match => match.score)
+		.sort((a, b) => b.score - a.score)
+		.slice(0, MAX_RESULTS)
+		.map(({ entry }) => ({
+			...entry,
+			titleSegments: segments(entry.title, words),
+			textSegments: segments(snippet(entry.text, words), words),
+		}));
+}
+
 export function useCommunitySearch(communityId: MaybeRefOrGetter<string>, community: MaybeRefOrGetter<Community | undefined>) {
 	const base = computed(() => `/communities/${toValue(communityId)}`);
 	const loaded = shallowRef<SearchEntry[]>([]);
@@ -247,22 +266,49 @@ export function useCommunitySearch(communityId: MaybeRefOrGetter<string>, commun
 	});
 
 	function search(text: string) {
-		const words = searchWords(text);
-		if (!words.length) {
-			return [];
-		}
-		const phrase = words.join(' ');
-		return entries.value
-			.map(entry => ({ entry, score: score(entry, phrase, words) }))
-			.filter(match => match.score)
-			.sort((a, b) => b.score - a.score)
-			.slice(0, MAX_RESULTS)
-			.map(({ entry }) => ({
-				...entry,
-				titleSegments: segments(entry.title, words),
-				textSegments: segments(snippet(entry.text, words), words),
-			}));
+		return rank(entries.value, text);
 	}
 
 	return { search, loadIndex, loading };
+}
+
+// The census of every community the office has, to find a neighbour without knowing where they live. Read the first time it's
+// used, community by community with the same query as the search inside one, and kept like it
+// ponytail: one read per home, about 2.000 for an office of 40 communities every CACHE_TTL. A summary doc per community if that
+// shows on the bill
+const censusCache = new Map<string, { at: number; entries: Promise<SearchEntry[]> }>();
+
+async function loadCensus({ id, name }: Community) {
+	let cached = censusCache.get(id);
+	if (!cached || Date.now() - cached.at > CACHE_TTL) {
+		cached = {
+			at: Date.now(),
+			entries: load<Property>(query(collection(db, 'properties'), where('communityId', '==', id), limit(500)), property => ({
+				section: name || 'Sin nombre',
+				icon: propertyTypeIcons[property.type] ?? 'lucide:house',
+				title: property.ownerName || property.name,
+				text: join(property.name, property.ownerNif, property.ownerEmail, property.ownerPhone, property.tenantName && `Inquilino: ${property.tenantName}`, property.tenantEmail),
+				// Their home marked in the census, which doesn't show the NIF or the phone
+				to: `/communities/${id}/properties?highlight=${encodeURIComponent(property.name)}`,
+			})).catch(() => []),
+		};
+		censusCache.set(id, cached);
+	}
+	return cached.entries;
+}
+
+export function useNeighbourSearch(communities: MaybeRefOrGetter<Community[]>) {
+	const loaded = shallowRef<SearchEntry[]>([]);
+	const loading = ref(false);
+
+	async function loadIndex() {
+		if (loading.value) {
+			return;
+		}
+		loading.value = true;
+		loaded.value = (await Promise.all(toValue(communities).map(loadCensus))).flat();
+		loading.value = false;
+	}
+
+	return { search: (text: string) => rank(loaded.value, text), loadIndex, loading };
 }
