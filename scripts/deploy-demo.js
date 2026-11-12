@@ -27,5 +27,5 @@ const release = `${at.slice(0, 10).replaceAll('-', '.')}-${at.slice(11, 16).repl
 const run = command => execSync(command, { stdio: 'inherit', env: { ...process.env, VITE_RELEASE: release } });
 run('npm run build -w apps/webapp -w apps/admin -- --mode demo');
 // Rules and indexes first, as in CI. The maps stay out: firebase.json ignores them
-run('npx firebase deploy --project demo --only firestore,hosting --non-interactive');
+run('npx firebase deploy --project demo --only firestore,hosting:webapp,hosting:admin --non-interactive');
 console.log(styleText('green', `✔ Demo ${release} en ${env.VITE_WEBAPP_URL}`));

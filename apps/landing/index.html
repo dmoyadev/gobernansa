@@ -1,0 +1,4462 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="theme-color" content="#f1e9de">
+	<title>gobernança · El programa del despacho y la app del vecino, en uno</title>
+	<meta name="description" content="Recibos y remesas SEPA, contabilidad, modelos de la AEAT y juntas con acta firmada para despachos de administración de fincas, con una app que los vecinos sí usan.">
+	<meta property="og:title" content="gobernança para despachos de administración de fincas">
+	<meta property="og:description" content="El programa del despacho y la app del vecino, en uno. Todo en el navegador, sin instalar nada.">
+	<meta property="og:image" content="/img/cartera.png">
+	<link rel="icon" href="/img/logo.svg">
+	<style>
+		/* Served from here, like in the apps: no visitor's IP reaches Google */
+		@font-face {
+			font-family: 'Plus Jakarta Sans';
+			font-weight: 200 800;
+			font-display: swap;
+			src: url('/fonts/plus-jakarta-sans-normal-latin.woff2') format('woff2');
+		}
+		@font-face {
+			font-family: 'Inter Tight';
+			font-weight: 100 900;
+			font-display: swap;
+			src: url('/fonts/inter-tight-normal-latin.woff2') format('woff2');
+		}
+
+		:root {
+			--paper: #fbf6ef;
+			--sand: #efe6da;
+			--primary: #094067;
+			--primary-dark: #022842;
+			--accent: #e16162;
+			--accent-ink: #b23a40;
+			--teal-ink: #22625f;
+			--ink: #022842;
+			--text: #3b4a5a;
+			--muted: #6b7684;
+			--radius: 20px;
+			--hard: 4px 4px 0 var(--ink);
+			--heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+			color-scheme: light;
+		}
+
+		* {
+			box-sizing: border-box;
+			margin: 0;
+		}
+
+		html {
+			scroll-behavior: smooth;
+		}
+
+		/* The whole site is one framed sheet: a fine ink border and a hard little shadow */
+		body {
+			padding: 8px 12px 14px 8px;
+			background: #f1e9de;
+			color: var(--text);
+			font: 17px/1.6 'Inter Tight', system-ui, sans-serif;
+			-webkit-font-smoothing: antialiased;
+			overflow-x: clip;
+		}
+
+		.page {
+			overflow: clip;
+			border: 1.5px solid var(--ink);
+			border-radius: 22px;
+			background: var(--paper);
+			box-shadow: var(--hard);
+		}
+
+		h1, h2, h3 {
+			color: var(--ink);
+			font-family: var(--heading);
+			line-height: 1.1;
+			letter-spacing: -0.02em;
+			text-wrap: balance;
+		}
+
+		h2 {
+			margin-top: 10px;
+			font-size: clamp(30px, 7.4vw, 48px);
+			font-weight: 800;
+		}
+
+		p {
+			text-wrap: pretty;
+		}
+
+		a {
+			color: var(--primary);
+		}
+
+		img {
+			display: block;
+			max-width: 100%;
+			height: auto;
+		}
+
+		.wrap {
+			width: min(1120px, 100% - 40px);
+			margin-inline: auto;
+		}
+
+		.kicker {
+			display: inline-block;
+			color: var(--accent-ink);
+			font: 700 13px var(--heading);
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+		}
+
+		.button {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			min-height: 52px;
+			padding: 0 26px;
+			border: 0;
+			border-radius: 999px;
+			background: var(--primary);
+			color: #fff;
+			font: 700 16px var(--heading);
+			text-decoration: none;
+			cursor: pointer;
+			transition: transform 0.15s, background 0.15s;
+		}
+
+		.button:hover {
+			background: var(--primary-dark);
+			transform: translateY(-1px);
+		}
+
+		.button:active {
+			transform: translateY(1px);
+		}
+
+		:focus-visible {
+			outline: 3px solid #e1616288;
+			outline-offset: 3px;
+		}
+
+		/* Header */
+		.top {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding-block: 18px;
+		}
+
+		.top img {
+			width: 132px;
+		}
+
+		.top .button {
+			min-height: 42px;
+			padding-inline: 18px;
+			font-size: 14px;
+		}
+
+		/* Hero */
+		.hero {
+			display: grid;
+			gap: 28px;
+			padding-block: 24px 48px;
+		}
+
+		.hero h1 {
+			margin-top: 14px;
+			font-size: clamp(38px, 10.4vw, 72px);
+			font-weight: 800;
+			letter-spacing: -0.035em;
+			line-height: 1.02;
+		}
+
+		.hero h1 em {
+			position: relative;
+			z-index: 0;
+			font-style: normal;
+			white-space: nowrap;
+		}
+
+		/* A hand-drawn underline under «en uno» */
+		.hero h1 em::after {
+			content: '';
+			position: absolute;
+			left: -2%;
+			right: -2%;
+			bottom: -0.1em;
+			height: 0.3em;
+			background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 14 C 50 4, 120 2, 197 9' fill='none' stroke='%23e16162' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+			z-index: -1;
+		}
+
+		.hero .lead {
+			max-width: 34em;
+			margin-top: 20px;
+			font-size: clamp(18px, 4.6vw, 20px);
+		}
+
+		.actions {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 14px 22px;
+			margin-top: 28px;
+		}
+
+		.actions .more {
+			font-weight: 600;
+			text-decoration: none;
+		}
+
+		.actions .more:hover {
+			text-decoration: underline;
+		}
+
+		/* The building: each window is a home. Lights come and go, the neighbours write,
+		   and hovering it (or tapping it on a phone) brings the night in from the sun */
+		.stage {
+			position: relative;
+			width: min(460px, 100%);
+			aspect-ratio: 1 / 1.05;
+			margin-inline: auto;
+			isolation: isolate;
+			cursor: pointer;
+			-webkit-tap-highlight-color: transparent;
+		}
+
+		.stage:focus-visible {
+			outline-offset: 8px;
+			border-radius: 28px;
+		}
+
+		.night-sky {
+			position: absolute;
+			inset: 2% -3% 4%;
+			z-index: -2;
+			border-radius: 28px;
+			background:
+				radial-gradient(1.5px 1.5px at 12% 18%, #fff 60%, transparent),
+				radial-gradient(1.5px 1.5px at 30% 8%, #fff 60%, transparent),
+				radial-gradient(2px 2px at 46% 22%, #ffffffcc 60%, transparent),
+				radial-gradient(1.5px 1.5px at 8% 46%, #ffffffaa 60%, transparent),
+				radial-gradient(1.5px 1.5px at 92% 40%, #fff 60%, transparent),
+				radial-gradient(2px 2px at 88% 8%, #ffffffcc 60%, transparent),
+				radial-gradient(1.5px 1.5px at 20% 64%, #ffffff99 60%, transparent),
+				radial-gradient(1.5px 1.5px at 96% 66%, #ffffffaa 60%, transparent),
+				linear-gradient(#061a2b, #0c3253);
+			clip-path: circle(0% at 76% 17%);
+			transition: clip-path 0.9s cubic-bezier(0.65, 0, 0.35, 1);
+		}
+
+		.sun {
+			position: absolute;
+			right: 12%;
+			top: 4%;
+			width: 26%;
+			aspect-ratio: 1;
+			z-index: -1;
+			border-radius: 50%;
+			background: #f8cdbd;
+			transition: background 0.6s, box-shadow 0.6s, transform 0.6s;
+		}
+
+		.tree {
+			position: absolute;
+			bottom: 6%;
+			width: 13%;
+			aspect-ratio: 1 / 1.45;
+			border-radius: 50% 50% 46% 46%;
+			background: #8cc2ae;
+			transition: background 0.6s 0.2s;
+		}
+
+		.tree.left {
+			left: 9%;
+		}
+
+		.tree.right {
+			right: 11%;
+			width: 10%;
+			background: #a9d3c2;
+		}
+
+		.ground {
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: 5%;
+			height: 4px;
+			border-radius: 4px;
+			background: var(--sand);
+		}
+
+		.building {
+			position: absolute;
+			left: 25%;
+			right: 25%;
+			top: 16%;
+			bottom: 6%;
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			grid-template-rows: repeat(5, 1fr) 1.4fr;
+			gap: 5.5% 9%;
+			padding: 11% 10% 0;
+			border-radius: 14px 14px 3px 3px;
+			background: var(--primary);
+			transition: background 0.6s, transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+		}
+
+		.building::before {
+			content: '';
+			position: absolute;
+			left: 58%;
+			top: -7%;
+			width: 20%;
+			height: 7%;
+			border-radius: 5px 5px 0 0;
+			background: var(--primary-dark);
+		}
+
+		.building span {
+			border-radius: 4px;
+			background: #0f5a8a;
+			transition: background 0.35s;
+		}
+
+		.building .on {
+			background: #ffdca0;
+		}
+
+		.building .help {
+			background: var(--accent);
+			animation: pulse 1.8s ease-out infinite;
+		}
+
+		.building .door {
+			grid-column: 2 / 4;
+			margin-top: 18%;
+			border-radius: 8px 8px 0 0;
+			background: var(--primary-dark);
+		}
+
+		.stage.night .night-sky {
+			clip-path: circle(150% at 76% 17%);
+		}
+
+		.stage.night .sun {
+			background: #fdf1c7;
+			box-shadow: 0 0 0 12px #fdf1c714, 0 0 60px #fdf1c780;
+			transform: scale(0.62);
+		}
+
+		.stage.night .building {
+			background: #135587;
+			transform: translateY(-4px);
+		}
+
+		.stage.night .building span:not(.door, .help) {
+			background: #ffdca0;
+			transition-delay: var(--d, 0s);
+		}
+
+		.stage.night .tree.left {
+			background: #3d7564;
+		}
+
+		.stage.night .tree.right {
+			background: #4b8a75;
+		}
+
+		.bubble {
+			position: absolute;
+			display: flex;
+			align-items: flex-start;
+			gap: 10px;
+			max-width: 64%;
+			padding: 11px 14px;
+			border-radius: 16px;
+			background: #fff;
+			box-shadow: 0 2px 4px #02284212, 0 14px 30px #0228421f;
+			font-size: clamp(12px, 3.3vw, 14px);
+			line-height: 1.35;
+			transition: opacity 0.45s, transform 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.2);
+		}
+
+		/* With the script running, the bubbles come in one by one */
+		.stage.cycle .bubble:not(.in) {
+			opacity: 0;
+			transform: translateY(12px) scale(0.92);
+		}
+
+		.bubble strong {
+			display: block;
+			color: var(--ink);
+		}
+
+		.bubble small {
+			display: block;
+			color: var(--muted);
+			font-size: 0.92em;
+		}
+
+		.bubble i {
+			flex: none;
+			width: 10px;
+			height: 10px;
+			margin-top: 0.35em;
+			border-radius: 50%;
+			background: var(--accent);
+		}
+
+		.bubble.b1 {
+			left: 0;
+			top: 27%;
+			border-bottom-left-radius: 4px;
+		}
+
+		.bubble.b2 {
+			right: 0;
+			top: 49%;
+			border-bottom-right-radius: 4px;
+		}
+
+		.bubble.b2 i {
+			background: #3a9d96;
+		}
+
+		.bubble.b3 {
+			left: 3%;
+			bottom: 9%;
+		}
+
+		.bubble.b3 i {
+			background: var(--primary);
+		}
+
+		.hint {
+			margin-top: 6px;
+			color: var(--muted);
+			font-size: 14px;
+			text-align: center;
+		}
+
+		.hint .mouse {
+			display: none;
+		}
+
+		@media (hover: hover) {
+			.hint .mouse {
+				display: inline;
+			}
+
+			.hint .touch {
+				display: none;
+			}
+		}
+
+		@keyframes pulse {
+			0% {
+				box-shadow: 0 0 0 0 #e16162cc;
+			}
+			100% {
+				box-shadow: 0 0 0 12px #e1616200;
+			}
+		}
+
+		/* Marquee */
+		.marquee {
+			overflow: hidden;
+			padding-block: 16px;
+			background: var(--primary-dark);
+			color: #fff;
+			font: 700 clamp(16px, 4.2vw, 20px) var(--heading);
+			white-space: nowrap;
+		}
+
+		.marquee div {
+			display: flex;
+			width: max-content;
+			animation: slide 38s linear infinite;
+		}
+
+		.marquee span::after {
+			content: '✦';
+			margin-inline: 22px;
+			color: var(--accent);
+		}
+
+		@keyframes slide {
+			to {
+				transform: translateX(-50%);
+			}
+		}
+
+		/* One Tuesday told by two people on one thread: Marta from the office, Lucía from her phone */
+		.tl {
+			padding-block: 80px 24px;
+		}
+
+		.tl-head {
+			max-width: 620px;
+		}
+
+		.tl-head p {
+			margin-top: 14px;
+		}
+
+		/* Each side keeps its colour and its device, so you can tell who's talking at a glance */
+		.tl-office {
+			--tl-tint: #e3edf5;
+			--tl-ink: var(--primary);
+		}
+
+		.tl-neighbour {
+			--tl-tint: #fbe2e1;
+			--tl-ink: var(--accent-ink);
+		}
+
+		.tl-face {
+			display: grid;
+			place-items: center;
+			flex: none;
+			width: 36px;
+			height: 36px;
+			border: 1.5px solid var(--ink);
+			border-radius: 50%;
+			background: var(--tl-tint);
+			color: var(--tl-ink);
+		}
+
+		.tl-face svg, .tl-done svg {
+			width: 18px;
+			height: 18px;
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 1.8;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+
+		.tl-cast {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 12px 28px;
+			margin-top: 32px;
+			padding: 0;
+			list-style: none;
+		}
+
+		/* --text, not --muted: muted grey on the paper falls short of AA at this size */
+		.tl-cast li {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			color: var(--text);
+			font-size: 14px;
+			line-height: 1.3;
+		}
+
+		.tl-cast strong {
+			display: block;
+			color: var(--ink);
+			font: 700 16px var(--heading);
+		}
+
+		.tl-list {
+			--tl-gap: 24px;
+			position: relative;
+			isolation: isolate;
+			display: grid;
+			gap: var(--tl-gap);
+			margin-top: 32px;
+			padding: 0 0 64px;
+			list-style: none;
+		}
+
+		/* The day's thread, dashed like a route still to walk, fading out after the last moment */
+		.tl-list::before {
+			content: '';
+			position: absolute;
+			top: 18px;
+			bottom: 0;
+			left: 17px;
+			z-index: -1;
+			border-left: 2px dashed #02284247;
+			mask-image: linear-gradient(#000 calc(100% - 110px), transparent);
+		}
+
+		.tl-item {
+			position: relative;
+			display: grid;
+			grid-template-columns: 36px 1fr;
+			gap: 14px;
+			align-items: start;
+		}
+
+		/* Positioned so the dot sits over the thread that runs into it */
+		.tl-item .tl-face {
+			position: relative;
+		}
+
+		/* The squarer corner points at the dot, like the hero's bubbles */
+		.tl-card {
+			padding: 14px 18px 16px;
+			border: 1.5px solid var(--ink);
+			border-radius: 4px var(--radius) var(--radius);
+			background: #fff;
+			box-shadow: var(--hard);
+		}
+
+		.tl-meta {
+			display: flex;
+			align-items: baseline;
+			gap: 8px;
+			font: 700 13.5px var(--heading);
+		}
+
+		.tl-meta time {
+			color: var(--ink);
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* Who's speaking, in their own colour, so the two voices tell apart on a phone too */
+		.tl-meta span {
+			padding: 1px 9px;
+			border-radius: 999px;
+			background: var(--tl-tint);
+			color: var(--tl-ink);
+		}
+
+		.tl-card h3 {
+			margin-top: 8px;
+			font-size: 18px;
+			line-height: 1.25;
+		}
+
+		.tl-card h3 + p {
+			margin-top: 6px;
+			font-size: 15.5px;
+			line-height: 1.5;
+		}
+
+		/* The plumber has his say in his own colour */
+		.tl-done {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			margin-top: 12px;
+			padding: 4px 12px 4px 8px;
+			border-radius: 12px;
+			background: #dcefeb;
+			color: var(--teal-ink);
+			font: 700 13.5px var(--heading);
+		}
+
+		.tl-done svg {
+			flex: none;
+			width: 16px;
+			height: 16px;
+			stroke-width: 2.4;
+		}
+
+		/* What lands on Lucía's phone */
+		.tl-push {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			margin-top: 12px;
+			padding: 10px 12px;
+			border: 1px solid #e2d8cb;
+			border-radius: 14px;
+			background: var(--paper);
+			color: var(--ink);
+			font-size: 14px;
+			line-height: 1.3;
+		}
+
+		.tl-push small {
+			display: block;
+			color: var(--text);
+			font-size: 12.5px;
+		}
+
+		/* A tiny app icon: the logo's coral ring on the brand blue */
+		.tl-app {
+			flex: none;
+			width: 30px;
+			height: 30px;
+			border-radius: 8px;
+			background: radial-gradient(circle, transparent 5px, var(--accent) 5.5px 8.5px, transparent 9px), var(--primary);
+		}
+
+		/* With the script running, the thread walks down to each moment as you reach it,
+		   the dot pops in and the card follows. Without it, everything is simply there */
+		.tl-play .tl-item {
+			transition: transform 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) 0.25s;
+		}
+
+		.tl-play .tl-item::before {
+			content: '';
+			position: absolute;
+			top: 18px;
+			left: 17px;
+			height: calc(100% + var(--tl-gap));
+			border-left: 2px solid var(--ink);
+			transform: scaleY(0);
+			transform-origin: top;
+			transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
+		}
+
+		/* Only between two moments already told, so scrolling up from below never draws from a hidden dot */
+		.tl-play .tl-in:has(+ .tl-in)::before {
+			transform: none;
+		}
+
+		.tl-play .tl-item .tl-face {
+			transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) 0.4s;
+		}
+
+		.tl-play .tl-card {
+			transition: opacity 0.5s 0.45s;
+		}
+
+		.tl-play .tl-item:not(.tl-in) {
+			transform: translateY(18px);
+		}
+
+		.tl-play .tl-item:not(.tl-in) .tl-face {
+			transform: scale(0);
+		}
+
+		.tl-play .tl-item:not(.tl-in) .tl-card {
+			opacity: 0;
+		}
+
+		/* Showcase */
+		.showcase {
+			padding-block: 80px 88px;
+			background: var(--primary-dark);
+			color: #c9d6e3;
+		}
+
+		.showcase h2 {
+			color: #fff;
+		}
+
+		.showcase header p {
+			margin-top: 14px;
+		}
+
+		.showcase .kicker {
+			color: #f59d9a;
+		}
+
+		.screens {
+			position: relative;
+			margin: 40px 0 0;
+			padding: 0 10% 18% 0;
+		}
+
+		.browser {
+			overflow: hidden;
+			border-radius: 14px;
+			background: #fff;
+			box-shadow: 0 30px 60px #0000004d;
+		}
+
+		.browser::before {
+			content: '';
+			display: block;
+			height: 26px;
+			background: #edf2f7 radial-gradient(circle, #e16162 4px, transparent 4.5px) 10px 50% / 16px 26px no-repeat;
+			box-shadow: 0 -1px 0 #e2e8f0 inset;
+		}
+
+		.phone {
+			position: absolute;
+			right: 0;
+			bottom: 0;
+			width: 34%;
+			padding: 6px;
+			border-radius: 28px;
+			background: #0b1620;
+			box-shadow: 0 24px 50px #00000066, inset 0 0 0 1px #ffffff26;
+		}
+
+		.phone img {
+			border-radius: 22px;
+		}
+
+		/* Features: eight areas at a glance, and the detail only for whoever asks for it */
+		.fx-features {
+			padding-block: 88px 24px;
+		}
+
+		.fx-head p {
+			max-width: 30em;
+			margin-top: 14px;
+		}
+
+		/* The hero's hand-drawn underline, once more, under the word that matters here */
+		.fx-head em {
+			position: relative;
+			z-index: 0;
+			font-style: normal;
+			white-space: nowrap;
+		}
+
+		.fx-head em::after {
+			content: '';
+			position: absolute;
+			left: -2%;
+			right: -2%;
+			bottom: -0.06em;
+			z-index: -1;
+			height: 0.28em;
+			background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M4 11 C 60 4, 140 3, 196 12' fill='none' stroke='%23e16162' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+		}
+
+		/* Each area brings its own soft tint, the same family as the avatars of the log */
+		.fx-sun {
+			--fx-tint: #f6ead2;
+			--fx-pop: #ffcf70;
+		}
+
+		.fx-sky {
+			--fx-tint: #e3edf5;
+			--fx-pop: #9cc4e4;
+		}
+
+		.fx-mint {
+			--fx-tint: #dcefeb;
+			--fx-pop: #8cc2ae;
+		}
+
+		.fx-rose {
+			--fx-tint: #fbe2e1;
+			--fx-pop: #f29b9a;
+		}
+
+		.fx-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 12px;
+			margin-top: 32px;
+			padding: 0;
+			list-style: none;
+		}
+
+		.fx-grid > li {
+			display: grid;
+		}
+
+		/* Without the script, an open area takes the whole row so its list can breathe */
+		.fx-grid > li:has(> [open]) {
+			grid-column: 1 / -1;
+		}
+
+		/* Flat at rest so the section stays light; the hard shadow only shows up on the one you point at */
+		.fx-tile {
+			position: relative;
+			width: 100%;
+			border: 1.5px solid var(--ink);
+			border-radius: var(--radius);
+			background: #fff;
+			color: var(--text);
+			font: inherit;
+			text-align: start;
+			box-shadow: 0 0 0 var(--ink);
+			transition: transform 0.2s, box-shadow 0.2s;
+		}
+
+		.fx-face {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			padding: 16px 12px 18px;
+			list-style: none;
+			cursor: pointer;
+			-webkit-tap-highlight-color: transparent;
+		}
+
+		.fx-face::-webkit-details-marker {
+			display: none;
+		}
+
+		/* The summary's focus ring follows the card's corners */
+		.fx-tile > .fx-face {
+			border-radius: inherit;
+		}
+
+		.fx-icon {
+			display: grid;
+			place-items: center;
+			width: 64px;
+			height: 64px;
+			border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%;
+			background: var(--fx-tint);
+			transition: transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1), border-radius 0.4s;
+		}
+
+		/* Not every blob is cut the same, so the grid feels drawn by hand */
+		.fx-grid > li:nth-child(3n + 2) .fx-icon {
+			border-radius: 56% 44% 48% 52% / 46% 56% 44% 54%;
+		}
+
+		.fx-grid > li:nth-child(3n) .fx-icon {
+			border-radius: 50% 50% 42% 58% / 58% 48% 52% 42%;
+		}
+
+		.fx-icon svg {
+			width: 42px;
+			height: 42px;
+			overflow: visible;
+			fill: none;
+			stroke: var(--ink);
+			stroke-width: 2;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+
+		/* The same 2px line at every icon size, like the page's drawn borders */
+		.fx-icon svg * {
+			vector-effect: non-scaling-stroke;
+		}
+
+		.fx-icon .fx-pop {
+			fill: var(--fx-pop);
+		}
+
+		.fx-icon .fx-white {
+			fill: #fff;
+		}
+
+		.fx-name {
+			margin-top: 14px;
+			color: var(--ink);
+			font: 700 clamp(15px, 4.4vw, 17px) / 1.2 var(--heading);
+			letter-spacing: -0.01em;
+			text-wrap: balance;
+			/* «Comunicación» is one long word: on the narrowest phones it breaks instead of spilling out */
+			hyphens: auto;
+		}
+
+		.fx-hook {
+			margin-top: 4px;
+			color: var(--muted);
+			font-size: 14px;
+			line-height: 1.4;
+			text-wrap: pretty;
+		}
+
+		/* A little «+» that says there's more behind each tile */
+		.fx-plus {
+			position: absolute;
+			top: 12px;
+			right: 12px;
+			width: 28px;
+			height: 28px;
+			border: 1.5px solid var(--ink);
+			border-radius: 50%;
+			background:
+				linear-gradient(var(--ink), var(--ink)) center / 10px 1.5px no-repeat,
+				linear-gradient(var(--ink), var(--ink)) center / 1.5px 10px no-repeat;
+			background-color: #fff;
+			transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), background-color 0.2s;
+		}
+
+		.fx-tile[open] .fx-plus {
+			transform: rotate(45deg);
+		}
+
+		.fx-tile:is(:focus-visible, :has(> :focus-visible)) {
+			transform: translate(-2px, -2px);
+			box-shadow: var(--hard);
+		}
+
+		@media (hover: hover) {
+			.fx-tile:hover {
+				transform: translate(-2px, -2px);
+				box-shadow: var(--hard);
+			}
+
+			.fx-tile:hover .fx-icon {
+				border-radius: 58% 42% 40% 60% / 44% 58% 42% 56%;
+				transform: rotate(-8deg) scale(1.06);
+			}
+
+			.fx-tile:not([open]):hover .fx-plus {
+				background-color: var(--accent);
+				transform: rotate(90deg);
+			}
+		}
+
+		/* After the hover rules, so pressing always wins; an open card doesn't jump when you select its text */
+		.fx-tile:not([open]):active {
+			transform: translate(1px, 1px);
+			box-shadow: 0 0 0 var(--ink);
+		}
+
+		.fx-list {
+			display: grid;
+			gap: 10px;
+			padding: 0;
+			color: var(--ink);
+			list-style: none;
+			font-size: 16px;
+			line-height: 1.45;
+		}
+
+		.fx-tile .fx-list {
+			padding: 2px 12px 20px;
+		}
+
+		.fx-list li {
+			position: relative;
+			padding-left: 22px;
+		}
+
+		.fx-list li::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 0.42em;
+			width: 11px;
+			height: 11px;
+			border: 1.5px solid var(--ink);
+			border-radius: 50%;
+			background: var(--fx-pop);
+		}
+
+		.fx-soon {
+			display: inline-block;
+			margin-left: 4px;
+			padding: 1px 8px;
+			border-radius: 999px;
+			background: #fbe2e1;
+			color: var(--accent-ink);
+			font: 700 11.5px var(--heading);
+			white-space: nowrap;
+			vertical-align: 1px;
+		}
+
+		/* Inherits --text: --muted is under 4.5:1 on the paper at this size */
+		.fx-note {
+			margin-top: 20px;
+			font-size: 14px;
+			line-height: 1.5;
+		}
+
+		.fx-note .fx-soon {
+			margin: 0 2px;
+		}
+
+		/* The detail: a sheet from the bottom on the phone, a card in the middle on the computer */
+		.fx-sheet {
+			width: auto;
+			max-width: none;
+			max-height: calc(100% - 24px - env(safe-area-inset-bottom));
+			margin: auto 12px calc(12px + env(safe-area-inset-bottom)) 8px;
+			padding: 0;
+			border: 1.5px solid var(--ink);
+			border-radius: 26px;
+			background: #fff;
+			color: var(--text);
+			box-shadow: var(--hard);
+			overscroll-behavior: contain;
+		}
+
+		.fx-sheet[open] {
+			animation: fx-rise 0.45s cubic-bezier(0.2, 0.9, 0.2, 1.05);
+		}
+
+		/* Literal colours: ::backdrop doesn't inherit the page's tokens everywhere */
+		.fx-sheet::backdrop {
+			background: #02284273;
+			backdrop-filter: blur(3px);
+		}
+
+		.fx-sheet[open]::backdrop {
+			animation: fx-fade 0.3s ease-out;
+		}
+
+		/* Nothing behind moves while the sheet is open; the gutter keeps the page from jumping sideways */
+		:root:has(.fx-sheet[open]) {
+			overflow: hidden;
+			scrollbar-gutter: stable;
+		}
+
+		.fx-sheet-head {
+			display: grid;
+			grid-template-columns: auto 1fr auto;
+			align-items: center;
+			gap: 14px;
+			padding: 18px 14px 18px 18px;
+			background: var(--fx-tint);
+		}
+
+		.fx-sheet .fx-icon {
+			width: 56px;
+			height: 56px;
+			border: 1.5px solid var(--ink);
+			background: #fff;
+		}
+
+		.fx-sheet .fx-icon svg {
+			width: 32px;
+			height: 32px;
+		}
+
+		.fx-sheet h3 {
+			font-size: 22px;
+		}
+
+		.fx-sheet-hook {
+			margin-top: 4px;
+			font-size: 15px;
+			line-height: 1.35;
+		}
+
+		.fx-close {
+			display: grid;
+			place-items: center;
+			align-self: start;
+			width: 40px;
+			height: 40px;
+			padding: 0;
+			border: 1.5px solid var(--ink);
+			border-radius: 50%;
+			background: #fff;
+			color: var(--ink);
+			cursor: pointer;
+			transition: background 0.2s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+		}
+
+		.fx-close svg {
+			width: 18px;
+			height: 18px;
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 2.2;
+			stroke-linecap: round;
+		}
+
+		.fx-close:hover {
+			background: var(--accent);
+			transform: rotate(90deg);
+		}
+
+		.fx-sheet-body {
+			padding: 22px 20px 20px;
+		}
+
+		.fx-sheet .fx-note {
+			margin: 20px 0 0;
+			padding: 12px 14px;
+			border-radius: 14px;
+			background: var(--paper);
+		}
+
+		@keyframes fx-rise {
+			from {
+				opacity: 0;
+				transform: translateY(48px);
+			}
+		}
+
+		@keyframes fx-zoom {
+			from {
+				opacity: 0;
+				transform: translateY(16px) scale(0.96);
+			}
+		}
+
+		@keyframes fx-fade {
+			from {
+				opacity: 0;
+			}
+		}
+
+		/* The neighbour's app, playing on a phone drawn in HTML. Classes on .app-phone decide
+		   what its screen shows, so the script only adds them in time and the CSS animates */
+		.app-section {
+			/* The page's grey is 4.3:1 on this paper; a shade darker passes AA in the phone and the list */
+			--muted: #5d6875;
+			padding-block: 88px 48px;
+		}
+
+		.app-head p {
+			max-width: 34em;
+			margin-top: 14px;
+		}
+
+		.app-stage {
+			position: relative;
+			display: grid;
+			justify-items: center;
+			margin-top: 36px;
+			padding-top: 3.8em;
+			/* The one knob for the phone's size: everything in it is in em */
+			font-size: min(12.5px, (100vw - 76px) / 22);
+		}
+
+		/* An arch behind it, like a doorway of the building */
+		.app-arch {
+			position: absolute;
+			top: 0;
+			bottom: 5em;
+			left: 50%;
+			width: min(100%, 30em);
+			border: 1.5px solid var(--ink);
+			border-radius: 15em 15em 2em 2em;
+			background: radial-gradient(circle, #0228421c 1.2px, transparent 1.7px) 0 0 / 14px 14px, var(--sand);
+			transform: translateX(-50%);
+		}
+
+		/* What a notification sends out when it lands */
+		.app-ring {
+			position: absolute;
+			top: 9em;
+			left: 50%;
+			width: 16em;
+			height: 16em;
+			margin: -8em 0 0 -8em;
+			border: 2px solid var(--accent);
+			border-radius: 50%;
+			opacity: 0;
+		}
+
+		.app-sticker {
+			position: absolute;
+			top: 0.9em;
+			left: 50%;
+			z-index: 2;
+			display: flex;
+			align-items: center;
+			gap: 7px;
+			padding: 6px 14px 6px 12px;
+			border: 1.5px solid var(--ink);
+			border-radius: 999px;
+			background: #fff;
+			box-shadow: 3px 3px 0 var(--ink);
+			color: var(--ink);
+			font: 700 13px var(--heading);
+			white-space: nowrap;
+			transform: translateX(-50%) rotate(-4deg);
+		}
+
+		.app-sticker svg {
+			width: 18px;
+			height: 18px;
+			fill: none;
+			stroke: var(--accent-ink);
+			stroke-width: 2;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+
+		.app-phone {
+			--app-bg: #f8f4ee;
+			--app-line: #e8dfd3;
+			position: relative;
+			z-index: 1;
+			width: 22em;
+			height: 45.5em;
+			padding: 0.55em;
+			border: 1.5px solid var(--ink);
+			border-radius: 3.3em;
+			background: var(--ink);
+			box-shadow: inset 0 0 0 0.2em #0d3a5e, 6px 6px 0 var(--accent);
+			color: var(--ink);
+			line-height: 1.3;
+			-webkit-user-select: none;
+			user-select: none;
+		}
+
+		/* Its side buttons */
+		.app-phone::before,
+		.app-phone::after {
+			content: '';
+			position: absolute;
+			width: 0.3em;
+			border-radius: 2px;
+			background: var(--ink);
+		}
+
+		.app-phone::before {
+			top: 9em;
+			right: -0.4em;
+			height: 4.5em;
+		}
+
+		.app-phone::after {
+			top: 7.5em;
+			left: -0.4em;
+			height: 2.6em;
+			box-shadow: 0 3.6em 0 var(--ink);
+		}
+
+		.app-defs {
+			position: absolute;
+		}
+
+		.app-screen {
+			position: relative;
+			isolation: isolate;
+			height: 100%;
+			overflow: hidden;
+			border-radius: 2.75em;
+			background: var(--app-bg);
+		}
+
+		.app-phone b {
+			color: var(--ink);
+			font-family: var(--heading);
+			font-weight: 700;
+		}
+
+		.app-phone small {
+			display: block;
+			color: var(--muted);
+			font-size: 0.9em;
+		}
+
+		.app-i {
+			flex: none;
+			width: 1.45em;
+			height: 1.45em;
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 1.9;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+
+		.app-status {
+			position: absolute;
+			inset: 0 0 auto;
+			z-index: 3;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			height: 2.9em;
+			padding: 0.25em 1.5em 0 2.1em;
+			background: var(--app-bg);
+		}
+
+		.app-status b {
+			font-size: 1.05em;
+		}
+
+		.app-status svg {
+			width: 4.3em;
+			height: 1em;
+			fill: currentColor;
+		}
+
+		/* The island */
+		.app-status::after {
+			content: '';
+			position: absolute;
+			top: 0.6em;
+			left: 50%;
+			width: 6.6em;
+			height: 1.9em;
+			margin-left: -3.3em;
+			border-radius: 1em;
+			background: #000;
+		}
+
+		/* Screens stack up and slide in from the right, like on a phone */
+		.app-view {
+			position: absolute;
+			inset: 2.9em 0 0;
+			display: flex;
+			flex-direction: column;
+			gap: 0.7em;
+			padding: 0.6em 1.15em 1.3em;
+			background: var(--app-bg);
+			transform: translateX(100%);
+			transition: transform 0.55s cubic-bezier(0.3, 0.8, 0.2, 1);
+		}
+
+		.app-v-home,
+		.app-form .app-v-form,
+		.app-sent .app-v-issue,
+		.app-meeting .app-v-meeting,
+		.app-book .app-v-book {
+			transform: none;
+		}
+
+		.app-form .app-v-home,
+		.app-meeting .app-v-home,
+		.app-book .app-v-home,
+		.app-sent .app-v-form {
+			transform: translateX(-30%);
+		}
+
+		/* Back to the start of a flow in one cut, nothing sliding backwards */
+		.app-cut *,
+		.app-cut *::after {
+			transition: none !important;
+		}
+
+		.app-top {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		.app-top img {
+			width: auto;
+			height: 1.4em;
+		}
+
+		.app-bell {
+			position: relative;
+			display: grid;
+			place-items: center;
+			width: 2.4em;
+			height: 2.4em;
+			border-radius: 50%;
+			background: #fff;
+			box-shadow: 0 0 0 1px var(--app-line);
+		}
+
+		.app-bell::after {
+			content: '';
+			position: absolute;
+			top: 0.4em;
+			right: 0.45em;
+			width: 0.55em;
+			height: 0.55em;
+			border-radius: 50%;
+			background: var(--accent);
+			transform: scale(0);
+			transition: transform 0.3s 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+		}
+
+		.app-call .app-bell::after {
+			transform: none;
+		}
+
+		.app-hello {
+			display: block;
+			font-size: 1.75em;
+			font-weight: 800;
+			letter-spacing: -0.02em;
+		}
+
+		.app-banner {
+			display: grid;
+			gap: 0.3em;
+			padding: 1em;
+			border-radius: 1.2em;
+			background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+			color: #c9d6e3;
+			font-size: 0.95em;
+		}
+
+		.app-banner b {
+			color: #fff;
+			font-size: 1.25em;
+		}
+
+		.app-btn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.45em;
+			height: 2.9em;
+			border-radius: 0.85em;
+			background: var(--primary);
+			color: #fff;
+			font: 700 1em var(--heading);
+		}
+
+		/* Ink on coral, like the page's own coral buttons: white on it is only 3.5:1 */
+		.app-coral {
+			margin-top: 0.5em;
+			background: var(--accent);
+			color: var(--ink);
+		}
+
+		.app-label {
+			margin-top: 0.2em;
+			font-size: 1.1em;
+		}
+
+		.app-tiles {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0.6em;
+		}
+
+		.app-tile,
+		.app-card,
+		.app-row {
+			padding: 0.8em 0.85em;
+			border-radius: 1em;
+			background: #fff;
+			box-shadow: 0 0 0 1px var(--app-line);
+		}
+
+		.app-tile {
+			display: grid;
+			gap: 0.1em;
+		}
+
+		.app-tile .app-i,
+		.app-row .app-i {
+			width: 2.3em;
+			height: 2.3em;
+			padding: 0.45em;
+			border-radius: 0.75em;
+		}
+
+		.app-tile .app-i {
+			margin-bottom: 0.4em;
+			background: #dcefeb;
+			color: var(--teal-ink);
+		}
+
+		.app-tile + .app-tile .app-i {
+			background: #f6ead2;
+			color: var(--primary);
+		}
+
+		.app-row {
+			display: flex;
+			align-items: center;
+			gap: 0.7em;
+		}
+
+		.app-row .app-i {
+			border-radius: 50%;
+			background: #fbe2e1;
+			color: var(--accent-ink);
+		}
+
+		.app-row b {
+			display: block;
+		}
+
+		.app-tabbar {
+			position: absolute;
+			right: 1.3em;
+			bottom: 1.2em;
+			left: 1.3em;
+			display: flex;
+			align-items: center;
+			justify-content: space-around;
+			height: 3.7em;
+			border-radius: 999px;
+			background: #fff;
+			box-shadow: 0 0 0 1px var(--app-line), 0 0.6em 1.4em #0228421a;
+			color: var(--muted);
+		}
+
+		.app-tabbar > .app-i:first-child {
+			color: var(--accent-ink);
+		}
+
+		.app-plus {
+			display: grid;
+			place-items: center;
+			width: 2.9em;
+			height: 2.9em;
+			border-radius: 50%;
+			background: var(--accent);
+			color: #fff;
+		}
+
+		.app-nav {
+			display: flex;
+			align-items: center;
+			gap: 0.3em;
+			margin-left: -0.35em;
+			font-size: 1.15em;
+		}
+
+		.app-nav .app-i {
+			color: var(--primary);
+		}
+
+		.app-field {
+			margin-bottom: -0.3em;
+			font-size: 0.95em;
+		}
+
+		.app-input {
+			min-height: 4.4em;
+			padding: 0.75em 0.85em;
+			border-radius: 0.9em;
+			background: #fff;
+			box-shadow: 0 0 0 1.5px var(--primary);
+			color: var(--ink);
+		}
+
+		/* Typed one letter at a time */
+		.app-type {
+			display: inline-block;
+			max-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			vertical-align: top;
+			transition: max-width 1.2s steps(27);
+		}
+
+		.app-typed .app-type {
+			max-width: 27ch;
+		}
+
+		.app-caret {
+			display: inline-block;
+			width: 1.5px;
+			height: 1.3em;
+			margin-left: 1px;
+			background: var(--primary);
+			vertical-align: top;
+		}
+
+		.app-run .app-caret {
+			animation: app-blink 1.1s step-end infinite;
+		}
+
+		.app-photos {
+			display: flex;
+			gap: 0.6em;
+		}
+
+		.app-add,
+		.app-shot {
+			display: grid;
+			place-items: center;
+			width: 4.8em;
+			height: 4.8em;
+			border-radius: 0.9em;
+		}
+
+		.app-add {
+			border: 1.5px dashed #c6b9a8;
+			color: var(--muted);
+		}
+
+		.app-shot {
+			overflow: hidden;
+			box-shadow: 0 0 0 1px var(--app-line);
+			transform: scale(0);
+			transition: transform 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
+		}
+
+		.app-photo .app-shot,
+		.app-card .app-shot {
+			transform: none;
+		}
+
+		.app-shot svg,
+		.app-push-pic svg {
+			display: block;
+			width: 100%;
+			height: 100%;
+		}
+
+		/* The category, suggested while typing */
+		.app-suggest {
+			position: relative;
+			height: 3.1em;
+			margin-top: 0.2em;
+		}
+
+		.app-ask,
+		.app-chosen {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			align-items: center;
+			gap: 0.5em;
+			padding: 0 0.45em 0 0.8em;
+			border-radius: 0.9em;
+			color: var(--teal-ink);
+			opacity: 0;
+			transition: opacity 0.3s, transform 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+		}
+
+		.app-ask {
+			background: #dcefeb;
+			transform: translateY(0.6em);
+		}
+
+		.app-ask b {
+			color: inherit;
+		}
+
+		.app-chosen {
+			background: #fff;
+			box-shadow: inset 0 0 0 1.5px var(--teal-ink);
+			transform: scale(0.92);
+		}
+
+		.app-chosen b {
+			flex: 1;
+			color: var(--teal-ink);
+		}
+
+		.app-hint .app-ask,
+		.app-cat .app-chosen {
+			opacity: 1;
+			transform: none;
+		}
+
+		.app-cat .app-ask {
+			opacity: 0;
+		}
+
+		.app-ok {
+			margin-left: auto;
+			padding: 0.4em 1em;
+			border-radius: 999px;
+			background: var(--teal-ink);
+			color: #fff;
+			font: 700 1em var(--heading);
+		}
+
+		.app-send,
+		.app-reserve {
+			position: absolute;
+			right: 1.15em;
+			bottom: 1.4em;
+			left: 1.15em;
+			opacity: 0.4;
+			transition: opacity 0.3s;
+		}
+
+		.app-cat .app-send,
+		.app-slot .app-reserve {
+			opacity: 1;
+		}
+
+		.app-card {
+			display: grid;
+			gap: 0.4em;
+		}
+
+		.app-card .app-shot {
+			width: 100%;
+			height: 7em;
+			margin-bottom: 0.2em;
+		}
+
+		.app-meta {
+			display: flex;
+			align-items: center;
+			gap: 0.6em;
+			color: var(--muted);
+			font-size: 0.9em;
+		}
+
+		.app-pill,
+		.app-tag {
+			padding: 0.2em 0.65em;
+			border-radius: 999px;
+			background: #dcefeb;
+			color: var(--teal-ink);
+			font-weight: 700;
+			white-space: nowrap;
+		}
+
+		.app-track {
+			padding: 0;
+			list-style: none;
+		}
+
+		.app-track li {
+			position: relative;
+			padding: 0.05em 0 1.1em 2.2em;
+		}
+
+		/* The thread from one step to the next */
+		.app-track li:not(:last-child)::before {
+			content: '';
+			position: absolute;
+			top: 1.75em;
+			bottom: 0.25em;
+			left: 0.66em;
+			width: 2px;
+			border-radius: 2px;
+			background: var(--app-line);
+		}
+
+		.app-track i {
+			position: absolute;
+			top: 0;
+			left: 0;
+			display: grid;
+			place-items: center;
+			width: 1.45em;
+			height: 1.45em;
+			border-radius: 50%;
+			background: var(--teal-ink);
+			color: #fff;
+		}
+
+		.app-track i .app-i {
+			width: 0.95em;
+			height: 0.95em;
+			stroke-width: 3;
+		}
+
+		.app-track b {
+			display: block;
+		}
+
+		.app-step-plan,
+		.app-step-fixed {
+			opacity: 0;
+			transform: translateY(0.6em);
+			transition: opacity 0.4s, transform 0.5s cubic-bezier(0.3, 1.4, 0.5, 1);
+		}
+
+		.app-plan .app-step-plan,
+		.app-fixed .app-step-fixed {
+			opacity: 1;
+			transform: none;
+		}
+
+		/* Notifications drop in over whatever is open */
+		.app-push {
+			position: absolute;
+			top: 3.1em;
+			right: 0.6em;
+			left: 0.6em;
+			z-index: 4;
+			display: grid;
+			grid-template-columns: auto 1fr auto;
+			align-items: center;
+			gap: 0.65em;
+			padding: 0.7em;
+			border-radius: 1.3em;
+			background: #fffffff5;
+			box-shadow: 0 0 0 1px #0228421a, 0 0.8em 2em #02284238;
+			opacity: 0;
+			transform: translateY(-4em) scale(0.96);
+			transition: transform 0.6s cubic-bezier(0.2, 1.4, 0.4, 1), opacity 0.3s;
+		}
+
+		.app-fixed .app-push-fixed,
+		.app-call .app-push-call {
+			opacity: 1;
+			transform: none;
+		}
+
+		.app-meeting .app-push-call {
+			opacity: 0;
+			transform: scale(0.94);
+		}
+
+		.app-push b {
+			display: flex;
+			justify-content: space-between;
+			gap: 0.5em;
+		}
+
+		.app-push b small {
+			font-family: 'Inter Tight', system-ui, sans-serif;
+			font-weight: 400;
+		}
+
+		.app-push > span > small {
+			color: var(--text);
+		}
+
+		.app-appicon {
+			display: grid;
+			place-items: center;
+			width: 1.75em;
+			height: 1.75em;
+			border-radius: 0.5em;
+			background: var(--primary);
+			color: #fff;
+			font: 800 1.35em / 1 var(--heading);
+			font-style: normal;
+		}
+
+		.app-push-pic {
+			width: 2.9em;
+			height: 2.9em;
+			overflow: hidden;
+			border-radius: 0.6em;
+		}
+
+		.app-when {
+			grid-template-columns: auto 1fr;
+			align-items: center;
+			gap: 0.8em;
+		}
+
+		.app-cal {
+			display: grid;
+			place-items: center;
+			align-content: center;
+			width: 3.3em;
+			height: 3.5em;
+			border-radius: 0.8em;
+			background: #fbe2e1;
+			line-height: 1;
+		}
+
+		.app-cal small,
+		.app-cal b {
+			color: var(--accent-ink);
+		}
+
+		.app-cal small {
+			font: 700 0.88em var(--heading);
+			letter-spacing: 0.08em;
+		}
+
+		.app-cal b {
+			font-size: 1.5em;
+		}
+
+		.app-item {
+			display: flex;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 0.5em;
+		}
+
+		.app-tag {
+			font-size: 0.88em;
+		}
+
+		.app-choices {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 0.35em;
+			margin-top: 0.2em;
+		}
+
+		.app-choice {
+			display: grid;
+			place-items: center;
+			height: 2.4em;
+			border-radius: 0.7em;
+			box-shadow: inset 0 0 0 1.5px var(--app-line);
+			color: var(--primary);
+			font: 700 0.92em var(--heading);
+			transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+		}
+
+		.app-vote .app-favor {
+			background: var(--primary);
+			box-shadow: none;
+			color: #fff;
+		}
+
+		.app-toast {
+			position: absolute;
+			bottom: 1.6em;
+			left: 50%;
+			display: flex;
+			align-items: center;
+			gap: 0.45em;
+			padding: 0.7em 1.15em 0.7em 0.9em;
+			border-radius: 999px;
+			background: var(--ink);
+			color: #fff;
+			font: 700 1em var(--heading);
+			white-space: nowrap;
+			opacity: 0;
+			transform: translate(-50%, 1.5em);
+			transition: transform 0.5s cubic-bezier(0.2, 1.4, 0.4, 1), opacity 0.3s;
+		}
+
+		.app-toast .app-i {
+			color: #f59d9a;
+			stroke-width: 2.6;
+		}
+
+		.app-voted .app-toast {
+			opacity: 1;
+			transform: translateX(-50%);
+		}
+
+		.app-seg {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			padding: 0.25em;
+			border-radius: 0.9em;
+			background: #efe7dc;
+		}
+
+		.app-seg span {
+			display: grid;
+			place-items: center;
+			height: 2.3em;
+			border-radius: 0.7em;
+			color: var(--muted);
+			font: 700 0.95em var(--heading);
+		}
+
+		.app-seg span:first-child {
+			background: #fff;
+			box-shadow: 0 1px 2px #02284224;
+			color: var(--ink);
+		}
+
+		.app-week {
+			display: grid;
+			grid-template-columns: repeat(7, 1fr);
+			gap: 0.2em;
+		}
+
+		.app-date {
+			display: grid;
+			justify-items: center;
+			gap: 0.1em;
+			padding: 0.45em 0;
+			border-radius: 0.8em;
+			color: var(--ink);
+			font: 700 1.05em var(--heading);
+			transition: background 0.3s, color 0.3s;
+		}
+
+		.app-date small {
+			font: 600 0.84em 'Inter Tight', system-ui, sans-serif;
+			transition: color 0.3s;
+		}
+
+		.app-past {
+			opacity: 0.4;
+		}
+
+		.app-today,
+		.app-day .app-sat {
+			background: var(--primary);
+			color: #fff;
+		}
+
+		.app-today small,
+		.app-day .app-sat small {
+			color: #ffffffb8;
+		}
+
+		.app-day .app-today {
+			background: none;
+			color: var(--ink);
+		}
+
+		.app-day .app-today small {
+			color: var(--muted);
+		}
+
+		.app-hours {
+			display: grid;
+			gap: 0.45em;
+		}
+
+		/* Another day, other hours */
+		.app-day .app-hours {
+			animation: app-refresh 0.5s;
+		}
+
+		.app-hour {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 0.75em 0.9em;
+			border-radius: 0.9em;
+			background: #fff;
+			box-shadow: inset 0 0 0 1px var(--app-line);
+			color: var(--ink);
+			font: 700 1em var(--heading);
+			transition: background 0.25s, box-shadow 0.25s;
+		}
+
+		.app-hour small {
+			color: var(--teal-ink);
+			font-weight: 600;
+		}
+
+		.app-taken {
+			background: repeating-linear-gradient(-45deg, #f4efe8 0 0.45em, #ece5db 0.45em 0.9em);
+			color: var(--muted);
+		}
+
+		.app-taken small {
+			color: var(--muted);
+		}
+
+		.app-slot .app-pick {
+			background: #e3edf5;
+			box-shadow: inset 0 0 0 2px var(--primary);
+		}
+
+		/* The booking is confirmed on a sheet that rises over a dimmed screen */
+		.app-v-book::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: 1;
+			background: #02284247;
+			opacity: 0;
+			transition: opacity 0.35s;
+		}
+
+		.app-booked .app-v-book::after {
+			opacity: 1;
+		}
+
+		.app-sheet {
+			position: absolute;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			z-index: 2;
+			display: grid;
+			justify-items: center;
+			gap: 0.35em;
+			padding: 0.8em 1.6em 2.4em;
+			border-radius: 1.6em 1.6em 0 0;
+			background: #fff;
+			text-align: center;
+			transform: translateY(105%);
+			transition: transform 0.55s cubic-bezier(0.2, 1.1, 0.3, 1);
+		}
+
+		.app-sheet::before {
+			content: '';
+			width: 2.8em;
+			height: 0.3em;
+			margin-bottom: 0.9em;
+			border-radius: 1em;
+			background: var(--app-line);
+		}
+
+		.app-sheet .app-i {
+			width: 3.6em;
+			height: 3.6em;
+			margin-bottom: 0.3em;
+			padding: 0.75em;
+			border-radius: 50%;
+			background: #dcefeb;
+			color: var(--teal-ink);
+			stroke-width: 2.6;
+		}
+
+		.app-sheet path {
+			stroke-dasharray: 1;
+			stroke-dashoffset: 1;
+			transition: stroke-dashoffset 0.5s 0.4s;
+		}
+
+		.app-sheet b {
+			font-size: 1.45em;
+		}
+
+		.app-booked .app-sheet {
+			transform: none;
+		}
+
+		.app-booked .app-sheet path {
+			stroke-dashoffset: 0;
+		}
+
+		/* The finger: its tip lands on the point the script gives it */
+		.app-hand {
+			position: absolute;
+			top: 0;
+			left: 0;
+			z-index: 5;
+			width: 3em;
+			margin: -0.1em 0 0 -0.97em;
+			opacity: 0;
+			pointer-events: none;
+			transition: transform 0.6s cubic-bezier(0.45, 0, 0.2, 1), opacity 0.3s;
+		}
+
+		.app-hand.app-shown {
+			opacity: 1;
+		}
+
+		.app-hand svg {
+			display: block;
+			width: 100%;
+			overflow: visible;
+			fill: #fff;
+			stroke: var(--ink);
+			stroke-width: 1.6;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+			filter: drop-shadow(2px 2px 0 var(--ink));
+			transform-origin: 32% 3%;
+		}
+
+		.app-touch {
+			position: absolute;
+			top: 0.1em;
+			left: 0.97em;
+			width: 2.8em;
+			height: 2.8em;
+			margin: -1.4em 0 0 -1.4em;
+			border-radius: 50%;
+			background: #e1616273;
+			opacity: 0;
+		}
+
+		/* The flows, beside or under the phone */
+		.app-flows {
+			margin-top: 24px;
+		}
+
+		.app-list {
+			padding: 0;
+			list-style: none;
+		}
+
+		.app-list li + li {
+			border-top: 1px dashed #d9cdbd;
+		}
+
+		.app-flow {
+			display: grid;
+			grid-template-columns: 36px 1fr;
+			gap: 0 16px;
+			width: 100%;
+			padding: 18px 4px 16px;
+			border: 0;
+			border-radius: 16px;
+			background: none;
+			color: var(--text);
+			font: 15.5px / 1.45 'Inter Tight', system-ui, sans-serif;
+			text-align: left;
+		}
+
+		.app-num {
+			display: grid;
+			place-items: center;
+			width: 36px;
+			height: 36px;
+			border: 1.5px solid var(--ink);
+			border-radius: 50%;
+			background: #fff;
+			color: var(--ink);
+			font: 800 15px var(--heading);
+			transition: background 0.25s, box-shadow 0.25s, transform 0.25s;
+		}
+
+		.app-text strong {
+			display: block;
+			margin: 5px 0 4px;
+			color: var(--ink);
+			font: 700 19px / 1.25 var(--heading);
+		}
+
+		.app-progress {
+			grid-column: 2;
+			height: 3px;
+			margin-top: 12px;
+			overflow: hidden;
+			border-radius: 3px;
+			background: var(--sand);
+			visibility: hidden;
+		}
+
+		.app-progress i {
+			display: block;
+			height: 100%;
+			background: var(--accent);
+			transform: scaleX(0);
+			transform-origin: left;
+		}
+
+		/* With the script, the flow playing on the phone stands out */
+		.app-live .app-flow {
+			cursor: pointer;
+		}
+
+		.app-live .app-flow:not([aria-current='true']) {
+			color: var(--muted);
+		}
+
+		.app-live .app-flow:not([aria-current='true']) strong {
+			color: var(--muted);
+			transition: color 0.2s;
+		}
+
+		.app-live .app-flow:hover strong {
+			color: var(--ink);
+		}
+
+		/* Dressed like the phone: ink with a coral shadow */
+		.app-live .app-flow[aria-current='true'] .app-num {
+			background: var(--ink);
+			box-shadow: 2px 2px 0 var(--accent);
+			color: #fff;
+			transform: rotate(-8deg);
+		}
+
+		.app-anim .app-flow[aria-current='true'] .app-progress {
+			visibility: visible;
+		}
+
+		.app-pause {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			margin-top: 12px;
+			padding: 7px 15px 7px 12px;
+			border: 1.5px solid var(--ink);
+			border-radius: 999px;
+			background: #fff;
+			color: var(--ink);
+			font: 600 14px var(--heading);
+			cursor: pointer;
+		}
+
+		.app-pause[hidden],
+		.app-play-icon,
+		.app-paused .app-pause-icon {
+			display: none;
+		}
+
+		.app-paused .app-play-icon {
+			display: inline;
+		}
+
+		.app-pause svg {
+			width: 12px;
+			height: 12px;
+			fill: currentColor;
+		}
+
+		@keyframes app-blink {
+			50% {
+				opacity: 0;
+			}
+		}
+
+		@keyframes app-refresh {
+			from {
+				opacity: 0;
+				transform: translateY(0.5em);
+			}
+		}
+
+		/* Pilot: an admission ticket, stamped the first time it comes into view */
+		.pl-section {
+			padding-block: 72px 104px;
+		}
+
+		.pl-head {
+			max-width: 660px;
+			margin-inline: auto;
+			text-align: center;
+		}
+
+		.pl-head p {
+			max-width: 30em;
+			margin: 14px auto 0;
+			font-size: 18px;
+		}
+
+		/* The hero's hand-drawn underline, under «sin pagar» */
+		.pl-mark {
+			position: relative;
+			z-index: 0;
+			font-style: normal;
+			white-space: nowrap;
+		}
+
+		.pl-mark::after {
+			content: '';
+			position: absolute;
+			left: -2%;
+			right: -2%;
+			bottom: -0.08em;
+			height: 0.28em;
+			background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 14 C 50 4, 120 2, 197 9' fill='none' stroke='%23e16162' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+			z-index: -1;
+		}
+
+		.pl-ticket {
+			display: grid;
+			max-width: 880px;
+			margin: 48px auto 0;
+			border-radius: 24px;
+			background: var(--primary);
+			color: #d6e2ee;
+			box-shadow: 5px 5px 0 var(--accent);
+			rotate: -1deg;
+		}
+
+		.pl-label {
+			display: block;
+			color: #9fb3c6;
+			font: 700 12px var(--heading);
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+		}
+
+		/* Faint security-print arcs, like on a real ticket */
+		.pl-stub {
+			position: relative;
+			padding: 26px 24px 24px;
+			border-radius: 24px 24px 0 0;
+			background: repeating-radial-gradient(circle at 0 100%, #ffffff0d 0 1px, #0000 1.5px 9px);
+		}
+
+		.pl-price {
+			display: block;
+			margin-top: 10px;
+			color: #fff;
+			font: 800 clamp(68px, 19vw, 100px) / 0.95 var(--heading);
+			letter-spacing: -0.045em;
+		}
+
+		.pl-term {
+			display: block;
+			margin-top: 10px;
+			color: #ffdca0;
+			font: 700 18px var(--heading);
+		}
+
+		/* A made-up barcode: three runs of an uneven stripe pattern */
+		.pl-code {
+			display: block;
+			width: 183px;
+			height: 32px;
+			margin-top: 24px;
+			background: repeating-linear-gradient(90deg, #d6e2ee99 0 2px, #0000 0 3px, #d6e2ee99 0 4px, #0000 0 6px, #d6e2ee99 0 9px, #0000 0 10px, #d6e2ee99 0 11px, #0000 0 12px, #d6e2ee99 0 14px, #0000 0 17px, #d6e2ee99 0 18px, #0000 0 19px, #d6e2ee99 0 23px, #0000 0 25px, #d6e2ee99 0 26px, #0000 0 27px, #d6e2ee99 0 29px, #0000 0 30px, #d6e2ee99 0 31px, #0000 0 34px, #d6e2ee99 0 37px, #0000 0 38px, #d6e2ee99 0 39px, #0000 0 41px, #d6e2ee99 0 43px, #0000 0 45px, #d6e2ee99 0 46px, #0000 0 47px, #d6e2ee99 0 50px, #0000 0 52px, #d6e2ee99 0 53px, #0000 0 54px, #d6e2ee99 0 56px, #0000 0 59px, #d6e2ee99 0 60px, #0000 0 61px);
+		}
+
+		.pl-serial {
+			display: block;
+			margin-top: 6px;
+			color: #9fb3c6;
+			font: 600 12px var(--heading);
+			letter-spacing: 0.18em;
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* The perforation: a row of holes and two notches, all showing the page through.
+		   It sits above the stamp, so where they cross the holes cut through the ink */
+		.pl-cut {
+			position: relative;
+			z-index: 1;
+			height: 4px;
+			margin-inline: 20px;
+			background: radial-gradient(circle, var(--paper) 1.5px, #0000 2px) 0 50% / 9px 4px repeat-x;
+		}
+
+		.pl-cut::before, .pl-cut::after {
+			content: '';
+			position: absolute;
+			top: 50%;
+			width: 26px;
+			height: 26px;
+			margin-top: -13px;
+			border-radius: 50%;
+			background: var(--paper);
+		}
+
+		.pl-cut::before {
+			left: -33px;
+		}
+
+		.pl-cut::after {
+			right: -33px;
+		}
+
+		.pl-body {
+			padding: 24px 24px 28px;
+		}
+
+		.pl-terms {
+			display: grid;
+			gap: 18px;
+			margin-top: 16px;
+			padding: 0;
+			list-style: none;
+			counter-reset: pl-n;
+		}
+
+		.pl-terms li {
+			display: grid;
+			grid-template-columns: 28px 1fr;
+			column-gap: 10px;
+			font-size: 15.5px;
+			line-height: 1.5;
+			text-wrap: pretty;
+			counter-increment: pl-n;
+		}
+
+		.pl-terms li::before {
+			content: counter(pl-n, decimal-leading-zero);
+			grid-row: span 2;
+			color: #f59d9a;
+			font: 800 14px / 1.7 var(--heading);
+			font-variant-numeric: tabular-nums;
+		}
+
+		.pl-terms strong {
+			color: #fff;
+			font: 700 17px / 1.35 var(--heading);
+			text-wrap: balance;
+		}
+
+		.pl-terms span {
+			margin-top: 3px;
+		}
+
+		/* The stamp, beside the price. A lighter coral than --accent, so its small letters read on the navy */
+		.pl-stamp {
+			position: absolute;
+			top: 50px;
+			right: 12px;
+			width: 112px;
+			aspect-ratio: 1;
+			color: #f59d9a;
+		}
+
+		.pl-stamp svg {
+			position: absolute;
+			overflow: visible;
+		}
+
+		.pl-ink {
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			font-family: var(--heading);
+			rotate: -14deg;
+		}
+
+		.pl-hit {
+			top: -25%;
+			left: -25%;
+			width: 150%;
+			height: 150%;
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 3;
+			stroke-linecap: round;
+		}
+
+		/* With the script running, the stamp waits in the air until it comes into view */
+		.pl-armed .pl-ink, .pl-armed .pl-hit {
+			opacity: 0;
+		}
+
+		.pl-stamped .pl-ink {
+			animation: pl-slam 0.45s 0.3s both;
+		}
+
+		.pl-stamped .pl-hit {
+			animation: pl-pop 0.3s 0.57s both;
+		}
+
+		.pl-stamped {
+			animation: pl-thud 0.34s 0.57s;
+		}
+
+		@keyframes pl-slam {
+			0% {
+				opacity: 0;
+				scale: 2.6;
+				animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.4);
+			}
+			60% {
+				opacity: 1;
+				scale: 0.94;
+				animation-timing-function: ease-out;
+			}
+			80% {
+				scale: 1.03;
+			}
+			100% {
+				opacity: 1;
+				scale: 1;
+			}
+		}
+
+		@keyframes pl-pop {
+			from {
+				opacity: 0;
+				scale: 0.5;
+			}
+			to {
+				opacity: 1;
+				scale: 1;
+			}
+		}
+
+		/* The ticket gives under the blow, like a pressed button */
+		@keyframes pl-thud {
+			35% {
+				translate: 3px 3px;
+				box-shadow: 2px 2px 0 var(--accent);
+			}
+		}
+
+		/* Contact */
+		.contact {
+			padding-block: 80px;
+			background: var(--accent);
+			color: var(--primary-dark);
+		}
+
+		.contact .kicker {
+			color: var(--primary-dark);
+		}
+
+		.contact header p {
+			margin-top: 14px;
+			font-size: 18px;
+		}
+
+		.contact form {
+			display: grid;
+			gap: 16px;
+			margin-top: 32px;
+			padding: 24px 20px;
+			border: 1.5px solid var(--ink);
+			border-radius: 24px;
+			background: #fff;
+			color: var(--text);
+			box-shadow: 6px 6px 0 var(--ink);
+		}
+
+		label {
+			display: grid;
+			gap: 6px;
+			color: var(--ink);
+			font-weight: 600;
+			font-size: 15px;
+		}
+
+		label small {
+			color: var(--muted);
+			font-weight: 400;
+		}
+
+		input, textarea {
+			width: 100%;
+			min-height: 50px;
+			padding: 12px 16px;
+			border: 1.5px solid #e2d8cb;
+			border-radius: 14px;
+			background: var(--paper);
+			color: var(--ink);
+			font: 16px 'Inter Tight', system-ui, sans-serif;
+			transition: border-color 0.15s, background 0.15s;
+		}
+
+		input:focus, textarea:focus {
+			border-color: var(--primary);
+			background: #fff;
+			outline: none;
+		}
+
+		textarea {
+			min-height: 104px;
+			resize: vertical;
+		}
+
+		.privacy {
+			color: var(--muted);
+			font-size: 14px;
+		}
+
+		#status:empty {
+			display: none;
+		}
+
+		#status {
+			padding: 12px 16px;
+			border-radius: 14px;
+			background: #dcefeb;
+			color: var(--ink);
+		}
+
+		#status.error {
+			background: #fbe2e1;
+		}
+
+		form .button {
+			width: 100%;
+		}
+
+		/* Footer: dusk falls on the city as it comes into view */
+		footer {
+			background: #011a2b;
+			color: #9fb3c6;
+		}
+
+		.scene {
+			position: relative;
+			height: 560px;
+			overflow: hidden;
+			/* A plum afterglow up top, so at night the coral above fades into the sky instead of stopping */
+			background: linear-gradient(#5c2a4a 0%, #051a2c 34%, #0b2f4f 65%, #12406b 100%);
+		}
+
+		/* Dusk starts on the contact's own coral, so at sunset there is no seam at all */
+		.dusk {
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(var(--accent) 0%, #f2a893 18%, #f6d2bf 46%, #f2a893 72%, #e98879 100%);
+			transition: opacity 2s ease;
+		}
+
+		/* The contact's coral hangs into the sky as two drifting banks of clouds: the front one keeps
+		   its color, the back one turns from sunlit to dusky rose, so night steps down to navy */
+		.sm-cloud {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: calc(100% + var(--sm-w));
+			height: var(--sm-h);
+			mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 48' preserveAspectRatio='none'%3E%3Cpath d='M0 0V14A29 15 0 0 0 58 16A46 26 0 0 0 150 18A20 10 0 0 0 190 14A36 20 0 0 0 262 20A19 9 0 0 0 300 16A55 28 0 0 0 410 18A26 14 0 0 0 462 14A39 22 0 0 0 540 19A30 15 0 0 0 600 14V0Z'/%3E%3C/svg%3E") 0 0 / var(--sm-w) 100% repeat-x;
+			animation: sm-drift var(--sm-time) linear infinite paused;
+		}
+
+		/* Kept above 39px on phones so it never covers the moon */
+		.sm-back {
+			--sm-w: 500px;
+			--sm-h: 40px;
+			--sm-time: 110s;
+			background: #ef9a8b;
+			transition: background-color 2s;
+		}
+
+		.sm-front {
+			--sm-w: 400px;
+			--sm-h: 32px;
+			--sm-time: 70s;
+			background: var(--accent);
+		}
+
+		/* They only drift while the footer is on screen: .on comes from the footer's own observer */
+		.scene.on .sm-cloud {
+			animation-play-state: running;
+		}
+
+		.scene.on .sm-back {
+			background: #a9495e;
+		}
+
+		/* One tile to the left, and the repeating mask makes the loop seamless */
+		@keyframes sm-drift {
+			to {
+				transform: translateX(calc(var(--sm-w) * -1));
+			}
+		}
+
+		.stars {
+			position: absolute;
+			inset: 0 0 45%;
+			opacity: 0;
+			background:
+				radial-gradient(1.5px 1.5px at 6% 30%, #fff 60%, transparent),
+				radial-gradient(1.5px 1.5px at 18% 12%, #fff 60%, transparent),
+				radial-gradient(2px 2px at 31% 44%, #ffffffcc 60%, transparent),
+				radial-gradient(1.5px 1.5px at 44% 8%, #fff 60%, transparent),
+				radial-gradient(1.5px 1.5px at 57% 36%, #ffffffaa 60%, transparent),
+				radial-gradient(2px 2px at 66% 16%, #fff 60%, transparent),
+				radial-gradient(1.5px 1.5px at 74% 52%, #ffffff99 60%, transparent),
+				radial-gradient(1.5px 1.5px at 86% 26%, #fff 60%, transparent),
+				radial-gradient(2px 2px at 94% 60%, #ffffffbb 60%, transparent),
+				radial-gradient(1.5px 1.5px at 12% 70%, #ffffff88 60%, transparent),
+				radial-gradient(1.5px 1.5px at 50% 64%, #ffffff77 60%, transparent);
+			transition: opacity 2s 1s;
+		}
+
+		.stars::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background:
+				radial-gradient(2.5px 2.5px at 24% 26%, #fff 60%, transparent),
+				radial-gradient(2.5px 2.5px at 62% 48%, #fff 60%, transparent),
+				radial-gradient(2.5px 2.5px at 80% 10%, #fff 60%, transparent);
+			animation: twinkle 2.4s ease-in-out infinite alternate;
+		}
+
+		.setting-sun {
+			position: absolute;
+			left: 50%;
+			top: 46%;
+			width: 120px;
+			height: 120px;
+			margin-left: -60px;
+			border-radius: 50%;
+			background: #ffe0a3;
+			box-shadow: 0 0 80px #ffd08a;
+			transition: transform 2.2s cubic-bezier(0.5, 0, 0.3, 1);
+		}
+
+		.moon {
+			position: absolute;
+			right: 9%;
+			top: 7%;
+			width: 54px;
+			height: 54px;
+			border-radius: 50%;
+			background:
+				radial-gradient(circle at 34% 40%, #e9dcb0 5px, transparent 5.5px),
+				radial-gradient(circle at 62% 66%, #e9dcb0 3.5px, transparent 4px),
+				#fdf1c7;
+			box-shadow: 0 0 0 10px #fdf1c712, 0 0 50px #fdf1c766;
+			opacity: 0;
+			transform: translateY(140px);
+			transition: transform 2.4s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 1.6s 0.4s;
+		}
+
+		.scene .copy {
+			position: relative;
+			padding-top: 104px;
+		}
+
+		.scene h2 {
+			max-width: 13em;
+			color: var(--primary-dark);
+			font-size: clamp(32px, 8.4vw, 60px);
+			transition: color 1.8s;
+		}
+
+		.scene .copy p {
+			max-width: 30em;
+			margin-top: 14px;
+			color: var(--primary-dark);
+			transition: color 1.8s;
+		}
+
+		.scene .button {
+			margin-top: 24px;
+			background: var(--primary-dark);
+			transition: background 1.8s, color 1.8s, transform 0.15s;
+		}
+
+		.skyline {
+			position: absolute;
+			left: 0;
+			bottom: 0;
+			width: 100%;
+			height: 170px;
+		}
+
+		.skyline .bld {
+			fill: #c26a6a;
+			transition: fill 2s;
+		}
+
+		.skyline .tank {
+			fill: #b55e60;
+			transition: fill 2s;
+		}
+
+		.skyline .win {
+			fill: #ffdca0;
+			opacity: 0;
+			transition: opacity 0.4s;
+		}
+
+		.scene.on .dusk {
+			opacity: 0;
+		}
+
+		.scene.on .stars {
+			opacity: 1;
+		}
+
+		.scene.on .setting-sun {
+			transform: translateY(360px);
+		}
+
+		.scene.on .moon {
+			opacity: 1;
+			transform: none;
+		}
+
+		.scene.on h2 {
+			color: #fff;
+		}
+
+		.scene.on .copy p {
+			color: #c9d6e3;
+		}
+
+		.scene.on .button {
+			background: var(--accent);
+			color: var(--primary-dark);
+		}
+
+		.scene.on .bld {
+			fill: #0b2b47;
+		}
+
+		.scene.on .tank {
+			fill: #082238;
+		}
+
+		.scene.on .win {
+			opacity: 1;
+		}
+
+		.footer-body {
+			display: grid;
+			gap: 32px;
+			padding-block: 44px 0;
+		}
+
+		.footer-links {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 28px;
+		}
+
+		.footer-links h3 {
+			color: #fff;
+			font-size: 13px;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+		}
+
+		.footer-links ul {
+			display: grid;
+			gap: 8px;
+			margin-top: 12px;
+			padding: 0;
+			list-style: none;
+		}
+
+		.footer-links a {
+			color: #c9d6e3;
+			text-decoration: none;
+		}
+
+		.footer-links a:hover {
+			color: #fff;
+			text-decoration: underline;
+		}
+
+		.footer-body .fine {
+			font-size: 14px;
+		}
+
+		.wordmark {
+			display: flex;
+			justify-content: center;
+			overflow: hidden;
+			margin-top: 24px;
+			padding-bottom: 0.06em;
+			color: #0d3657;
+			font: 800 clamp(56px, 16.5vw, 230px) / 0.92 var(--heading);
+			letter-spacing: -0.05em;
+			user-select: none;
+		}
+
+		.wordmark span {
+			display: inline-block;
+			transform: translateY(105%);
+			transition: transform 0.9s cubic-bezier(0.2, 0.9, 0.2, 1) calc(var(--i) * 70ms), color 0.3s;
+		}
+
+		.wordmark span:nth-child(9) {
+			color: #6b2b33;
+		}
+
+		.wordmark.on span {
+			transform: none;
+		}
+
+		.wordmark span:hover {
+			color: var(--accent);
+			transition-delay: 0s;
+		}
+
+		@keyframes twinkle {
+			from {
+				opacity: 0.15;
+			}
+			to {
+				opacity: 1;
+			}
+		}
+
+		/* Phones: a floating «Pide una demo», hidden over the hero, the form and the footer */
+		.sticky {
+			position: fixed;
+			left: 20px;
+			right: 24px;
+			bottom: calc(18px + env(safe-area-inset-bottom));
+			z-index: 10;
+			transform: translateY(calc(100% + 40px));
+			transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.2, 1.1);
+		}
+
+		.sticky.shown {
+			transform: none;
+		}
+
+		.sticky .button {
+			width: 100%;
+			border: 1.5px solid var(--ink);
+			box-shadow: var(--hard);
+		}
+
+		@media (min-width: 860px) {
+			body {
+				padding: 14px 20px 22px 14px;
+			}
+
+			.page {
+				border-radius: 32px;
+				--hard: 5px 5px 0 var(--ink);
+				box-shadow: 6px 6px 0 var(--ink);
+			}
+
+			.sticky {
+				display: none;
+			}
+
+			.top {
+				padding-block: 26px;
+			}
+
+			.top img {
+				width: 150px;
+			}
+
+			.hero {
+				grid-template-columns: 1.1fr 1fr;
+				align-items: center;
+				gap: 48px;
+				padding-block: 32px 80px;
+			}
+
+			.showcase {
+				padding-block: 112px 120px;
+			}
+
+			.showcase .wrap {
+				display: grid;
+				grid-template-columns: 1fr 1.5fr;
+				gap: 64px;
+				align-items: center;
+			}
+
+			.screens {
+				margin-top: 0;
+			}
+
+			.contact {
+				padding-block: 112px;
+			}
+
+			.contact .wrap {
+				display: grid;
+				grid-template-columns: 1fr 1.15fr;
+				gap: 64px;
+				align-items: start;
+			}
+
+			.contact form {
+				grid-template-columns: 1fr 1fr;
+				margin-top: 0;
+				padding: 32px;
+			}
+
+			.contact form .wide {
+				grid-column: 1 / -1;
+			}
+
+			.scene .copy {
+				padding-top: 112px;
+			}
+
+			.moon {
+				width: 72px;
+				height: 72px;
+				right: 14%;
+				top: 12%;
+			}
+
+			.skyline {
+				height: 200px;
+			}
+
+			.footer-body {
+				grid-template-columns: 1fr auto;
+				align-items: end;
+				padding-top: 64px;
+			}
+
+			.footer-links {
+				grid-template-columns: repeat(3, auto);
+				gap: 64px;
+			}
+
+			.tl {
+				padding-block: 112px 40px;
+			}
+
+			.tl-head {
+				margin-inline: auto;
+				text-align: center;
+			}
+
+			/* Two lanes: the office on the left, the neighbour on the right, the thread between them */
+			.tl-cast {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				column-gap: 100px;
+				margin-top: 48px;
+			}
+
+			.tl-cast .tl-office {
+				flex-direction: row-reverse;
+				justify-self: end;
+				text-align: right;
+			}
+
+			.tl-cast .tl-face, .tl-item .tl-face {
+				width: 44px;
+				height: 44px;
+			}
+
+			.tl-list {
+				--tl-gap: 16px;
+				margin-top: 40px;
+			}
+
+			/* The thread starts between the two of them */
+			.tl-list::before {
+				top: -62px;
+				left: calc(50% - 1px);
+			}
+
+			.tl-item {
+				grid-template-columns: 1fr 44px 1fr;
+				column-gap: 28px;
+			}
+
+			.tl-item .tl-face {
+				grid-column: 2;
+				grid-row: 1;
+			}
+
+			.tl-card {
+				grid-row: 1;
+				max-width: 420px;
+			}
+
+			.tl-office .tl-card {
+				grid-column: 1;
+				justify-self: end;
+				border-radius: var(--radius) 4px var(--radius) var(--radius);
+			}
+
+			.tl-neighbour .tl-card {
+				grid-column: 3;
+			}
+
+			/* The time leaves the card and sits beside the dot, in the empty lane */
+			.tl-meta time {
+				position: absolute;
+				top: 0;
+				font: 800 26px/44px var(--heading);
+				font-variant-numeric: tabular-nums;
+				letter-spacing: -0.02em;
+			}
+
+			.tl-office time {
+				left: calc(50% + 50px);
+			}
+
+			.tl-neighbour time {
+				right: calc(50% + 50px);
+			}
+
+			.tl-play .tl-item::before {
+				top: 22px;
+				left: calc(50% - 1px);
+			}
+
+			.fx-features {
+				padding-block: 120px 24px;
+			}
+
+			.fx-head {
+				display: grid;
+				grid-template-columns: 1.25fr 1fr;
+				align-items: end;
+				gap: 64px;
+			}
+
+			.fx-head p {
+				margin: 0 0 6px;
+				font-size: 18px;
+			}
+
+			.fx-grid {
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 20px;
+				margin-top: 48px;
+			}
+
+			.fx-face {
+				padding: 24px 22px 26px;
+			}
+
+			.fx-icon {
+				width: 88px;
+				height: 88px;
+			}
+
+			.fx-icon svg {
+				width: 56px;
+				height: 56px;
+			}
+
+			.fx-name {
+				margin-top: 20px;
+				font-size: clamp(18px, 1.6vw, 20px);
+			}
+
+			.fx-hook {
+				font-size: 15px;
+			}
+
+			.fx-plus {
+				top: 16px;
+				right: 16px;
+				width: 32px;
+				height: 32px;
+			}
+
+			.fx-tile .fx-list {
+				padding: 0 22px 24px;
+			}
+
+			.fx-sheet {
+				width: min(520px, 100% - 48px);
+				max-height: calc(100% - 48px);
+				margin: auto;
+				border-radius: 28px;
+			}
+
+			.fx-sheet[open] {
+				animation-name: fx-zoom;
+			}
+
+			.fx-sheet-head {
+				padding: 24px 20px 22px 24px;
+			}
+
+			.fx-sheet .fx-icon {
+				width: 64px;
+				height: 64px;
+			}
+
+			.fx-sheet .fx-icon svg {
+				width: 36px;
+				height: 36px;
+			}
+
+			.fx-sheet h3 {
+				font-size: 24px;
+			}
+
+			.fx-sheet-body {
+				padding: 24px 28px 28px;
+			}
+
+			/* Phone on the left, the words and the flows centred beside it */
+			.app-section {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				grid-template-rows: 1fr auto auto 1fr;
+				grid-template-areas: 'stage .' 'stage head' 'stage flows' 'stage .';
+				column-gap: 72px;
+				padding-block: 120px 72px;
+			}
+
+			.app-head {
+				grid-area: head;
+			}
+
+			/* Centred, so a taller text column never stretches the arch past the phone */
+			.app-stage {
+				grid-area: stage;
+				align-self: center;
+				margin-top: 0;
+				font-size: 13.5px;
+			}
+
+			.app-sticker {
+				font-size: 14px;
+			}
+
+			.app-flows {
+				grid-area: flows;
+				margin-top: 28px;
+			}
+
+			.app-flow {
+				padding-inline: 8px;
+			}
+
+			.pl-section {
+				padding-block: 112px 136px;
+			}
+
+			.pl-ticket {
+				grid-template-columns: 340px 4px 1fr;
+				margin-top: 64px;
+			}
+
+			.pl-stub {
+				display: flex;
+				flex-direction: column;
+				padding: 40px 36px 36px 44px;
+				border-radius: 24px 0 0 24px;
+			}
+
+			.pl-code {
+				margin-top: auto;
+			}
+
+			.pl-term {
+				margin-bottom: 32px;
+			}
+
+			.pl-cut {
+				height: auto;
+				margin: 20px 0;
+				background-position: 50% 0;
+				background-size: 4px 9px;
+				background-repeat: repeat-y;
+			}
+
+			.pl-cut::before, .pl-cut::after {
+				left: 50%;
+				right: auto;
+				margin: 0 0 0 -13px;
+			}
+
+			.pl-cut::before {
+				top: -33px;
+			}
+
+			.pl-cut::after {
+				top: auto;
+				bottom: -33px;
+			}
+
+			.pl-body {
+				padding: 40px 48px 44px 44px;
+			}
+
+			.pl-terms {
+				gap: 22px;
+				margin-top: 20px;
+			}
+
+			.pl-terms li {
+				grid-template-columns: 36px 1fr;
+				font-size: 16px;
+			}
+
+			.pl-terms strong {
+				font-size: 18.5px;
+			}
+
+			/* Here it also crosses the perforation, like a ticket validated at the door */
+			.pl-stamp {
+				top: 62px;
+				right: -24px;
+				width: 148px;
+			}
+
+			.scene {
+				height: 620px;
+			}
+
+			.sm-back {
+				--sm-w: 800px;
+				--sm-h: 64px;
+			}
+
+			.sm-front {
+				--sm-w: 600px;
+				--sm-h: 48px;
+			}
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			html {
+				scroll-behavior: auto;
+			}
+
+			*, *::before, *::after {
+				animation: none !important;
+				transition: none !important;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="page">
+		<header class="wrap top">
+			<a href="/" aria-label="gobernança, inicio"><img src="/img/logo.svg" alt="gobernança" width="1108" height="234"></a>
+			<a class="button" href="#demo">Pide una demo</a>
+		</header>
+
+		<main>
+			<section class="wrap hero" id="hero">
+				<div>
+					<span class="kicker">Para despachos de administración de fincas</span>
+					<h1>El programa del despacho y la app del vecino, <em>en uno</em>.</h1>
+					<p class="lead">
+						Recibos, remesas SEPA, contabilidad, la AEAT y las juntas, en el navegador.
+						Y tus vecinos avisan, votan y pagan desde el móvil, sin llamarte.
+					</p>
+					<div class="actions">
+						<a class="button" href="#demo">Pide una demo de 15 minutos</a>
+						<a class="more" href="#dia">Mira un día cualquiera ↓</a>
+					</div>
+				</div>
+
+				<div>
+					<div class="stage" role="button" tabindex="0" aria-pressed="false" aria-label="Un edificio con las ventanas encendidas y los mensajes de sus vecinos. Púlsalo para que se haga de noche.">
+						<div class="night-sky"></div>
+						<div class="sun"></div>
+						<div class="ground"></div>
+						<div class="tree left"></div>
+						<div class="tree right"></div>
+						<div class="building">
+							<span class="on"></span><span></span><span class="on"></span><span class="on"></span>
+							<span></span><span class="on"></span><span></span><span class="on"></span>
+							<span class="help"></span><span class="on"></span><span class="on"></span><span></span>
+							<span class="on"></span><span></span><span class="on"></span><span class="on"></span>
+							<span class="on"></span><span class="on"></span><span></span><span class="on"></span>
+							<span class="door"></span>
+						</div>
+						<div class="bubble b1" aria-hidden="true"><i></i><div><strong>3º A · Gotera en el baño</strong><small>Con 2 fotos · ahora mismo</small></div></div>
+						<div class="bubble b2" aria-hidden="true"><i></i><div><strong>Fontanero avisado</strong><small>Por WhatsApp · va a las 17:00</small></div></div>
+						<div class="bubble b3" aria-hidden="true"><i></i><div><strong>Gotera arreglada</strong><small>El 3º A ya lo ve en su app</small></div></div>
+					</div>
+					<p class="hint" aria-hidden="true">✦ <span class="mouse">Pasa el ratón por el edificio</span><span class="touch">Toca el edificio</span></p>
+				</div>
+			</section>
+
+			<div class="marquee" aria-hidden="true">
+				<div>
+					<span>Remesas SEPA</span><span>Modelo 347</span><span>Actas firmadas</span><span>Partes por WhatsApp</span><span>Voto delegado</span><span>Conciliación bancaria</span><span>Exportación a ContaPlus</span><span>Morosidad al día</span>
+					<span>Remesas SEPA</span><span>Modelo 347</span><span>Actas firmadas</span><span>Partes por WhatsApp</span><span>Voto delegado</span><span>Conciliación bancaria</span><span>Exportación a ContaPlus</span><span>Morosidad al día</span>
+				</div>
+			</div>
+
+			<section class="wrap tl" id="dia">
+				<header class="tl-head">
+					<span class="kicker">Un martes cualquiera</span>
+					<h2>Lucía avisa, Marta lo resuelve y nadie llama a nadie.</h2>
+					<p>Un día en Residencial Los Olivos, contado desde el móvil de una vecina y desde el despacho que lleva la comunidad.</p>
+				</header>
+				<ul class="tl-cast">
+					<li class="tl-office">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg></span>
+						<span><strong>Marta</strong> Administradora, en el despacho</span>
+					</li>
+					<li class="tl-neighbour">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span>
+						<span><strong>Lucía</strong> Vecina del 2º B, con su móvil</span>
+					</li>
+				</ul>
+				<ol class="tl-list">
+					<li class="tl-item tl-office">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg></span>
+						<div class="tl-card">
+							<p class="tl-meta"><time datetime="08:30">08:30</time> <span>Marta · despacho</span></p>
+							<h3>Café y un vistazo a sus 40 comunidades.</h3>
+							<p>Lo pendiente de todas, en una sola pantalla: hoy, nada urgente.</p>
+						</div>
+					</li>
+					<li class="tl-item tl-neighbour">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span>
+						<div class="tl-card">
+							<p class="tl-meta"><time datetime="08:47">08:47</time> <span>Lucía · 2º B</span></p>
+							<h3>Hay agua en el garaje, junto a la plaza 14.</h3>
+							<p>Hace dos fotos y la app ya sugiere «Fontanería» y «Urgente».</p>
+						</div>
+					</li>
+					<li class="tl-item tl-office">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg></span>
+						<div class="tl-card">
+							<p class="tl-meta"><time datetime="09:05">09:05</time> <span>Marta · despacho</span></p>
+							<h3>Ve el aviso y se lo pasa a Fontanería Ruiz.</h3>
+							<p>El parte le llega por WhatsApp con las fotos, y no tiene que darse de alta.</p>
+							<p class="tl-done"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Ruiz acepta: va a las 12:30</p>
+						</div>
+					</li>
+					<li class="tl-item tl-neighbour">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span>
+						<div class="tl-card">
+							<p class="tl-meta"><time datetime="13:20">13:20</time> <span>Lucía · 2º B</span></p>
+							<h3>Le llega «arreglado» al móvil.</h3>
+							<p>Ruiz ha cambiado la bajante y ha cerrado el parte con fotos.</p>
+							<div class="tl-push" aria-hidden="true">
+								<span class="tl-app"></span>
+								<span><small>gobernança · ahora</small><strong>Arreglado: agua en el garaje</strong></span>
+							</div>
+						</div>
+					</li>
+					<li class="tl-item tl-office">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg></span>
+						<div class="tl-card">
+							<p class="tl-meta"><time datetime="16:30">16:30</time> <span>Marta · despacho</span></p>
+							<h3>Sale la remesa de noviembre.</h3>
+							<p>Los 64 recibos de Los Olivos, en un fichero SEPA para el banco.</p>
+						</div>
+					</li>
+					<li class="tl-item tl-neighbour">
+						<span class="tl-face" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span>
+						<div class="tl-card">
+							<p class="tl-meta"><time datetime="22:15">22:15</time> <span>Lucía · 2º B</span></p>
+							<h3>La junta del jueves, desde el sofá.</h3>
+							<p>Lee el orden del día y delega su voto en la presidenta.</p>
+						</div>
+					</li>
+				</ol>
+			</section>
+
+			<section class="showcase">
+				<div class="wrap">
+					<header>
+						<span class="kicker">Por dentro</span>
+						<h2>Todo el despacho en una pantalla. Todo el portal en un móvil.</h2>
+						<p>Tú, con el panel de la cartera: lo que se ha quedado atrás en cada comunidad. El vecino, con una app que se abre desde el correo y no hay que descargar.</p>
+					</header>
+					<figure class="screens">
+						<div class="browser">
+							<img src="/img/cartera.png" width="800" height="500" alt="El panel de cartera: incidencias abiertas, morosidad y obligaciones de cada comunidad del despacho">
+						</div>
+						<div class="phone">
+							<img src="/img/vecino.jpg" width="390" height="800" alt="La app del vecino: dar un aviso, sus incidencias, sus votos y los contactos de la comunidad">
+						</div>
+					</figure>
+				</div>
+			</section>
+
+			<section class="wrap fx-features" id="funciones">
+				<div class="fx-head">
+					<div>
+						<span class="kicker">Todo lo que hace</span>
+						<h2>Un programa <em>entero</em>, no un portal más.</h2>
+					</div>
+					<p>El despacho y el móvil de tus vecinos, sobre los mismos datos.</p>
+				</div>
+				<!-- Without the script each area opens in place; with it, it becomes a button that opens the sheet below -->
+				<ul class="fx-grid" role="list">
+					<li class="fx-sun">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle class="fx-pop" cx="15.5" cy="9.5" r="5.5"/><circle class="fx-white" cx="10" cy="14.5" r="7"/><path d="M12.6 11.8a3.4 3.4 0 1 0 0 5.4M6.4 13.6h4.4M6.4 15.4h4.4"/></svg></span>
+								<span class="fx-name">Cobros</span>
+								<span class="fx-hook">Recibos, remesas SEPA y morosos</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Cuotas del año desde el presupuesto, con fondo de reserva</li>
+								<li>Recibos, derramas y entregas a cuenta</li>
+								<li>Remesas SEPA y devoluciones importadas del banco</li>
+								<li>Morosidad por antigüedad, intereses, cartas y monitorio</li>
+								<li>Pago con tarjeta y Bizum <span class="fx-soon">Al contratar</span></li>
+								<li>Burofax <span class="fx-soon">Al contratar</span></li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-sky">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fx-pop" d="M3.5 9.5 12 4.5l8.5 5z"/><path d="M6 12v6M10 12v6M14 12v6M18 12v6M4 20.5h16"/></svg></span>
+								<span class="fx-name">Gastos y banco</span>
+								<span class="fx-hook">Facturas, pagos y conciliación</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Facturas de proveedores con IVA e IRPF</li>
+								<li>Pagos a proveedores por transferencia SEPA</li>
+								<li>Conciliación con el extracto (Norma 43 o CSV)</li>
+								<li>Movimientos del banco al día <span class="fx-soon">Al contratar</span></li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-mint">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fx-pop" d="M7.5 3.5H19v13H7.5A2.5 2.5 0 0 0 5 19V6a2.5 2.5 0 0 1 2.5-2.5z"/><path d="M5 19a2.5 2.5 0 0 0 2.5 2.5H19v-5M9.5 8h5.5M9.5 11h3.5"/></svg></span>
+								<span class="fx-name">Contabilidad y fiscal</span>
+								<span class="fx-hook">Diario, cierre y modelos de la AEAT</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Partida doble: diario, mayor, balances y cierre</li>
+								<li>Liquidación anual para la junta</li>
+								<li>Modelos 347, 111, 115, 190 y 184, con su fichero</li>
+								<li>Exportación a ContaPlus y a Excel</li>
+								<li>Cada fichero se comprueba antes de descargarlo</li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-rose">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fx-pop" d="M7.5 11V3.5h9V11"/><path d="m10 7 1.5 1.5 3-3"/><rect class="fx-white" x="3.5" y="9.5" width="17" height="11" rx="2"/><path d="M9.5 14.5h5"/></svg></span>
+								<span class="fx-name">Juntas</span>
+								<span class="fx-hook">Voto en el móvil, acta firmada</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Convocatoria y orden del día</li>
+								<li>Voto y delegación desde el móvil</li>
+								<li>Ausentes y discrepancias según la LPH</li>
+								<li>Acta firmada y sellada, con QR</li>
+								<li>Notificación con acuse en la app</li>
+								<li>Correo certificado <span class="fx-soon">Al contratar</span></li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-rose">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fx-pop" transform="rotate(45 12 12)" d="M10.2 2.3v3.9h3.6V2.3a5 5 0 0 1 0 9.4v7.5a1.8 1.8 0 0 1-3.6 0v-7.5a5 5 0 0 1 0-9.4z"/><path class="fx-white" d="M18 15.5s-2.3 2.6-2.3 4.1a2.3 2.3 0 0 0 4.6 0c0-1.5-2.3-4.1-2.3-4.1z"/></svg></span>
+								<span class="fx-name">Incidencias y gremios</span>
+								<span class="fx-hook">Del aviso con foto al arreglo</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Avisos con fotos, categoría y urgencia sugeridas</li>
+								<li>Los vecinos no saben quién dio el aviso</li>
+								<li>Parte de trabajo por WhatsApp o correo, sin cuenta</li>
+								<li>El gremio programa la visita y cierra con fotos</li>
+								<li>Directorio de proveedores con valoraciones</li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-sun">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fx-pop" d="M3.5 10v4.5H7l8.5 5v-15L7 10z"/><path d="M7 10v4.5M18 10a3 3 0 0 1 0 4.5M20.3 8a6 6 0 0 1 0 8.5"/></svg></span>
+								<span class="fx-name">Comunicación</span>
+								<span class="fx-hook">Comunicados que llegan al móvil</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Comunicados a varias comunidades a la vez</li>
+								<li>Notificaciones en el móvil del vecino</li>
+								<li>Documentos para cada vecino o propiedad</li>
+								<li>Calendario de obligaciones de cada comunidad</li>
+								<li>Envío de correos <span class="fx-soon">Al contratar</span></li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-sky">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 18V6.5a2 2 0 0 1 4 0V8M13 18V6.5a2 2 0 0 1 4 0V8M7 10h6M7 13.5h6"/><path class="fx-pop" d="M3 17.5c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1V21H3z"/></svg></span>
+								<span class="fx-name">Zonas comunes</span>
+								<span class="fx-hook">Reservas con fianza desde la app</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Reservas desde la app, con la semana de cada zona</li>
+								<li>Precio y fianza, y su devolución</li>
+								<li>Pago de la reserva <span class="fx-soon">Al contratar</span></li>
+							</ul>
+						</details>
+					</li>
+					<li class="fx-mint">
+						<details class="fx-tile">
+							<summary class="fx-face">
+								<span class="fx-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect class="fx-white" x="4" y="4" width="7" height="7" rx="1.5"/><rect class="fx-pop" x="13" y="4" width="7" height="10" rx="1.5"/><rect class="fx-white" x="4" y="13" width="7" height="7" rx="1.5"/><rect class="fx-white" x="13" y="16" width="7" height="4" rx="1.5"/></svg></span>
+								<span class="fx-name">Tu despacho</span>
+								<span class="fx-hook">Toda tu cartera en una pantalla</span>
+								<span class="fx-plus" aria-hidden="true"></span>
+							</summary>
+							<ul class="fx-list">
+								<li>Panel de la cartera con todas tus comunidades</li>
+								<li>Busca a cualquier vecino por nombre, piso, NIF o teléfono</li>
+								<li>Censo pegado desde Excel o CSV, revisado fila a fila</li>
+								<li>Registro de quién cambió qué</li>
+								<li>Se instala como app en el ordenador y el móvil</li>
+							</ul>
+						</details>
+					</li>
+				</ul>
+				<p class="fx-note">Lo que lleva <span class="fx-soon">Al contratar</span> ya funciona de punta a punta en modo de prueba y se activa con el proveedor cuando contratas.</p>
+				<dialog class="fx-sheet" aria-labelledby="fx-title">
+					<div class="fx-sheet-in">
+						<div class="fx-sheet-head">
+							<span class="fx-icon" aria-hidden="true"></span>
+							<div>
+								<h3 id="fx-title"></h3>
+								<p class="fx-sheet-hook"></p>
+							</div>
+							<button class="fx-close" type="button" aria-label="Cerrar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+						</div>
+						<div class="fx-sheet-body"></div>
+					</div>
+				</dialog>
+			</section>
+
+			<section class="wrap app-section">
+				<header class="app-head">
+					<span class="kicker">La app del vecino</span>
+					<h2>La app que tus vecinos sí abren.</h2>
+					<p>Les llega un enlace al correo y ya están dentro: nada que descargar, ninguna contraseña que olvidar. Avisan, votan y reservan desde el sofá, y tú lo ves todo desde el despacho.</p>
+				</header>
+
+				<div class="app-stage">
+					<div class="app-arch" aria-hidden="true"></div>
+					<span class="app-ring" aria-hidden="true"></span>
+					<span class="app-ring" aria-hidden="true"></span>
+					<p class="app-sticker" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
+						Sin descargar · sin contraseña
+					</p>
+
+					<!-- Without the script it stays on how the first flow ends; with it, these classes come and go -->
+					<div class="app-phone app-form app-typed app-photo app-hint app-cat app-sent app-plan app-fixed" aria-hidden="true">
+						<svg class="app-defs" width="0" height="0">
+							<defs>
+								<g id="app-leak">
+									<rect width="60" height="60" fill="#ece6dd"/>
+									<path d="M0 38h60v22H0z" fill="#cfdde6"/>
+									<path d="M0 49h60M12 38v22M24 38v22M36 38v22M48 38v22" stroke="#b5c8d6"/>
+									<path d="M0 37.5h60" stroke="#d8d0c4" stroke-width="2"/>
+									<path d="M13 15c3-7 15-9 23-6s13 9 8 14-18 5-25 2-9-5-6-10z" fill="#d2bf98"/>
+									<path d="M21 15c3-3 9-4 13-2s5 6 1 8-10 2-13 0-3-4-1-6z" fill="#b29a6c"/>
+									<path d="M30 21.5c-1.7 2.7-2.6 4.1-2.6 5.4a2.6 2.6 0 0 0 5.2 0c0-1.3-.9-2.7-2.6-5.4z" fill="#3f8fc9"/>
+									<path d="M24.5 31c-1 1.6-1.6 2.5-1.6 3.3a1.6 1.6 0 0 0 3.2 0c0-.8-.6-1.7-1.6-3.3z" fill="#3f8fc9" opacity=".7"/>
+								</g>
+								<g id="app-fix">
+									<rect width="60" height="60" fill="#ece6dd"/>
+									<path d="M0 38h60v22H0z" fill="#cfdde6"/>
+									<path d="M0 49h60M12 38v22M36 38v22M48 38v22" stroke="#b5c8d6"/>
+									<rect x="23" width="11" height="60" fill="#a3b0ba"/>
+									<rect x="20.5" y="21" width="16" height="10" rx="2.5" fill="#5d7c92"/>
+									<circle cx="47" cy="13" r="8" fill="#22625f"/>
+									<path d="m43.3 13.2 2.6 2.6 4.6-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+								</g>
+							</defs>
+						</svg>
+
+						<div class="app-screen">
+							<div class="app-status">
+								<b>9:41</b>
+								<svg viewBox="0 0 52 12">
+									<rect y="8" width="2.6" height="3.5" rx=".7"/><rect x="4" y="5.8" width="2.6" height="5.7" rx=".7"/><rect x="8" y="3.4" width="2.6" height="8.1" rx=".7"/><rect x="12" y="1" width="2.6" height="10.5" rx=".7"/>
+									<path d="M24 11.4 21.7 9a3.3 3.3 0 0 1 4.6 0zM19.8 7a6.2 6.2 0 0 1 8.4 0l-1.1 1.2a4.6 4.6 0 0 0-6.2 0zM17.8 5a9 9 0 0 1 12.4 0l-1.1 1.2a7.4 7.4 0 0 0-10.2 0z"/>
+									<rect x="33.5" y="1.5" width="15.5" height="9" rx="2.6" fill="none" stroke="currentColor" stroke-opacity=".4"/><rect x="35.3" y="3.3" width="10.5" height="5.4" rx="1.3"/><rect x="50" y="4.2" width="1.6" height="3.6" rx=".8" opacity=".4"/>
+								</svg>
+							</div>
+
+							<div class="app-view app-v-home">
+								<div class="app-top">
+									<img src="/img/logo.svg" alt="" width="1108" height="234">
+									<span class="app-bell"><svg class="app-i" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg></span>
+								</div>
+								<div>
+									<b class="app-hello">¡Hola, 3º A!</b>
+									<small>Residencial Los Olivos</small>
+								</div>
+								<div class="app-banner">
+									<b>¿Algo no va bien?</b>
+									<span>Avisa y nos ponemos con ello cuanto antes.</span>
+									<span class="app-btn app-coral" data-tap="app-form"><svg class="app-i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="13" rx="2.5"/><path d="M8.5 17v3.5l4-3.5M12 7.5v4.5M12 14.6v.01"/></svg>Dar aviso</span>
+								</div>
+								<b class="app-label">Tu comunidad</b>
+								<div class="app-tiles">
+									<span class="app-tile" data-tap="app-book"><svg class="app-i" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg><b>Reservar</b><small>Pádel y sala común</small></span>
+									<span class="app-tile"><svg class="app-i" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="2"/><path d="m8.5 14.5 2.5 2.5 4.5-5M9 9V4.5h6V9"/></svg><b>Juntas</b><small>Jueves 19, 19:00</small></span>
+								</div>
+								<b class="app-label">Actividad reciente</b>
+								<span class="app-row"><svg class="app-i" viewBox="0 0 24 24"><path d="M4 10v4h3l8 4.5v-13L7 10z"/><path d="M18.5 9a4 4 0 0 1 0 6"/></svg><span><b>Cuota del trimestre</b><small>Comunicado · 5 de noviembre</small></span></span>
+								<span class="app-tabbar">
+									<svg class="app-i" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v9h-5.5v-6h-5v6H4z"/></svg>
+									<svg class="app-i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="13" rx="2.5"/><path d="M8.5 17v3.5l4-3.5"/></svg>
+									<span class="app-plus"><svg class="app-i" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></svg></span>
+									<svg class="app-i" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 5.3a3.5 3.5 0 0 1 0 6.4M18 14.6a6 6 0 0 1 3 5.4"/></svg>
+									<svg class="app-i" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
+								</span>
+							</div>
+
+							<div class="app-view app-v-form">
+								<b class="app-nav"><svg class="app-i" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></svg>Nuevo aviso</b>
+								<b class="app-field">¿Qué ha pasado?</b>
+								<span class="app-input"><span class="app-type">Gotera en el techo del baño</span><span class="app-caret"></span></span>
+								<b class="app-field">Fotos</b>
+								<span class="app-photos">
+									<span class="app-add" data-tap="app-photo"><svg class="app-i" viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2L9 5h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg></span>
+									<span class="app-shot"><svg viewBox="0 0 60 60" preserveAspectRatio="xMidYMid slice"><use href="#app-leak"/></svg></span>
+								</span>
+								<span class="app-suggest">
+									<span class="app-ask"><svg class="app-i" viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/></svg><span>¿Es de <b>Fontanería</b>?</span><span class="app-ok" data-tap="app-cat">Sí</span></span>
+									<span class="app-chosen"><svg class="app-i" viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/></svg><b>Fontanería</b><svg class="app-i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+								</span>
+								<span class="app-btn app-send" data-tap="app-sent">Enviar aviso</span>
+							</div>
+
+							<div class="app-view app-v-issue">
+								<b class="app-nav"><svg class="app-i" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></svg>Tu aviso</b>
+								<span class="app-card">
+									<span class="app-shot"><svg viewBox="0 0 60 60" preserveAspectRatio="xMidYMid slice"><use href="#app-leak"/></svg></span>
+									<b>Gotera en el techo del baño</b>
+									<span class="app-meta"><span class="app-pill">Fontanería</span>Hoy, 09:12</span>
+								</span>
+								<b class="app-label">Seguimiento</b>
+								<ol class="app-track">
+									<li><i><svg class="app-i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></i><b>Aviso recibido</b><small>Ya lo tiene la administración</small></li>
+									<li class="app-step-plan"><i><svg class="app-i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></i><b>Fontanero, jueves a las 10:00</b><small>Fontanería Ruiz ha aceptado el parte</small></li>
+									<li class="app-step-fixed"><i><svg class="app-i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></i><b>Arreglado</b><small>Jueves, 10:48 · con 2 fotos</small></li>
+								</ol>
+							</div>
+
+							<div class="app-view app-v-meeting">
+								<b class="app-nav"><svg class="app-i" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></svg>Junta ordinaria</b>
+								<span class="app-card app-when">
+									<span class="app-cal"><small>NOV</small><b>19</b></span>
+									<span><b>Jueves, a las 19:00</b><small>En el portal. Vota desde aquí o delega tu voto.</small></span>
+								</span>
+								<b class="app-label">Orden del día</b>
+								<span class="app-card">
+									<span class="app-item"><b>1. Presupuesto de 2027</b><span class="app-tag">Se vota</span></span>
+									<small>3º A · 4,20 %</small>
+									<span class="app-choices"><span class="app-choice app-favor" data-tap="app-vote">A favor</span><span class="app-choice">En contra</span><span class="app-choice">Abstención</span></span>
+								</span>
+								<span class="app-card">
+									<span class="app-item"><b>2. Cambiar la puerta del garaje</b><span class="app-tag">Se vota</span></span>
+									<small>3º A · 4,20 %</small>
+									<span class="app-choices"><span class="app-choice">A favor</span><span class="app-choice">En contra</span><span class="app-choice">Abstención</span></span>
+								</span>
+								<span class="app-toast"><svg class="app-i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Voto registrado</span>
+							</div>
+
+							<div class="app-view app-v-book">
+								<b class="app-nav"><svg class="app-i" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></svg>Reservas</b>
+								<span class="app-seg"><span>Pádel</span><span>Sala común</span></span>
+								<span class="app-week">
+									<span class="app-date app-past"><small>L</small>16</span>
+									<span class="app-date app-today"><small>M</small>17</span>
+									<span class="app-date"><small>X</small>18</span>
+									<span class="app-date"><small>J</small>19</span>
+									<span class="app-date"><small>V</small>20</span>
+									<span class="app-date app-sat" data-tap="app-day"><small>S</small>21</span>
+									<span class="app-date"><small>D</small>22</span>
+								</span>
+								<span class="app-hours">
+									<span class="app-hour app-taken">10:00 – 11:30<small>Ocupada</small></span>
+									<span class="app-hour">11:30 – 13:00<small>Libre</small></span>
+									<span class="app-hour app-taken">17:00 – 18:30<small>Ocupada</small></span>
+									<span class="app-hour app-pick" data-tap="app-slot">18:30 – 20:00<small>Libre</small></span>
+								</span>
+								<span class="app-btn app-reserve" data-tap="app-booked">Reservar</span>
+								<span class="app-sheet">
+									<svg class="app-i" viewBox="0 0 24 24"><path pathLength="1" d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+									<b>¡Reservada!</b>
+									<small>Pádel, sábado 21 de 18:30 a 20:00. Ya está en tus próximas reservas.</small>
+								</span>
+							</div>
+
+							<div class="app-push app-push-fixed">
+								<i class="app-appicon">g</i>
+								<span><b>Gotera arreglada<small>ahora</small></b><small>Fontanería Ruiz ha cerrado tu aviso con 2 fotos.</small></span>
+								<span class="app-push-pic"><svg viewBox="0 0 60 60" preserveAspectRatio="xMidYMid slice"><use href="#app-fix"/></svg></span>
+							</div>
+							<div class="app-push app-push-call" data-tap="app-meeting">
+								<i class="app-appicon">g</i>
+								<span><b>Junta del jueves<small>ahora</small></b><small>Ya tienes la convocatoria. Puedes votar desde aquí.</small></span>
+							</div>
+						</div>
+
+						<div class="app-hand">
+							<span class="app-touch"></span>
+							<svg viewBox="0 0 34 42"><path d="M7.5 22V4.5a3.5 3.5 0 0 1 7 0v11a3 3 0 0 1 6 0V17a3 3 0 0 1 6 0v2a2.75 2.75 0 0 1 5.5 0V29c0 7-5 12-12 12h-3c-4.5 0-7-2-9.5-5.5L2 28.5a2.6 2.6 0 0 1 3.8-3.5L7.5 27z"/><path d="M14.5 15.5V20M20.5 17v4.5M26.5 19v4"/></svg>
+						</div>
+					</div>
+				</div>
+
+				<div class="app-flows">
+					<ol class="app-list">
+						<li>
+							<button class="app-flow" type="button">
+								<span class="app-num">1</span>
+								<span class="app-text"><strong>Avisa de una gotera</strong>Con una foto. Sabe qué día va el fontanero y le llega un aviso cuando está arreglado.</span>
+								<span class="app-progress" aria-hidden="true"><i></i></span>
+							</button>
+						</li>
+						<li>
+							<button class="app-flow" type="button">
+								<span class="app-num">2</span>
+								<span class="app-text"><strong>Vota en la junta</strong>Le llega la convocatoria al móvil y vota cada punto desde casa, o delega su voto.</span>
+								<span class="app-progress" aria-hidden="true"><i></i></span>
+							</button>
+						</li>
+						<li>
+							<button class="app-flow" type="button">
+								<span class="app-num">3</span>
+								<span class="app-text"><strong>Reserva el pádel</strong>Ve las horas libres de la semana y elige la suya sin llamar a nadie.</span>
+								<span class="app-progress" aria-hidden="true"><i></i></span>
+							</button>
+						</li>
+					</ol>
+					<button class="app-pause" type="button" hidden>
+						<svg viewBox="0 0 14 14" aria-hidden="true"><path class="app-pause-icon" d="M3 2h3v10H3zM8 2h3v10H8z"/><path class="app-play-icon" d="M3.5 1.5v11l9-5.5z"/></svg>
+						<span>Pausar</span>
+					</button>
+				</div>
+			</section>
+
+			<section class="wrap pl-section" id="piloto">
+				<header class="pl-head">
+					<span class="kicker">El piloto</span>
+					<h2>Pruébalo con tus comunidades, <em class="pl-mark">sin pagar</em>.</h2>
+					<p>Sin cambiar de golpe: empiezas con unas pocas y el resto lo pasas cuando quieras.</p>
+				</header>
+				<div class="pl-ticket">
+					<div class="pl-stub">
+						<span class="pl-label">Válido para 1 despacho</span>
+						<strong class="pl-price">0&nbsp;€</strong>
+						<span class="pl-term">3 meses de piloto</span>
+						<span class="pl-code" aria-hidden="true"></span>
+						<span class="pl-serial" aria-hidden="true">N.º 001</span>
+						<div class="pl-stamp" role="img" aria-label="Sello: plazas limitadas, para los primeros despachos">
+							<svg class="pl-ink" viewBox="0 0 120 120" aria-hidden="true">
+								<defs>
+									<!-- Rough ink: specks where the rubber didn't touch, and edges that wobble a little -->
+									<filter id="pl-ink-texture" x="-10%" y="-10%" width="120%" height="120%">
+										<feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="4" result="grain"/>
+										<feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -4.2 0 0 0 3.2" result="specks"/>
+										<feComposite in="SourceGraphic" in2="specks" operator="in" result="inked"/>
+										<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="wobble"/>
+										<feDisplacementMap in="inked" in2="wobble" scale="1.8" xChannelSelector="R" yChannelSelector="G"/>
+									</filter>
+									<path id="pl-arc-top" d="M20 60a40 40 0 0 1 80 0"/>
+									<path id="pl-arc-bottom" d="M14 60a46 46 0 0 0 92 0"/>
+								</defs>
+								<g filter="url(#pl-ink-texture)">
+									<g fill="none" stroke="currentColor">
+										<circle cx="60" cy="60" r="56" stroke-width="3.4"/>
+										<circle cx="60" cy="60" r="50.5" stroke-width="1.2"/>
+										<path d="M25 46h70M25 75h70" stroke-width="1.6"/>
+									</g>
+									<g fill="currentColor" font-weight="800" text-anchor="middle">
+										<circle cx="17" cy="60" r="2"/>
+										<circle cx="103" cy="60" r="2"/>
+										<text font-size="9" letter-spacing="0.3"><textPath href="#pl-arc-top" startOffset="50%">PRIMEROS DESPACHOS</textPath></text>
+										<text font-size="9" letter-spacing="0.3"><textPath href="#pl-arc-bottom" startOffset="50%">PRECIO DE FUNDADOR</textPath></text>
+										<text x="60" y="58.5" font-size="13">PLAZAS</text>
+										<text x="60" y="71.5" font-size="13">LIMITADAS</text>
+									</g>
+								</g>
+							</svg>
+							<svg class="pl-hit" viewBox="-30 -30 180 180" aria-hidden="true">
+								<path d="M83 -2l4.5-13M107 13l10-10"/>
+							</svg>
+						</div>
+					</div>
+					<div class="pl-cut" aria-hidden="true"></div>
+					<div class="pl-body">
+						<span class="pl-label">Condiciones del pase</span>
+						<ol class="pl-terms">
+							<li><strong>De 3 a 5 comunidades, las que tú elijas</strong> <span>Conviven con tu programa de siempre. La migración y la formación del despacho las hago yo.</span></li>
+							<li><strong>Precio de fundador, congelado dos años</strong> <span>Para los primeros despachos. Y el vecino no paga nada.</span></li>
+							<li><strong>Si no sigues, te lo llevas todo</strong> <span>Tus datos son tuyos y de tus comunidades.</span></li>
+						</ol>
+					</div>
+				</div>
+			</section>
+
+			<section id="demo" class="contact">
+				<div class="wrap">
+					<header>
+						<span class="kicker">Hablamos</span>
+						<h2>Quince minutos y lo ves con comunidades como las tuyas.</h2>
+						<p>En tu despacho o por videollamada. Trato directo con quien lo hace: te contesto yo, normalmente el mismo día.</p>
+					</header>
+					<form id="lead" novalidate>
+						<label>
+							Tu nombre
+							<input name="name" autocomplete="name" required minlength="2" maxlength="100">
+						</label>
+						<label>
+							Despacho
+							<input name="office" autocomplete="organization" maxlength="150">
+						</label>
+						<label>
+							Email
+							<input name="email" type="email" autocomplete="email" required maxlength="200">
+						</label>
+						<label>
+							<span>Teléfono <small>(opcional)</small></span>
+							<input name="phone" type="tel" autocomplete="tel" maxlength="40">
+						</label>
+						<label class="wide">
+							<span>¿Cuántas comunidades lleváis? <small>(opcional)</small></span>
+							<input name="communities" type="number" inputmode="numeric" min="0" max="5000">
+						</label>
+						<label class="wide">
+							<span>¿Algo que quieras ver en la demo? <small>(opcional)</small></span>
+							<textarea name="message" maxlength="2000"></textarea>
+						</label>
+						<p class="privacy wide">
+							Uso estos datos solo para contestarte y preparar la demo. No los cedo a nadie y los borro si no seguimos en contacto.
+						</p>
+						<p id="status" class="wide" role="status"></p>
+						<button class="button wide" type="submit">Pedir la demo</button>
+					</form>
+				</div>
+			</section>
+		</main>
+
+		<footer id="footer">
+			<div class="scene" data-reveal>
+				<div class="dusk"></div>
+				<div class="stars"></div>
+				<div class="setting-sun"></div>
+				<div class="moon"></div>
+				<div class="sm-cloud sm-back" aria-hidden="true"></div>
+				<div class="sm-cloud sm-front" aria-hidden="true"></div>
+				<svg class="skyline" viewBox="0 0 1200 240" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
+				<div class="wrap copy">
+					<h2>Cierras el despacho. Tus vecinos siguen teniendo a quién avisar.</h2>
+					<p>Los avisos de la noche te esperan ordenados por la mañana, con fotos y con el gremio ya avisado si era urgente.</p>
+					<a class="button" href="#demo">Pide una demo</a>
+				</div>
+			</div>
+			<div class="wrap footer-body">
+				<div class="footer-links">
+					<div>
+						<h3>Producto</h3>
+						<ul>
+							<li><a href="#dia">Un día cualquiera</a></li>
+							<li><a href="#funciones">Todo lo que hace</a></li>
+							<li><a href="#piloto">El piloto</a></li>
+						</ul>
+					</div>
+					<div>
+						<h3>Hablamos</h3>
+						<ul>
+							<li><a href="#demo">Pide una demo</a></li>
+						</ul>
+					</div>
+					<!-- EMP-1: el aviso legal (nombre o razón social, NIF, domicilio y email) va aquí en cuanto exista, como en las apps -->
+				</div>
+				<p class="fine">Sin cookies de publicidad ni de analítica.<br>Esta página no guarda nada en tu navegador.</p>
+			</div>
+			<div class="wordmark" data-reveal aria-hidden="true">
+				<span style="--i: 0">g</span><span style="--i: 1">o</span><span style="--i: 2">b</span><span style="--i: 3">e</span><span style="--i: 4">r</span><span style="--i: 5">n</span><span style="--i: 6">a</span><span style="--i: 7">n</span><span style="--i: 8">ç</span><span style="--i: 9">a</span>
+			</div>
+		</footer>
+	</div>
+
+	<div class="sticky" id="sticky">
+		<a class="button" href="#demo" tabindex="-1">Pide una demo de 15 minutos</a>
+	</div>
+
+	<script type="module">
+		const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		// Phones: show the floating button once the hero is gone, and hide it again over the form and the footer
+		const sticky = document.getElementById('sticky');
+		const covering = new Map();
+		const coverObserver = new IntersectionObserver((entries) => {
+			entries.forEach((entry) => covering.set(entry.target, entry.isIntersecting));
+			sticky.classList.toggle('shown', ![...covering.values()].some(Boolean));
+		});
+		['hero', 'demo', 'footer'].forEach((id) => coverObserver.observe(document.getElementById(id)));
+
+		// Night falls on the footer each time it comes into view
+		const revealObserver = new IntersectionObserver((entries) => {
+			entries.forEach((entry) => entry.target.classList.toggle('on', entry.isIntersecting));
+		}, { rootMargin: '0px 0px -10% 0px' });
+		document.querySelectorAll('[data-reveal]').forEach((element) => revealObserver.observe(element));
+
+		// The footer's skyline, the same every time (a tiny seeded random), with its windows lighting up one by one
+		let seed = 11;
+		const random = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+		let shapes = '';
+		for (let x = -12; x < 1212;) {
+			const width = 70 + random() * 90;
+			const height = 60 + random() * 110;
+			const top = 240 - height;
+			shapes += `<rect class="bld" x="${x}" y="${top}" width="${width}" height="${height + 2}" rx="3"/>`;
+			if (random() < 0.4) {
+				shapes += `<rect class="tank" x="${x + width * 0.6}" y="${top - 12}" width="${width * 0.2}" height="12" rx="2"/>`;
+			}
+			for (let y = top + 16; y < 228; y += 24) {
+				for (let column = x + 12; column < x + width - 18; column += 20) {
+					if (random() < 0.62) {
+						shapes += `<rect class="win" x="${column}" y="${y}" width="9" height="12" rx="1.5" style="transition-delay:${(0.6 + random() * 2.6).toFixed(2)}s"/>`;
+					}
+				}
+			}
+			x += width + 4 + random() * 10;
+		}
+		document.querySelector('.skyline').innerHTML = shapes;
+
+		// The hero's building
+		const stage = document.querySelector('.stage');
+		const windows = [...stage.querySelectorAll('.building span:not(.door)')];
+		windows.forEach((window) => window.style.setProperty('--d', `${(Math.random() * 0.7).toFixed(2)}s`));
+
+		const setNight = (night) => {
+			stage.classList.toggle('night', night);
+			stage.setAttribute('aria-pressed', String(night));
+		};
+		stage.addEventListener('pointerenter', (event) => event.pointerType === 'mouse' && setNight(true));
+		stage.addEventListener('pointerleave', (event) => event.pointerType === 'mouse' && setNight(false));
+		stage.addEventListener('click', (event) => event.pointerType !== 'mouse' && setNight(!stage.classList.contains('night')));
+		stage.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				setNight(!stage.classList.contains('night'));
+			}
+		});
+
+		if (!calm) {
+			// Someone is always switching a light on or off
+			setInterval(() => {
+				const window = windows[Math.floor(Math.random() * windows.length)];
+				if (!stage.classList.contains('night') && !window.classList.contains('help')) {
+					window.classList.toggle('on');
+				}
+			}, 1400);
+
+			// Three small stories, each from its own window, told one bubble at a time
+			const stories = [
+				[8, [['3º A · Gotera en el baño', 'Con 2 fotos · ahora mismo'], ['Fontanero avisado', 'Por WhatsApp · va a las 17:00'], ['Gotera arreglada', 'El 3º A ya lo ve en su app']]],
+				[13, [['Junta del jueves', 'Convocatoria en 24 móviles'], ['2º B delega su voto', 'En la presidenta, desde casa'], ['Acta firmada', 'Sellada y enviada a todos']]],
+				[2, [['5º C · Recibo devuelto', 'Vuelve a pendiente solo'], ['Carta de aviso al 5º C', 'Con los intereses calculados'], ['5º C al día', 'Conciliado con el banco']]],
+			];
+			const bubbles = [...stage.querySelectorAll('.bubble')];
+			let turn = 0;
+			stage.classList.add('cycle');
+			const play = () => {
+				const [home, lines] = stories[turn++ % stories.length];
+				windows.forEach((window) => window.classList.remove('help'));
+				windows[home].classList.add('help');
+				bubbles.forEach((bubble, index) => {
+					bubble.querySelector('strong').textContent = lines[index][0];
+					bubble.querySelector('small').textContent = lines[index][1];
+					setTimeout(() => bubble.classList.add('in'), 500 + index * 1300);
+				});
+				setTimeout(() => bubbles.forEach((bubble) => bubble.classList.remove('in')), 8200);
+				setTimeout(play, 9000);
+			};
+			play();
+		}
+
+		// Straight to Firestore over its REST API, no SDK: the rules of /leads accept one per request, with the server's time
+		const PROJECT = 'dmoyadev-gobernansa';
+		const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+		const host = local ? 'http://127.0.0.1:8080' : 'https://firestore.googleapis.com';
+		const database = `projects/${PROJECT}/databases/(default)`;
+
+		const form = document.getElementById('lead');
+		const status = document.getElementById('status');
+		const button = form.querySelector('button');
+
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			status.className = 'wide';
+			if (!form.checkValidity()) {
+				status.classList.add('error');
+				status.textContent = 'Falta tu nombre o el email no parece válido.';
+				form.querySelector(':invalid')?.focus();
+				return;
+			}
+
+			const data = Object.fromEntries(new FormData(form));
+			const fields = {};
+			for (const key of ['name', 'office', 'email', 'phone', 'message']) {
+				const value = data[key].trim();
+				if (value) {
+					fields[key] = { stringValue: value };
+				}
+			}
+			if (data.communities) {
+				fields.communities = { integerValue: String(Math.round(Number(data.communities))) };
+			}
+
+			button.disabled = true;
+			status.textContent = 'Enviando…';
+			try {
+				const response = await fetch(`${host}/v1/${database}/documents:commit`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						writes: [{
+							update: { name: `${database}/documents/leads/${crypto.randomUUID()}`, fields },
+							currentDocument: { exists: false },
+							updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }],
+						}],
+					}),
+				});
+				if (!response.ok) {
+					throw new Error(String(response.status));
+				}
+				form.reset();
+				status.textContent = '¡Recibido! Te escribo en cuanto lo vea para cerrar el día y la hora.';
+			} catch {
+				status.classList.add('error');
+				status.textContent = 'No se ha podido enviar. Vuelve a probar en un momento.';
+			} finally {
+				button.disabled = false;
+			}
+		});
+
+		{
+			// The day: each moment shows up as you reach it and the thread walks down to its dot
+			const day = document.querySelector('.tl');
+			if (!calm) {
+				day.classList.add('tl-play');
+				let free = 0;
+				const dayObserver = new IntersectionObserver((entries) => {
+					entries.forEach((entry) => {
+						if (!entry.isIntersecting) {
+							return;
+						}
+						dayObserver.unobserve(entry.target);
+						// When several come into view at once they still take turns, so the story reads in order
+						const now = performance.now();
+						const at = Math.max(now, free);
+						free = at + 550;
+						setTimeout(() => entry.target.classList.add('tl-in'), at - now);
+					});
+				}, { rootMargin: '0px 0px -15% 0px' });
+				day.querySelectorAll('.tl-item').forEach((item) => dayObserver.observe(item));
+			}
+		}
+
+		// Features: each area becomes a real button that opens its detail in the sheet (without the script they stay <details>)
+		{
+			const sheet = document.querySelector('.fx-sheet');
+			const icon = sheet.querySelector('.fx-icon');
+			const title = sheet.querySelector('#fx-title');
+			const hook = sheet.querySelector('.fx-sheet-hook');
+			const body = sheet.querySelector('.fx-sheet-body');
+			const note = document.querySelector('.fx-note');
+			let opener = null;
+			let pressedOutside = false;
+
+			document.querySelectorAll('.fx-grid details').forEach((area) => {
+				const list = area.querySelector('.fx-list');
+				const tile = document.createElement('button');
+				tile.type = 'button';
+				tile.className = 'fx-tile fx-face';
+				tile.setAttribute('aria-haspopup', 'dialog');
+				tile.append(...area.querySelector('summary').childNodes);
+				area.replaceWith(tile);
+
+				tile.addEventListener('click', () => {
+					opener = tile;
+					sheet.className = `fx-sheet ${tile.parentElement.className}`;
+					icon.replaceChildren(tile.querySelector('svg').cloneNode(true));
+					title.textContent = tile.querySelector('.fx-name').textContent;
+					hook.textContent = tile.querySelector('.fx-hook').textContent;
+					// The legend only travels with the areas that have something «Al contratar»
+					note.hidden = !list.querySelector('.fx-soon');
+					body.replaceChildren(list, note);
+					sheet.showModal();
+				});
+			});
+			body.append(note);
+
+			sheet.querySelector('.fx-close').addEventListener('click', () => sheet.close());
+			// Only a press that starts and ends on the backdrop closes it, so selecting text inside never does
+			sheet.addEventListener('pointerdown', (event) => (pressedOutside = event.target === sheet));
+			sheet.addEventListener('click', (event) => pressedOutside && event.target === sheet && sheet.close());
+			// Safari doesn't focus a clicked button, so focus doesn't always come back on its own
+			sheet.addEventListener('close', () => opener?.focus());
+		}
+
+		// The neighbour's app on the phone. Each flow is a list of classes a clock adds to it; whatever
+		// carries that class in [data-tap] gets tapped by the finger first, and the CSS does the rest
+		{
+			const section = document.querySelector('.app-section');
+			const phone = section.querySelector('.app-phone');
+			const screen = phone.querySelector('.app-screen');
+			const hand = phone.querySelector('.app-hand');
+			const touch = hand.querySelector('.app-touch');
+			const rings = section.querySelectorAll('.app-ring');
+			const choices = [...section.querySelectorAll('.app-flow')];
+			const bars = choices.map((choice) => choice.querySelector('.app-progress i'));
+			const pause = section.querySelector('.app-pause');
+			const flows = [
+				{ length: 9800, steps: [[900, 'app-form'], [1350, 'app-typed'], [2900, 'app-photo'], [3500, 'app-hint'], [4500, 'app-cat'], [5600, 'app-sent'], [6500, 'app-plan'], [7600, 'app-fixed']] },
+				{ length: 6800, steps: [[700, 'app-call'], [2000, 'app-meeting'], [3600, 'app-vote'], [3950, 'app-voted']] },
+				{ length: 7400, steps: [[1000, 'app-book'], [2400, 'app-day'], [3600, 'app-slot'], [4800, 'app-booked']] },
+			];
+			const pushes = ['app-fixed', 'app-call'];
+
+			// Layout offsets, not the screen box: they ignore the slides and the phone's buzz
+			const point = (target) => {
+				let x = target.offsetWidth / 2;
+				let y = target.offsetHeight / 2;
+				for (let node = target; node && node !== phone; node = node.offsetParent) {
+					x += node.offsetLeft;
+					y += node.offsetTop;
+				}
+				if (!hand.classList.contains('app-shown')) {
+					// It comes in from the bottom corner, not from wherever it last was
+					hand.style.transition = 'none';
+					hand.style.transform = `translate(${phone.offsetWidth * 0.85}px, ${phone.offsetHeight}px)`;
+					void hand.offsetWidth;
+					hand.style.transition = '';
+					hand.classList.add('app-shown');
+				}
+				hand.style.transform = `translate(${x}px, ${y}px)`;
+			};
+			const lift = () => hand.classList.remove('app-shown');
+			const press = () => {
+				touch.animate([{ opacity: 0.9, transform: 'scale(0.2)' }, { opacity: 0, transform: 'scale(1)' }], { duration: 600, easing: 'ease-out' });
+				hand.lastElementChild.animate([{ transform: 'none' }, { transform: 'scale(0.86)' }, { transform: 'none' }], { duration: 320, easing: 'ease-in-out' });
+			};
+			const set = (flag) => {
+				phone.classList.add(flag);
+				if (pushes.includes(flag)) {
+					// The phone buzzes and the news ripples out of it
+					phone.animate([{ transform: 'none' }, { transform: 'rotate(-2deg)' }, { transform: 'rotate(2deg)' }, { transform: 'rotate(-1deg)' }, { transform: 'none' }], { duration: 450, easing: 'ease-in-out' });
+					rings.forEach((ring, index) => ring.animate([{ opacity: 0.9, transform: 'scale(0.4)' }, { opacity: 0, transform: 'scale(1.6)' }], { duration: 1400, delay: index * 300, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }));
+				}
+			};
+
+			// Steps to timed events: the finger travels to what it taps, presses, and lifts if nothing else is coming soon
+			const timelines = flows.map(({ steps }) => {
+				const taps = steps.filter(([, flag]) => phone.querySelector(`[data-tap="${flag}"]`)).map(([at]) => at);
+				return steps.flatMap(([at, flag]) => {
+					const target = phone.querySelector(`[data-tap="${flag}"]`);
+					if (!target) {
+						return [[at, () => set(flag)]];
+					}
+					const events = [[at - 650, () => point(target)], [at, () => {
+						press();
+						set(flag);
+					}]];
+					const following = taps.find((next) => next > at);
+					if (!following || following - at > 1600) {
+						events.push([at + 500, lift]);
+					}
+					return events;
+				}).sort((a, b) => a[0] - b[0]);
+			});
+
+			let flow = 0;
+			let time = 0;
+			let next = 0;
+			let last = 0;
+			let frame = 0;
+			let visible = false;
+			let paused = false;
+
+			const show = (index) => {
+				flow = index;
+				time = 0;
+				next = 0;
+				// Back to the home screen in one cut, nothing sliding backwards
+				phone.className = 'app-phone app-cut';
+				lift();
+				void phone.offsetWidth;
+				phone.classList.remove('app-cut');
+				choices.forEach((choice, position) => choice.setAttribute('aria-current', String(position === index)));
+				bars.forEach((bar) => (bar.style.transform = ''));
+				if (calm) {
+					// No motion: straight to how the flow ends
+					flows[index].steps.forEach(([, flag]) => phone.classList.add(flag));
+				} else {
+					screen.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400 });
+				}
+			};
+			const tick = (now) => {
+				// Clamped both ways: a frame stamped before run() started, or a long stall, never jumps the clock
+				time += Math.min(Math.max(now - last, 0), 100);
+				last = now;
+				const events = timelines[flow];
+				while (next < events.length && events[next][0] <= time) {
+					events[next++][1]();
+				}
+				bars[flow].style.transform = `scaleX(${Math.min(time / flows[flow].length, 1)})`;
+				if (time >= flows[flow].length) {
+					show((flow + 1) % flows.length);
+				}
+				frame = requestAnimationFrame(tick);
+			};
+			// Only while it's on screen and nobody paused it
+			const run = () => {
+				cancelAnimationFrame(frame);
+				const running = visible && !paused;
+				section.classList.toggle('app-run', running);
+				if (running) {
+					last = performance.now();
+					frame = requestAnimationFrame(tick);
+				}
+			};
+			const setPaused = (value) => {
+				paused = value;
+				pause.classList.toggle('app-paused', paused);
+				pause.lastElementChild.textContent = paused ? 'Seguir' : 'Pausar';
+				run();
+			};
+
+			choices.forEach((choice, index) => choice.addEventListener('click', () => {
+				show(index);
+				// On phones the list sits under the phone, often with the phone scrolled away: bring it back to watch
+				phone.parentElement.scrollIntoView({ block: 'nearest' });
+				if (!calm) {
+					setPaused(false);
+				}
+			}));
+			pause.addEventListener('click', () => setPaused(!paused));
+
+			section.classList.add('app-live');
+			show(0);
+			if (!calm) {
+				section.classList.add('app-anim');
+				pause.hidden = false;
+				// The ratio, not isIntersecting: that one is already true at the first visible pixel
+				new IntersectionObserver((entries) => {
+					visible = entries.at(-1).intersectionRatio >= 0.3;
+					run();
+				}, { threshold: 0.3 }).observe(phone);
+			}
+
+			// Phones: the floating «Pide una demo» would cover the bottom of the screen, where the taps land
+			coverObserver.observe(phone);
+		}
+
+		{
+			// The pilot's stamp slams onto the ticket the first time it comes into view
+			const ticket = document.querySelector('.pl-ticket');
+			if (!calm) {
+				ticket.classList.add('pl-armed');
+				new IntersectionObserver((entries, observer) => {
+					if (entries.some((entry) => entry.isIntersecting)) {
+						ticket.classList.add('pl-stamped');
+						observer.disconnect();
+					}
+				}, { rootMargin: '0px 0px -25% 0px' }).observe(ticket.querySelector('.pl-stamp'));
+			}
+		}
+	</script>
+</body>
+</html>

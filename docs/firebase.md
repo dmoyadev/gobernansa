@@ -90,6 +90,8 @@ The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to t
 
 To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
 
+**Landing.** `apps/landing` is a plain HTML page with no build, on a third site, `gobernansa-landing`, which CI doesn't deploy. Create it like the admin's (`npx firebase hosting:sites:create gobernansa-landing --project dmoyadev-gobernansa`), point the root domain at it when there is one (A2), and deploy by hand with `npx firebase deploy --only hosting:landing`. Its demo form writes to the `leads` collection over Firestore's REST API (to the emulator on localhost); the rules only let anyone create one, and only the superadmin read or delete them, so read them in **Firestore → leads**. Without App Check (ROB-8) a bot could still fill it up to the daily write quota.
+
 ## 6. Installable app
 
 Both apps install from the browser as apps (Chrome and Edge offer it; Safari adds them from its share menu, which the webapp explains on iPhone and iPad) and open without a connection. Nothing to set up: it's all in each app's `public/` and in `firebase.json`, on the free plan.

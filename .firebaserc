@@ -11,6 +11,9 @@
         ],
         "admin": [
           "gobernansa-admin"
+        ],
+        "landing": [
+          "gobernansa-landing"
         ]
       }
     },
