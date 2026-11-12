@@ -6,6 +6,7 @@ import { formatCents } from '../../../packages/shared/domain/money.ts';
 import { roles } from '../../../packages/shared/domain/user.ts';
 import { commonAreas, communities, days, office, properties, propertiesOf, providerById, uids, userById, users } from './cast.js';
 import { debtCases, firstRemittances } from './charges.js';
+import { seedVolume, VOLUME, communities as volumeCommunities } from './volume.js';
 
 const PDF_SPECIAL_REGEX = /[\\()]/g;
 
@@ -335,7 +336,7 @@ const activity = {
 export default {
 	id: 'core',
 	label: 'Comunidades, propiedades y personas',
-	hint: 'Las 3 comunidades, el censo, los usuarios, invitaciones, documentos de vecinos y el registro de actividad',
+	hint: `Las ${VOLUME ? 41 : 3} comunidades, el censo, los usuarios, invitaciones, documentos de vecinos y el registro de actividad${VOLUME ? ', con las 38 de --volume' : ''}`,
 	// charges.js only lends ids and amounts, core seeds fine without it
 	requires: [],
 	collections: ['communities', 'properties', 'users', 'invitations'],
@@ -355,7 +356,10 @@ export default {
 
 		// As the first sign-in makes them from the invitation. Auth accounts are seed.js's
 		for (const { uid, ...user } of users) {
-			set(`users/${uid}`, user);
+			set(`users/${uid}`, uid === uids.office && VOLUME ? { ...user, communityIds: [...user.communityIds, ...volumeCommunities.map(community => community.id)] } : user);
+		}
+		if (VOLUME) {
+			seedVolume(set);
 		}
 
 		for (const invitation of invitations) {

@@ -55,6 +55,7 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:909
 - `--only=<groups>` loads only those groups (all by default)
 - `--reset` empties their collections first
 - `--yes` loads everything without other flags
+- `--volume` adds 38 generated communities with about 2.000 homes to Fincas Jaén, to try the admin at the size of a real office (about 3.200 more writes; `npm run seed-firebase:demo -- --volume`)
 - `--demo` writes to the demo project, accounts included (`npm run seed-firebase:demo` is `--demo --reset`)
 - Without `FIRESTORE_EMULATOR_HOST` nor `--demo` it writes to the live project, and then it needs `--project=<project id>` to confirm it
 
