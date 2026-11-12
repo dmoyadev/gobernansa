@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { hasHolder, holder } from '@gobernansa/shared/domain/legal.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 </script>
@@ -13,6 +14,9 @@ import TheToolbar from '@/shared/ui/TheToolbar.vue';
 		</header>
 
 		<nav aria-label="Secciones">
+			<RouterLink v-if="hasHolder" to="#notice">
+				Aviso legal
+			</RouterLink>
 			<RouterLink to="#privacy">
 				Privacidad
 			</RouterLink>
@@ -23,6 +27,16 @@ import TheToolbar from '@/shared/ui/TheToolbar.vue';
 				Cookies
 			</RouterLink>
 		</nav>
+
+		<section v-if="hasHolder" id="notice">
+			<h2>Aviso legal</h2>
+			<p>
+				gobernança es un servicio de {{ holder.name }}, con NIF {{ holder.nif }}{{ holder.address ? ` y domicilio en ${holder.address}` : '' }}.
+				<template v-if="holder.email">
+					Puedes escribirnos a <a :href="`mailto:${holder.email}`">{{ holder.email }}</a>.
+				</template>
+			</p>
+		</section>
 
 		<section id="privacy">
 			<h2>Política de privacidad</h2>

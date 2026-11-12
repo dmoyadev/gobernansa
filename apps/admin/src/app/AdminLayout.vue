@@ -101,7 +101,7 @@ const KEPT_PAGES = 6;
 		<!-- With the version, so the user can tell support which one they have -->
 		<span v-if="user" class="user">
 			<span>{{ user.name || user.email }}</span>
-			<small>Versión {{ RELEASE }}</small>
+			<small>Versión {{ RELEASE }} · <RouterLink to="/legal">Legal</RouterLink></small>
 		</span>
 		<!-- Only while the browser offers it, not once installed -->
 		<LnxButton v-if="canInstall" mode="clear" class="lnx-size-small" title="Instalar gobernança admin como app" @click="install()">
@@ -244,6 +244,10 @@ const KEPT_PAGES = 6;
 	small {
 		color: var(--color-gray-5);
 		font-size: var(--lnx-font-size-legal);
+
+		a {
+			color: inherit;
+		}
 	}
 }
 

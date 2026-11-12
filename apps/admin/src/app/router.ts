@@ -17,6 +17,16 @@ const router = createRouter({
 				isPublic: true,
 			},
 		},
+		// Reachable before signing in too, from the login
+		{
+			path: '/legal',
+			name: 'Información legal',
+			component: async () => import('./LegalPage.vue'),
+			meta: {
+				title: 'Información legal',
+				isPublic: true,
+			},
+		},
 
 		{
 			path: '/',

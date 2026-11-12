@@ -113,6 +113,10 @@ useShortcut('mod+enter', () => {
 				<LnxKbd v-if="!emailSent" combo="mod+enter" />
 			</LnxButton>
 		</form>
+
+		<RouterLink to="/legal" class="legal">
+			Información legal
+		</RouterLink>
 	</main>
 </template>
 
@@ -122,6 +126,8 @@ main {
 	padding: var(--lnx-spacing-4);
 	display: grid;
 	place-items: center;
+	align-content: center;
+	gap: var(--lnx-spacing-4);
 }
 
 form {
@@ -152,6 +158,11 @@ header {
 		color: var(--color-gray-6);
 		font-size: var(--lnx-font-size-small);
 	}
+}
+
+.legal {
+	color: var(--color-gray-6);
+	font-size: var(--lnx-font-size-small);
 }
 
 .message {
