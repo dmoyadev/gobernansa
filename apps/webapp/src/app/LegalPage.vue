@@ -83,9 +83,6 @@ import TheToolbar from '@/shared/ui/TheToolbar.vue';
 				Tu navegador solo guarda lo necesario para que la app funcione: tu sesión, tus preferencias (como las notificaciones)
 				y tu email mientras terminas de entrar.
 			</p>
-			<p>
-				Las tipografías se cargan desde Google Fonts, que recibe la dirección IP de tu dispositivo para enviarlas.
-			</p>
 		</section>
 	</MainLayout>
 </template>
