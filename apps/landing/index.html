@@ -166,15 +166,114 @@
 
 		/* Hero */
 		.hero {
+			--street: 56px;
 			position: relative;
 			isolation: isolate;
 			display: grid;
 			gap: 28px;
-			padding-block: 24px 48px;
+			padding-block: 24px var(--street);
+		}
+
+		/* The street the building stands on, from wall to wall: pavement, kerb and a two-way road down to the marquee.
+		   The day one lies under the night and the night one comes in with it; the traffic drives over both */
+		.street {
+			--pave: #e2e8f0;
+			--kerb: #cbd5e0;
+			--road: #dbe3eb;
+			--dash: #fff;
+			position: absolute;
+			bottom: 0;
+			height: var(--street);
+			background:
+				repeating-linear-gradient(to right, var(--dash) 0 22px, transparent 0 48px) 0 calc(var(--street) / 2 + 5px) / 100% 2px no-repeat,
+				linear-gradient(var(--pave) 9px, var(--kerb) 0 12px, var(--road) 0);
+		}
+
+		.hero > .street {
+			left: calc(50% - 50vw);
+			right: calc(50% - 50vw);
+			z-index: -2;
+		}
+
+		.hero-sky .street {
+			--pave: #1b4a72;
+			--kerb: #0d3150;
+			--road: #0b2a45;
+			--dash: #ffffff38;
+			left: 0;
+			right: 0;
+		}
+
+		.traffic {
+			position: absolute;
+			left: calc(50% - 50vw);
+			right: calc(50% - 50vw);
+			bottom: 0;
+			height: var(--street);
+		}
+
+		/* A car seen from the side, facing right. Driving on the right: the near lane goes right, the far one, turned round, left.
+		   --x is where each one waits when motion is reduced */
+		.car {
+			position: absolute;
+			left: 0;
+			bottom: 4px;
+			width: 46px;
+			height: 18px;
+			translate: var(--x);
+			animation: drive var(--time) linear var(--delay) infinite;
+		}
+
+		.car.back {
+			bottom: calc(50% - 2px);
+			scale: -1 1;
+			animation-direction: reverse;
+		}
+
+		/* Its body in its own paint, with dark wheels, a headlight, a tail light and the street through its windows */
+		.car::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background:
+				radial-gradient(circle 1.8px at 43.5px 11px, #fff6d8 95%, transparent),
+				radial-gradient(circle 1.8px at 2.5px 11px, #ff5d5d 95%, transparent),
+				radial-gradient(circle 3px at 11px 15px, #061a2b 95%, transparent),
+				radial-gradient(circle 3px at 36px 15px, #061a2b 95%, transparent),
+				var(--paint);
+			mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 18'%3E%3Cpath fill-rule='evenodd' d='M1 13Q1 9 5 8.5L13 8 18 3.5Q19.5 2 22 2H31Q33.5 2 35 3.5L39 8 42 8.5Q45 9 45 12V14Q45 15 44 15H2Q1 15 1 14ZM19.5 7.5 22 4H26.5V7.5ZM28.5 4H32Q33 4 34 5L36.5 7.5H28.5Z'/%3E%3Ccircle cx='11' cy='15' r='3'/%3E%3Ccircle cx='36' cy='15' r='3'/%3E%3C/svg%3E") 0 0 / 100% 100%;
+		}
+
+		/* The beam on the road ahead, once it is night */
+		.car::after {
+			content: '';
+			position: absolute;
+			left: 43px;
+			top: 4px;
+			width: 72px;
+			height: 14px;
+			background: linear-gradient(to right, #fff1bf59, transparent);
+			clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%);
+			opacity: 0;
+			transition: opacity 0.6s 0.2s;
+		}
+
+		.night .car::after {
+			opacity: 1;
+		}
+
+		/* From just off the left edge to just off the right one, whatever the width, headlight beams included */
+		@keyframes drive {
+			from {
+				translate: -130px;
+			}
+			to {
+				translate: calc(100vw + 75px);
+			}
 		}
 
 		/* The night the building brings: a circle that grows from its sun over the whole hero, up behind the header
-		   (.page clips what is above it) and down to the marquee, whose navy rises into it as the footer's clouds do */
+		   (.page clips what is above it) and down to the street */
 		.hero-sky {
 			position: absolute;
 			inset: -200px calc(50% - 50vw) 0;
@@ -195,7 +294,7 @@
 			content: '';
 			position: absolute;
 			inset: 0;
-			mask: linear-gradient(to top, transparent 40px, #000 50%);
+			mask: linear-gradient(to top, transparent calc(var(--street) + 16px), #000 50%);
 		}
 
 		/* Stars in two tiles of different sizes, so they never line up, at any width */
@@ -219,29 +318,11 @@
 			animation: twinkle 2.4s ease-in-out infinite alternate paused;
 		}
 
-		/* The footer's clouds upside down: the front bank is the marquee's own navy, so night ends without a line */
-		/* A pixel into the marquee, so no hairline shows between them on fractional pixels */
-		.hero-sky .sm-cloud {
-			top: auto;
-			bottom: -1px;
-			z-index: 1;
-			scale: 1 -1;
-		}
-
-		.hero-sky .sm-back {
-			background: #0a3050;
-		}
-
-		.hero-sky .sm-front {
-			background: var(--primary-dark);
-		}
-
 		.night .hero-sky {
 			clip-path: circle(var(--reach, 150%) at var(--sun, 80% 30%));
 		}
 
-		.night .hero-sky::after,
-		.night .hero-sky .sm-cloud {
+		.night .hero-sky::after {
 			animation-play-state: running;
 		}
 
@@ -356,34 +437,44 @@
 			transition: background 0.6s, box-shadow 0.6s, transform 0.6s;
 		}
 
-		.tree {
+		/* What stands on the pavement around it: a plane tree, a street lamp, a cypress and two bushes */
+		.yard {
 			position: absolute;
-			bottom: 6%;
-			width: 13%;
-			aspect-ratio: 1 / 1.45;
-			border-radius: 50% 50% 46% 46%;
-			background: #8cc2ae;
-			transition: background 0.6s 0.2s;
+			inset: 0;
+			width: 100%;
+			height: 100%;
 		}
 
-		.tree.left {
-			left: 9%;
+		.yard * {
+			transition: fill 0.6s 0.2s, opacity 0.6s 0.2s;
 		}
 
-		.tree.right {
-			right: 11%;
-			width: 10%;
-			background: #a9d3c2;
+		.yard .trunk {
+			fill: #a8917f;
 		}
 
-		.ground {
-			position: absolute;
-			left: 0;
-			right: 0;
-			bottom: 5%;
-			height: 4px;
-			border-radius: 4px;
-			background: var(--sand);
+		.yard .leaf {
+			fill: #8cc2ae;
+		}
+
+		.yard .lit {
+			fill: #a9d3c2;
+		}
+
+		.yard .bush {
+			fill: #7fb8a3;
+		}
+
+		.yard .pole {
+			fill: #8795a3;
+		}
+
+		.yard .lamp {
+			fill: #e2e8f0;
+		}
+
+		.yard .glow {
+			opacity: 0;
 		}
 
 		.building {
@@ -391,15 +482,15 @@
 			left: 25%;
 			right: 25%;
 			top: 16%;
-			bottom: 6%;
+			bottom: 0;
 			display: grid;
 			grid-template-columns: repeat(4, 1fr);
 			grid-template-rows: repeat(5, 1fr) 1.4fr;
 			gap: 5.5% 9%;
 			padding: 11% 10% 0;
-			border-radius: 14px 14px 3px 3px;
+			border-radius: 14px 14px 0 0;
 			background: var(--primary);
-			transition: background 0.6s, transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+			transition: background 0.6s;
 		}
 
 		.building::before {
@@ -443,7 +534,6 @@
 
 		.night .stage .building {
 			background: #135587;
-			transform: translateY(-4px);
 		}
 
 		.night .stage .building span:not(.door, .help) {
@@ -451,21 +541,37 @@
 			transition-delay: var(--d, 0s);
 		}
 
-		.night .stage .tree.left {
-			background: #3d7564;
+		.night .yard .trunk {
+			fill: #33475a;
 		}
 
-		.night .stage .ground {
-			background: #ffffff26;
+		.night .yard .leaf {
+			fill: #2c5f51;
+		}
+
+		.night .yard .lit {
+			fill: #3d7564;
+		}
+
+		.night .yard .bush {
+			fill: #2a5a4d;
+		}
+
+		.night .yard .pole {
+			fill: #3a5c7c;
+		}
+
+		.night .yard .lamp {
+			fill: #fdf1c7;
+		}
+
+		.night .yard .glow {
+			opacity: 1;
 		}
 
 		/* Going back to day, the building is the last thing the night leaves, so it waits for it */
-		.dusking:not(.night) .stage :is(.sun, .building, .building span, .tree) {
+		.dusking:not(.night) .stage :is(.sun, .building, .building span, .yard *) {
 			transition-delay: 0.6s;
-		}
-
-		.night .stage .tree.right {
-			background: #4b8a75;
 		}
 
 		.bubble {
@@ -535,7 +641,7 @@
 		}
 
 		.hint {
-			margin-top: 6px;
+			margin-bottom: 10px;
 			color: var(--muted);
 			font-size: 14px;
 			text-align: center;
@@ -790,12 +896,14 @@
 			background: radial-gradient(circle, transparent 5px, var(--accent) 5.5px 8.5px, transparent 9px), var(--primary);
 		}
 
-		/* With the script running, the thread walks down to each moment as you reach it,
-		   the dot pops in and the card follows. Without it, everything is simply there */
+		/* With the script running, the day is told as you scroll: the thread walks down with you, each dot pops in
+		   when the thread reaches it and its card follows. Scrolling back up takes them away again.
+		   Without it, everything is simply there */
 		.tl-play .tl-item {
-			transition: transform 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) 0.25s;
+			transition: transform 0.35s ease-out;
 		}
 
+		/* --tl-draw is how far the thread has walked to the next dot, set as you scroll */
 		.tl-play .tl-item::before {
 			content: '';
 			position: absolute;
@@ -803,22 +911,29 @@
 			left: 17px;
 			height: calc(100% + var(--tl-gap));
 			border-left: 2px solid var(--ink);
-			transform: scaleY(0);
+			transform: scaleY(var(--tl-draw, 0));
 			transform-origin: top;
-			transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
-		}
-
-		/* Only between two moments already told, so scrolling up from below never draws from a hidden dot */
-		.tl-play .tl-in:has(+ .tl-in)::before {
-			transform: none;
 		}
 
 		.tl-play .tl-item .tl-face {
-			transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) 0.4s;
+			transition: transform 0.25s ease-in;
 		}
 
 		.tl-play .tl-card {
-			transition: opacity 0.5s 0.45s;
+			transition: opacity 0.25s;
+		}
+
+		/* Coming in takes its time, going out doesn't */
+		.tl-play .tl-in {
+			transition: transform 0.6s cubic-bezier(0.2, 0.9, 0.2, 1);
+		}
+
+		.tl-play .tl-in .tl-face {
+			transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+		}
+
+		.tl-play .tl-in .tl-card {
+			transition: opacity 0.5s 0.15s;
 		}
 
 		.tl-play .tl-item:not(.tl-in) {
@@ -1264,9 +1379,10 @@
 		.app-arch {
 			position: absolute;
 			top: 0;
-			bottom: 5em;
 			left: 50%;
 			width: min(100%, 30em);
+			/* Down to 5em above the phone's foot, whatever comes under it */
+			height: 44.3em;
 			border: 1.5px solid var(--ink);
 			border-radius: 15em 15em 2em 2em;
 			background: radial-gradient(circle, #0228421c 1.2px, transparent 1.7px) 0 0 / 14px 14px, var(--sand);
@@ -2388,6 +2504,687 @@
 			fill: currentColor;
 		}
 
+		/* Phones have the list under the phone, out of sight while it plays: what it is doing goes right under it,
+		   and stays in sight at the bottom of the screen while you watch. The list keeps the titles, to pick one */
+		.app-caption {
+			display: none;
+		}
+
+		@media (max-width: 859.98px) {
+			.app-live .app-caption {
+				position: sticky;
+				bottom: calc(12px + env(safe-area-inset-bottom));
+				z-index: 3;
+				display: grid;
+				grid-template-columns: 36px 1fr;
+				gap: 0 14px;
+				width: 100%;
+				max-width: 420px;
+				margin-top: 20px;
+				padding: 14px 16px 14px 14px;
+				border: 1.5px solid var(--ink);
+				border-radius: var(--radius);
+				background: #fff;
+				box-shadow: 0 10px 28px #0228422e;
+				color: var(--text);
+				font: 15px / 1.45 'Inter Tight', system-ui, sans-serif;
+			}
+
+			/* On a short screen the phone gives up a little size so the caption fits under it, never over its buttons */
+			.app-live .app-stage:not(.ad-stage) {
+				font-size: min(12.5px, (100vw - 76px) / 22, max(10px, (100svh - 200px) / 45.5));
+			}
+
+			.app-caption .app-num {
+				background: var(--ink);
+				color: #fff;
+			}
+
+			.app-anim .app-caption .app-progress {
+				visibility: visible;
+			}
+
+			/* Still read out with the button, just not shown twice */
+			.app-live .app-list .app-desc {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				overflow: hidden;
+				clip-path: inset(50%);
+				white-space: nowrap;
+			}
+
+			.app-live .app-list .app-progress {
+				display: none;
+			}
+
+			.app-live .app-flow {
+				align-items: center;
+				padding-block: 12px;
+			}
+		}
+
+		/* A phone on its side has no room for both: the caption waits under the phone */
+		@media (max-width: 859.98px) and (max-height: 519.98px) {
+			.app-live .app-caption {
+				position: static;
+			}
+		}
+
+		/* The office's side: the admin in a browser window, played like the phone. Classes on .ad-desk decide
+		   what it shows; the knob for its size is the stage's font-size, and it is never narrower than 30em */
+		.app-office {
+			padding-top: 56px;
+		}
+
+		.ad-stage {
+			font-size: min(11.5px, (100vw - 40px) / 30);
+		}
+
+		.ad-stage .app-arch {
+			width: min(100%, 44em);
+			height: 25.8em;
+			border-radius: 2.5em 2.5em 1.5em 1.5em;
+		}
+
+		.ad-desk {
+			position: relative;
+			z-index: 1;
+			display: flex;
+			flex-direction: column;
+			width: min(100%, 38em);
+			height: 27em;
+			overflow: hidden;
+			border: 1.5px solid var(--ink);
+			border-radius: 1em;
+			background: #fff;
+			box-shadow: 6px 6px 0 var(--accent);
+			color: var(--ink);
+			line-height: 1.3;
+			text-align: left;
+			-webkit-user-select: none;
+			user-select: none;
+		}
+
+		.ad-desk b {
+			color: var(--ink);
+			font-family: var(--heading);
+			font-weight: 700;
+		}
+
+		.ad-desk small {
+			display: block;
+			color: var(--muted);
+			font-size: 0.85em;
+		}
+
+		.ad-desk em {
+			font-style: normal;
+		}
+
+		.ad-chrome {
+			display: flex;
+			flex: none;
+			align-items: center;
+			gap: 0.45em;
+			height: 2.4em;
+			padding-inline: 0.9em;
+			border-bottom: 1.5px solid var(--ink);
+			background: var(--sand);
+		}
+
+		.ad-chrome i {
+			width: 0.75em;
+			height: 0.75em;
+			border: 1.5px solid var(--ink);
+			border-radius: 50%;
+			background: #fff;
+		}
+
+		.ad-chrome i:first-child {
+			background: var(--accent);
+		}
+
+		.ad-chrome span {
+			flex: 1;
+			margin: 0 2.4em 0 1em;
+			padding: 0.2em 1em;
+			overflow: hidden;
+			border-radius: 999px;
+			background: #fff;
+			color: var(--muted);
+			font-size: 0.85em;
+			text-align: center;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.ad-nav {
+			display: flex;
+			flex: none;
+			align-items: stretch;
+			gap: 1.5em;
+			height: 3.2em;
+			padding-inline: 1.3em;
+			border-bottom: 1px solid var(--line);
+		}
+
+		.ad-nav img {
+			align-self: center;
+			width: auto;
+			height: 1.2em;
+			margin-right: auto;
+		}
+
+		.ad-tab {
+			position: relative;
+			display: flex;
+			align-items: center;
+			color: var(--muted);
+			font: 600 0.95em var(--heading);
+			transition: color 0.3s;
+		}
+
+		.ad-tab::after {
+			content: '';
+			position: absolute;
+			inset: auto 0 -1px;
+			height: 0.2em;
+			border-radius: 0.2em;
+			background: var(--accent);
+			transform: scaleX(0);
+			transition: transform 0.3s;
+		}
+
+		.ad-bills .ad-tab-bills,
+		.ad-issues .ad-tab-issues,
+		.ad-meeting .ad-tab-meeting {
+			color: var(--ink);
+		}
+
+		.ad-bills .ad-tab-bills::after,
+		.ad-issues .ad-tab-issues::after,
+		.ad-meeting .ad-tab-meeting::after {
+			transform: none;
+		}
+
+		.ad-screen {
+			position: relative;
+			flex: 1;
+			overflow: hidden;
+			background: var(--paper);
+		}
+
+		/* Pages fade in where they are, like on a computer */
+		.ad-view {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 0.9em;
+			padding: 1.2em 1.3em;
+			background: var(--paper);
+			opacity: 0;
+			transform: translateY(0.8em);
+			transition: opacity 0.35s, transform 0.45s cubic-bezier(0.3, 0.8, 0.2, 1);
+		}
+
+		.ad-v-home,
+		.ad-bills .ad-v-bills,
+		.ad-issues .ad-v-issues,
+		.ad-meeting .ad-v-meeting {
+			opacity: 1;
+			transform: none;
+		}
+
+		.ad-title {
+			font-size: 1.25em;
+		}
+
+		.ad-title small {
+			margin-top: 0.15em;
+			font: 400 0.68em 'Inter Tight', system-ui, sans-serif;
+		}
+
+		.ad-head {
+			display: flex;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 1em;
+		}
+
+		.ad-button {
+			flex: none;
+			padding: 0.55em 1em;
+			border-radius: 0.6em;
+			background: var(--ink);
+			color: #fff;
+			font: 600 0.9em var(--heading);
+			text-align: center;
+			transition: background 0.3s;
+		}
+
+		.ad-remit .ad-v-bills .ad-button,
+		.ad-sent .ad-drawer .ad-button,
+		.ad-close .ad-v-meeting .ad-button {
+			background: var(--teal-ink);
+		}
+
+		.ad-tiles {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 0.7em;
+		}
+
+		.ad-tiles span,
+		.ad-rows,
+		.ad-votes li {
+			border: 1px solid var(--line);
+			border-radius: 0.7em;
+			background: #fff;
+		}
+
+		.ad-tiles span {
+			padding: 0.7em 0.8em;
+		}
+
+		.ad-tiles b {
+			display: block;
+			margin-top: 0.2em;
+			font-size: 1.5em;
+		}
+
+		.ad-rows {
+			display: grid;
+			overflow: hidden;
+		}
+
+		.ad-rows > span {
+			display: grid;
+			align-items: center;
+			gap: 0 0.8em;
+			padding: 0.6em 0.9em;
+		}
+
+		.ad-rows > span + span {
+			border-top: 1px solid var(--line);
+		}
+
+		.ad-rows em {
+			font-weight: 600;
+			font-size: 0.9em;
+			text-align: right;
+		}
+
+		.ad-desk .ad-red {
+			color: var(--accent-ink);
+		}
+
+		.ad-cartera > span {
+			grid-template-columns: 1fr 5.5em 5em;
+		}
+
+		.ad-receipts > span {
+			grid-template-columns: 1.1em 2.6em 1fr auto;
+		}
+
+		.ad-receipts > span:first-child small {
+			grid-column: 2 / -1;
+		}
+
+		/* Ticked one after the other, down the list */
+		.ad-check {
+			width: 1.1em;
+			height: 1.1em;
+			border: 1.5px solid var(--ink);
+			border-radius: 0.3em;
+			background: #fff;
+			transition: background 0.2s calc(var(--n, 0) * 0.09s);
+		}
+
+		.ad-check::after {
+			content: '';
+			display: block;
+			width: 0.32em;
+			height: 0.58em;
+			margin: 0.08em auto 0;
+			border: solid #fff;
+			border-width: 0 0.14em 0.14em 0;
+			transform: rotate(45deg) scale(0);
+			transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--n, 0) * 0.09s);
+		}
+
+		.ad-checked .ad-check {
+			background: var(--ink);
+		}
+
+		.ad-checked .ad-check::after {
+			transform: rotate(45deg);
+		}
+
+		/* The file for the bank pops up at the bottom */
+		.ad-toast {
+			position: absolute;
+			inset: auto 1.3em 1.1em;
+			display: flex;
+			align-items: center;
+			gap: 0.8em;
+			padding: 0.75em 0.9em;
+			border: 1.5px solid var(--ink);
+			border-radius: 0.8em;
+			background: #fff;
+			box-shadow: 3px 3px 0 var(--ink);
+			opacity: 0;
+			transform: translateY(150%);
+			transition: transform 0.5s cubic-bezier(0.3, 1.3, 0.5, 1), opacity 0.3s;
+		}
+
+		.ad-file .ad-toast {
+			opacity: 1;
+			transform: none;
+		}
+
+		.ad-toast svg,
+		.ad-acta svg {
+			flex: none;
+			width: 2em;
+			height: 2em;
+			fill: none;
+			stroke: var(--ink);
+			stroke-width: 1.7;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
+
+		.ad-toast > span {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.ad-ok,
+		.ad-badge,
+		.ad-state em {
+			flex: none;
+			padding: 0.25em 0.7em;
+			border-radius: 999px;
+			font: 700 0.8em var(--heading);
+		}
+
+		.ad-ok {
+			background: #dcefeb;
+			color: var(--teal-ink);
+		}
+
+		.ad-issue-list > span {
+			grid-template-columns: 2.4em 1fr auto;
+			transition: background 0.3s;
+		}
+
+		.ad-open .ad-new {
+			background: var(--sand);
+		}
+
+		.ad-desk .ad-badge {
+			background: #fbe2e1;
+			color: var(--accent-ink);
+			font-size: 0.75em;
+		}
+
+		/* Photos of the damage, drawn: a wet wall, a light, a door */
+		.ad-photo {
+			width: 2.4em;
+			height: 2.4em;
+			border-radius: 0.5em;
+			background: radial-gradient(ellipse 30% 40% at 55% 35%, #4a7aa3, transparent), linear-gradient(160deg, #c9d6e2, #8fa9bf);
+		}
+
+		.ad-photo-2 {
+			background: radial-gradient(circle at 50% 40%, #ffcf70 0 18%, transparent 40%), linear-gradient(#5d6875, #3b4a5a);
+		}
+
+		.ad-photo-3 {
+			background: repeating-linear-gradient(90deg, #8cc2ae 0 0.3em, #6aa792 0 0.6em);
+		}
+
+		/* The issue opens in a panel from the right */
+		.ad-drawer {
+			position: absolute;
+			inset: 0 0 0 auto;
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.55em;
+			width: min(64%, 20em);
+			padding: 1.1em 1.2em;
+			border-left: 1.5px solid var(--ink);
+			background: #fff;
+			box-shadow: -10px 0 24px #0228421f;
+			transform: translateX(105%);
+			transition: transform 0.5s cubic-bezier(0.3, 0.8, 0.2, 1);
+		}
+
+		.ad-open .ad-drawer {
+			transform: none;
+		}
+
+		.ad-drawer .ad-photo {
+			width: 100%;
+			height: 4.4em;
+		}
+
+		.ad-drawer .ad-button {
+			align-self: stretch;
+		}
+
+		/* The trade, picked: the placeholder gives way to the name */
+		.ad-field {
+			display: grid;
+			align-self: stretch;
+			padding: 0.5em 0.8em;
+			border: 1.5px dashed #cbd5e0;
+			border-radius: 0.6em;
+			transition: border-color 0.3s;
+		}
+
+		.ad-field em {
+			grid-area: 1 / 1;
+			color: var(--muted);
+			transition: opacity 0.25s;
+		}
+
+		.ad-field em + em {
+			color: var(--ink);
+			font-weight: 600;
+			opacity: 0;
+		}
+
+		.ad-pick .ad-field {
+			border-style: solid;
+			border-color: var(--ink);
+		}
+
+		.ad-pick .ad-field em {
+			opacity: 0;
+		}
+
+		.ad-pick .ad-field em + em {
+			opacity: 1;
+		}
+
+		/* Where the job is, one news at a time */
+		.ad-state {
+			display: grid;
+		}
+
+		.ad-state em {
+			grid-area: 1 / 1;
+			justify-self: start;
+			background: #e3edf5;
+			color: var(--primary);
+			opacity: 0;
+			transform: translateY(0.4em);
+			transition: opacity 0.3s, transform 0.3s;
+		}
+
+		.ad-state em:last-child {
+			background: #dcefeb;
+			color: var(--teal-ink);
+		}
+
+		.ad-sent:not(.ad-planned) .ad-state em:first-child,
+		.ad-planned:not(.ad-fixed) .ad-state em:nth-child(2),
+		.ad-fixed .ad-state em:last-child {
+			opacity: 1;
+			transform: none;
+		}
+
+		.ad-live::before {
+			content: '';
+			display: inline-block;
+			width: 0.55em;
+			height: 0.55em;
+			margin-right: 0.4em;
+			border-radius: 50%;
+			background: var(--accent);
+		}
+
+		.app-run .ad-live::before {
+			animation: app-blink 1.2s steps(1) infinite;
+		}
+
+		.ad-votes {
+			display: grid;
+			gap: 0.6em;
+			padding: 0;
+			list-style: none;
+		}
+
+		.ad-votes li {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 0.45em 0.8em;
+			padding: 0.7em 0.9em;
+		}
+
+		.ad-votes span {
+			grid-column: 1 / -1;
+			height: 0.5em;
+			overflow: hidden;
+			border-radius: 0.5em;
+			background: var(--sand);
+		}
+
+		/* The votes come in, each point a little after the one above */
+		.ad-votes i {
+			display: block;
+			width: var(--yes);
+			height: 100%;
+			border-radius: inherit;
+			background: var(--primary);
+			transform: scaleX(0);
+			transform-origin: left;
+			transition: transform 2.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+		}
+
+		.ad-votes li + li i {
+			transition-delay: 0.3s;
+		}
+
+		.ad-votes li + li + li i {
+			transition-delay: 0.6s;
+		}
+
+		.ad-tally .ad-votes i {
+			transform: none;
+		}
+
+		/* The minutes rise like a sheet of paper, and the stamp lands on them */
+		.ad-acta {
+			position: absolute;
+			inset: 1.2em 50% -1em auto;
+			display: grid;
+			grid-template-columns: 1fr auto;
+			align-content: start;
+			gap: 0.5em 1em;
+			width: 19em;
+			margin-right: -9.5em;
+			padding: 1.2em 1.3em;
+			border: 1.5px solid var(--ink);
+			border-radius: 0.6em 0.6em 0 0;
+			background: #fff;
+			box-shadow: 0 -6px 30px #02284226;
+			transform: translateY(110%);
+			transition: transform 0.6s cubic-bezier(0.3, 1.1, 0.4, 1);
+		}
+
+		.ad-minutes .ad-acta {
+			transform: none;
+		}
+
+		.ad-acta b,
+		.ad-acta small,
+		.ad-acta i {
+			grid-column: 1;
+		}
+
+		.ad-acta i {
+			height: 0.45em;
+			border-radius: 0.3em;
+			background: var(--sand);
+		}
+
+		.ad-acta i:nth-of-type(2n) {
+			width: 80%;
+		}
+
+		.ad-acta svg {
+			grid-column: 2;
+			grid-row: 3 / span 4;
+			width: 4em;
+			height: 4em;
+			fill: var(--ink);
+			fill-rule: evenodd;
+			stroke: none;
+		}
+
+		.ad-stamp {
+			grid-column: 1;
+			justify-self: start;
+			margin-top: 0.6em;
+			padding: 0.2em 0.8em;
+			border: 2px solid var(--accent-ink);
+			border-radius: 0.4em;
+			color: var(--accent-ink);
+			font: 800 0.95em var(--heading);
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			opacity: 0;
+			transform: rotate(-8deg) scale(1.8);
+			transition: opacity 0.2s 0.5s, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) 0.5s;
+		}
+
+		.ad-minutes .ad-stamp {
+			opacity: 1;
+			transform: rotate(-8deg);
+		}
+
+		/* The mouse: its tip lands on the point the script gives it */
+		.ad-cursor {
+			width: 1.5em;
+			margin: 0;
+		}
+
+		.ad-cursor svg {
+			stroke-width: 1.3;
+			filter: drop-shadow(1.5px 1.5px 0 var(--ink));
+			transform-origin: 0 0;
+		}
+
+		.ad-cursor .app-touch {
+			top: 0;
+			left: 0;
+		}
+
 		@keyframes app-blink {
 			50% {
 				opacity: 0;
@@ -2633,6 +3430,32 @@
 		@keyframes pl-thud {
 			35% {
 				translate: 0 3px;
+			}
+		}
+
+		/* Phones always have the floating button; desktop gets a call at the end of some sections instead */
+		.cta {
+			display: none;
+		}
+
+		@media (min-width: 860px) {
+			.cta {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				justify-content: center;
+				gap: 16px 24px;
+				color: var(--ink);
+				font: 700 19px var(--heading);
+			}
+
+			.fx-features .cta {
+				margin-top: 48px;
+			}
+
+			.app-flows .cta {
+				justify-content: flex-start;
+				margin-top: 36px;
 			}
 		}
 
@@ -3053,10 +3876,20 @@
 			}
 
 			.hero {
+				--street: 64px;
 				grid-template-columns: 1.1fr 1fr;
 				align-items: center;
 				gap: 48px;
-				padding-block: 32px 80px;
+				padding-block: 32px var(--street);
+			}
+
+			/* The building always stands on the street, and the buttons keep some air above it */
+			.hero > div:last-child {
+				align-self: end;
+			}
+
+			.actions {
+				margin-bottom: 40px;
 			}
 
 			.showcase {
@@ -3320,6 +4153,17 @@
 				padding-inline: 8px;
 			}
 
+			/* The office the other way round: the words on the left, the window on the right */
+			.app-office {
+				grid-template-columns: 1fr 1.3fr;
+				grid-template-areas: '. stage' 'head stage' 'flows stage' '. stage';
+				padding-top: 72px;
+			}
+
+			.app-office .app-stage {
+				font-size: clamp(11px, 1.2vw + 1px, 15px);
+			}
+
 			.pl-section {
 				padding-block: 112px 136px;
 			}
@@ -3431,9 +4275,15 @@
 
 		<main>
 			<section class="wrap hero" id="hero">
+				<div class="street" aria-hidden="true"></div>
 				<div class="hero-sky" aria-hidden="true">
-					<div class="sm-cloud sm-back"></div>
-					<div class="sm-cloud sm-front"></div>
+					<div class="street"></div>
+				</div>
+				<div class="traffic" aria-hidden="true">
+					<i class="car back" style="--paint: #d4666b; --time: 13s; --delay: -2s; --x: 8vw"></i>
+					<i class="car back" style="--paint: #e2ad4f; --time: 13s; --delay: -8.5s; --x: 58vw"></i>
+					<i class="car" style="--paint: #3f9a92; --time: 10s; --delay: -1s; --x: 30vw"></i>
+					<i class="car" style="--paint: #6b97c2; --time: 10s; --delay: -6s; --x: 80vw"></i>
 				</div>
 				<div>
 					<h1 data-dusk>El programa del despacho y la app del vecino, <em>en uno</em>.</h1>
@@ -3448,11 +4298,37 @@
 				</div>
 
 				<div>
+					<p class="hint" aria-hidden="true" data-dusk>✦ <span class="mouse">Pasa el ratón por el edificio</span><span class="touch">Toca el edificio</span></p>
 					<div class="stage" role="button" tabindex="0" aria-pressed="false" aria-label="Un edificio con las ventanas encendidas y los mensajes de sus vecinos. Púlsalo para que se haga de noche.">
 						<div class="sun"></div>
-						<div class="ground" data-dusk></div>
-						<div class="tree left"></div>
-						<div class="tree right"></div>
+						<svg class="yard" viewBox="0 0 400 420" aria-hidden="true">
+							<defs>
+								<radialGradient id="lamp-glow">
+									<stop offset="0" stop-color="#fdf1c7" stop-opacity="0.6"/>
+									<stop offset="1" stop-color="#fdf1c7" stop-opacity="0"/>
+								</radialGradient>
+								<linearGradient id="lamp-beam" x2="0" y2="1">
+									<stop offset="0" stop-color="#fdf1c7" stop-opacity="0.32"/>
+									<stop offset="1" stop-color="#fdf1c7" stop-opacity="0.04"/>
+								</linearGradient>
+							</defs>
+							<path class="trunk" d="M50 420V352L39 339l4-3 10 10v-16h6v16l9-10 4 3-12 14v68Z"/>
+							<circle class="leaf" cx="36" cy="318" r="24"/>
+							<circle class="leaf" cx="76" cy="316" r="26"/>
+							<circle class="leaf" cx="56" cy="292" r="30"/>
+							<circle class="lit" cx="47" cy="285" r="15"/>
+							<ellipse class="bush" cx="96" cy="410" rx="19" ry="13"/>
+							<ellipse class="bush" cx="304" cy="412" rx="15" ry="10"/>
+							<path class="glow" d="M322 318h16l26 102h-68Z" fill="url(#lamp-beam)"/>
+							<circle class="glow" cx="330" cy="311" r="30" fill="url(#lamp-glow)"/>
+							<rect class="pole" x="328" y="314" width="4" height="106" rx="2"/>
+							<rect class="pole" x="324" y="412" width="12" height="8" rx="2"/>
+							<rect class="lamp" x="322" y="304" width="16" height="13" rx="4"/>
+							<rect class="pole" x="319" y="300" width="22" height="5" rx="2.5"/>
+							<rect class="trunk" x="369" y="380" width="6" height="40" rx="2"/>
+							<ellipse class="leaf" cx="372" cy="336" rx="18" ry="50"/>
+							<ellipse class="lit" cx="366" cy="326" rx="7" ry="32"/>
+						</svg>
 						<div class="building">
 							<span class="on"></span><span></span><span class="on"></span><span class="on"></span>
 							<span></span><span class="on"></span><span></span><span class="on"></span>
@@ -3465,7 +4341,6 @@
 						<div class="bubble b2" aria-hidden="true"><i></i><div><strong>Fontanero avisado</strong><small>Por WhatsApp · va a las 17:00</small></div></div>
 						<div class="bubble b3" aria-hidden="true"><i></i><div><strong>Gotera arreglada</strong><small>El 3º A ya lo ve en su app</small></div></div>
 					</div>
-					<p class="hint" aria-hidden="true" data-dusk>✦ <span class="mouse">Pasa el ratón por el edificio</span><span class="touch">Toca el edificio</span></p>
 				</div>
 			</section>
 
@@ -3546,6 +4421,7 @@
 						</div>
 					</li>
 				</ol>
+				<p class="cta">¿Quieres que tus martes sean así? <a class="button" href="#demo">Pide una demo de 15 minutos</a></p>
 			</section>
 
 			<section class="showcase">
@@ -3711,6 +4587,7 @@
 					</li>
 				</ul>
 				<p class="fx-note">Lo que lleva <span class="fx-soon">Al contratar</span> ya funciona de punta a punta en modo de prueba y se activa con el proveedor cuando contratas.</p>
+				<p class="cta">Te lo enseño con una de tus comunidades. <a class="button" href="#demo">Pide una demo</a></p>
 				<dialog class="fx-sheet" aria-labelledby="fx-title">
 					<div class="fx-sheet-in">
 						<div class="fx-sheet-head">
@@ -3900,6 +4777,11 @@
 							<svg viewBox="0 0 34 42"><path d="M7.5 22V4.5a3.5 3.5 0 0 1 7 0v11a3 3 0 0 1 6 0V17a3 3 0 0 1 6 0v2a2.75 2.75 0 0 1 5.5 0V29c0 7-5 12-12 12h-3c-4.5 0-7-2-9.5-5.5L2 28.5a2.6 2.6 0 0 1 3.8-3.5L7.5 27z"/><path d="M14.5 15.5V20M20.5 17v4.5M26.5 19v4"/></svg>
 						</div>
 					</div>
+					<p class="app-caption" aria-hidden="true">
+						<span class="app-num"></span>
+						<span class="app-text"></span>
+						<span class="app-progress"><i></i></span>
+					</p>
 				</div>
 
 				<div class="app-flows">
@@ -3907,21 +4789,21 @@
 						<li>
 							<button class="app-flow" type="button">
 								<span class="app-num">1</span>
-								<span class="app-text"><strong>Avisa de una gotera</strong>Con una foto. Sabe qué día va el fontanero y le llega un aviso cuando está arreglado.</span>
+								<span class="app-text"><strong>Avisa de una gotera</strong><span class="app-desc">Con una foto. Sabe qué día va el fontanero y le llega un aviso cuando está arreglado.</span></span>
 								<span class="app-progress" aria-hidden="true"><i></i></span>
 							</button>
 						</li>
 						<li>
 							<button class="app-flow" type="button">
 								<span class="app-num">2</span>
-								<span class="app-text"><strong>Vota en la junta</strong>Le llega la convocatoria al móvil y vota cada punto desde casa, o delega su voto.</span>
+								<span class="app-text"><strong>Vota en la junta</strong><span class="app-desc">Le llega la convocatoria al móvil y vota cada punto desde casa, o delega su voto.</span></span>
 								<span class="app-progress" aria-hidden="true"><i></i></span>
 							</button>
 						</li>
 						<li>
 							<button class="app-flow" type="button">
 								<span class="app-num">3</span>
-								<span class="app-text"><strong>Reserva el pádel</strong>Ve las horas libres de la semana y elige la suya sin llamar a nadie.</span>
+								<span class="app-text"><strong>Reserva el pádel</strong><span class="app-desc">Ve las horas libres de la semana y elige la suya sin llamar a nadie.</span></span>
 								<span class="app-progress" aria-hidden="true"><i></i></span>
 							</button>
 						</li>
@@ -3930,6 +4812,141 @@
 						<svg viewBox="0 0 14 14" aria-hidden="true"><path class="app-pause-icon" d="M3 2h3v10H3zM8 2h3v10H8z"/><path class="app-play-icon" d="M3.5 1.5v11l9-5.5z"/></svg>
 						<span>Pausar</span>
 					</button>
+				</div>
+			</section>
+
+			<section class="wrap app-section app-office" id="despacho">
+				<header class="app-head">
+					<h2>Y en el despacho, todo a unos clics.</h2>
+					<p>Lo que avisan, votan y pagan tus vecinos te llega aquí, comunidad por comunidad. Y lo que antes era una tarde de papeles se queda en unos clics.</p>
+				</header>
+
+				<div class="app-stage ad-stage">
+					<div class="app-arch" aria-hidden="true"></div>
+					<p class="app-sticker" aria-hidden="true">
+						<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+						Desde cualquier ordenador
+					</p>
+					<div class="ad-desk ad-bills ad-checked ad-remit ad-file" aria-hidden="true">
+						<div class="ad-chrome"><i></i><i></i><i></i><span>gobernança admin</span></div>
+						<div class="ad-nav">
+							<img src="img/logo.svg" alt="" width="1108" height="234">
+							<span class="ad-tab ad-tab-bills" data-tap="ad-bills">Cobros</span>
+							<span class="ad-tab ad-tab-issues" data-tap="ad-issues">Incidencias</span>
+							<span class="ad-tab ad-tab-meeting" data-tap="ad-meeting">Juntas</span>
+						</div>
+						<div class="ad-screen">
+							<div class="ad-view ad-v-home">
+								<b class="ad-title">Panel de cartera<small>Tus 40 comunidades</small></b>
+								<div class="ad-tiles">
+									<span><small>Incidencias abiertas</small><b>12</b></span>
+									<span><small>Recibos por pasar</small><b>96</b></span>
+									<span><small>Juntas este mes</small><b>3</b></span>
+								</div>
+								<div class="ad-rows ad-cartera">
+									<span><b>Andalucía 10</b><small>2 abiertas</small><em>Al día</em></span>
+									<span><b>Arquitecto Berges 27</b><small>1 abierta</small><em>Al día</em></span>
+									<span><b>Barcelona 18</b><small>Ninguna</small><em class="ad-red">145,15 €</em></span>
+								</div>
+							</div>
+
+							<div class="ad-view ad-v-bills">
+								<div class="ad-head">
+									<b class="ad-title">Nueva remesa<small>Andalucía 10 · 4.º trimestre</small></b>
+									<span class="ad-button" data-tap="ad-remit">Generar remesa</span>
+								</div>
+								<div class="ad-rows ad-receipts">
+									<span><i class="ad-check" data-tap="ad-checked"></i><small>Todos los recibos (24)</small></span>
+									<span style="--n: 1"><i class="ad-check"></i><b>1.º A</b><small>Lucía Romero</small><em>80,00 €</em></span>
+									<span style="--n: 2"><i class="ad-check"></i><b>1.º B</b><small>Andrés Gil</small><em>80,00 €</em></span>
+									<span style="--n: 3"><i class="ad-check"></i><b>2.º A</b><small>Rosa Medina</small><em>95,50 €</em></span>
+									<span style="--n: 4"><i class="ad-check"></i><b>2.º B</b><small>Javier Soto</small><em>80,00 €</em></span>
+								</div>
+								<div class="ad-toast">
+									<svg viewBox="0 0 24 24"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+									<span><b>remesa-4T.xml</b><small>24 recibos · 1.958,50 €</small></span>
+									<em class="ad-ok">Lista para el banco</em>
+								</div>
+							</div>
+
+							<div class="ad-view ad-v-issues">
+								<b class="ad-title">Incidencias<small>Andalucía 10</small></b>
+								<div class="ad-rows ad-issue-list">
+									<span class="ad-new" data-tap="ad-open"><i class="ad-photo"></i><span><b>Gotera en el garaje</b><small>Hace 2 min · desde la app</small></span><em class="ad-badge">Nueva</em></span>
+									<span><i class="ad-photo ad-photo-2"></i><span><b>Luz del portal</b><small>Ayer</small></span><em>Programada</em></span>
+									<span><i class="ad-photo ad-photo-3"></i><span><b>Puerta del garaje</b><small>El lunes</small></span><em>Arreglada</em></span>
+								</div>
+								<div class="ad-drawer">
+									<i class="ad-photo"></i>
+									<b>Gotera en el garaje</b>
+									<small>Urgencia sugerida: alta</small>
+									<span class="ad-field" data-tap="ad-pick"><em>Elige un gremio</em><em>Fontanería Ruiz</em></span>
+									<span class="ad-button" data-tap="ad-sent">Enviar parte por WhatsApp</span>
+									<span class="ad-state"><em>Parte enviado</em><em>Va el jueves a las 10:00</em><em>Arreglada, con 2 fotos</em></span>
+								</div>
+							</div>
+
+							<div class="ad-view ad-v-meeting">
+								<div class="ad-head">
+									<b class="ad-title">Junta ordinaria<small class="ad-live">Andalucía 10 · en directo</small></b>
+									<span class="ad-button" data-tap="ad-close">Cerrar y sacar el acta</span>
+								</div>
+								<ol class="ad-votes">
+									<li><b>Cuentas de 2026</b><small>82 % a favor</small><span><i style="--yes: 82%"></i></span></li>
+									<li><b>Pintar la fachada</b><small>64 % a favor</small><span><i style="--yes: 64%"></i></span></li>
+									<li><b>Cambiar de ascensorista</b><small>41 % a favor</small><span><i style="--yes: 41%"></i></span></li>
+								</ol>
+								<div class="ad-acta">
+									<b>Acta de la junta ordinaria</b>
+									<small>Andalucía 10 · 13 de noviembre de 2026</small>
+									<i></i><i></i><i></i><i></i>
+									<svg viewBox="0 0 21 21"><path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM14 0h7v7h-7zM15 1v5h5V1zM16 2h3v3h-3zM0 14h7v7H0zM1 15v5h5v-5zM2 16h3v3H2zM9 0h2v2H9zM9 4h3v2H9zM8 8h3v2H8zM13 9h2v3h-2zM17 9h3v2h-3zM9 12h2v2H9zM9 16h3v2H9zM14 14h3v2h-3zM18 13h3v2h-3zM15 18h2v3h-2zM19 18h2v3h-2zM11 19h2v2h-2z"/></svg>
+									<em class="ad-stamp">Firmada</em>
+								</div>
+							</div>
+						</div>
+
+						<div class="app-hand ad-cursor">
+							<span class="app-touch"></span>
+							<svg viewBox="0 0 16 22"><path d="M1 1v16.5l4.2-4 2.9 6.6 3-1.3-2.9-6.5h6.3z"/></svg>
+						</div>
+					</div>
+					<p class="app-caption" aria-hidden="true">
+						<span class="app-num"></span>
+						<span class="app-text"></span>
+						<span class="app-progress"><i></i></span>
+					</p>
+				</div>
+
+				<div class="app-flows">
+					<ol class="app-list">
+						<li>
+							<button class="app-flow" type="button">
+								<span class="app-num">1</span>
+								<span class="app-text"><strong>Pasa los recibos del trimestre</strong><span class="app-desc">Salen de las cuotas del presupuesto y la remesa SEPA queda lista para subirla al banco.</span></span>
+								<span class="app-progress" aria-hidden="true"><i></i></span>
+							</button>
+						</li>
+						<li>
+							<button class="app-flow" type="button">
+								<span class="app-num">2</span>
+								<span class="app-text"><strong>Manda al fontanero</strong><span class="app-desc">Le llega el parte por WhatsApp, sin cuentas ni contraseñas. Él pone el día de la visita y cierra con fotos.</span></span>
+								<span class="app-progress" aria-hidden="true"><i></i></span>
+							</button>
+						</li>
+						<li>
+							<button class="app-flow" type="button">
+								<span class="app-num">3</span>
+								<span class="app-text"><strong>Saca el acta de la junta</strong><span class="app-desc">Ves llegar los votos en directo y, al cerrar, el acta sale firmada y con su QR.</span></span>
+								<span class="app-progress" aria-hidden="true"><i></i></span>
+							</button>
+						</li>
+					</ol>
+					<button class="app-pause" type="button" hidden>
+						<svg viewBox="0 0 14 14" aria-hidden="true"><path class="app-pause-icon" d="M3 2h3v10H3zM8 2h3v10H8z"/><path class="app-play-icon" d="M3.5 1.5v11l9-5.5z"/></svg>
+						<span>Pausar</span>
+					</button>
+					<p class="cta"><a class="button" href="#demo">Pide una demo de 15 minutos</a></p>
 				</div>
 			</section>
 
@@ -4004,7 +5021,7 @@
 							<input name="name" autocomplete="name" required minlength="2" maxlength="100">
 						</label>
 						<label>
-							Despacho
+							<span>Empresa <small>(opcional)</small></span>
 							<input name="office" autocomplete="organization" maxlength="150">
 						</label>
 						<label>
@@ -4262,25 +5279,34 @@
 		});
 
 		{
-			// The day: each moment shows up as you reach it and the thread walks down to its dot
+			// The day, told as you scroll: the thread walks down with you and each moment shows up when it reaches its dot
 			const day = document.querySelector('.tl');
 			if (!calm) {
 				day.classList.add('tl-play');
-				let free = 0;
-				const dayObserver = new IntersectionObserver((entries) => {
-					entries.forEach((entry) => {
-						if (!entry.isIntersecting) {
-							return;
-						}
-						dayObserver.unobserve(entry.target);
-						// When several come into view at once they still take turns, so the story reads in order
-						const now = performance.now();
-						const at = Math.max(now, free);
-						free = at + 550;
-						setTimeout(() => entry.target.classList.add('tl-in'), at - now);
+				const list = day.querySelector('.tl-list');
+				const items = [...list.querySelectorAll('.tl-item')];
+				let queued = false;
+				const paint = () => {
+					queued = false;
+					// How far down the list the reader has got: a fifth of the screen above its bottom edge
+					const reach = innerHeight * 0.8 - list.getBoundingClientRect().top;
+					// offsetTop leaves out the lift of a moment still to come, so showing one never pushes it back out
+					const dots = items.map((item) => item.offsetTop + item.querySelector('.tl-face').offsetHeight / 2);
+					items.forEach((item, i) => {
+						item.classList.toggle('tl-in', reach >= dots[i]);
+						const walked = i + 1 < dots.length ? (reach - dots[i]) / (dots[i + 1] - dots[i]) : 0;
+						item.style.setProperty('--tl-draw', Math.min(1, Math.max(0, walked)));
 					});
-				}, { rootMargin: '0px 0px -15% 0px' });
-				day.querySelectorAll('.tl-item').forEach((item) => dayObserver.observe(item));
+				};
+				const queue = () => {
+					if (!queued) {
+						queued = true;
+						requestAnimationFrame(paint);
+					}
+				};
+				addEventListener('scroll', queue, { passive: true });
+				addEventListener('resize', queue);
+				paint();
 			}
 		}
 
@@ -4326,24 +5352,21 @@
 			sheet.addEventListener('close', () => opener?.focus());
 		}
 
-		// The neighbour's app on the phone. Each flow is a list of classes a clock adds to it; whatever
-		// carries that class in [data-tap] gets tapped by the finger first, and the CSS does the rest
-		{
-			const section = document.querySelector('.app-section');
-			const phone = section.querySelector('.app-phone');
-			const screen = phone.querySelector('.app-screen');
+		// The neighbour's app on the phone, and the office's on a computer. Each flow is a list of classes a clock adds
+		// to the device; whatever carries that class in [data-tap] gets tapped by the finger (or the mouse) first,
+		// and the CSS does the rest
+		const playDevice = (section, flows, pushes = []) => {
+			const phone = section.querySelector('.app-phone, .ad-desk');
+			const device = phone.classList[0];
+			const screen = phone.querySelector('.app-screen, .ad-screen');
 			const hand = phone.querySelector('.app-hand');
 			const touch = hand.querySelector('.app-touch');
 			const rings = section.querySelectorAll('.app-ring');
 			const choices = [...section.querySelectorAll('.app-flow')];
 			const bars = choices.map((choice) => choice.querySelector('.app-progress i'));
 			const pause = section.querySelector('.app-pause');
-			const flows = [
-				{ length: 9800, steps: [[900, 'app-form'], [1350, 'app-typed'], [2900, 'app-photo'], [3500, 'app-hint'], [4500, 'app-cat'], [5600, 'app-sent'], [6500, 'app-plan'], [7600, 'app-fixed']] },
-				{ length: 6800, steps: [[700, 'app-call'], [2000, 'app-meeting'], [3600, 'app-vote'], [3950, 'app-voted']] },
-				{ length: 7400, steps: [[1000, 'app-book'], [2400, 'app-day'], [3600, 'app-slot'], [4800, 'app-booked']] },
-			];
-			const pushes = ['app-fixed', 'app-call'];
+			const caption = section.querySelector('.app-caption');
+			const captionBar = caption.querySelector('.app-progress i');
 
 			// Layout offsets, not the screen box: they ignore the slides and the phone's buzz
 			const point = (target) => {
@@ -4410,12 +5433,14 @@
 				time = 0;
 				next = 0;
 				// Back to the home screen in one cut, nothing sliding backwards
-				phone.className = 'app-phone app-cut';
+				phone.className = `${device} app-cut`;
 				lift();
 				void phone.offsetWidth;
 				phone.classList.remove('app-cut');
 				choices.forEach((choice, position) => choice.setAttribute('aria-current', String(position === index)));
-				bars.forEach((bar) => (bar.style.transform = ''));
+				caption.firstElementChild.textContent = index + 1;
+				caption.children[1].innerHTML = choices[index].querySelector('.app-text').innerHTML;
+				[...bars, captionBar].forEach((bar) => (bar.style.transform = ''));
 				if (calm) {
 					// No motion: straight to how the flow ends
 					flows[index].steps.forEach(([, flag]) => phone.classList.add(flag));
@@ -4431,7 +5456,7 @@
 				while (next < events.length && events[next][0] <= time) {
 					events[next++][1]();
 				}
-				bars[flow].style.transform = `scaleX(${Math.min(time / flows[flow].length, 1)})`;
+				bars[flow].style.transform = captionBar.style.transform = `scaleX(${Math.min(time / flows[flow].length, 1)})`;
 				if (time >= flows[flow].length) {
 					show((flow + 1) % flows.length);
 				}
@@ -4457,7 +5482,7 @@
 			choices.forEach((choice, index) => choice.addEventListener('click', () => {
 				show(index);
 				// On phones the list sits under the phone, often with the phone scrolled away: bring it back to watch
-				phone.parentElement.scrollIntoView({ block: 'nearest' });
+				phone.scrollIntoView({ block: 'nearest' });
 				if (!calm) {
 					setPaused(false);
 				}
@@ -4476,9 +5501,21 @@
 				}, { threshold: 0.3 }).observe(phone);
 			}
 
-			// Phones: the floating «Pide una demo» would cover the bottom of the screen, where the taps land
-			coverObserver.observe(phone);
-		}
+			// Phones: the floating «Pide una demo» would cover the bottom of the screen, where the taps land and the caption sits
+			coverObserver.observe(phone.parentElement);
+		};
+
+		playDevice(document.querySelector('.app-section:not(.app-office)'), [
+			{ length: 9800, steps: [[900, 'app-form'], [1350, 'app-typed'], [2900, 'app-photo'], [3500, 'app-hint'], [4500, 'app-cat'], [5600, 'app-sent'], [6500, 'app-plan'], [7600, 'app-fixed']] },
+			{ length: 6800, steps: [[700, 'app-call'], [2000, 'app-meeting'], [3600, 'app-vote'], [3950, 'app-voted']] },
+			{ length: 7400, steps: [[1000, 'app-book'], [2400, 'app-day'], [3600, 'app-slot'], [4800, 'app-booked']] },
+		], ['app-fixed', 'app-call']);
+
+		playDevice(document.querySelector('.app-office'), [
+			{ length: 7800, steps: [[900, 'ad-bills'], [2300, 'ad-checked'], [3600, 'ad-remit'], [4300, 'ad-file']] },
+			{ length: 9800, steps: [[900, 'ad-issues'], [2300, 'ad-open'], [3600, 'ad-pick'], [4800, 'ad-sent'], [6200, 'ad-planned'], [7600, 'ad-fixed']] },
+			{ length: 8200, steps: [[900, 'ad-meeting'], [1300, 'ad-tally'], [4600, 'ad-close'], [5400, 'ad-minutes']] },
+		]);
 
 		{
 			// The pilot's stamp slams onto the ticket the first time it comes into view
