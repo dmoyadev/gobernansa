@@ -90,7 +90,7 @@ The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to t
 
 To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
 
-**Landing.** `apps/landing` is a plain HTML page with no build, on a third site, `gobernansa-landing`, which CI doesn't deploy. Create it like the admin's (`npx firebase hosting:sites:create gobernansa-landing --project dmoyadev-gobernansa`), point the root domain at it when there is one (A2), and deploy by hand with `npx firebase deploy --only hosting:landing`. Its demo form doesn't touch Firebase: it sends each request to a Telegram bot, whose address with the token and the chat id go in one constant, `BOT`, reversed and in base64. That only keeps token scanners away, anyone reading the code can still get it: if someone abuses the bot, revoke the token in @BotFather and put the new one in.
+**Landing.** `apps/landing` is a plain HTML page with no build, served by GitHub Pages: every push to `main` that touches it deploys it (`.github/workflows/landing-pages.yml`), once **Settings → Pages → Source** is set to GitHub Actions. Its paths are relative, so it works under `/gobernansa/` as well as on its own domain (A2). The Firebase site `gobernansa-landing` (`npx firebase deploy --only hosting:landing`) still works if it's ever wanted there. Its demo form doesn't touch Firebase: it sends each request to a Telegram bot, whose address with the token and the chat id go in one constant, `BOT`, reversed and in base64. That only keeps token scanners away, anyone reading the code can still get it: if someone abuses the bot, revoke the token in @BotFather and put the new one in.
 
 ## 6. Installable app
 
