@@ -397,22 +397,6 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
-    // «Pide una demo» on the landing: anyone, without signing in, leaves who they are and how to reach them, once, with the
-    // server's time. Only the team reads and removes them, in the console. ponytail: without App Check (ROB-8) a bot can fill
-    // it up to the daily quota; the sizes cap what each one weighs
-    match /leads/{leadId} {
-      allow read, delete: if isSuperadmin();
-      allow create: if request.resource.data.keys().hasOnly(['name', 'office', 'email', 'phone', 'communities', 'message', 'createdAt'])
-        && request.resource.data.keys().hasAll(['name', 'email', 'createdAt'])
-        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 100
-        && request.resource.data.email is string && request.resource.data.email.matches('[^@ ]+@[^@ ]+[.][^@ ]+') && request.resource.data.email.size() <= 200
-        && request.resource.data.get('office', '') is string && request.resource.data.get('office', '').size() <= 150
-        && request.resource.data.get('phone', '') is string && request.resource.data.get('phone', '').size() <= 40
-        && request.resource.data.get('communities', 0) is int && request.resource.data.get('communities', 0) >= 0 && request.resource.data.get('communities', 0) <= 5000
-        && request.resource.data.get('message', '') is string && request.resource.data.get('message', '').size() <= 2000
-        && request.resource.data.createdAt == request.time;
-    }
-
     // Errores de las apps (MON-1, docs/fiabilidad.md): one group per failure, by its fingerprint, and samples of who hit it.
     // Anyone signed in reports them, in a set shape and without reading their profile (no me()), so a failing screen costs
     // no extra reads. How often is capped by the browser, the rules can't count it. Only the team reads and manages them

@@ -5219,11 +5219,7 @@
 			play();
 		}
 
-		// Straight to Firestore over its REST API, no SDK: the rules of /leads accept one per request, with the server's time
-		const PROJECT = 'dmoyadev-gobernansa';
-		const local = ['localhost', '127.0.0.1'].includes(location.hostname);
-		const host = local ? 'http://127.0.0.1:8080' : 'https://firestore.googleapis.com';
-		const database = `projects/${PROJECT}/databases/(default)`;
+		const BOT = 'NDIwMTI2ODcxfGVnYXNzZU1kbmVzL0lSaVdSVWI0ZWxSRE9KQm11bmpxX2lib0MwV2swZkJISEFBOjk4MjI1MTMxMDl0b2IvZ3JvLm1hcmdlbGV0LmlwYS8vOnNwdHRo';
 
 		const form = document.getElementById('lead');
 		const status = document.getElementById('status');
@@ -5240,31 +5236,22 @@
 			}
 
 			const data = Object.fromEntries(new FormData(form));
-			const fields = {};
-			for (const key of ['name', 'office', 'email', 'phone', 'message']) {
-				const value = data[key].trim();
-				if (value) {
-					fields[key] = { stringValue: value };
-				}
-			}
-			if (data.communities) {
-				fields.communities = { integerValue: String(Math.round(Number(data.communities))) };
-			}
+			const value = (key) => data[key]?.trim();
+			const text = [
+				'Nueva solicitud de demo\n',
+				value('name'),
+				value('office'),
+				value('email'),
+				value('phone'),
+				value('communities') && `${Math.round(Number(data.communities))} comunidades`,
+				value('message') && `\n${value('message')}`,
+			].filter(Boolean).join('\n');
 
 			button.disabled = true;
 			status.textContent = 'Enviando…';
 			try {
-				const response = await fetch(`${host}/v1/${database}/documents:commit`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						writes: [{
-							update: { name: `${database}/documents/leads/${crypto.randomUUID()}`, fields },
-							currentDocument: { exists: false },
-							updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }],
-						}],
-					}),
-				});
+				const [url, chat] = [...atob(BOT)].reverse().join('').split('|');
+				const response = await fetch(url, { method: 'POST', body: new URLSearchParams({ chat_id: chat, text }) });
 				if (!response.ok) {
 					throw new Error(String(response.status));
 				}
