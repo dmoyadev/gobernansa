@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import {
 	BUTTON_VARIANTS,
 	LnxButton,
@@ -178,6 +179,7 @@ async function doSignIn() {
 				<LnxInput
 					v-if="askPassword"
 					v-model="password"
+					v-password-toggle
 					type="password"
 					:has-error="triedSubmit && !!errorLogin && !!password"
 					:disabled="loadingLogin"

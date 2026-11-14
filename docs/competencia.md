@@ -537,7 +537,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 | ID | Prioridad | Hueco |
 |---|---|---|
 | [ROB-1](fiabilidad.md#rob-1) | P0 | Entorno de pruebas separado: hoy las previews de cada PR usan la base de datos de producción. Aplazado por decisión propia; mientras tanto se prueba en los emuladores locales |
-| [ROB-2](fiabilidad.md#rob-2) | P0 | Copias de seguridad con restauración ensayada. Hay un puente gratuito: una copia diaria cifrada en el equipo del titular, con aviso en el admin si falta y restauración ensayada en los emuladores con la demo; falta activarla y restaurar una copia real, y con Blaze ([INF-1](#inf-1)), las copias programadas de Firestore |
+| [ROB-2](fiabilidad.md#rob-2) | P0 | Copias de seguridad con restauración ensayada. Hay un puente gratuito: una copia diaria cifrada en el equipo del titular, con aviso en el admin si falta y restauración ensayada en los emuladores con la demo; primera copia real restaurada en los emuladores el 14/11/2026; falta activar la diaria, y con Blaze ([INF-1](#inf-1)), las copias programadas de Firestore |
 
 ### 9.3 Diferenciadores defendibles
 

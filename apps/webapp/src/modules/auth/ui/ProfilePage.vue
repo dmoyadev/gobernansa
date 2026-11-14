@@ -4,6 +4,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { propertyTypeIcons, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
+import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxSwitch, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
@@ -407,10 +408,10 @@ async function savePassword() {
 						<form @submit.prevent="savePassword()">
 							<!-- Lets password managers know whose password it is -->
 							<input class="sr-only" type="email" autocomplete="username" :value="user?.email" readonly tabindex="-1" aria-hidden="true">
-							<LnxInput v-model="password" type="password" autocomplete="new-password" required>
+							<LnxInput v-model="password" v-password-toggle type="password" autocomplete="new-password" required>
 								Nueva contraseña
 							</LnxInput>
-							<LnxInput v-model="passwordRepeat" type="password" autocomplete="new-password" required>
+							<LnxInput v-model="passwordRepeat" v-password-toggle type="password" autocomplete="new-password" required>
 								Repítela
 							</LnxInput>
 							<p v-if="passwordMessage" :class="passwordMessage.error ? 'error' : 'success'" role="status">

@@ -36,7 +36,7 @@ A cambio:
 | [ROB-5](#rob-5) | P1 | Interruptores remotos y versión mínima | 0 € (Remote Config) | — | Hecho en el código; falta probarlo en la consola |
 | [ROB-4](#rob-4) | P1 | Despliegues compatibles con la versión anterior y vuelta atrás | 0 € | [ROB-5](#rob-5) | Documentado; falta ensayar la vuelta atrás en la consola |
 | [MON-5](#mon-5) | P1 | Disponibilidad: comprobar las dos webs después de cada despliegue | 0 € | — | Hecho en el workflow; falta verlo en un despliegue |
-| [ROB-2](#rob-2) | P0 | Copias de seguridad con restauración ensayada | Almacenamiento de las copias con Blaze; hay un puente gratuito | [INF-1](competencia.md#inf-1) | Puente gratuito hecho en el código; falta activarlo en tu equipo y restaurar una copia real |
+| [ROB-2](#rob-2) | P0 | Copias de seguridad con restauración ensayada | Almacenamiento de las copias con Blaze; hay un puente gratuito | [INF-1](competencia.md#inf-1) | Puente gratuito hecho; primera copia real restaurada en los emuladores (14/11/2026); falta activar la copia diaria en tu equipo |
 | [ROB-3](#rob-3) | P1 | Pruebas automáticas de lo que mueve dinero o va a la AEAT | 0 € | [VAL-1](competencia.md#val-1) | Pendiente |
 | [MON-9](#mon-9) | P2 | Avisos de errores nuevos al móvil del equipo | 0 € | [INF-1](competencia.md#inf-1) | En el admin, hecho; al móvil, pendiente |
 | [MON-10](#mon-10) | P2 | Traducir los errores al código original sin publicarlo | 0 € | — | Hecho en el código; falta traducir una muestra de producción |
@@ -267,7 +267,9 @@ Las dos opciones leen todos los documentos, así que gastan cuota y solo sirven 
 
 Ensayado entero en los emuladores con la demo: copia de 993 documentos de 40 colecciones, vaciado, restauración y una segunda copia idéntica a la primera; y el admin abierto sobre lo restaurado con la cuenta del equipo.
 
-**Falta:** activar la copia diaria en tu equipo, hacer la primera copia real y restaurarla en los emuladores.
+Primera copia real el 14/11/2026: 60 documentos de 8 colecciones de producción (3 KB), restaurados enteros en los emuladores con sus 6 cuentas de Auth, y el admin abierto sobre ellos como superadmin con la comunidad, sus vecinos, contactos y documentos.
+
+**Falta:** activar la copia diaria en tu equipo.
 
 **Hecho cuando** hay una copia diaria automática y se ha restaurado una entera al menos una vez.
 
