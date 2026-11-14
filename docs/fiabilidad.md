@@ -42,7 +42,7 @@ A cambio:
 | MON-10 | P2 | Traducir los errores al código original sin publicarlo | 0 € | — | Hecho en el código; falta traducir una muestra de producción |
 | MON-6 | P2 | Rendimiento real por pantalla, con las APIs del navegador | 0 €; cuota acotada | — | Hecho en el código; falta que lleguen medidas de producción |
 | ROB-7 | P2 | Dependencias al día | 0 € | — | Hecho en el código; falta activar Dependabot en GitHub |
-| ROB-8 | P2 | Proteger la cuota de abusos | 0 € la clave; App Check, 10.000 comprobaciones gratis al mes | — | Pendiente |
+| ROB-8 | P2 | Proteger la cuota de abusos | 0 € la clave; App Check, 10.000 comprobaciones gratis al mes | — | App Check hecho en el código; falta la clave de reCAPTCHA en la consola y restringir la de la API |
 | ROB-1 | P0 | Entorno de pruebas separado de producción | 0 € (segundo proyecto gratuito) | — | Aplazado |
 
 **Orden recomendado:**
@@ -314,6 +314,8 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 - **App Check con reCAPTCHA Enterprise:** primero en modo de solo medir y luego obligatorio en Firestore. Es de Google, pero un producto aparte, con sus propias condiciones. Da 10.000 comprobaciones gratis al mes, pero por defecto cada usuario renueva su token dos veces por hora: cabe en el piloto y después cuesta dinero. Comprobar el precio antes de activarlo.
 
 **Hecho cuando** la clave está restringida y App Check mide sin bloquear a nadie.
+
+**Hecho en el código** (14/11/2026): las dos apps piden el token de App Check con reCAPTCHA Enterprise si tienen `VITE_APP_CHECK_KEY`, y nunca con los emuladores. Los pasos de la consola, el token de depuración para desarrollo y cuándo pasar a obligatorio están en la sección 9 de [firebase.md](firebase.md). Con la duración del token al máximo (7 días), cada dispositivo gasta unas pocas comprobaciones al mes.
 
 ### ROB-1 · Entorno de pruebas separado (P0, aplazado)
 

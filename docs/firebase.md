@@ -73,6 +73,7 @@ The workflows now pass these, add them in **GitHub → Settings → Secrets and 
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | `gobernanca_issues` |
 | `VITE_FIREBASE_VAPID_KEY` | Firebase console → Project settings → Cloud Messaging → Web Push certificates |
 | `VITE_MAIL_MODE` | `demo` (or unset) until the email extension is installed, then `extension`, see [Correo saliente](#correo-saliente) |
+| `VITE_APP_CHECK_KEY` | The reCAPTCHA key id from section 9 (unset: no App Check) |
 
 The rules deploy uses the same service account as the hosting deploy (`FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA`). In **Google Cloud console → IAM**, give that account (`github-action-…@dmoyadev-gobernansa.iam.gserviceaccount.com`) the roles **Firebase Rules Admin** and **Service Usage Consumer**, or the rules step fails with a permission error.
 
@@ -146,6 +147,18 @@ Then:
 - **After a release worth showing:** `npm run deploy:demo`, by hand, never on each push. It builds both apps in `demo` mode with a `VITE_RELEASE` like CI's and deploys the rules, the indexes and both sites.
 - **Errors** of the demo go to its own **Errores** page: sign in as the team's demo account.
 - Custom domains (`demo.` and `demo-admin.`) come with the product's own domain (A2 in [v1.md](v1.md)).
+
+## 9. App Check (quota protection)
+
+The apps ask for an App Check token when `VITE_APP_CHECK_KEY` is set, and never with the emulators. Until the console enforces it, nothing is blocked: it only measures. Once per project (production and demo):
+
+1. **Google Cloud console → Security → reCAPTCHA → Create key**, type **Website**, with the domains of both apps (`*.web.app` for the PR previews, and the custom ones from A2). No checkbox challenge.
+2. **Firebase console → App Check → Apps → the web app → reCAPTCHA Enterprise**, with that key's id. Token lifetime: the longest the console allows (7 days), so a neighbour spends few of the 10,000 free assessments a month.
+3. The key id as `VITE_APP_CHECK_KEY` in `.env.local` / `.env.demo.local` and as a GitHub secret (section 4).
+4. Deploy, then watch **App Check → APIs → Cloud Firestore** for a week or two: the share of verified requests should be near 100 %. Only then **Enforce**. Unverified ones are old installs that haven't refreshed yet, or someone else's script.
+5. In development the SDK prints a debug token in the console the first time; add it in **App Check → Apps → ⋮ → Manage debug tokens**, or the local app is blocked once enforced. Not needed with the emulators.
+
+Also restrict the API key (**Google Cloud console → APIs & Services → Credentials**) to the apps' domains, keeping the Installations and Remote Config APIs (section 7).
 
 ## Roles
 

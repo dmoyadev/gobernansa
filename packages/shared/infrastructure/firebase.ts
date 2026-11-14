@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
@@ -22,6 +23,16 @@ const db = initializeFirestore(firebaseApp, emulators ? {} : { localCache: persi
 if (emulators) {
 	connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
 	connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
+
+// B7: only our pages get a token, so a script with the public config can't spend the quota once the console enforces it.
+// Measured first, enforced later, both from the console. In development the SDK logs a debug token to allow there
+const appCheckKey = import.meta.env.VITE_APP_CHECK_KEY as string | undefined;
+if (appCheckKey && !emulators) {
+	if (import.meta.env.DEV) {
+		(globalThis as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+	}
+	initializeAppCheck(firebaseApp, { provider: new ReCaptchaEnterpriseProvider(appCheckKey), isTokenAutoRefreshEnabled: true });
 }
 
 export {
