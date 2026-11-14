@@ -97,14 +97,17 @@ const cache = new Map<string, { at: number; entries: Promise<SearchEntry[]> }>()
 
 function loadEntries(id: string, base: string, categories: IssueCategory[]) {
 	const community = (name: string) => collection(db, 'communities', id, name);
+	const person = (user: User, role?: string): SearchEntry => ({
+		section: sectionTitles.people,
+		icon: 'lucide:user',
+		title: user.name || user.email,
+		text: join(user.email, role),
+		to: `${base}/people`,
+	});
 	return [
-		load<User>(query(collection(db, 'users'), where('communityId', '==', id), limit(300)), user => ({
-			section: sectionTitles.people,
-			icon: 'lucide:user',
-			title: user.name || user.email,
-			text: join(user.email, roles[user.role]?.label),
-			to: `${base}/people`,
-		})),
+		load<User>(query(collection(db, 'users'), where('communityId', '==', id), limit(300)), user => person(user, roles[user.role]?.label)),
+		// Those whose profile is another community's, with a property here too (B10): neighbours here
+		load<User>(query(collection(db, 'users'), where('otherCommunityIds', 'array-contains', id), limit(300)), user => person(user, roles.user.label)),
 		load<Property>(query(collection(db, 'properties'), where('communityId', '==', id), limit(500)), property => ({
 			section: sectionTitles.properties,
 			icon: propertyTypeIcons[property.type] ?? 'lucide:house',

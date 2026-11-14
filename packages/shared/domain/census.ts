@@ -288,7 +288,7 @@ export interface CensusGroup {
 }
 
 // The rows of a portfolio by their community, matched with the ones the user has. The team and offices create new ones (B4)
-export function groupByCommunity(lines: CensusLine[], columns: CensusColumns, communities: Pick<Community, 'id' | 'name' | 'cif'>[], canCreate: boolean): CensusGroup[] {
+export function groupByCommunity(lines: CensusLine[], columns: CensusColumns, communities: Pick<Community, 'id' | 'name' | 'cif' | 'archivedAt'>[], canCreate: boolean): CensusGroup[] {
 	const groups = new Map<string, CensusGroup>();
 	for (const item of lines) {
 		const cell = (field: CensusField) => (item.cells[columns[field]] ?? '').trim();
@@ -319,6 +319,8 @@ export function groupByCommunity(lines: CensusLine[], columns: CensusColumns, co
 	return merged.map((group) => {
 		const error = ([
 			[!group.name, 'Falta la comunidad'],
+			// Found among the archived ones (B4): importing into it would leave it out of sight
+			[communities.find(other => other.id === group.communityId)?.archivedAt, 'Está archivada: recupérala desde su configuración'],
 			[!group.communityId && !canCreate, 'No es una de tus comunidades'],
 			[!group.communityId && group.cif && !isValidNif(group.cif), 'El CIF de la comunidad no es válido'],
 			[!group.communityId && group.iban && !isValidIban(group.iban), 'El IBAN de la comunidad no es válido'],

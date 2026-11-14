@@ -9,7 +9,7 @@ import {
 	signOut,
 	updatePassword,
 } from 'firebase/auth';
-import { arrayUnion, clearIndexedDbPersistence, doc, getDoc, terminate, writeBatch } from 'firebase/firestore';
+import { arrayUnion, clearIndexedDbPersistence, doc, getDoc, terminate, updateDoc, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { homeCommunities, managesCommunity } from '../domain/user.ts';
@@ -169,6 +169,14 @@ function createAuth() {
 		batch.delete(invitationRef);
 		// The profile is listened to, so it shows up by itself
 		await batch.commit();
+
+		// The office may have created or been given communities since it was sent (B4): its owner's, readable now
+		if (officeId) {
+			const office = (await getDoc(doc(db, 'users', officeId))).data()?.communityIds as string[] | undefined ?? [];
+			if (office.join() !== (communityIds ?? []).join()) {
+				await updateDoc(doc(db, 'users', uid), { communityIds: office });
+			}
+		}
 	}
 
 	// An invitation as a neighbour of another community adds it to their others. ponytail: costs one read per session even

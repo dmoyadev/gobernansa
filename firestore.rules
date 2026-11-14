@@ -278,6 +278,10 @@ service cloud.firestore {
       )
         // Joining another community they're invited to as a neighbour, by themselves
         || (signedIn() && request.auth.uid == uid && changedOnly(['otherCommunityIds']) && joinsByInvitation())
+        // Catching up with the office's communities, by a member whose invitation was sent before some of them (B4)
+        || (signedIn() && request.auth.uid == uid && changedOnly(['communityIds'])
+          && resource.data.get('officeId', '') != ''
+          && request.resource.data.communityIds == get(/databases/$(database)/documents/users/$(resource.data.officeId)).data.get('communityIds', []))
         // A community the office creates, to everyone in it (themselves too), in the same batch as the community
         || (inSameOffice(uid, resource.data) && officeRole() != 'viewer' && changedOnly(['communityIds'])
           && request.resource.data.communityIds.size() == resource.data.get('communityIds', []).size() + 1

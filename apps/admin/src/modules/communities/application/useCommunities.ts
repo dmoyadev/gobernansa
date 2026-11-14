@@ -77,10 +77,15 @@ export async function setCommunityArchived(id: string, name: string, archived: b
 	await batch.commit();
 }
 
-// An aggregation is a single read, whatever the size of the community
+// An aggregation is a single read, whatever the size of the community. Those whose profile is another community's, with a
+// property here too (B10), are neighbours here whatever their role at home
 export async function loadNeighbourCount(id: string) {
-	const snapshot = await getCountFromServer(query(collection(db, 'users'), where('communityId', '==', id), where('role', '==', 'user')));
-	return snapshot.data().count;
+	const users = collection(db, 'users');
+	const [home, others] = await Promise.all([
+		getCountFromServer(query(users, where('communityId', '==', id), where('role', '==', 'user'))),
+		getCountFromServer(query(users, where('otherCommunityIds', 'array-contains', id))),
+	]);
+	return home.data().count + others.data().count;
 }
 
 /**

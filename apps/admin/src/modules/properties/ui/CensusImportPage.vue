@@ -37,8 +37,9 @@ const { user } = useAuth();
 const isSuperadmin = computed(() => user.value?.role === 'superadmin');
 // Viewers can't write anything
 const canCreate = computed(() => isSuperadmin.value || (user.value?.role === 'admin' && !readsOnly(user.value)));
-const { communities, loading: loadingCommunities } = props.id
-	? { communities: computed<Community[]>(() => []), loading: computed(() => false) }
+// The archived ones too, so one in the file is recognised and not created again over it
+const { communities, archived, loading: loadingCommunities } = props.id
+	? { communities: computed<Community[]>(() => []), archived: computed<Community[]>(() => []), loading: computed(() => false) }
 	: useCommunities();
 const router = useRouter();
 
@@ -179,9 +180,9 @@ async function compare() {
 		const today = toDateString(new Date());
 		const found: CensusGroup[] = props.id
 			? [{ name: '', cif: '', address: '', iban: '', communityId: props.id, lines: lines.value }]
-			: groupByCommunity(lines.value, columns.value, communities.value, canCreate.value);
+			: groupByCommunity(lines.value, columns.value, [...communities.value, ...archived.value], canCreate.value);
 		const compared = await Promise.all(found.map(async (group): Promise<Group> => {
-			const properties = group.communityId ? await census(group.communityId) : [];
+			const properties = group.communityId && !group.error ? await census(group.communityId) : [];
 			const read = group.error ? [] : readCensus(group.lines, columns.value, properties, today);
 			return {
 				...group,

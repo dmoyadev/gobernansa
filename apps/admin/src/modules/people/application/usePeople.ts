@@ -145,8 +145,8 @@ export async function setOfficeRole(uid: string, officeRole: OfficeRole, name = 
 	await commit(undefined, `Cambió la función de ${name} a ${officeRoles[officeRole].label.toLowerCase()}`, batch => batch.update(doc(usersRef, uid), { officeRole }));
 }
 
-// To the owner and their whole staff, who see the office's communities (B3). ponytail: a pending staff invitation keeps
-// the communities it was sent with; it gets the new ones when they're next assigned
+// To the owner and their whole staff, who see the office's communities (B3). A pending staff invitation catches up when
+// it's accepted
 export async function setCommunityAssigned(uid: string, communityId: string, assigned: boolean, name = '') {
 	const staff = await getDocs(query(usersRef, where('officeId', '==', uid)));
 	await commit(communityId, `${assigned ? 'Asignó' : 'Desasignó'} la comunidad a ${name}`, (batch) => {

@@ -7,6 +7,7 @@ import { obligationStatus } from '@gobernansa/shared/domain/obligation.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getCountFromServer, getDocs, limit, query, Timestamp, where } from 'firebase/firestore';
 import { remember } from '@/app/ux/navigation.ts';
+import { loadNeighbourCount } from '@/modules/communities/application/useCommunities.ts';
 
 const DAY = 86_400_000;
 // Resolution times are averaged over this window, older ones say little about how it goes now
@@ -70,7 +71,7 @@ async function readCommunityStats(community: Community): Promise<CommunityStats>
 		getCountFromServer(query(communityRef('issues'), where('deletedAt', '==', null), where('status', 'in', ['open', 'in_progress']))),
 		// A single range filter uses the automatic index. Reopened ones keep resolvedAt, so status is checked here
 		getDocs(query(communityRef('issues'), where('resolvedAt', '>=', since))),
-		getCountFromServer(query(collection(db, 'users'), where('communityId', '==', community.id), where('role', '==', 'user'))),
+		loadNeighbourCount(community.id),
 		getCountFromServer(query(collection(db, 'properties'), where('communityId', '==', community.id), where('type', '==', 'home'))),
 		getDocs(communityRef('obligations')),
 		getDocs(query(communityRef('charges'), where('paidAt', '==', null))),
@@ -87,7 +88,7 @@ async function readCommunityStats(community: Community): Promise<CommunityStats>
 		openIssues: open.data().count,
 		resolutionDaysSum: resolvedIssues.reduce((sum, issue) => sum + (issue.resolvedAt!.toMillis() - issue.createdAt.toMillis()) / DAY, 0),
 		resolvedCount: resolvedIssues.length,
-		registered: registered.data().count,
+		registered,
 		homes: homes.data().count,
 		overdueObligations: obligationStatuses.filter(status => status === 'overdue').length,
 		soonObligations: obligationStatuses.filter(status => status === 'soon').length,

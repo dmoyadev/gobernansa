@@ -9,6 +9,7 @@ import type { Query } from 'firebase/firestore';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, doc, getAggregateFromServer, getCountFromServer, getDoc, getDocs, limit, orderBy, query, sum, Timestamp, where } from 'firebase/firestore';
+import { loadNeighbourCount } from './useCommunities.ts';
 
 const DAY = 86_400_000;
 // The charts go back this many months, the current one included
@@ -45,9 +46,9 @@ async function registration(communityId: string) {
 	let counts = registrations.get(communityId);
 	if (!counts) {
 		counts = Promise.all([
-			getCountFromServer(query(collection(db, 'users'), where('communityId', '==', communityId), where('role', '==', 'user'))),
+			loadNeighbourCount(communityId),
 			getCountFromServer(query(collection(db, 'properties'), where('communityId', '==', communityId), where('type', '==', 'home'))),
-		]).then(([registered, homes]) => ({ registered: registered.data().count, homes: homes.data().count })).finally(() => registrations.delete(communityId));
+		]).then(([registered, homes]) => ({ registered, homes: homes.data().count })).finally(() => registrations.delete(communityId));
 		registrations.set(communityId, counts);
 	}
 	return counts;
