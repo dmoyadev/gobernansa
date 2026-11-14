@@ -83,8 +83,8 @@ const { userCommunity } = useUserCommunity();
 			.date {
 				font-weight: var(--lnx-font-weight-thin);
 				flex-shrink: 0;
-				font-size: .6em;
-				color: #aaaf37;
+				font-size: .75rem;
+				color: #6f7320;
 			}
 		}
 

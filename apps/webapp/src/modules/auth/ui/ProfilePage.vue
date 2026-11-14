@@ -428,7 +428,7 @@ section {
 
 		small {
 			color: var(--color-secondary-accent);
-			font-size: .7rem;
+			font-size: .75rem;
 			font-weight: var(--lnx-font-weight-bold);
 			letter-spacing: .08em;
 			text-transform: uppercase;
@@ -481,7 +481,7 @@ section {
 
 		dt {
 			color: var(--color-gray-6);
-			font-size: .65rem;
+			font-size: .75rem;
 			letter-spacing: .08em;
 			text-transform: uppercase;
 		}
@@ -564,7 +564,7 @@ section {
 
 	.chevron {
 		flex-shrink: 0;
-		color: var(--color-gray-5);
+		color: var(--color-gray-6);
 		transition: transform .2s;
 	}
 }
@@ -695,7 +695,7 @@ li.row {
 }
 
 .version {
-	color: var(--color-gray-5);
+	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
 	text-align: center;
 }

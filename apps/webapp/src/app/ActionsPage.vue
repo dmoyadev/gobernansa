@@ -202,7 +202,7 @@ const payLink = computed(() => {
 
 	.chevron {
 		flex-shrink: 0;
-		color: var(--color-gray-5);
+		color: var(--color-gray-6);
 	}
 }
 

@@ -407,7 +407,7 @@ section {
 
 	.chevron {
 		flex-shrink: 0;
-		color: var(--color-gray-5);
+		color: var(--color-gray-6);
 	}
 
 	&.emergency .icon {
@@ -459,7 +459,7 @@ a.row:active {
 
 		.chevron {
 			margin-left: auto;
-			color: var(--color-gray-5);
+			color: var(--color-gray-6);
 			transition: transform .2s;
 		}
 	}

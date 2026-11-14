@@ -518,7 +518,7 @@ h2 {
 			flex-direction: column;
 			align-items: center;
 			gap: var(--lnx-spacing-2);
-			color: var(--color-gray-5);
+			color: var(--color-gray-6);
 			font-size: var(--lnx-font-size-small);
 			text-align: center;
 

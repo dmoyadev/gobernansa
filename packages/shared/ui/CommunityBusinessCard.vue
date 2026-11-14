@@ -75,7 +75,7 @@ const fiscalData = computed(() => [
 	.brand {
 		small {
 			color: var(--color-secondary-accent);
-			font-size: .7rem;
+			font-size: .75rem;
 			font-weight: var(--lnx-font-weight-bold);
 			letter-spacing: .08em;
 			text-transform: uppercase;
@@ -104,7 +104,7 @@ const fiscalData = computed(() => [
 
 		dt {
 			color: var(--color-primary-accent-alpha);
-			font-size: .65rem;
+			font-size: .75rem;
 			letter-spacing: .08em;
 			text-transform: uppercase;
 		}

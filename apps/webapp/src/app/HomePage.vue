@@ -258,7 +258,7 @@ section {
 			line-height: 1.1;
 
 			.of {
-				color: var(--color-gray-5);
+				color: var(--color-gray-6);
 				font-weight: var(--lnx-font-weight-regular);
 			}
 		}
@@ -271,7 +271,7 @@ section {
 			margin-top: auto;
 			padding-top: var(--lnx-spacing-1);
 			color: var(--color-gray-6);
-			font-size: .7rem;
+			font-size: .75rem;
 		}
 
 		&.link small {
@@ -317,7 +317,7 @@ section {
 
 			small {
 				color: var(--color-gray-6);
-				font-size: .7rem;
+				font-size: .75rem;
 			}
 
 			strong {

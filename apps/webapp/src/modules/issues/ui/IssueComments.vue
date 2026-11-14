@@ -239,7 +239,7 @@ ol {
 		border-radius: var(--lnx-radius-2);
 		background: var(--color-issue-cat-blue);
 		color: var(--color-issue-cat-blue-accent);
-		font-size: .65rem;
+		font-size: .75rem;
 		font-weight: var(--lnx-font-weight-bold);
 		text-transform: uppercase;
 	}

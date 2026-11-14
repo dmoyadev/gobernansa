@@ -320,7 +320,7 @@ section {
 	}
 
 	.chevron {
-		color: var(--color-gray-5);
+		color: var(--color-gray-6);
 	}
 }
 

@@ -176,7 +176,8 @@ async function toggleMine() {
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		padding: 2px var(--lnx-spacing-2);
+		min-height: 32px;
+		padding: 2px var(--lnx-spacing-3);
 		border: 1px solid var(--color-gray-3);
 		border-radius: var(--lnx-radius-4);
 		color: var(--color-gray-7);

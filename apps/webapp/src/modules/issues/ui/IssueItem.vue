@@ -166,7 +166,7 @@ const date = computed(() => {
 			align-items: center;
 			gap: 4px;
 			color: var(--cat-color);
-			font-size: .7rem;
+			font-size: .75rem;
 			font-weight: var(--lnx-font-weight-bold);
 			letter-spacing: .04em;
 			text-transform: uppercase;
@@ -220,7 +220,7 @@ const date = computed(() => {
 
 		small {
 			color: var(--color-gray-6);
-			font-size: .65rem;
+			font-size: .75rem;
 		}
 	}
 
