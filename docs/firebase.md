@@ -10,7 +10,7 @@ Each push to `main` deploys it before the app, so change the rules here and not 
 
 The local emulator enforces it too. Each rule that checks the user's community or role reads their profile once per request, which counts as one extra read.
 
-**Money can't be written twice** (ROB-6 in [fiabilidad.md](fiabilidad.md)). The rules turn down what a double click, a second tab or a batch sent again after losing the connection would duplicate, with no extra reads and also when an offline write reaches the server later:
+**Money can't be written twice** ([ROB-6](fiabilidad.md#rob-6) in [fiabilidad.md](fiabilidad.md)). The rules turn down what a double click, a second tab or a batch sent again after losing the connection would duplicate, with no extra reads and also when an offline write reaches the server later:
 - a charge, expense, bank movement, property or community written again over one already there (its `createdAt` changes): a run of fees, a derrama, a recibo de intereses, a statement or a census imported twice;
 - a charge's `remittanceId`, `bankMovementId` or an invoice's `paymentOrderId` changed for another one: a charge goes in one remittance at a time and only while unpaid, and a charge or invoice is reconciled with one bank movement only while unpaid (and a charge only if it isn't in a remittance); an invoice moves to another payment order only once the first was executed and the transfer came back unpaid;
 - a bank movement reconciled or set aside twice: it only goes from pending to done and back;
@@ -43,13 +43,13 @@ The admin's **Errores** page (only the team) orders the errors by when they were
 | Errores, by type | Composite on `errors`: `code` ascending, `lastSeen` descending |
 | Errores, new in a release | Composite on `errors`: `firstRelease` ascending, `lastSeen` descending |
 | Errores, the urgent ones first | Served by the status and type indexes; if Firestore asks for its own, composite on `errors`: `status` ascending, `code` ascending, `lastSeen` descending |
-| Errores, the header's count of urgent and come-back ones (MON-9) | None: a count with equality filters only (`status` with `code`, or `status` with `seenSinceResolved`), served by the single-field indexes |
+| Errores, the header's count of urgent and come-back ones ([MON-9](fiabilidad.md#mon-9)) | None: a count with equality filters only (`status` with `code`, or `status` with `seenSinceResolved`), served by the single-field indexes |
 | Errores → Limpiar caducadas | Single field on the `samples` **collection group**: `expiresAt` ascending (Firestore → Indexes → Single field → Add exemption, collection ID `samples`, scope "Collection group") |
-| Errores, the last backup (ROB-2) | None: one document, `ops/backup` |
-| Errores → Rendimiento (MON-6) | None: the days' documents by id (`vitals/{app}_{day}`), up to 30 per query |
-| `npm run backup` (ROB-2) | None: each collection group without filters, in name order, which Firestore serves on its own |
+| Errores, the last backup ([ROB-2](fiabilidad.md#rob-2)) | None: one document, `ops/backup` |
+| Errores → Rendimiento ([MON-6](fiabilidad.md#mon-6)) | None: the days' documents by id (`vitals/{app}_{day}`), up to 30 per query |
+| `npm run backup` ([ROB-2](fiabilidad.md#rob-2)) | None: each collection group without filters, in name order, which Firestore serves on its own |
 
-`ops` is written only with the Admin SDK (the backup script) and read only by the team; `vitals` takes the sampled sessions' performance, one write each, with no reads, and the rules cap what each write adds (docs/fiabilidad.md, MON-6).
+`ops` is written only with the Admin SDK (the backup script) and read only by the team; `vitals` takes the sampled sessions' performance, one write each, with no reads, and the rules cap what each write adds (docs/fiabilidad.md, [MON-6](fiabilidad.md#mon-6)).
 
 Samples expire 30 days after they're taken (`expiresAt`), and **Limpiar caducadas** removes them, along with the errors resolved or ignored that went 180 days without coming back. If Firestore's TTL turns out to work on the free plan, a TTL policy on the `samples` collection group's `expiresAt` field (Firestore → Time-to-live) removes them on its own; its deletes count against the daily quota too.
 
@@ -91,7 +91,7 @@ The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to t
 
 To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
 
-**Landing.** `apps/landing` is a plain HTML page with no build, served by GitHub Pages: every push to `main` that touches it deploys it (`.github/workflows/landing-pages.yml`), once **Settings → Pages → Source** is set to GitHub Actions. Its paths are relative, so it works under `/gobernansa/` as well as on its own domain (A2). The Firebase site `gobernansa-landing` (`npx firebase deploy --only hosting:landing`) still works if it's ever wanted there. Its demo form doesn't touch Firebase: it sends each request to a Telegram bot, whose address with the token and the chat id go in one constant, `BOT`, reversed and in base64. That only keeps token scanners away, anyone reading the code can still get it: if someone abuses the bot, revoke the token in @BotFather and put the new one in.
+**Landing.** `apps/landing` is a plain HTML page with no build, served by GitHub Pages: every push to `main` that touches it deploys it (`.github/workflows/landing-pages.yml`), once **Settings → Pages → Source** is set to GitHub Actions. Its paths are relative, so it works under `/gobernansa/` as well as on its own domain ([A2](v1.md#a2)). The Firebase site `gobernansa-landing` (`npx firebase deploy --only hosting:landing`) still works if it's ever wanted there. Its demo form doesn't touch Firebase: it sends each request to a Telegram bot, whose address with the token and the chat id go in one constant, `BOT`, reversed and in base64. That only keeps token scanners away, anyone reading the code can still get it: if someone abuses the bot, revoke the token in @BotFather and put the new one in.
 
 ## 6. Installable app
 
@@ -107,7 +107,7 @@ Both apps install from the browser as apps (Chrome and Edge offer it; Safari add
 
 ## 7. Remote switches
 
-Both apps read these switches from **Firebase console → Remote Config** when they open and again as soon as a change is published, with no deploy and no Firestore reads (ROB-5 in [fiabilidad.md](fiabilidad.md)). Remote Config is free. A parameter that doesn't exist, or a browser that can't reach it, keeps the default, so nothing needs creating until it's needed. To use one, create the parameter with exactly this name and type, then **Publish changes**:
+Both apps read these switches from **Firebase console → Remote Config** when they open and again as soon as a change is published, with no deploy and no Firestore reads ([ROB-5](fiabilidad.md#rob-5) in [fiabilidad.md](fiabilidad.md)). Remote Config is free. A parameter that doesn't exist, or a browser that can't reach it, keeps the default, so nothing needs creating until it's needed. To use one, create the parameter with exactly this name and type, then **Publish changes**:
 
 | Parameter | Type | Default | What it does |
 | --- | --- | --- | --- |
@@ -120,7 +120,7 @@ Both apps read these switches from **Firebase console → Remote Config** when t
 | `minVersion` | String | empty | The lowest release still allowed, e.g. `2026.11.04-1200`. Older ones (`VITE_RELEASE`, shown in the webapp's profile and the admin's menu) are covered by a notice that only lets them update. Releases sort as text, so a date and time is enough |
 | `maintenance` | String | empty | A message shown in both apps while it isn't empty |
 
-Remote Config needs the **Firebase Installations API** and the **Firebase Remote Config API**, which a new Firebase project has on. If the API key is ever restricted (ROB-8), keep both in its list of APIs, or every app keeps the defaults.
+Remote Config needs the **Firebase Installations API** and the **Firebase Remote Config API**, which a new Firebase project has on. If the API key is ever restricted ([ROB-8](fiabilidad.md#rob-8)), keep both in its list of APIs, or every app keeps the defaults.
 
 ## 8. Demo project
 
@@ -129,11 +129,11 @@ What's shown to the offices runs on its own Firebase project, `gobernansa-demo`,
 Once:
 
 1. **Firebase console → Add project** `gobernansa-demo`, without Analytics. **Firestore → Create database** in `europe-southwest1` (Madrid), production mode.
-2. **Authentication → Sign-in method → Email/Password**, with **Email link** on, and **Anonymous** on too: neighbours without email sign in with the code the office prints (B2.4). Free, like the rest of Auth on this plan.
+2. **Authentication → Sign-in method → Email/Password**, with **Email link** on, and **Anonymous** on too: neighbours without email sign in with the code the office prints ([B2.4](v1.md#b2)). Free, like the rest of Auth on this plan.
 3. **Project settings → Your apps → Web**, and **Cloud Messaging → Web Push certificates → Generate**. Copy `.env.example` to `.env.demo.local` at the root and fill it with that config and:
    - `VITE_FIREBASE_EMULATORS='false'`, `VITE_ENV_NAME='demo'` (the tab reads «gobernança DEMO») and `VITE_MAIL_MODE='demo'`;
    - `VITE_WEBAPP_URL='https://gobernansa-demo.web.app'`;
-   - the Cloudinary ones as in `.env.local` (the demo's photos land in the same account until GAR-3);
+   - the Cloudinary ones as in `.env.local` (the demo's photos land in the same account until [GAR-3](competencia.md#gar-3));
    - `DEMO_PASSWORD`, at least 6 characters: the password of every demo account. Only the seed reads it, the apps never get it.
 
    The build reads `.env.local` too, and `.env.demo.local` wins: anything left out comes from there, so `npm run deploy:demo` stops unless the project is the demo one, the emulators are off and `VITE_WEBAPP_URL` is set.
@@ -146,13 +146,13 @@ Then:
 - **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day, and recreates its accounts with `DEMO_PASSWORD` (they also take a magic link, within the free plan's daily emails). It spends about the demo's size in writes of the demo project's own quota.
 - **After a release worth showing:** `npm run deploy:demo`, by hand, never on each push. It builds both apps in `demo` mode with a `VITE_RELEASE` like CI's and deploys the rules, the indexes and both sites.
 - **Errors** of the demo go to its own **Errores** page: sign in as the team's demo account.
-- Custom domains (`demo.` and `demo-admin.`) come with the product's own domain (A2 in [v1.md](v1.md)).
+- Custom domains (`demo.` and `demo-admin.`) come with the product's own domain ([A2](v1.md#a2) in [v1.md](v1.md)).
 
 ## 9. App Check (quota protection)
 
 The apps ask for an App Check token when `VITE_APP_CHECK_KEY` is set, and never with the emulators. Until the console enforces it, nothing is blocked: it only measures. Once per project (production and demo):
 
-1. **Google Cloud console → Security → reCAPTCHA → Create key**, type **Website**, with the domains of both apps (`*.web.app` for the PR previews, and the custom ones from A2). No checkbox challenge.
+1. **Google Cloud console → Security → reCAPTCHA → Create key**, type **Website**, with the domains of both apps (`*.web.app` for the PR previews, and the custom ones from [A2](v1.md#a2)). No checkbox challenge.
 2. **Firebase console → App Check → Apps → the web app → reCAPTCHA Enterprise**, with that key's id. Token lifetime: the longest the console allows (7 days), so a neighbour spends few of the 10,000 free assessments a month.
 3. The key id as `VITE_APP_CHECK_KEY` in `.env.local` / `.env.demo.local` and as a GitHub secret (section 4).
 4. Deploy, then watch **App Check → APIs → Cloud Firestore** for a week or two: the share of verified requests should be near 100 %. Only then **Enforce**. Unverified ones are old installs that haven't refreshed yet, or someone else's script.
@@ -361,7 +361,7 @@ meetings/{m}/notices/{kind}_{uid}  kind call | minutes, uid ('' without an accou
 
 ### Comprobación de ficheros, devoluciones importadas y abonos de la pasarela
 
-Before each download of a remittance (pain.008), a transfer order (pain.001), a 347, 190 or 184, or the journal (CSV or ContaPlus' XDiario), the admin checks the exact file about to be saved (`packages/shared/domain/fileChecks.ts`) and shows **Comprobación del fichero**: all correct, warnings, or errors with the block, transaction or record they point to. Errors hold the download (and a new remittance or order isn't created) until **Descargar igualmente** or **Generar igualmente**. **Exportar e importar → Comprobar un fichero** checks any of them made by another program. Each download is logged in the community's activity with the result of its check (MON-4), in a write of its own that isn't waited for. It all runs in the browser (DOMParser, TextDecoder), nothing is uploaded.
+Before each download of a remittance (pain.008), a transfer order (pain.001), a 347, 190 or 184, or the journal (CSV or ContaPlus' XDiario), the admin checks the exact file about to be saved (`packages/shared/domain/fileChecks.ts`) and shows **Comprobación del fichero**: all correct, warnings, or errors with the block, transaction or record they point to. Errors hold the download (and a new remittance or order isn't created) until **Descargar igualmente** or **Generar igualmente**. **Exportar e importar → Comprobar un fichero** checks any of them made by another program. Each download is logged in the community's activity with the result of its check ([MON-4](fiabilidad.md#mon-4)), in a write of its own that isn't waited for. It all runs in the browser (DOMParser, TextDecoder), nothing is uploaded.
 
 - **SEPA**: well-formed XML; the version (pain.008.001.02 or .08, pain.001.001.03 or .09); NbOfTxs and CtrlSum of the file and of each block; identifiers of up to 35 characters of the SEPA set, PmtInfId unique and EndToEndId not repeated; IBAN check digits and BIC format; the creditor identifier's check digits (ISO 7064 mod 97-10 over the NIF and the country, as `creditorId()`); amounts above zero with two decimals at most; collection and execution dates not past (a collection today is a warning); sequence types FRST, RCUR, OOFF or FNAL; the mandate signed by the collection date; names present and within the SEPA characters.
 - **AEAT**: ISO-8859-1 (a UTF-8 file is an error), records of 500 characters, one of type 1 and then those of type 2, model and year in their place, valid NIFs, digits where the designs `aeat.ts` follows have numbers, and the type 1's counts and totals equal to what the type 2 add up (in the 190, dinerarias plus en especie and incapacidad laboral). In the 184, what's attributed to the members per clave is compared with the entity's records, as a warning.

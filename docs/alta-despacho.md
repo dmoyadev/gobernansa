@@ -1,6 +1,6 @@
 # Alta de un despacho nuevo
 
-Para v1 el alta la haces tú, con el despacho delante o por videollamada (B4.3 de [v1.md](v1.md)). Lleva una hora si el censo está en Excel. Al terminar, el despacho ya trabaja solo: crea, importa y archiva sus comunidades e invita a su equipo y a los vecinos.
+Para v1 el alta la haces tú, con el despacho delante o por videollamada ([B4.3](v1.md#b4) de [v1.md](v1.md)). Lleva una hora si el censo está en Excel. Al terminar, el despacho ya trabaja solo: crea, importa y archiva sus comunidades e invita a su equipo y a los vecinos.
 
 ## Antes de la cita
 
@@ -14,7 +14,7 @@ Pide al despacho:
 
 1. En el admin, **Administradores** → **Invitar a alguien**.
 2. El nombre y el email del titular, con el rol **Administración**. No marques comunidades: las suyas las crea él.
-3. Deja marcado el envío por email. Mientras el correo esté en modo de prueba (B2), avísale tú de que entre en el admin con ese email: le llega el enlace para entrar.
+3. Deja marcado el envío por email. Mientras el correo esté en modo de prueba ([B2](v1.md#b2)), avísale tú de que entre en el admin con ese email: le llega el enlace para entrar.
 
 Su cuenta es el despacho: su id es el del despacho, y los empleados que invite cuelgan de él.
 
@@ -51,7 +51,7 @@ Todos ven las comunidades del despacho, también las que se creen después de in
 - El titular ve sus comunidades en la cartera y en el dashboard.
 - Un empleado entra con su email y ve las mismas comunidades.
 - Un vecino invitado entra en la app del vecino y ve su comunidad.
-- **Exportar en un ZIP** desde la configuración de una comunidad: que vea que se lo lleva todo cuando quiera (B8).
+- **Exportar en un ZIP** desde la configuración de una comunidad: que vea que se lo lleva todo cuando quiera ([B8](v1.md#b8)).
 
 ## Si algo falla
 
