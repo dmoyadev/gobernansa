@@ -42,7 +42,7 @@ const router = createRouter({
 					path: 'communities/new',
 					name: 'Nueva comunidad',
 					component: async () => import('@/modules/communities/ui/CommunityFormPage.vue'),
-					meta: { title: 'Nueva comunidad', superadmin: true },
+					meta: { title: 'Nueva comunidad', office: true, writes: true },
 				},
 				// The census of several communities: the team creates the new ones, administrators only fill in theirs
 				{

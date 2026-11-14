@@ -4,6 +4,7 @@ import { computed, reactive, ref, useTemplateRef, watch } from 'vue';
 
 <script setup lang="ts">
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput, useShortcut } from 'lnxjs-components';
 import NewButton from '@/app/ux/NewButton.vue';
@@ -15,7 +16,7 @@ import { useNeighbourSearch } from '../application/useCommunitySearch.ts';
 const neighbours = reactive<Record<string, number | null | undefined>>({});
 
 const { user } = useAuth();
-const { communities, loading, error } = useCommunities();
+const { communities, archived, loading, error } = useCommunities();
 
 const search = ref('');
 const filtered = computed(() => {
@@ -83,8 +84,8 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 				<LnxIcon icon="lucide:file-spreadsheet" />
 				Importar comunidades
 			</LnxButton>
-			<!-- Only gobernança's team creates them, and then assigns them to their administrators -->
-			<NewButton v-if="user?.role === 'superadmin'" label="Nueva comunidad" to="/communities/new" />
+			<!-- The team's are assigned to their administrators later; an office's are its own at once (B4) -->
+			<NewButton v-if="user?.role === 'superadmin' || (user?.role === 'admin' && !readsOnly(user))" label="Nueva comunidad" to="/communities/new" />
 		</div>
 	</header>
 
@@ -190,12 +191,42 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 			Aún no hay comunidades. Crea la primera para que sus vecinos puedan usar gobernança.
 		</p>
 		<p v-else>
-			Aún no tienes comunidades asignadas. Pide al equipo de gobernança que te asigne las tuyas.
+			Aún no tienes comunidades. Créalas una a una o impórtalas todas desde el Excel de tu programa.
 		</p>
 	</section>
+
+	<!-- B4: out of every list and count, here to export them or bring them back -->
+	<details v-if="!loading && archived.length" class="archived">
+		<summary>{{ plural(archived.length, 'comunidad archivada', 'comunidades archivadas') }}</summary>
+		<ul class="list">
+			<li v-for="community in archived" :key="community.id">
+				<RouterLink class="row ux-row" :to="`/communities/${community.id}/settings`">
+					<span class="icon">
+						<LnxIcon icon="lucide:archive" :size="20" />
+					</span>
+					<span class="body">
+						<strong>{{ community.name || 'Sin nombre' }}</strong>
+						<small>{{ community.address }}</small>
+					</span>
+					<LnxIcon class="chevron" icon="lucide:chevron-right" :size="18" />
+				</RouterLink>
+			</li>
+		</ul>
+	</details>
 </template>
 
 <style lang="scss" scoped>
+.archived {
+	margin-top: var(--lnx-spacing-5);
+
+	summary {
+		cursor: pointer;
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+		margin-bottom: var(--lnx-spacing-2);
+	}
+}
+
 .page-header {
 	margin-bottom: var(--lnx-spacing-5);
 	display: flex;

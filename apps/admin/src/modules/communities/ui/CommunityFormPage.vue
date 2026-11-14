@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import type { Community, CommunityContact } from '@gobernansa/shared/domain/community.ts';
 import type { CommunityForm, CommunitySection } from '../domain/communityForm.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { DEFAULT_MONTHLY_VOTES } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxKbd, useConfirm, useShortcut } from 'lnxjs-components';
+import { officeRoleOf } from '@gobernansa/shared/domain/user.ts';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
 import { duplicateCommunity } from '../application/duplicateCommunity.ts';
-import { loadCommunity, saveCommunity } from '../application/useCommunities.ts';
+import { exportCommunity } from '../application/exportCommunity.ts';
+import { loadCommunity, saveCommunity, setCommunityArchived } from '../application/useCommunities.ts';
 import { findFormError, toCommunityForm, toInputDate } from '../domain/communityForm.ts';
 import CommunityContactFields from './CommunityContactFields.vue';
 import CommunityDocumentFields from './CommunityDocumentFields.vue';
@@ -43,6 +47,8 @@ const notFound = ref(false);
 const loadError = ref<string>();
 const saving = ref(false);
 const error = ref<string>();
+// Out of the office's lists (B4), shown in its settings to bring it back
+const archived = ref(false);
 // The new community's id, made when its form opens so sending it twice creates it once
 let createId = newId();
 // The form as loaded, to tell whether the admin has changed it
@@ -79,6 +85,7 @@ async function load(replace: boolean) {
 			return;
 		}
 		notFound.value = !community;
+		archived.value = !!community?.archivedAt;
 		source.value = fromId.value ? community : undefined;
 		setForm(fromId.value && community ? prefill(community) : toCommunityForm(community));
 		loadError.value = undefined;
@@ -189,6 +196,48 @@ async function save(done = props.id ? 'Guardado' : 'Comunidad creada') {
 			void router.push(formPath);
 		},
 	});
+}
+
+/* B8 and B4: taking it all away, and archiving it */
+
+const { user } = useAuth();
+// The team, or the office's owner: it leaves the lists of the whole office
+const canArchive = computed(() => user.value?.role === 'superadmin' || (user.value?.role === 'admin' && officeRoleOf(user.value) === 'owner'));
+const exporting = ref(false);
+const archiving = ref(false);
+
+async function download() {
+	exporting.value = true;
+	try {
+		const name = form.value.name.trim() || 'comunidad';
+		downloadFile(`${name} ${new Date().toISOString().slice(0, 10)}.zip`, await exportCommunity(props.id!), 'application/zip');
+	} catch (e) {
+		toast(`No se ha podido exportar: ${(e as Error).message}`, { variant: 'danger' });
+	} finally {
+		exporting.value = false;
+	}
+}
+
+async function archive(value: boolean) {
+	const name = form.value.name.trim();
+	if (value && !await ask({
+		title: `¿Archivar «${name}»?`,
+		message: 'Deja de salir en las listas y en las cuentas de tu despacho. No se borra nada: puedes exportarla o recuperarla desde Comunidades.',
+		confirmText: 'Archivar',
+		variant: 'danger',
+	})) {
+		return;
+	}
+	archiving.value = true;
+	try {
+		await setCommunityArchived(props.id!, name, value);
+		archived.value = value;
+		toast(value ? `«${name}» archivada` : `«${name}» recuperada`);
+	} catch (e) {
+		toast(`No se ha podido ${value ? 'archivar' : 'recuperar'}: ${(e as Error).message}`, { variant: 'danger' });
+	} finally {
+		archiving.value = false;
+	}
 }
 
 useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.requestSubmit(), { description: props.id ? 'Guardar cambios' : 'Crear comunidad' });
@@ -376,9 +425,41 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 			</footer>
 		</template>
 	</form>
+
+	<template v-if="id && section === 'settings' && !loading && !notFound && !loadError">
+		<section class="card leaving">
+			<h2>Exportar la comunidad</h2>
+			<p class="hint">
+				Todo lo que tiene en un ZIP: sus datos, el censo, los vecinos, los proveedores, los recibos, la contabilidad, las incidencias y las juntas con sus actas.
+				Un CSV por cada cosa, que se abre en Excel o se importa en otro programa.
+			</p>
+			<LnxButton mode="outline" :is-loading="exporting" @click="download()">
+				<LnxIcon icon="lucide:download" />
+				Exportar en un ZIP
+			</LnxButton>
+		</section>
+
+		<section v-if="canArchive" class="card leaving">
+			<h2>{{ archived ? 'Comunidad archivada' : 'Archivar la comunidad' }}</h2>
+			<p class="hint">
+				{{ archived
+					? 'No sale en las listas ni en las cuentas del despacho. Al recuperarla vuelve a salir con todo lo que tenía.'
+					: 'Si deja de llevarla tu despacho: deja de salir en las listas y en las cuentas, sin borrar nada. Expórtala antes para dársela a quien la lleve.' }}
+			</p>
+			<LnxButton :variant="archived ? undefined : 'danger'" mode="outline" :is-loading="archiving" @click="archive(!archived)">
+				<LnxIcon :icon="archived ? 'lucide:archive-restore' : 'lucide:archive'" />
+				{{ archived ? 'Recuperar la comunidad' : 'Archivar' }}
+			</LnxButton>
+		</section>
+	</template>
 </template>
 
 <style lang="scss" scoped>
+.leaving {
+	margin-top: var(--lnx-spacing-5);
+	align-items: flex-start;
+}
+
 form {
 	display: flex;
 	flex-direction: column;

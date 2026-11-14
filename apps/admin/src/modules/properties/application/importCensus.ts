@@ -5,10 +5,11 @@ import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { createCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { invite } from '@/modules/people/application/usePeople.ts';
 
-// Per batch, leaving room in its 500 writes for the activity entry and, when it's created, the community and its own
-const BATCH_PROPERTIES = 497;
+// Per batch, leaving room in its 500 writes for the activity entry
+const BATCH_PROPERTIES = 499;
 
 const propertiesRef = collection(db, 'properties');
 
@@ -24,14 +25,12 @@ export async function importCensus(communityId: string, rows: CensusRow[], file:
 	const unchanged = rows.filter(row => row.status === 'unchanged').length;
 	const rejected = rows.filter(row => row.status === 'error').length;
 	const rest = [unchanged && plural(unchanged, 'fila sin cambios', 'filas sin cambios'), rejected && plural(rejected, 'fila rechazada', 'filas rechazadas')].filter(Boolean).join(' y ');
-	const batches = Math.max(Math.ceil(changed.length / BATCH_PROPERTIES), create ? 1 : 0);
-	for (let index = 0; index < batches; index++) {
+	if (create) {
+		await createCommunity(communityId, create, `Creó la comunidad «${create.name}» al importar ${file}`);
+	}
+	for (let index = 0; index * BATCH_PROPERTIES < changed.length; index++) {
 		const chunk = changed.slice(index * BATCH_PROPERTIES, (index + 1) * BATCH_PROPERTIES);
 		const batch = writeBatch(db);
-		if (create && !index) {
-			batch.set(doc(db, 'communities', communityId), { ...create, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
-			logActivity(batch, communityId, { area: 'community', summary: `Creó la comunidad «${create.name}» al importar ${file}`, link: `/communities/${communityId}` });
-		}
 		for (const row of chunk) {
 			if (row.property) {
 				// An update replaces the mandate whole, as a merge would keep the old one's fields
@@ -40,15 +39,13 @@ export async function importCensus(communityId: string, rows: CensusRow[], file:
 				batch.set(doc(propertiesRef), { ...row.data, communityId, ownerUid: '', createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
 			}
 		}
-		if (chunk.length) {
-			const added = chunk.filter(row => !row.property).length;
-			const parts = [added && plural(added, 'propiedad nueva', 'propiedades nuevas'), chunk.length - added && plural(chunk.length - added, 'actualizada', 'actualizadas')];
-			logActivity(batch, communityId, {
-				area: 'property',
-				summary: `Importó el censo de ${file}: ${parts.filter(Boolean).join(' y ')}${!index && rest ? `; ${rest}` : ''}`,
-				link: `/communities/${communityId}/properties`,
-			});
-		}
+		const added = chunk.filter(row => !row.property).length;
+		const parts = [added && plural(added, 'propiedad nueva', 'propiedades nuevas'), chunk.length - added && plural(chunk.length - added, 'actualizada', 'actualizadas')];
+		logActivity(batch, communityId, {
+			area: 'property',
+			summary: `Importó el censo de ${file}: ${parts.filter(Boolean).join(' y ')}${!index && rest ? `; ${rest}` : ''}`,
+			link: `/communities/${communityId}/properties`,
+		});
 		await batch.commit();
 	}
 }

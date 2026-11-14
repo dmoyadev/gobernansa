@@ -287,7 +287,7 @@ export interface CensusGroup {
 	lines: CensusLine[];
 }
 
-// The rows of a portfolio by their community, matched with the ones the user has. Only gobernança's team creates new ones
+// The rows of a portfolio by their community, matched with the ones the user has. The team and offices create new ones (B4)
 export function groupByCommunity(lines: CensusLine[], columns: CensusColumns, communities: Pick<Community, 'id' | 'name' | 'cif'>[], canCreate: boolean): CensusGroup[] {
 	const groups = new Map<string, CensusGroup>();
 	for (const item of lines) {

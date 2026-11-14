@@ -9,6 +9,7 @@ import { decodeText, parseCsv } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { censusFields, censusTemplate, communityFields, groupByCommunity, guessCensusColumns, guessHeaderRow, importedTotal, readCensus } from '@gobernansa/shared/domain/census.ts';
 import { formatCoefficient, propertyTypeLabels } from '@gobernansa/shared/domain/property.ts';
+import { readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { columnIndex, columnLetter, readXlsx } from '@gobernansa/shared/utils/xlsx.ts';
@@ -34,6 +35,8 @@ const PREVIEW_ROWS = 200;
 
 const { user } = useAuth();
 const isSuperadmin = computed(() => user.value?.role === 'superadmin');
+// Viewers can't write anything
+const canCreate = computed(() => isSuperadmin.value || (user.value?.role === 'admin' && !readsOnly(user.value)));
 const { communities, loading: loadingCommunities } = props.id
 	? { communities: computed<Community[]>(() => []), loading: computed(() => false) }
 	: useCommunities();
@@ -176,7 +179,7 @@ async function compare() {
 		const today = toDateString(new Date());
 		const found: CensusGroup[] = props.id
 			? [{ name: '', cif: '', address: '', iban: '', communityId: props.id, lines: lines.value }]
-			: groupByCommunity(lines.value, columns.value, communities.value, isSuperadmin.value);
+			: groupByCommunity(lines.value, columns.value, communities.value, canCreate.value);
 		const compared = await Promise.all(found.map(async (group): Promise<Group> => {
 			const properties = group.communityId ? await census(group.communityId) : [];
 			const read = group.error ? [] : readCensus(group.lines, columns.value, properties, today);
@@ -309,7 +312,7 @@ async function apply() {
 			El censo de varias comunidades en un Excel o un CSV, una fila por propiedad con la columna Comunidad. Cada comunidad se busca por su CIF y, si no lo tiene, por su nombre.
 			{{ isSuperadmin
 				? 'Las que no existen se crean sin administrador: asígnalas después desde Administradores.'
-				: 'Solo se importan las comunidades que tienes asignadas: las nuevas las crea el equipo de gobernança.' }}
+				: 'Las que no existen se crean en tu despacho, y las ve todo tu equipo.' }}
 		</p>
 		<div class="actions">
 			<input ref="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv,text/plain" hidden @change="readFile">

@@ -136,6 +136,12 @@ service cloud.firestore {
       return ownsTheOffice() && profile.role == 'admin' && profile.get('officeId', '') == myOffice();
     }
 
+    // Anyone in the same office as them, its owner included (whose uid is the office's id), for its members to see each other
+    function inSameOffice(uid, profile) {
+      return signedIn() && me().role == 'admin' && profile.role == 'admin'
+        && (uid == myOffice() || profile.get('officeId', '') == myOffice());
+    }
+
     // Blocked by whoever manages their community: they can read, but not report, comment, vote, book or answer meetings
     function notBlocked() {
       return me().get('blocked', false) != true;
@@ -244,6 +250,7 @@ service cloud.firestore {
         || (me().role == 'admin' && resource.data.get('otherCommunityIds', []).hasAny(me().get('communityIds', [])))
         || (me().role == 'manager' && me().communityId in resource.data.get('otherCommunityIds', []))
         || inMyOffice(resource.data)
+        || inSameOffice(uid, resource.data)
         || (resource.data.role == 'manager' && inCommunity(resource.data.communityId))
         || resource.data.get('communityIds', []).hasAny(myCommunities())
       );
@@ -270,7 +277,12 @@ service cloud.firestore {
           && manages(resource.data.otherCommunityIds.removeAll(request.resource.data.otherCommunityIds)[0]))
       )
         // Joining another community they're invited to as a neighbour, by themselves
-        || (signedIn() && request.auth.uid == uid && changedOnly(['otherCommunityIds']) && joinsByInvitation());
+        || (signedIn() && request.auth.uid == uid && changedOnly(['otherCommunityIds']) && joinsByInvitation())
+        // A community the office creates, to everyone in it (themselves too), in the same batch as the community
+        || (inSameOffice(uid, resource.data) && officeRole() != 'viewer' && changedOnly(['communityIds'])
+          && request.resource.data.communityIds.size() == resource.data.get('communityIds', []).size() + 1
+          && request.resource.data.communityIds.hasAll(resource.data.get('communityIds', []))
+          && getAfter(/databases/$(database)/documents/communities/$(request.resource.data.communityIds.removeAll(resource.data.get('communityIds', []))[0])).data.get('officeId', '') == myOffice());
       // Out of the community, or of the office by its owner. Their sign-in account stays, and a new invitation gives them a profile again
       allow delete: if signedIn() && request.auth.uid != uid
         && (canAssign(resource.data.role, resource.data.communityId) || inMyOffice(resource.data));
@@ -612,11 +624,17 @@ service cloud.firestore {
 
     match /communities/{communityId} {
       allow read: if inCommunity(communityId) || oversees(communityId);
-      // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed
-      allow create: if isSuperadmin();
+      // New ones by gobernança's team, who then assign them, or by an office (B4): marked as its own (officeId) and assigned
+      // to whoever creates it in the same batch. Removing one is left to the console; the office archives it (archivedAt)
+      allow create: if isSuperadmin() || (signedIn() && me().role == 'admin' && officeRole() != 'viewer'
+        && request.resource.data.officeId == myOffice()
+        && communityId in getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('communityIds', []));
       // Intereses de demora (lateInterest): the yearly rate in hundredths of a percent, up to 20 %, and the days of grace.
-      // Its createdAt stays, so a portfolio imported twice doesn't create it again over itself
+      // Its createdAt stays, so a portfolio imported twice doesn't create it again over itself. Its office never changes,
+      // and only the team or the office's owner archives it or brings it back
       allow update: if manages(communityId) && keepsCreation()
+        && request.resource.data.get('officeId', null) == resource.data.get('officeId', null)
+        && (request.resource.data.get('archivedAt', null) == resource.data.get('archivedAt', null) || isSuperadmin() || ownsTheOffice())
         && (!('lateInterest' in request.resource.data) || (request.resource.data.lateInterest.keys().hasOnly(['rate', 'graceDays'])
           && request.resource.data.lateInterest.rate is int && request.resource.data.lateInterest.rate > 0 && request.resource.data.lateInterest.rate <= 2000
           && request.resource.data.lateInterest.graceDays is int && request.resource.data.lateInterest.graceDays >= 0 && request.resource.data.lateInterest.graceDays <= 365));

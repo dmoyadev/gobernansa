@@ -43,6 +43,11 @@ export interface Community extends Datable {
 	// Offered when reporting an issue, in this order. Read it with getIssueCategories(), DEFAULT_ISSUE_CATEGORIES when missing
 	issueCategories?: IssueCategory[];
 
+	// The office that created it (B4): its members get it assigned at once. Missing on the ones gobernança's team assigns
+	officeId?: string;
+	// Archived by the office (B4): out of its lists and counts, still there to export it or bring it back
+	archivedAt?: Timestamp | null;
+
 	// Legacy, the bookable areas now live in commonAreas. Removed the next time the areas are saved
 	bookableAreas?: Omit<BookableArea, 'icon'>[];
 }

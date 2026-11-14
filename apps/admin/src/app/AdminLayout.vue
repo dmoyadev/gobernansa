@@ -24,7 +24,8 @@ function allowed(page: Record<string, unknown>) {
 	return (!page.superadmin || role === 'superadmin')
 		&& (!(page.office || page.books) || role !== 'manager')
 		&& (!page.books || keepsBooks(user.value))
-		&& (!page.owner || (role === 'admin' && officeRoleOf(user.value) === 'owner'));
+		&& (!page.owner || (role === 'admin' && officeRoleOf(user.value) === 'owner'))
+		&& (!page.writes || !readsOnly(user.value));
 }
 const access = computed(() => {
 	if (user.error.value || user.value === null || user.value?.role === 'user') {
