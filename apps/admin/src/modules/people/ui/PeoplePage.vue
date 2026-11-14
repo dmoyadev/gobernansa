@@ -34,12 +34,18 @@ const communityOptions = computed(() => communities.value.map(community => ({ va
 const roleOptions = computed(() => assignableRoles(me.value, communityId).filter(role => scopeRoles.includes(role)));
 const roleSelectOptions = computed(() => roleOptions.value.map(value => ({ value, label: roles[value].label })));
 
-// Managers first, then by name
-const sortedPeople = computed(() => [...people.value].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || a.name.localeCompare(b.name, 'es')));
+// Managers first, then by name. An office's staff aren't listed among the administrators: they follow its owner's
+// communities and its owner manages them, on Equipo
+const sortedPeople = computed(() => people.value.filter(person => communityId || !person.officeId).sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || a.name.localeCompare(b.name, 'es')));
 
 // Never themselves, and only roles they could give
 function canEdit(person: User & { id: string }) {
 	return person.id !== me.value?.id && roleOptions.value.includes(person.role);
+}
+
+// A neighbour whose profile is another community's (B10): their role and blocking are that community's
+function isSecondary(person: User & { id: string; secondary?: boolean }) {
+	return !!person.secondary;
 }
 
 const form = ref({ name: '', email: '', role: scopeRoles[0], communityIds: [] as string[] });
@@ -88,7 +94,7 @@ async function remove(person: User & { id: string }) {
 	}
 
 	// No undo: only they can create their profile again, by signing in with a new invitation
-	void optimistic(removePerson(person.id, communityId, person.name), {
+	void optimistic(removePerson(person.id, communityId, person.name, isSecondary(person)), {
 		done: communityId ? `${person.name} quitado de la comunidad` : `Acceso de ${person.name} quitado`,
 		failed: 'No se ha podido quitar',
 	});
@@ -242,6 +248,7 @@ function cancel(invitation: Invitation & { id: string }) {
 				</div>
 				<span class="badges">
 					<span v-if="person.blocked" class="badge blocked">Bloqueado</span>
+					<span v-if="isSecondary(person)" class="badge" title="Su cuenta es de otra comunidad">Vive en otra</span>
 					<span class="badge">{{ roles[person.role]?.label }}</span>
 				</span>
 
@@ -251,7 +258,7 @@ function cancel(invitation: Invitation & { id: string }) {
 						Documentos
 					</LnxButton>
 					<LnxButton
-						v-if="communityId && person.role === 'user' && canEdit(person)"
+						v-if="communityId && person.role === 'user' && canEdit(person) && !isSecondary(person)"
 						mode="clear"
 						class="lnx-size-small"
 						@click="toggleBlocked(person)"
@@ -260,7 +267,7 @@ function cancel(invitation: Invitation & { id: string }) {
 						{{ person.blocked ? 'Desbloquear' : 'Bloquear' }}
 					</LnxButton>
 					<LnxButton
-						v-if="canEdit(person) && communityId && roleOptions.includes('manager')"
+						v-if="canEdit(person) && communityId && roleOptions.includes('manager') && !isSecondary(person)"
 						mode="clear"
 						class="lnx-size-small"
 						@click="toggleManager(person)"

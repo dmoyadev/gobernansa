@@ -12,8 +12,33 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Where they live, or any other community they have a home in (B10)
     function inCommunity(communityId) {
-      return signedIn() && me().communityId == communityId;
+      return signedIn() && (me().communityId == communityId || communityId in me().get('otherCommunityIds', []));
+    }
+
+    // Every community they're a neighbour of
+    function myCommunities() {
+      return [me().get('communityId', '')].concat(me().get('otherCommunityIds', []));
+    }
+
+    // The office an administrator works in: its id is its owner's uid, so without officeId it's their own
+    function myOffice() {
+      return me().get('officeId', request.auth.uid);
+    }
+
+    // What they do in it: 'owner', 'accountant', 'clerk' or 'viewer'. Mirrored by officeRoles in packages/shared/domain/user.ts
+    function officeRole() {
+      return me().get('officeRole', 'owner');
+    }
+
+    function ownsTheOffice() {
+      return signedIn() && me().role == 'admin' && officeRole() == 'owner';
+    }
+
+    // Closing and reopening a year, and invoicing the office's fees: not for clerks. Mirrored by keepsBooks()
+    function keepsBooks() {
+      return me().role != 'admin' || officeRole() in ['owner', 'accountant'];
     }
 
     // gobernança's team, who manage every community and the administrators
@@ -21,14 +46,19 @@ service cloud.firestore {
       return signedIn() && me().role == 'superadmin';
     }
 
-    // Administrators manage the communities assigned to them, and managers the one they live in.
+    // What administrators and managers can see: the communities of their office, and the one a manager lives in.
     // Mirrored by managesCommunity() in packages/shared/domain/user.ts
-    function manages(communityId) {
+    function oversees(communityId) {
       return signedIn() && (
         me().role == 'superadmin'
         || (me().role == 'admin' && communityId in me().get('communityIds', []))
         || (me().role == 'manager' && communityId == me().communityId)
       );
+    }
+
+    // And change, unless they're read-only members of the office
+    function manages(communityId) {
+      return oversees(communityId) && (me().role != 'admin' || officeRole() != 'viewer');
     }
 
     // Neighbours and whoever manages it, from the admin platform
@@ -48,12 +78,16 @@ service cloud.firestore {
       return inCommunity(communityId) || manages(communityId);
     }
 
+    function inOrOversees(communityId) {
+      return inCommunity(communityId) || oversees(communityId);
+    }
+
     // Who can give a role in a community: administrators make managers and neighbours in theirs, managers only neighbours.
     // Mirrored by assignableRoles() in packages/shared/domain/user.ts
     function canAssign(role, communityId) {
       return signedIn() && role in ['superadmin', 'admin', 'manager', 'user'] && (
         me().role == 'superadmin'
-        || (me().role == 'admin' && role in ['manager', 'user'] && communityId in me().get('communityIds', []))
+        || (me().role == 'admin' && officeRole() != 'viewer' && role in ['manager', 'user'] && communityId in me().get('communityIds', []))
         || (me().role == 'manager' && role == 'user' && communityId == me().communityId)
       );
     }
@@ -67,12 +101,39 @@ service cloud.firestore {
     function matchesInvitation(profile) {
       let invitation = get(/databases/$(database)/documents/invitations/$(request.auth.token.email)).data;
       return isInvitee(request.auth.token.email)
-        && profile.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds'])
+        && profile.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'officeId', 'officeRole'])
         && profile.email == request.auth.token.email
         && profile.name == invitation.name
         && profile.role == invitation.role
         && profile.communityId == invitation.communityId
-        && profile.get('communityIds', []) == invitation.get('communityIds', []);
+        && profile.get('communityIds', []) == invitation.get('communityIds', [])
+        && profile.get('officeId', null) == invitation.get('officeId', null)
+        && profile.get('officeRole', null) == invitation.get('officeRole', null);
+    }
+
+    // Someone with a profile invited as a neighbour of another community joins it, adding it to their other ones (B10)
+    function joinsByInvitation() {
+      let invitation = get(/databases/$(database)/documents/invitations/$(request.auth.token.email)).data;
+      return isInvitee(request.auth.token.email)
+        && invitation.role == 'user'
+        && invitation.get('officeId', null) == null
+        && !(invitation.communityId in myCommunities())
+        && request.resource.data.otherCommunityIds == resource.data.get('otherCommunityIds', []).concat([invitation.communityId]);
+    }
+
+    // An invitation to work in the owner's office, with its communities and a role other than theirs
+    function invitesToOffice(invitation) {
+      return ownsTheOffice()
+        && invitation.role == 'admin'
+        && invitation.communityId == ''
+        && invitation.officeId == myOffice()
+        && invitation.officeRole in ['accountant', 'clerk', 'viewer']
+        && invitation.get('communityIds', []) == me().get('communityIds', []);
+    }
+
+    // A member of the owner's office, never the owner themselves
+    function inMyOffice(profile) {
+      return ownsTheOffice() && profile.role == 'admin' && profile.get('officeId', '') == myOffice();
     }
 
     // Blocked by whoever manages their community: they can read, but not report, comment, vote, book or answer meetings
@@ -80,7 +141,7 @@ service cloud.firestore {
       return me().get('blocked', false) != true;
     }
 
-    // Administrators and managers share providers between the communities they manage
+    // Administrators and managers share providers between the communities they manage. Read-only members only see them
     function sharesWith(communityIds) {
       return signedIn() && (
         me().role == 'superadmin'
@@ -93,7 +154,7 @@ service cloud.firestore {
     function canShareWith(communityIds) {
       return signedIn() && (
         me().role == 'superadmin'
-        || (me().role == 'admin' && communityIds.hasOnly(me().get('communityIds', [])))
+        || (me().role == 'admin' && officeRole() != 'viewer' && communityIds.hasOnly(me().get('communityIds', [])))
         || (me().role == 'manager' && communityIds.hasOnly([me().communityId]))
       );
     }
@@ -159,9 +220,14 @@ service cloud.firestore {
             && paidOnline(communityId, booking.payment, 'bookingId', bookingId, fee.price + fee.deposit)));
     }
 
-    // An administrator's own office, which invoices its fees to the communities they manage
-    function ownsOffice(uid) {
-      return signedIn() && request.auth.uid == uid && me().role in ['admin', 'superadmin'];
+    // Who works in the office, which invoices its fees to the communities it manages
+    function worksIn(officeId) {
+      return signedIn() && me().role in ['admin', 'superadmin'] && myOffice() == officeId;
+    }
+
+    // And can write its fiscal data and invoices
+    function billsFor(officeId) {
+      return worksIn(officeId) && keepsBooks();
     }
 
     // Counters move one vote or comment at a time (a vote can go from +1 to -1)
@@ -170,15 +236,20 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      // Themselves, whoever manages their community and, for neighbours, the managers and administrators of theirs, to know who to ask for access
+      // Themselves, whoever oversees their community (or another one they have a home in), the owner of the office they
+      // work in and, for neighbours, the managers and administrators of theirs, to know who to ask for access
       allow read: if signedIn() && (
         request.auth.uid == uid
-        || manages(resource.data.communityId)
+        || oversees(resource.data.communityId)
+        || (me().role == 'admin' && resource.data.get('otherCommunityIds', []).hasAny(me().get('communityIds', [])))
+        || (me().role == 'manager' && me().communityId in resource.data.get('otherCommunityIds', []))
+        || inMyOffice(resource.data)
         || (resource.data.role == 'manager' && inCommunity(resource.data.communityId))
-        || me().communityId in resource.data.get('communityIds', [])
+        || resource.data.get('communityIds', []).hasAny(myCommunities())
       );
       allow create: if signedIn() && request.auth.uid == uid && matchesInvitation(request.resource.data);
-      // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves
+      // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves.
+      // Only the team assigns communities to an office, in each of its members' profiles
       allow update: if signedIn() && request.auth.uid != uid && (
         ((changedOnly(['role', 'communityId']) || (isSuperadmin() && changedOnly(['role', 'communityId', 'communityIds'])))
           && canAssign(resource.data.role, resource.data.communityId)
@@ -188,16 +259,30 @@ service cloud.firestore {
           && resource.data.role == 'user'
           && request.resource.data.blocked is bool
           && manages(resource.data.communityId))
-      );
-      // Out of the community. Their sign-in account stays, and a new invitation gives them a profile again
-      allow delete: if signedIn() && request.auth.uid != uid && canAssign(resource.data.role, resource.data.communityId);
+        // What a member does in the office, by its owner
+        || (changedOnly(['officeRole'])
+          && inMyOffice(resource.data)
+          && request.resource.data.officeRole in ['accountant', 'clerk', 'viewer'])
+        // Out of one of their other communities, by whoever manages it
+        || (changedOnly(['otherCommunityIds'])
+          && request.resource.data.otherCommunityIds.size() == resource.data.otherCommunityIds.size() - 1
+          && resource.data.otherCommunityIds.hasAll(request.resource.data.otherCommunityIds)
+          && manages(resource.data.otherCommunityIds.removeAll(request.resource.data.otherCommunityIds)[0]))
+      )
+        // Joining another community they're invited to as a neighbour, by themselves
+        || (signedIn() && request.auth.uid == uid && changedOnly(['otherCommunityIds']) && joinsByInvitation());
+      // Out of the community, or of the office by its owner. Their sign-in account stays, and a new invitation gives them a profile again
+      allow delete: if signedIn() && request.auth.uid != uid
+        && (canAssign(resource.data.role, resource.data.communityId) || inMyOffice(resource.data));
 
       // Property documents (listed and their files) and devices for push notifications.
       // Whoever manages their community can also send them documents (e.g. a certificate), and see and remove those
       match /{collection}/{id} {
         allow read, write: if signedIn() && request.auth.uid == uid
           && collection in ['documents', 'documentFiles', 'devices'];
-        allow read, write: if collection in ['documents', 'documentFiles']
+        allow read: if collection in ['documents', 'documentFiles']
+          && oversees(get(/databases/$(database)/documents/users/$(uid)).data.communityId);
+        allow write: if collection in ['documents', 'documentFiles']
           && manages(get(/databases/$(database)/documents/users/$(uid)).data.communityId);
         // The secret key of the issues they report (Issue.authorKey): only they read it, so neighbours can't tell whose
         // issues are. Made once and never changed
@@ -218,7 +303,7 @@ service cloud.firestore {
           && data.get('ownerPhone', '') is string && data.get('ownerPhone', '').size() <= 40;
       }
 
-      allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || manages(resource.data.communityId));
+      allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || oversees(resource.data.communityId));
       allow create: if manages(request.resource.data.communityId) && isPropertyData(request.resource.data);
       // Its createdAt stays: the census imported again over one already there (two tabs, a batch sent again) is turned down
       allow update: if manages(resource.data.communityId) && request.resource.data.communityId == resource.data.communityId
@@ -261,45 +346,49 @@ service cloud.firestore {
       }
     }
 
-    // The administrator's office: its fiscal data, invoice counters and the end of its Verifactu chain. The team can
-    // read and fix any (support), never their invoices nor records
-    match /offices/{uid} {
-      allow read: if ownsOffice(uid) || isSuperadmin();
-      allow create, update: if ownsOffice(uid) || isSuperadmin();
+    // The administrator's office, with its owner's uid as id: its fiscal data, invoice counters and the end of its
+    // Verifactu chain. Everyone in it reads it, its owner and accountants write it. The team can read and fix any
+    // (support), never their invoices nor records
+    match /offices/{officeId} {
+      allow read: if worksIn(officeId) || isSuperadmin();
+      allow create, update: if billsFor(officeId) || isSuperadmin();
 
       // Facturas de honorarios, only to communities they manage. Never removed: corrected with a rectificativa or
       // annulled in the registry; afterwards only what points to those, and to the expense in the community's books
       match /invoices/{invoiceId} {
-        allow read: if ownsOffice(uid) || isSuperadmin();
-        allow create: if ownsOffice(uid) && manages(request.resource.data.communityId);
-        allow update: if ownsOffice(uid) && changedOnly(['rectifiedBy', 'annulled', 'expenseId', 'updatedAt', 'updatedBy']);
+        allow read: if worksIn(officeId) || isSuperadmin();
+        allow create: if billsFor(officeId) && manages(request.resource.data.communityId);
+        allow update: if billsFor(officeId) && changedOnly(['rectifiedBy', 'annulled', 'expenseId', 'updatedAt', 'updatedBy']);
       }
 
       // Registro Verifactu (test mode): each record is chained by its huella to the one before, so it's immutable
       match /verifactu/{recordId} {
-        allow read: if ownsOffice(uid) || isSuperadmin();
-        allow create: if ownsOffice(uid) && request.resource.data.createdBy == request.auth.uid;
+        allow read: if worksIn(officeId) || isSuperadmin();
+        allow create: if billsFor(officeId) && request.resource.data.createdBy == request.auth.uid;
       }
     }
 
     // Sent by whoever can give that role in that community, and accepted by whoever it's for on their first sign-in.
     // The id is the email in lowercase, as sign-in tokens have it
+    // Those to an office (officeId), by its owner
     match /invitations/{email} {
-      allow read: if isInvitee(email) || manages(resource.data.communityId);
-      allow create: if canAssign(request.resource.data.role, request.resource.data.communityId)
-        && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'invitedBy', 'invitedAt'])
+      allow read: if isInvitee(email) || oversees(resource.data.communityId) || inMyOffice(resource.data);
+      allow create: if request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'officeId', 'officeRole', 'invitedBy', 'invitedAt'])
         && request.resource.data.email == email
         // Comments are signed with it, so it can't be missing
         && request.resource.data.name is string && request.resource.data.name.size() > 0
         && request.resource.data.invitedBy == request.auth.uid
         && request.resource.data.invitedAt == request.time
-        && (!('communityIds' in request.resource.data) || isSuperadmin());
-      allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId);
+        && ((canAssign(request.resource.data.role, request.resource.data.communityId)
+            && !('officeId' in request.resource.data) && !('officeRole' in request.resource.data)
+            && (!('communityIds' in request.resource.data) || isSuperadmin()))
+          || invitesToOffice(request.resource.data));
+      allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId) || inMyOffice(resource.data);
     }
 
     // Notifications of the community, sent by whoever manages it
     match /events/{eventId} {
-      allow read: if inOrManages(resource.data.communityId);
+      allow read: if inOrOversees(resource.data.communityId);
       allow create: if manages(request.resource.data.communityId);
       // Checked against the community it's in, and kept there, so nobody moves another community's event into theirs
       allow update: if manages(resource.data.communityId)
@@ -377,7 +466,7 @@ service cloud.firestore {
             && addresses.join(' ').split(' ').size() == addresses.size()));
       }
 
-      allow read: if manages(resource.data.communityId);
+      allow read: if oversees(resource.data.communityId);
       allow create: if manages(request.resource.data.communityId)
         && request.resource.data.keys().hasOnly(['to', 'cc', 'bcc', 'replyTo', 'message', 'communityId', 'kind', 'mode', 'link', 'createdAt', 'createdBy'])
         && isAddresses(request.resource.data.to)
@@ -522,7 +611,7 @@ service cloud.firestore {
     }
 
     match /communities/{communityId} {
-      allow read: if inCommunity(communityId) || manages(communityId);
+      allow read: if inCommunity(communityId) || oversees(communityId);
       // New ones by gobernança's team, who then assign them. Removing one is left to the console, it also needs its issues, users and properties removed
       allow create: if isSuperadmin();
       // Intereses de demora (lateInterest): the yearly rate in hundredths of a percent, up to 20 %, and the days of grace.
@@ -537,7 +626,7 @@ service cloud.firestore {
           return /databases/$(database)/documents/communities/$(communityId)/issues/$(issueId)/private/author;
         }
 
-        allow read: if inOrManages(communityId);
+        allow read: if inOrOversees(communityId);
 
         // By neighbours, or by the administration on their behalf. Neighbours never know who reported one: the issue only
         // has the reporter's secret key (authorKey), and who they are goes in private/author in the same batch
@@ -589,7 +678,7 @@ service cloud.firestore {
 
         // Messages, and status changes by the administration
         match /comments/{commentId} {
-          allow read: if inOrManages(communityId);
+          allow read: if inOrOversees(communityId);
           allow create: if inOrManages(communityId)
             && notBlocked()
             && request.resource.data.authorId == request.auth.uid
@@ -609,7 +698,7 @@ service cloud.firestore {
 
         // The internal note and the insurance claim (admin) and who reported it (author), neighbours never see them
         match /private/{docId} {
-          allow read: if manages(communityId);
+          allow read: if oversees(communityId);
           allow write: if manages(communityId) && docId != 'author';
           // Written with the issue by whoever reports it, and never changed
           allow create: if docId == 'author'
@@ -623,7 +712,7 @@ service cloud.firestore {
 
       // Who changed what. Signed by whoever makes the change, dated by the server and never edited
       match /activity/{activityId} {
-        allow read: if manages(communityId);
+        allow read: if oversees(communityId);
         allow create: if manages(communityId)
           && request.resource.data.by == request.auth.uid
           && request.resource.data.byName in [me().get('name', ''), request.auth.token.get('email', ''), '']
@@ -632,7 +721,7 @@ service cloud.firestore {
 
       // Juntas. Neighbours see them once convened
       match /meetings/{meetingId} {
-        allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.status != 'draft');
+        allow read: if oversees(communityId) || (inCommunity(communityId) && resource.data.status != 'draft');
         allow write: if manages(communityId) && request.resource.data.communityId == communityId;
         allow delete: if manages(communityId);
         // A signer of the acta adds themselves to minutesSigned when signing, for the webapp's list
@@ -643,7 +732,7 @@ service cloud.firestore {
 
         // Each neighbour answers for themselves, with their uid as id
         match /attendance/{uid} {
-          allow read: if inOrManages(communityId);
+          allow read: if inOrOversees(communityId);
           allow create, update: if manages(communityId)
             || (inCommunity(communityId) && notBlocked()
               && uid == request.auth.uid
@@ -657,7 +746,7 @@ service cloud.firestore {
         // Owners vote theirs while voting is open, the administration records any (e.g. delegated ones).
         // Not named votes, so the collection group query of issue votes doesn't count them
         match /ballots/{voteId} {
-          allow read: if inOrManages(communityId);
+          allow read: if inOrOversees(communityId);
           allow write: if manages(communityId);
           allow create, update: if inCommunity(communityId) && notBlocked()
             && get(/databases/$(database)/documents/communities/$(communityId)/meetings/$(meetingId)).data.get('votingOpen', false) == true
@@ -709,7 +798,7 @@ service cloud.firestore {
               && signature.path.matches('M[0-9]+ [0-9]+( [ML][0-9]+ [0-9]+)*');
           }
 
-          allow read: if manages(communityId) || (inCommunity(communityId) && (request.auth.uid in signers()
+          allow read: if oversees(communityId) || (inCommunity(communityId) && (request.auth.uid in signers()
             || get(/databases/$(database)/documents/communities/$(communityId)/meetings/$(meetingId)).data.get('notifiedAt', {}).get('minutes', null) != null));
           allow create, update: if manages(communityId)
             && minutesId == 'record'
@@ -786,8 +875,8 @@ service cloud.firestore {
           }
 
           // Owners get theirs by id, only the administration lists them
-          allow get: if manages(communityId) || isMine();
-          allow list: if manages(communityId);
+          allow get: if oversees(communityId) || isMine();
+          allow list: if oversees(communityId);
           allow create: if manages(communityId)
             && request.resource.data.keys().hasOnly(['kind', 'uid', 'name', 'email', 'propertyIds', 'propertyNames', 'coefficient', 'absent', 'items', 'app', 'certified', 'sentAt', 'sentBy', 'readAt', 'receivedAt', 'dissent'])
             && request.resource.data.kind in ['call', 'minutes']
@@ -837,7 +926,7 @@ service cloud.firestore {
               && charge.interest.to is string && charge.interest.to.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')));
         }
 
-        allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
+        allow read: if oversees(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
         allow create: if manages(communityId) && request.resource.data.communityId == communityId && isChargeData(request.resource.data);
         // ROB-6: issued again over one already there (another tab, a batch sent again after losing the connection) its
         // createdAt changes and it's turned down, so a paid charge is never left unpaid. It goes in one remittance at a
@@ -864,7 +953,7 @@ service cloud.firestore {
       // The office can mark one reverted (and undo it), or reconciled with the gateway's payout in the bank
       // (bankMovementId), the payment itself is never removed
       match /payments/{paymentId} {
-        allow read: if manages(communityId) || (inCommunity(communityId) && resource.data.uid == request.auth.uid);
+        allow read: if oversees(communityId) || (inCommunity(communityId) && resource.data.uid == request.auth.uid);
         allow create: if inCommunity(communityId) && notBlocked() && testPayments(communityId)
           && request.resource.data.keys().hasOnly(['communityId', 'mode', 'method', 'amount', 'uid', 'chargeId', 'bookingId', 'card', 'createdAt'])
           && request.resource.data.communityId == communityId
@@ -886,7 +975,8 @@ service cloud.firestore {
 
       // Reclamaciones of a property's debt, one per property (its id): the claims sent and the monitorio's data. Only the office
       match /debtCases/{propertyId} {
-        allow read, delete: if manages(communityId);
+        allow read: if oversees(communityId);
+        allow delete: if manages(communityId);
         allow create, update: if manages(communityId) && request.resource.data.propertyId == propertyId;
       }
 
@@ -894,7 +984,8 @@ service cloud.firestore {
       // mandates are in their properties
       // ROB-6: collected on one day, so a second bank movement can't collect it again, and only deleted before it's sent
       match /remittances/{remittanceId} {
-        allow read, create: if manages(communityId);
+        allow read: if oversees(communityId);
+        allow create: if manages(communityId);
         allow update: if manages(communityId) && !(resource.data.status == 'collected' && request.resource.data.status == 'collected'
           && request.resource.data.get('collectedAt', null) != resource.data.get('collectedAt', null));
         allow delete: if manages(communityId) && resource.data.status == 'generated';
@@ -903,7 +994,8 @@ service cloud.firestore {
       // Órdenes de pago to providers (SEPA credit transfer), with each provider's account. Only the office
       // ROB-6: executed on one day, and only deleted before it's executed
       match /paymentOrders/{orderId} {
-        allow read, create: if manages(communityId);
+        allow read: if oversees(communityId);
+        allow create: if manages(communityId);
         allow update: if manages(communityId) && !(resource.data.status == 'executed' && request.resource.data.status == 'executed'
           && request.resource.data.get('executedAt', null) != resource.data.get('executedAt', null));
         allow delete: if manages(communityId) && resource.data.status == 'generated';
@@ -914,7 +1006,8 @@ service cloud.firestore {
       // ROB-6: it leaves pending once (reconciled or set aside) and only goes back to it to undo that, so one movement
       // can't pay two things; imported again over itself its createdAt changes and it's turned down. Only pending ones are removed
       match /bankMovements/{movementId} {
-        allow read, create: if manages(communityId);
+        allow read: if oversees(communityId);
+        allow create: if manages(communityId);
         allow update: if manages(communityId) && keepsCreation()
           && (resource.data.status == 'pending') != (request.resource.data.status == 'pending');
         allow delete: if manages(communityId) && resource.data.status == 'pending';
@@ -925,7 +1018,7 @@ service cloud.firestore {
       // regularization and closing entries, the latter opens the next year. The chart doc keeps the accounts added.
       // Incomes from third parties (income, for the 184 and 347) are manual entries too, so they close with the year
       match /journalEntries/{entryId} {
-        allow read: if manages(communityId);
+        allow read: if oversees(communityId);
         allow create: if manages(communityId) && request.resource.data.year is int
           && !exists(/databases/$(database)/documents/communities/$(communityId)/fiscalYears/$(string(request.resource.data.year)));
         allow update: if manages(communityId) && request.resource.data.year is int
@@ -937,11 +1030,13 @@ service cloud.firestore {
 
       // Closed once: closing it again (another tab, a page left open) would overwrite it with what that one saw. Reopening deletes it
       match /fiscalYears/{year} {
-        allow read, create, delete: if manages(communityId);
+        allow read: if oversees(communityId);
+        allow create, delete: if manages(communityId) && keepsBooks();
       }
 
       match /accounting/{docId} {
-        allow read, write: if manages(communityId) && docId == 'chart';
+        allow read: if oversees(communityId) && docId == 'chart';
+        allow write: if manages(communityId) && docId == 'chart';
       }
 
       // The budget and its expenses, open to every neighbour. Expenses are also the supplier invoices, with their taxes
@@ -949,7 +1044,7 @@ service cloud.firestore {
       // keeps the fondo de reserva (contribution and opening balance) and how the year's fees were issued; an expense
       // may be paid from that fund (fromReserve)
       match /budgets/{year} {
-        allow read: if inOrManages(communityId);
+        allow read: if inOrOversees(communityId);
         allow write: if manages(communityId);
       }
 
@@ -957,7 +1052,7 @@ service cloud.firestore {
       // order at a time, or in another once its order was executed and the transfer came back (unpaid again), and is
       // reconciled with one bank movement, only while unpaid
       match /expenses/{expenseId} {
-        allow read: if inOrManages(communityId);
+        allow read: if inOrOversees(communityId);
         allow create, delete: if manages(communityId);
         allow update: if manages(communityId) && keepsCreation() && keepsLink('bankMovementId')
           && (request.resource.data.get('bankMovementId', null) == null || resource.data.get('bankMovementId', null) != null || resource.data.get('paidAt', null) == null)
@@ -967,14 +1062,15 @@ service cloud.firestore {
 
       // Inspections, revisions and renewals
       match /obligations/{obligationId} {
-        allow read, write: if manages(communityId);
+        allow read: if oversees(communityId);
+        allow write: if manages(communityId);
       }
 
       // Common areas. The id is `${areaId}_${date}_${from}`, so creating a booked slot again is an update, which only
       // changes its payment. Areas with a price or fianza (bookingFees) are owed (paidAt null) or paid online; the
       // office marks them paid and the fianza returned. Neighbours can't cancel one that's paid, the office does
       match /bookings/{bookingId} {
-        allow read: if inOrManages(communityId);
+        allow read: if inOrOversees(communityId);
         allow create: if (manages(communityId) || (inCommunity(communityId) && notBlocked() && request.resource.data.uid == request.auth.uid && isMyName(request.resource.data.get('name', ''))
             && paysBookingFee(communityId, bookingId, request.resource.data)))
           && request.resource.data.communityId == communityId

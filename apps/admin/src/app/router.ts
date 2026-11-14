@@ -332,38 +332,38 @@ const router = createRouter({
 					path: 'billing',
 					name: 'Honorarios',
 					component: async () => import('@/modules/billing/ui/BillingPage.vue'),
-					meta: { title: 'Honorarios', office: true },
+					meta: { title: 'Honorarios', books: true },
 				},
 				{
 					path: 'billing/new',
 					name: 'Nueva factura',
 					component: async () => import('@/modules/billing/ui/InvoiceFormPage.vue'),
-					meta: { title: 'Nueva factura', office: true },
+					meta: { title: 'Nueva factura', books: true },
 				},
 				{
 					path: 'billing/office',
 					name: 'Datos fiscales del despacho',
 					component: async () => import('@/modules/billing/ui/OfficePage.vue'),
-					meta: { title: 'Datos fiscales del despacho', office: true },
+					meta: { title: 'Datos fiscales del despacho', books: true },
 				},
 				{
 					path: 'billing/registry',
 					name: 'Registro Verifactu',
 					component: async () => import('@/modules/billing/ui/RegistryPage.vue'),
-					meta: { title: 'Registro Verifactu', office: true },
+					meta: { title: 'Registro Verifactu', books: true },
 				},
 				{
 					path: 'billing/:invoiceId/rectify',
 					name: 'Factura rectificativa',
 					component: async () => import('@/modules/billing/ui/InvoiceFormPage.vue'),
-					meta: { title: 'Factura rectificativa', office: true },
+					meta: { title: 'Factura rectificativa', books: true },
 					props: true,
 				},
 				{
 					path: 'billing/:invoiceId',
 					name: 'Factura de honorarios',
 					component: async () => import('@/modules/billing/ui/InvoicePage.vue'),
-					meta: { title: 'Factura de honorarios', office: true },
+					meta: { title: 'Factura de honorarios', books: true },
 					props: true,
 				},
 				// The failures the apps report (MON-8), for the team
@@ -372,6 +372,13 @@ const router = createRouter({
 					name: 'Errores',
 					component: async () => import('@/modules/errors/ui/ErrorsPage.vue'),
 					meta: { title: 'Errores', superadmin: true },
+				},
+				// The office's own staff (B3), for its owner
+				{
+					path: 'team',
+					name: 'Equipo del despacho',
+					component: async () => import('@/modules/people/ui/TeamPage.vue'),
+					meta: { title: 'Equipo del despacho', owner: true },
 				},
 				{
 					path: 'admins',

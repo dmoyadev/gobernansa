@@ -1,11 +1,11 @@
-import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
+import type { Invitation, OfficeRole, Role, User } from '@gobernansa/shared/domain/user.ts';
 import type { WriteBatch } from 'firebase/firestore';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { roles } from '@gobernansa/shared/domain/user.ts';
+import { officeRoles, roles } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { arrayRemove, arrayUnion, collection, doc, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection } from 'vuefire';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -16,10 +16,26 @@ const invitationsRef = collection(db, 'invitations');
 
 // A community's accounts and pending invitations or, with communityId '', the administrators'. Live, so each change shows up as it's made
 export function usePeople(communityId: string) {
-	const people = useCollection<User>(communityId
+	const home = useCollection<User>(communityId
 		? query(usersRef, where('communityId', '==', communityId))
 		: query(usersRef, where('role', 'in', ['admin', 'superadmin'])));
+	// Neighbours whose profile is another community's, with a property here too (B10). Neighbours here, whatever their role at home
+	const others = useCollection<User>(communityId ? query(usersRef, where('otherCommunityIds', 'array-contains', communityId)) : null);
+	const people = computed(() => [...home.value, ...others.value.map(person => ({ ...person, id: person.id, role: 'user' as const, secondary: true }))]);
 	const invitations = useCollection<Invitation>(query(invitationsRef, where('communityId', '==', communityId)));
+
+	return {
+		people,
+		invitations,
+		loading: home.pending,
+		error: computed(() => home.error.value ?? others.error.value ?? invitations.error.value),
+	};
+}
+
+// The staff of an office (B3) and its pending invitations, its owner aside. Live
+export function useTeam(officeId: string) {
+	const people = useCollection<User>(query(usersRef, where('officeId', '==', officeId), where('role', '==', 'admin')));
+	const invitations = useCollection<Invitation>(query(invitationsRef, where('officeId', '==', officeId), where('role', '==', 'admin')));
 
 	return {
 		people,
@@ -80,7 +96,7 @@ async function invitationEmail({ email, name, role, communityId }: Pick<Invitati
 
 // Its id is the email in lowercase, as sign-in tokens have it. Fails when that email already has one. byEmail also queues
 // the invitation email
-export async function invite({ email, name, role, communityId, communityIds }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds'>, summary?: string, byEmail = false) {
+export async function invite({ email, name, role, communityId, communityIds, officeId, officeRole }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds' | 'officeId' | 'officeRole'>, summary?: string, byEmail = false) {
 	const id = email.trim().toLowerCase();
 	const mail = byEmail ? await invitationEmail({ email: id, name, role, communityId }) : undefined;
 	await commit(communityId, summary ?? `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}${byEmail ? ' y le envió la invitación por email' : ''}`, (batch) => {
@@ -90,6 +106,7 @@ export async function invite({ email, name, role, communityId, communityIds }: P
 			role,
 			communityId,
 			...(role === 'admin' ? { communityIds: communityIds ?? [] } : {}),
+			...(officeId ? { officeId, officeRole } : {}),
 			invitedBy: auth.currentUser!.uid,
 			invitedAt: serverTimestamp(),
 		});
@@ -116,13 +133,25 @@ export async function setRole(uid: string, role: Role, communityId?: string, nam
 	await commit(communityId, `Cambió el rol de ${name} a ${roles[role].label.toLowerCase()}`, batch => batch.update(doc(usersRef, uid), { role }));
 }
 
-// Their sign-in account stays, a new invitation gives them a profile again
-export async function removePerson(uid: string, communityId?: string, name = '') {
-	await commit(communityId, `Quitó a ${name} de la comunidad`, batch => batch.delete(doc(usersRef, uid)));
+// Their sign-in account stays, a new invitation gives them a profile again. Someone whose profile is another
+// community's (secondary) only leaves this one
+export async function removePerson(uid: string, communityId?: string, name = '', secondary = false) {
+	await commit(communityId, `Quitó a ${name} de la comunidad`, batch => secondary
+		? batch.update(doc(usersRef, uid), { otherCommunityIds: arrayRemove(communityId) })
+		: batch.delete(doc(usersRef, uid)));
 }
 
+export async function setOfficeRole(uid: string, officeRole: OfficeRole, name = '') {
+	await commit(undefined, `Cambió la función de ${name} a ${officeRoles[officeRole].label.toLowerCase()}`, batch => batch.update(doc(usersRef, uid), { officeRole }));
+}
+
+// To the owner and their whole staff, who see the office's communities (B3). ponytail: a pending staff invitation keeps
+// the communities it was sent with; it gets the new ones when they're next assigned
 export async function setCommunityAssigned(uid: string, communityId: string, assigned: boolean, name = '') {
-	await commit(communityId, `${assigned ? 'Asignó' : 'Desasignó'} la comunidad a ${name}`, batch => batch.update(doc(usersRef, uid), {
-		communityIds: assigned ? arrayUnion(communityId) : arrayRemove(communityId),
-	}));
+	const staff = await getDocs(query(usersRef, where('officeId', '==', uid)));
+	await commit(communityId, `${assigned ? 'Asignó' : 'Desasignó'} la comunidad a ${name}`, (batch) => {
+		for (const id of [uid, ...staff.docs.map(member => member.id)]) {
+			batch.update(doc(usersRef, id), { communityIds: assigned ? arrayUnion(communityId) : arrayRemove(communityId) });
+		}
+	});
 }

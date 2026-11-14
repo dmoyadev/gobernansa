@@ -443,7 +443,8 @@ export const debtCases = store.comm1.debtCases;
 
 /* comm2: monthly fees by hand since the takeover, Tomás and Elena domiciliated, Pablo owes his first month's */
 
-const comm2 = propertiesOf('comm2');
+// Lucía's parking space has no coefficient, so no fees
+const comm2 = propertiesOf('comm2').filter(property => property.coefficient);
 const firstMonth = dueOn(isoDate(-24));
 // The same day of the next month, or its last one
 const nextMonth = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + 1, Math.min(firstMonth.getDate(), new Date(firstMonth.getFullYear(), firstMonth.getMonth() + 2, 0).getDate()), 23, 59, 59);

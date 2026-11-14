@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { contactTypes, getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
 import { getVotingMonth, ISSUE_ICON } from '@gobernansa/shared/domain/issue.ts';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
@@ -7,6 +8,7 @@ import { computed } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
+import CommunitySwitcher from '@/modules/community/ui/CommunitySwitcher.vue';
 import { useCommunityEvents } from '@/modules/events/application/useCommunityEvents.ts';
 import EventCard from '@/modules/events/ui/EventCard.vue';
 import { getAuthorKey } from '@/modules/issues/application/authorKey.ts';
@@ -19,6 +21,7 @@ import TheHeader from '@/shared/ui/TheHeader.vue';
 const user = useCurrentUser();
 const { selectedProperty } = useUserProperties();
 const { userCommunity } = useUserCommunity();
+const { communities } = useAuth();
 const { events } = useCommunityEvents(3);
 const { issues, votingProperty, canVoteAsOwner, votesLeft, monthlyVotes } = useUserActivity();
 const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
@@ -44,8 +47,9 @@ async function showMyIssues() {
 			<h1 v-else>
 				¡Hola!
 			</h1>
+			<CommunitySwitcher v-if="communities.length > 1" />
 			<p
-				v-if="userCommunity"
+				v-else-if="userCommunity"
 				class="text-cursive"
 			>
 				Bienvenido a {{ userCommunity?.name }}

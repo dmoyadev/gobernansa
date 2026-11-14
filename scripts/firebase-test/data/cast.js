@@ -29,6 +29,8 @@ export const uids = {
 	tomas: 'manager2',
 	elena: 'user7',
 	pablo: 'user8',
+	clerk: 'staff1',
+	accountant: 'staff2',
 };
 
 // Created n days ago (or on a Date) and last touched then, by the office unless someone else is given
@@ -73,8 +75,12 @@ export const commonAreas = {
 export const users = [
 	{ uid: uids.team, email: 'lynx9011+admin@gmail.com', name: 'Equipo gobernança', role: 'superadmin', communityId: 'comm1' },
 	{ uid: uids.office, email: 'lynx9011+fincas@gmail.com', name: 'Fincas Jaén', role: 'admin', communityId: '', communityIds: ['comm1', 'comm2'] },
+	// Fincas Jaén's staff (B3): they see its communities, the clerk can't close years nor bill its fees
+	{ uid: uids.clerk, email: 'lynx9011+oficial@gmail.com', name: 'Raúl Peña', role: 'admin', communityId: '', communityIds: ['comm1', 'comm2'], officeId: uids.office, officeRole: 'clerk' },
+	{ uid: uids.accountant, email: 'lynx9011+contable@gmail.com', name: 'Inés Lara', role: 'admin', communityId: '', communityIds: ['comm1', 'comm2'], officeId: uids.office, officeRole: 'accountant' },
 	{ uid: uids.carmen, email: 'lynx9011+manager1@gmail.com', name: 'Carmen Ruiz', role: 'manager', communityId: 'comm1' },
-	{ uid: uids.lucia, email: 'lynx9011+user1@gmail.com', name: 'Lucía Martín', role: 'user', communityId: 'comm1' },
+	// Also owns a parking space in comm2 (B10), and switches between both in the app
+	{ uid: uids.lucia, email: 'lynx9011+user1@gmail.com', name: 'Lucía Martín', role: 'user', communityId: 'comm1', otherCommunityIds: ['comm2'] },
 	{ uid: uids.javier, email: 'lynx9011+user2@gmail.com', name: 'Javier Ortega', role: 'user', communityId: 'comm1' },
 	{ uid: uids.maria, email: 'lynx9011+user4@gmail.com', name: 'María Núñez', role: 'user', communityId: 'comm1' },
 	// Blocked for insulting neighbours in the comments: reads everything, can't write
@@ -123,6 +129,8 @@ export const properties = [
 	{ id: 'c2prop3', communityId: 'comm2', name: '1º A', type: 'home', coefficient: 17, ownerUid: uids.tomas, ownerName: 'Tomás Vidal', ownerEmail: 'lynx9011+manager2@gmail.com', ownerNif: '99999999R', ownerPhone: '600 200 003', mandate: { reference: 'GOB-C2PROP3-20250301', debtorName: 'Tomás Vidal', iban: 'ES1500496620861122334455', signedAt: '2025-03-01', status: 'active' } },
 	{ id: 'c2prop4', communityId: 'comm2', name: '1º B', type: 'home', coefficient: 17, ownerUid: uids.elena, ownerName: 'Elena Castro', ownerEmail: 'lynx9011+user7@gmail.com', ownerNif: '45678912S', ownerPhone: '600 200 004', mandate: { reference: 'GOB-C2PROP4-20250301', debtorName: 'Elena Castro', iban: 'ES7820854567248901234567', signedAt: '2025-03-01', status: 'active' } },
 	{ id: 'c2prop5', communityId: 'comm2', name: '2º A', type: 'home', coefficient: 17, ownerUid: uids.pablo, ownerName: 'Pablo Gil', ownerEmail: 'lynx9011+user8@gmail.com', ownerNif: '24681357B', ownerPhone: '600 200 005' },
+	// Lucía's, from comm1. No coefficient, so comm2's shares and fees stay as they are
+	{ id: 'c2prop7', communityId: 'comm2', name: 'Garaje 3', type: 'parking', coefficient: 0, ownerUid: uids.lucia, ownerName: 'Lucía Martín', ownerEmail: 'lynx9011+user1@gmail.com', ownerNif: '12345678Z', ownerPhone: '600 100 001' },
 	{ id: 'c2prop6', communityId: 'comm2', name: '2º B', type: 'home', coefficient: 17, ownerUid: '', ownerName: 'Beatriz Soto', ownerEmail: 'beatriz.soto@example.com', ownerNif: '13572468F', ownerPhone: '600 200 006' },
 ];
 

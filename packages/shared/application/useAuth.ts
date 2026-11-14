@@ -9,14 +9,15 @@ import {
 	signOut,
 	updatePassword,
 } from 'firebase/auth';
-import { clearIndexedDbPersistence, doc, getDoc, terminate, writeBatch } from 'firebase/firestore';
+import { arrayUnion, clearIndexedDbPersistence, doc, getDoc, terminate, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
-import { managesCommunity } from '../domain/user.ts';
+import { homeCommunities, managesCommunity } from '../domain/user.ts';
 import { auth, db } from '../infrastructure/firebase.ts';
 import { reportError } from '../infrastructure/monitoring.ts';
 
 const VIEW_AS_KEY = 'viewAs';
+const COMMUNITY_KEY = 'community';
 
 // Shared by every caller so the user document is listened to only once
 let shared: ReturnType<typeof createAuth> | undefined;
@@ -58,11 +59,35 @@ function createAuth() {
 		}
 	}
 
-	// Same ref as the profile (with its pending and error), with the overlay applied
+	/*
+	 * Neighbours with a home in several communities (B10) pick the one they see, kept on the device. The profile is overlaid
+	 * with it, so every screen uses it; in one they don't manage, a manager is a neighbour like any other
+	 */
+	const chosen = ref(readStorage(COMMUNITY_KEY));
+	const communities = computed(() => homeCommunities(userData.value));
+	const activeCommunity = computed(() => communities.value.includes(chosen.value ?? '') ? chosen.value : communities.value[0]);
+
+	function switchCommunity(communityId: string) {
+		chosen.value = communityId;
+		try {
+			localStorage.setItem(COMMUNITY_KEY, communityId);
+		} catch {}
+		// A full reload, so nothing loaded for the other community stays in memory
+		window.location.assign('/');
+	}
+
+	// Same ref as the profile (with its pending and error), with the overlays applied
 	const user = Object.assign(
-		computed(() => userData.value && viewingAs.value
-			? { ...userData.value, id: userData.value.id, communityId: viewingAs.value, role: 'user' as const, blocked: true }
-			: userData.value),
+		computed(() => {
+			const profile = userData.value;
+			if (profile && viewingAs.value) {
+				return { ...profile, id: profile.id, communityId: viewingAs.value, role: 'user' as const, blocked: true };
+			}
+			if (profile && activeCommunity.value && activeCommunity.value !== profile.communityId) {
+				return { ...profile, id: profile.id, communityId: activeCommunity.value, role: profile.role === 'manager' ? 'user' as const : profile.role };
+			}
+			return profile;
+		}),
 		{ data: userData.data, error: userData.error, pending: userData.pending, promise: userData.promise, stop: userData.stop },
 	) as unknown as typeof userData;
 
@@ -109,11 +134,14 @@ function createAuth() {
 		}
 	});
 
-	// Without a profile, it's their first sign-in: the profile is created from the invitation sent to their email, if there's one
-	watch(() => !!userRef.value && !userData.pending.value && userData.value === null, async (withoutProfile) => {
-		if (withoutProfile && authUser.value) {
-			await acceptInvitation(authUser.value).catch((error: unknown) => reportError(error, { action: 'Aceptar la invitación' }));
+	// Without a profile, it's their first sign-in: the profile is created from the invitation sent to their email, if there's one.
+	// With one, a neighbour may have been invited to another community where they also have a home: checked once per session
+	watch(() => !!userRef.value && !userData.pending.value && userData.value !== undefined ? userData.value : undefined, async (profile, before) => {
+		if (!authUser.value || profile === undefined || before !== undefined) {
+			return;
 		}
+		const accept = profile === null ? acceptInvitation(authUser.value) : profile.role === 'user' || profile.role === 'manager' ? joinCommunity(authUser.value) : undefined;
+		await accept?.catch((error: unknown) => reportError(error, { action: 'Aceptar la invitación' }));
 	});
 
 	async function acceptInvitation({ uid, email, emailVerified }: AuthUser) {
@@ -128,11 +156,38 @@ function createAuth() {
 			return;
 		}
 
-		const { name, role, communityId, communityIds } = invitation.data() as Invitation;
+		const { name, role, communityId, communityIds, officeId, officeRole } = invitation.data() as Invitation;
 		const batch = writeBatch(db);
-		batch.set(doc(db, 'users', uid), { email, name, role, communityId, ...(communityIds ? { communityIds } : {}) });
+		batch.set(doc(db, 'users', uid), {
+			email,
+			name,
+			role,
+			communityId,
+			...(communityIds ? { communityIds } : {}),
+			...(officeId ? { officeId, officeRole } : {}),
+		});
 		batch.delete(invitationRef);
 		// The profile is listened to, so it shows up by itself
+		await batch.commit();
+	}
+
+	// An invitation as a neighbour of another community adds it to their others. ponytail: costs one read per session even
+	// without one; a flag on the profile set by whoever invites if it shows in the quota
+	async function joinCommunity({ uid, email, emailVerified }: AuthUser) {
+		if (!email || !emailVerified) {
+			return;
+		}
+
+		const invitationRef = doc(db, 'invitations', email);
+		const invitation = await getDoc(invitationRef);
+		const data = invitation.data() as Invitation | undefined;
+		if (!data || data.role !== 'user' || data.officeId || homeCommunities(userData.value).includes(data.communityId)) {
+			return;
+		}
+
+		const batch = writeBatch(db);
+		batch.update(doc(db, 'users', uid), { otherCommunityIds: arrayUnion(data.communityId) });
+		batch.delete(invitationRef);
 		await batch.commit();
 	}
 
@@ -164,6 +219,8 @@ function createAuth() {
 
 	return {
 		user,
+		communities,
+		switchCommunity,
 		viewingAs,
 		exitViewAs,
 		sendMagicLink,
@@ -172,4 +229,12 @@ function createAuth() {
 		changePassword,
 		logout,
 	};
+}
+
+function readStorage(key: string) {
+	try {
+		return localStorage.getItem(key) ?? undefined;
+	} catch {
+		return undefined;
+	}
 }

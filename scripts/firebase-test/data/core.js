@@ -356,7 +356,7 @@ export default {
 
 		// As the first sign-in makes them from the invitation. Auth accounts are seed.js's
 		for (const { uid, ...user } of users) {
-			set(`users/${uid}`, uid === uids.office && VOLUME ? { ...user, communityIds: [...user.communityIds, ...volumeCommunities.map(community => community.id)] } : user);
+			set(`users/${uid}`, (uid === uids.office || user.officeId === uids.office) && VOLUME ? { ...user, communityIds: [...user.communityIds, ...volumeCommunities.map(community => community.id)] } : user);
 		}
 		if (VOLUME) {
 			seedVolume(set);

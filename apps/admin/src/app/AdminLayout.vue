@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { canInstall, install } from '@gobernansa/shared/application/pwa.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
+import { keepsBooks, managesCommunity, officeRoleOf, readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon, LnxShortcutsSheet, shortcutTitle, useShortcut } from 'lnxjs-components';
 import { computed, useTemplateRef, watch } from 'vue';
@@ -17,7 +17,15 @@ const route = useRoute();
 const { user, logout } = useAuth();
 
 // The profile is read after signing in. Missing, unreadable or a neighbour's (they use the webapp), the account can't use the admin.
-// Pages marked `superadmin` are the team's, `office` ones the administrators' (not managers'), and each community's are for whoever manages it
+// Pages marked `superadmin` are the team's, `office` ones the administrators' (not managers'), `books` ones also only
+// for who keeps the office's books, `owner` ones the office owner's, and each community's are for whoever manages it
+function allowed(page: Record<string, unknown>) {
+	const role = user.value?.role;
+	return (!page.superadmin || role === 'superadmin')
+		&& (!(page.office || page.books) || role !== 'manager')
+		&& (!page.books || keepsBooks(user.value))
+		&& (!page.owner || (role === 'admin' && officeRoleOf(user.value) === 'owner'));
+}
 const access = computed(() => {
 	if (user.error.value || user.value === null || user.value?.role === 'user') {
 		return 'denied';
@@ -26,7 +34,7 @@ const access = computed(() => {
 		return 'loading';
 	}
 	const { id } = route.params;
-	if ((route.meta.superadmin && user.value.role !== 'superadmin') || (route.meta.office && user.value.role === 'manager') || (typeof id === 'string' && !managesCommunity(user.value, id))) {
+	if (!allowed(route.meta) || (typeof id === 'string' && !managesCommunity(user.value, id))) {
 		return 'forbidden';
 	}
 	return 'granted';
@@ -63,11 +71,12 @@ const SECTIONS = [
 	{ to: '/announcements', label: 'Comunicados', icon: 'lucide:megaphone', combo: 'g m' },
 	{ to: '/providers', label: 'Proveedores', icon: 'lucide:hard-hat', combo: 'g p' },
 	{ to: '/mail', label: 'Correo', icon: 'lucide:mail', combo: 'g e' },
-	{ to: '/billing', label: 'Honorarios', icon: 'lucide:receipt-text', combo: 'g f', office: true },
+	{ to: '/billing', label: 'Honorarios', icon: 'lucide:receipt-text', combo: 'g f', books: true },
+	{ to: '/team', label: 'Equipo', icon: 'lucide:users-round', combo: 'g t', owner: true },
 	{ to: '/errors', label: 'Errores', icon: 'lucide:bug', combo: 'g r', superadmin: true },
 	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
 ];
-const sections = computed(() => SECTIONS.filter(section => (!section.superadmin || user.value?.role === 'superadmin') && (!section.office || user.value?.role !== 'manager')));
+const sections = computed(() => SECTIONS.filter(allowed));
 for (const section of SECTIONS) {
 	useShortcut(section.combo, () => {
 		if (sections.value.includes(section) && access.value !== 'loading' && access.value !== 'denied') {
@@ -118,6 +127,11 @@ const KEPT_PAGES = 6;
 		<WorkspaceNav v-if="current" :key="current.workspace.title" :workspace="current.workspace" :page="current.page" />
 		<main ref="content">
 			<WorkspaceTabs v-if="current" :workspace="current.workspace" :page="current.page" />
+			<!-- The rules refuse their changes; this tells them before they try -->
+			<p v-if="access === 'granted' && readsOnly(user)" class="read-only" role="status">
+				<LnxIcon icon="lucide:eye" :size="16" />
+				Solo lectura: puedes ver las comunidades del despacho, pero no cambiar nada.
+			</p>
 			<!-- Always there, so a page without access in between doesn't throw away the kept ones. The community form isn't
 				kept: each section saves the whole community, and a kept one would write back the others' old values -->
 			<RouterView v-slot="{ Component, route: page }">
@@ -367,5 +381,16 @@ const KEPT_PAGES = 6;
 ::highlight(search) {
 	background: #fde68a;
 	color: inherit;
+}
+.read-only {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	margin-bottom: var(--lnx-spacing-3);
+	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+	border-radius: var(--lnx-radius-3);
+	background: var(--color-gray-1);
+	color: var(--color-gray-7);
+	font-size: var(--lnx-font-size-small);
 }
 </style>

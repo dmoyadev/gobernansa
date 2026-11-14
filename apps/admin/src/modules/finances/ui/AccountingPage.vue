@@ -2,9 +2,11 @@
 import type { Account, CustomAccount, FiscalYearClosing, JournalEntry, JournalLine, ManualEntry } from '@gobernansa/shared/domain/accounting.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Timestamp } from 'firebase/firestore';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { balances, balanceSheet, beforeClosing, buildLedger, closeYear, closingMatches, entryKinds, incomeStatement, isBalanced, isValidAccountCode, sortedAccounts, toCsv } from '@gobernansa/shared/domain/accounting.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
+import { keepsBooks } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -18,6 +20,8 @@ import { closeFiscalYear, deleteManualEntry, loadLedgerData, reopenFiscalYear, r
 const props = defineProps<{ id: string }>();
 
 const ask = useConfirm();
+// Clerks keep the books day to day, but closing a year is for the office's owner and accountants (B3)
+const { user } = useAuth();
 
 type LedgerData = Awaited<ReturnType<typeof loadLedgerData>>;
 
@@ -490,11 +494,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 						<template v-if="closed && closedAt"> · cerrado el {{ dateFormat.format(closedAt) }}</template>
 						· {{ (closed ? closing!.result : proposedClosing.result) >= 0 ? 'excedente' : 'déficit' }} de {{ formatCents(Math.abs(closed ? closing!.result : proposedClosing.result)) }}
 					</span>
-					<LnxButton v-if="closed" mode="clear" class="lnx-size-small" :is-loading="closingBusy" @click="reopen()">
+					<LnxButton v-if="closed && keepsBooks(user)" mode="clear" class="lnx-size-small" :is-loading="closingBusy" @click="reopen()">
 						<LnxIcon icon="lucide:lock-open" />
 						Reabrir
 					</LnxButton>
-					<LnxButton v-else class="lnx-size-small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
+					<LnxButton v-else-if="!closed && keepsBooks(user)" class="lnx-size-small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
 						<LnxIcon icon="lucide:lock" />
 						Cerrar el ejercicio
 					</LnxButton>

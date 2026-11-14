@@ -3,13 +3,15 @@ import type { Budget, VatRate } from '@gobernansa/shared/domain/finance.ts';
 import type { VerifactuLink, VerifactuRecord } from '@gobernansa/shared/domain/verifactu.ts';
 import type { FirestoreError, Transaction } from 'firebase/firestore';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { counterKey, expenseIdOf, feeInvoiceAmounts, invoiceNumber, invoiceTypes } from '@gobernansa/shared/domain/billing.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
+import { officeOf } from '@gobernansa/shared/domain/user.ts';
 import { aeatDate, altaRecord, anulacionRecord, generationTime, simulatedSubmission } from '@gobernansa/shared/domain/verifactu.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { arrayUnion, collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
-import { useCurrentUser, useDocument } from 'vuefire';
+import { useDocument } from 'vuefire';
 
 // Each invoice writes itself, its record and the activity entry, plus the office once: within the 500 writes of a
 // transaction. ponytail: an office with more communities bills them in several runs
@@ -23,28 +25,38 @@ function signedUid() {
 	return uid;
 }
 
-function officeRef(uid: string) {
-	return doc(db, 'offices', uid);
+// The office the signed in administrator works in (B3), whose id is its owner's uid
+function signedOffice() {
+	signedUid();
+	const office = officeOf(useAuth().user.value);
+	if (!office) {
+		throw new Error('The admin profile must be loaded to invoice');
+	}
+	return office;
 }
 
-function invoicesRef(uid: string) {
-	return collection(db, 'offices', uid, 'invoices');
+function officeRef(office: string) {
+	return doc(db, 'offices', office);
 }
 
-function recordsRef(uid: string) {
-	return collection(db, 'offices', uid, 'verifactu');
+function invoicesRef(office: string) {
+	return collection(db, 'offices', office, 'invoices');
 }
 
-// The signed in administrator's, a single document kept live
+function recordsRef(office: string) {
+	return collection(db, 'offices', office, 'verifactu');
+}
+
+// The signed in administrator's office, a single document kept live
 export function useOffice() {
-	const user = useCurrentUser();
-	return useDocument<Office>(computed(() => user.value ? officeRef(user.value.uid) : null));
+	const { user } = useAuth();
+	return useDocument<Office>(computed(() => user.value ? officeRef(officeOf(user.value)) : null));
 }
 
 export async function saveOffice(data: OfficeData, exists: boolean) {
 	const uid = signedUid();
 	const now = serverTimestamp();
-	await writeBatch(db).set(officeRef(uid), {
+	await writeBatch(db).set(officeRef(signedOffice()), {
 		...data,
 		updatedAt: now,
 		updatedBy: uid,
@@ -58,29 +70,29 @@ function toInvoices(docs: { id: string; data: () => unknown }[]) {
 
 // The year's invoices once, newest number first
 export async function loadInvoices(year: number) {
-	const snapshot = await getDocs(query(invoicesRef(signedUid()), where('year', '==', year)));
+	const snapshot = await getDocs(query(invoicesRef(signedOffice()), where('year', '==', year)));
 	return toInvoices(snapshot.docs).sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
 }
 
 export async function loadInvoice(id: string) {
-	const snapshot = await getDoc(doc(invoicesRef(signedUid()), id));
+	const snapshot = await getDoc(doc(invoicesRef(signedOffice()), id));
 	return snapshot.exists() ? toInvoices([snapshot])[0] : undefined;
 }
 
 export async function loadInvoiceRecords(invoiceId: string) {
-	const snapshot = await getDocs(query(recordsRef(signedUid()), where('invoiceId', '==', invoiceId)));
+	const snapshot = await getDocs(query(recordsRef(signedOffice()), where('invoiceId', '==', invoiceId)));
 	return snapshot.docs.map(record => ({ ...record.data(), id: record.id }) as VerifactuRecord).sort((a, b) => a.seq - b.seq);
 }
 
 // The year's records once, in the chain's order
 export async function loadRecords(year: number) {
-	const snapshot = await getDocs(query(recordsRef(signedUid()), where('year', '==', year)));
+	const snapshot = await getDocs(query(recordsRef(signedOffice()), where('year', '==', year)));
 	return snapshot.docs.map(record => ({ ...record.data(), id: record.id }) as VerifactuRecord).sort((a, b) => a.seq - b.seq);
 }
 
 // The office as it is in the transaction, and where its chain goes on. A new NIF is another issuer, with its own chain
-async function readOffice(tx: Transaction, uid: string) {
-	const snapshot = await tx.get(officeRef(uid));
+async function readOffice(tx: Transaction, officeId: string) {
+	const snapshot = await tx.get(officeRef(officeId));
 	if (!snapshot.exists()) {
 		throw new Error('Faltan los datos fiscales del despacho');
 	}
@@ -104,10 +116,11 @@ export interface IssueDraft extends InvoiceDraft {
  */
 export async function issueInvoices(drafts: IssueDraft[], monthlyFees?: Record<string, number>) {
 	const uid = signedUid();
+	const officeId = signedOffice();
 	return runTransaction(db, async (tx) => {
-		const { office, ...state } = await readOffice(tx, uid);
+		const { office, ...state } = await readOffice(tx, officeId);
 		let { chain, seq } = state;
-		const existing = await Promise.all(drafts.map(async draft => tx.get(doc(invoicesRef(uid), draft.id))));
+		const existing = await Promise.all(drafts.map(async draft => tx.get(doc(invoicesRef(officeId), draft.id))));
 		const counters = { ...office.counters };
 		const lastDates = { ...office.lastDates };
 		const now = serverTimestamp();
@@ -142,10 +155,10 @@ export async function issueInvoices(drafts: IssueDraft[], monthlyFees?: Record<s
 			};
 			const record = await altaRecord(invoice, { seq: ++seq, previous: chain, generatedAt: generationTime(), submission: simulatedSubmission() }, uid);
 			const { id, ...data } = invoice;
-			tx.set(doc(invoicesRef(uid), id), { ...data, huella: record.huella, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
-			tx.set(doc(recordsRef(uid), `${id}-alta`), { ...record, createdAt: now, createdBy: uid });
+			tx.set(doc(invoicesRef(officeId), id), { ...data, huella: record.huella, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
+			tx.set(doc(recordsRef(officeId), `${id}-alta`), { ...record, createdAt: now, createdBy: uid });
 			if (draft.rectifies) {
-				tx.update(doc(invoicesRef(uid), draft.rectifies.id), { rectifiedBy: arrayUnion(invoice.number), updatedAt: now, updatedBy: uid });
+				tx.update(doc(invoicesRef(officeId), draft.rectifies.id), { rectifiedBy: arrayUnion(invoice.number), updatedAt: now, updatedBy: uid });
 			}
 			logActivity(tx, draft.communityId, {
 				area: 'finance',
@@ -159,7 +172,7 @@ export async function issueInvoices(drafts: IssueDraft[], monthlyFees?: Record<s
 		}
 
 		if (issued.length || monthlyFees) {
-			tx.update(officeRef(uid), {
+			tx.update(officeRef(officeId), {
 				counters,
 				lastDates,
 				...(chain ? { chain } : {}),
@@ -177,13 +190,14 @@ export async function issueInvoices(drafts: IssueDraft[], monthlyFees?: Record<s
 // both records. One that reached the community is corrected with a rectificativa instead
 export async function annulInvoice(invoice: FeeInvoice) {
 	const uid = signedUid();
+	const officeId = signedOffice();
 	await runTransaction(db, async (tx) => {
-		const { seq, chain } = await readOffice(tx, uid);
+		const { seq, chain } = await readOffice(tx, officeId);
 		const record = await anulacionRecord(invoice, { seq: seq + 1, previous: chain, generatedAt: generationTime(), submission: simulatedSubmission() }, uid);
 		const now = serverTimestamp();
-		tx.set(doc(recordsRef(uid), `${invoice.id}-anulacion`), { ...record, createdAt: now, createdBy: uid });
-		tx.update(doc(invoicesRef(uid), invoice.id), { annulled: true, updatedAt: now, updatedBy: uid });
-		tx.update(officeRef(uid), { chain: link(record), recordCount: seq + 1, updatedAt: now, updatedBy: uid });
+		tx.set(doc(recordsRef(officeId), `${invoice.id}-anulacion`), { ...record, createdAt: now, createdBy: uid });
+		tx.update(doc(invoicesRef(officeId), invoice.id), { annulled: true, updatedAt: now, updatedBy: uid });
+		tx.update(officeRef(officeId), { chain: link(record), recordCount: seq + 1, updatedAt: now, updatedBy: uid });
 		logActivity(tx, invoice.communityId, {
 			area: 'finance',
 			summary: `Anuló el registro de la factura de honorarios ${invoice.number} del despacho`,
@@ -199,8 +213,9 @@ export async function annulInvoice(invoice: FeeInvoice) {
  */
 export async function recordInBooks(invoice: FeeInvoice, office: Office, itemId: string) {
 	const uid = signedUid();
+	const officeId = signedOffice();
 	// Recorded meanwhile (another tab): it isn't written again over what was paid since
-	if ((await getDoc(doc(invoicesRef(uid), invoice.id))).data()?.expenseId) {
+	if ((await getDoc(doc(invoicesRef(officeId), invoice.id))).data()?.expenseId) {
 		return;
 	}
 	const write = async (providerId: string, created: boolean) => {
@@ -226,7 +241,7 @@ export async function recordInBooks(invoice: FeeInvoice, office: Office, itemId:
 				updatedAt: now,
 				updatedBy: uid,
 			});
-			batch.update(officeRef(uid), { providerId });
+			batch.update(officeRef(officeId), { providerId });
 		} else {
 			batch.update(providerRef, { communityIds: arrayUnion(invoice.communityId), updatedAt: now, updatedBy: uid });
 		}
@@ -251,7 +266,7 @@ export async function recordInBooks(invoice: FeeInvoice, office: Office, itemId:
 			updatedAt: now,
 			updatedBy: uid,
 		});
-		batch.update(doc(invoicesRef(uid), invoice.id), { expenseId: expenseIdOf(invoice.id), updatedAt: now, updatedBy: uid });
+		batch.update(doc(invoicesRef(officeId), invoice.id), { expenseId: expenseIdOf(invoice.id), updatedAt: now, updatedBy: uid });
 		logActivity(batch, invoice.communityId, {
 			area: 'finance',
 			summary: `Anotó la factura de honorarios ${invoice.number} del despacho como gasto por ${formatCents(invoice.total)}`,
