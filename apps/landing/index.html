@@ -3459,6 +3459,137 @@
 			}
 		}
 
+		/* FAQ: the office's questions and the neighbour's side by side, each answer hanging from a rule like the features */
+		.faq {
+			padding-bottom: 88px;
+		}
+
+		.faq-head {
+			max-width: 620px;
+		}
+
+		.faq-head p {
+			margin-top: 14px;
+		}
+
+		.faq-columns {
+			display: grid;
+			gap: 56px;
+			margin-top: 40px;
+		}
+
+		.faq-who {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			margin-bottom: 16px;
+			font-size: 20px;
+		}
+
+		.faq summary {
+			padding-right: 52px;
+			color: var(--ink);
+			font: 700 17px/1.35 var(--heading);
+		}
+
+		.faq details p {
+			padding: 0 12px 20px;
+		}
+
+		.faq details:last-of-type {
+			border-bottom: 1.5px solid var(--ink);
+		}
+
+		.faq .button {
+			margin-top: 24px;
+		}
+
+		.faq-tabs {
+			display: none;
+		}
+
+		@media (max-width: 859.98px) {
+			.faq-live .faq-tabs {
+				display: flex;
+				margin-top: 32px;
+				border: 1.5px solid var(--ink);
+				border-radius: var(--radius-s);
+				overflow: hidden;
+			}
+
+			.faq-tabs button {
+				flex: 1;
+				min-height: 44px;
+				border: 0;
+				background: transparent;
+				color: var(--ink);
+				font: 700 15px var(--heading);
+				cursor: pointer;
+			}
+
+			.faq-tabs [aria-pressed='true'] {
+				background: var(--ink);
+				color: #fff;
+			}
+
+			/* Inside, so the box's clipping doesn't cut it */
+			.faq-tabs button:focus-visible {
+				outline-offset: -5px;
+			}
+
+			/* Each column one page of the strip; it bleeds to the screen's edges so focus rings aren't cut there */
+			.faq-live .faq-columns {
+				grid-auto-flow: column;
+				grid-auto-columns: 100%;
+				gap: 20px;
+				margin: 14px -20px 0;
+				padding: 6px 20px;
+				overflow-x: auto;
+				scroll-snap-type: x mandatory;
+				scroll-padding-inline: 20px;
+				overscroll-behavior-x: contain;
+				scrollbar-width: none;
+			}
+
+			.faq-live .faq-columns::-webkit-scrollbar {
+				display: none;
+			}
+
+			.faq-live .faq-columns > div {
+				scroll-snap-align: start;
+			}
+
+			/* The tabs already say whose questions these are: still read out, just not shown twice */
+			.faq-live .faq-who {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				overflow: hidden;
+				clip-path: inset(50%);
+				white-space: nowrap;
+			}
+		}
+
+		@media (min-width: 860px) {
+			.faq {
+				padding-bottom: 120px;
+			}
+
+			.faq-columns {
+				grid-template-columns: 1fr 1fr;
+				gap: 64px;
+				margin-top: 56px;
+			}
+
+			.faq summary {
+				padding-right: 64px;
+			}
+
+			.faq details p {
+				padding: 0 22px 24px;
+			}
+		}
+
 		/* Contact */
 		.contact {
 			padding-block: 80px;
@@ -5009,6 +5140,84 @@
 				</div>
 			</section>
 
+			<section class="wrap faq" id="preguntas">
+				<header class="faq-head">
+					<h2>Las preguntas de siempre, del despacho y del vecino.</h2>
+					<p>Si llevas comunidades, empieza por las del despacho. Si vives en una y te gustaría tener la app, las del vecino son para ti.</p>
+				</header>
+				<!-- Phones, with the script: the columns become two pages of a strip that swipes, and these tabs jump between them -->
+				<div class="faq-tabs">
+					<button type="button" aria-pressed="true">Para despachos</button>
+					<button type="button" aria-pressed="false">Para vecinos</button>
+				</div>
+				<div class="faq-columns">
+					<div>
+						<h3 class="faq-who"><span class="tl-face tl-office" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg></span>Si llevas un despacho</h3>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Tengo que dejar mi programa de siempre?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>No. Empiezas con unas pocas comunidades y conviven con tu programa actual. El censo se pega desde Excel o CSV, la contabilidad se exporta a ContaPlus, y la migración y la formación las hago yo.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Hay que instalar algo?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>No. Todo funciona en el navegador, desde cualquier ordenador. Si lo prefieres, se instala como una app en el ordenador y en el móvil.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Mis vecinos, sobre todo los mayores, la van a usar?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Les llega un enlace al correo y ya están dentro, sin descargar nada ni recordar contraseñas. Quien no tiene email entra con un código impreso que le das tú, y a quien prefiera el papel se lo sigues dando como siempre.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Los ficheros del banco y de Hacienda salen de aquí?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Sí. La remesa SEPA y los modelos 347, 111, 115, 190 y 184 salen con su fichero, comprobado antes de descargarlo. Tú los subes al banco o a la Sede de la AEAT, como ahora.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Puede usarlo todo mi equipo?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Sí. Cada persona del despacho entra con su usuario y sus permisos, también de solo lectura, y queda registrado quién cambió qué.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿De quién son los datos?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Tuyos y de tus comunidades. Exportas cualquier comunidad entera en un ZIP cuando quieras, y si lo dejas, te lo llevas todo. Antes de cargar nada firmamos el contrato de encargado del tratamiento que pide el RGPD.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Cuánto cuesta?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>El piloto, nada: tres meses con 3 a 5 comunidades. Después, precio de fundador congelado dos años para los primeros despachos, que te doy en la demo. Los vecinos no pagan nada.</p>
+						</details>
+						<a class="button" href="#demo">Pide una demo de 15 minutos</a>
+					</div>
+					<div>
+						<h3 class="faq-who"><span class="tl-face tl-neighbour" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/></svg></span>Si vives en una comunidad</h3>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Qué puedo hacer desde el móvil?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Avisar de una avería con fotos y seguirla hasta que está arreglada, votar o delegar tu voto en las juntas, reservar las zonas comunes y tener a mano tus recibos y los documentos de la comunidad.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Cuánto me cuesta?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Nada. La app la contrata el despacho y para los vecinos es gratis.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Tengo que descargar algo o recordar otra contraseña?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>No. Te llega un enlace al correo y entras. Si quieres, la añades a la pantalla de inicio y te llegan los avisos como en cualquier app. Sin email, entras con un código que te da el despacho.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Los demás vecinos ven mis avisos?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Ven la avería, para que nadie la avise dos veces y puedan apoyarla, pero no quién dio el aviso.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Puedo usarla aunque mi administrador no la tenga?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>No: es la app de tu comunidad y la pone en marcha tu despacho, con el censo, los recibos y las juntas de verdad. Por eso, si te gusta, lo que funciona es proponérselo.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Qué gana mi administrador?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Menos llamadas y menos WhatsApp: los avisos le llegan ordenados y con fotos. Y no es solo una app, es el programa entero del despacho, con recibos, contabilidad, Hacienda y juntas. Además, puede probarlo tres meses sin pagar.</p>
+						</details>
+						<details class="fx-tile">
+							<summary class="fx-face">¿Cómo se lo propongo?<span class="fx-plus" aria-hidden="true"></span></summary>
+							<p>Mándale esta página con el correo que te dejo escrito aquí abajo. Y si lo pedís varios vecinos, o el presidente en la próxima junta, mejor todavía.</p>
+						</details>
+						<a class="button faq-mail" href="mailto:?subject=Una%20app%20para%20nuestra%20comunidad">Escribe a tu administrador</a>
+					</div>
+				</div>
+			</section>
+
 			<section id="demo" class="contact">
 				<div class="wrap">
 					<header>
@@ -5073,6 +5282,7 @@
 							<li><a href="#dia">Un día cualquiera</a></li>
 							<li><a href="#funciones">Todo lo que hace</a></li>
 							<li><a href="#piloto">El piloto</a></li>
+							<li><a href="#preguntas">Preguntas frecuentes</a></li>
 						</ul>
 					</div>
 					<div>
@@ -5219,7 +5429,38 @@
 			play();
 		}
 
-		const BOT = 'NDIwMTI2ODcxfGVnYXNzZU1kbmVzL0lSaVdSVWI0ZWxSRE9KQm11bmpxX2lib0MwV2swZkJISEFBOjk4MjI1MTMxMDl0b2IvZ3JvLm1hcmdlbGV0LmlwYS8vOnNwdHRo';
+		// The neighbour's email to their office, already written and carrying this page's address wherever it's published.
+		// Phones: the floating «Pide una demo» is for offices, so it gives way to the neighbour's column and its button
+		const proposal = document.querySelector('.faq-mail');
+		coverObserver.observe(proposal.parentElement);
+		proposal.href +=`&body=${encodeURIComponent(`Hola:
+
+He visto gobernança, un programa para despachos que trae una app para los vecinos: avisaríamos de las averías con fotos, votaríamos en las juntas y veríamos nuestros recibos desde el móvil. A vosotros os ahorraría llamadas, y lleva también los recibos, la contabilidad y las juntas.
+
+Se puede probar tres meses sin pagar con unas pocas comunidades. ¿Le echáis un vistazo?
+
+${location.origin}${location.pathname}
+
+Un saludo`)}`;
+
+		{
+			// Phones: the office's questions and the neighbour's as two pages of a strip, with tabs to jump between them.
+			// Nothing is hidden: the other page is a swipe away and find in page still reaches it
+			const faq = document.querySelector('.faq');
+			const columns = faq.querySelector('.faq-columns');
+			const tabs = [...faq.querySelectorAll('.faq-tabs button')];
+			const step = () => columns.children[1].offsetLeft - columns.children[0].offsetLeft;
+			// A tab switches at once, like any tab; the slide is for the finger
+			tabs.forEach((tab, index) => tab.addEventListener('click', () => (columns.scrollLeft = index * step())));
+			// Swiping, or tabbing into the other page, moves the tabs too
+			columns.addEventListener('scroll', () => {
+				const shown = Math.round(columns.scrollLeft / step());
+				tabs.forEach((tab, index) => tab.setAttribute('aria-pressed', String(index === shown)));
+			}, { passive: true });
+			faq.classList.add('faq-live');
+		}
+
+		const BOT ='NDIwMTI2ODcxfGVnYXNzZU1kbmVzL0lSaVdSVWI0ZWxSRE9KQm11bmpxX2lib0MwV2swZkJISEFBOjk4MjI1MTMxMDl0b2IvZ3JvLm1hcmdlbGV0LmlwYS8vOnNwdHRo';
 
 		const form = document.getElementById('lead');
 		const status = document.getElementById('status');
