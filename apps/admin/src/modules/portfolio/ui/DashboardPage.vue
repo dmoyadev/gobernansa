@@ -174,7 +174,9 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 			</table>
 		</div>
 		<p v-else class="hint">
-			No gestionas ninguna comunidad.
+			Aún no tienes comunidades. <RouterLink to="/">
+				Créalas o impórtalas desde Comunidades
+			</RouterLink> y aquí verás sus cifras juntas.
 		</p>
 	</section>
 </template>

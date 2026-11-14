@@ -19,6 +19,7 @@ import { loadCommunity } from '../application/useCommunities.ts';
 import { loadNeighbourFigures } from '../application/useCommunityDashboard.ts';
 import CommunityDashboard from './CommunityDashboard.vue';
 import CommunitySearch from './CommunitySearch.vue';
+import CommunitySetup from './CommunitySetup.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -560,6 +561,8 @@ useEventListener(window, 'pointerup', disarm);
 			</button>
 		</div>
 	</header>
+
+	<CommunitySetup :community-id="id" :community :neighbours />
 
 	<CommunityDashboard ref="dashboard" :community-id="id" :categories="community && getIssueCategories(community)" />
 
