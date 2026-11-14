@@ -20,6 +20,19 @@ import { userDocumentCategories } from '../domain/user.ts';
 const ask = useConfirm();
 
 const { user, logout, changePassword } = useAuth();
+
+// Without email (B2.4) the account lives on this device only: signed out, they need a new code to come back
+async function signOut() {
+	if (!user.value?.email && !await ask({
+		title: '¿Cerrar sesión?',
+		message: 'Entraste con un código. Para volver a entrar necesitarás que el administrador te dé uno nuevo.',
+		confirmText: 'Cerrar sesión',
+		variant: 'danger',
+	})) {
+		return;
+	}
+	await logout();
+}
 const { userCommunity } = useUserCommunity();
 const { userProperties, selectedProperty } = useUserProperties();
 const propertyChoices = computed(() => userProperties.value.map(property => ({ value: property, label: property.name, icon: propertyTypeIcons[property.type] })));
@@ -163,7 +176,7 @@ async function savePassword() {
 <template>
 	<TheHeader>
 		<h1>{{ user?.name || 'Perfil' }}</h1>
-		<p>{{ user?.email }}</p>
+		<p>{{ user?.email || 'Entraste con un código del administrador' }}</p>
 	</TheHeader>
 
 	<MainLayout>
@@ -312,7 +325,8 @@ async function savePassword() {
 						</span>
 					</LnxSwitch>
 				</li>
-				<li>
+				<!-- Without email there's nothing to sign in with a password -->
+				<li v-if="user?.email">
 					<details class="password">
 						<summary class="row">
 							<span class="icon">
@@ -370,7 +384,7 @@ async function savePassword() {
 			</ul>
 		</section>
 
-		<LnxButton variant="danger" mode="outline" is-block @click="logout()">
+		<LnxButton variant="danger" mode="outline" is-block @click="signOut()">
 			<LnxIcon icon="lucide:log-out" />
 			Cerrar sesión
 		</LnxButton>

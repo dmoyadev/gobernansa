@@ -53,6 +53,24 @@ onBeforeMount(async () => {
 	}
 });
 
+// A neighbour without email (B2.4) enters with the code the administrator printed for them
+const withCode = ref(false);
+const code = ref('');
+const codeError = ref(false);
+watch(code, () => codeError.value = false);
+
+async function signInWithCode() {
+	loadingLogin.value = true;
+	try {
+		await useAuth().signInWithCode(code.value);
+		await router.replace('/');
+	} catch {
+		codeError.value = true;
+	} finally {
+		loadingLogin.value = false;
+	}
+}
+
 async function doSignIn() {
 	errorLogin.value = undefined;
 	triedSubmit.value = true;
@@ -102,7 +120,38 @@ async function doSignIn() {
 			quien se preocupa por ella.
 		</p>
 
-		<form @submit.prevent="doSignIn()">
+		<form v-if="withCode" @submit.prevent="signInWithCode()">
+			<section>
+				<LnxInput
+					v-model="code"
+					:has-error="codeError"
+					:disabled="loadingLogin"
+					autocomplete="off"
+					autocapitalize="characters"
+					spellcheck="false"
+					required
+					autofocus
+				>
+					Introduce tu código
+					<template #helper>
+						El que te ha dado tu administrador, en papel. Por ejemplo: ABCDE-23456
+					</template>
+					<template #error>
+						Ese código no es válido o ya se ha usado. Pide uno nuevo a tu administrador.
+					</template>
+				</LnxInput>
+
+				<LnxButton type="submit" :loading="loadingLogin" :disabled="loadingLogin">
+					<LnxIcon icon="lucide:arrow-right" />
+					Entrar
+				</LnxButton>
+				<LnxButton mode="clear" @click="withCode = false">
+					Entrar con mi email
+				</LnxButton>
+			</section>
+		</form>
+
+		<form v-else @submit.prevent="doSignIn()">
 			<section>
 				<LnxInput
 					v-model="email"
@@ -163,6 +212,9 @@ async function doSignIn() {
 						<LnxIcon icon="lucide:arrow-right" />
 						Entrar
 					</template>
+				</LnxButton>
+				<LnxButton mode="clear" @click="withCode = true">
+					No tengo email: tengo un código
 				</LnxButton>
 			</section>
 		</form>

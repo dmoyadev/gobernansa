@@ -129,7 +129,7 @@ What's shown to the offices runs on its own Firebase project, `gobernansa-demo`,
 Once:
 
 1. **Firebase console → Add project** `gobernansa-demo`, without Analytics. **Firestore → Create database** in `europe-southwest1` (Madrid), production mode.
-2. **Authentication → Sign-in method → Email/Password**, with **Email link** on.
+2. **Authentication → Sign-in method → Email/Password**, with **Email link** on, and **Anonymous** on too: neighbours without email sign in with the code the office prints (B2.4). Free, like the rest of Auth on this plan.
 3. **Project settings → Your apps → Web**, and **Cloud Messaging → Web Push certificates → Generate**. Copy `.env.example` to `.env.demo.local` at the root and fill it with that config and:
    - `VITE_FIREBASE_EMULATORS='false'`, `VITE_ENV_NAME='demo'` (the tab reads «gobernança DEMO») and `VITE_MAIL_MODE='demo'`;
    - `VITE_WEBAPP_URL='https://gobernansa-demo.web.app'`;

@@ -111,6 +111,22 @@ service cloud.firestore {
         && profile.get('officeRole', null) == invitation.get('officeRole', null);
     }
 
+    // A neighbour without email (B2.4) signs in anonymously with the code the office printed for them: the profile is the
+    // invitation's, it keeps the code, and the invitation is gone in the same write, so each code makes a single account
+    function redeemsCode(profile) {
+      let invitation = get(/databases/$(database)/documents/invitations/$(profile.inviteCode)).data;
+      return request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && profile.keys().hasOnly(['email', 'name', 'role', 'communityId', 'inviteCode'])
+        && profile.inviteCode is string
+        && invitation.get('byCode', false) == true
+        && profile.email == ''
+        && profile.name == invitation.name
+        && profile.role == 'user'
+        && invitation.role == 'user'
+        && profile.communityId == invitation.communityId
+        && !existsAfter(/databases/$(database)/documents/invitations/$(profile.inviteCode));
+    }
+
     // Someone with a profile invited as a neighbour of another community joins it, adding it to their other ones (B10)
     function joinsByInvitation() {
       let invitation = get(/databases/$(database)/documents/invitations/$(request.auth.token.email)).data;
@@ -254,7 +270,7 @@ service cloud.firestore {
         || (resource.data.role == 'manager' && inCommunity(resource.data.communityId))
         || resource.data.get('communityIds', []).hasAny(myCommunities())
       );
-      allow create: if signedIn() && request.auth.uid == uid && matchesInvitation(request.resource.data);
+      allow create: if signedIn() && request.auth.uid == uid && (matchesInvitation(request.resource.data) || redeemsCode(request.resource.data));
       // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves.
       // Only the team assigns communities to an office, in each of its members' profiles
       allow update: if signedIn() && request.auth.uid != uid && (
@@ -388,8 +404,13 @@ service cloud.firestore {
     // The id is the email in lowercase, as sign-in tokens have it
     // Those to an office (officeId), by its owner
     match /invitations/{email} {
-      allow read: if isInvitee(email) || oversees(resource.data.communityId) || inMyOffice(resource.data);
-      allow create: if request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'officeId', 'officeRole', 'invitedBy', 'invitedAt'])
+      // A code is read by whoever types it, to make their profile from it, never listed: the code is the secret
+      allow get: if isInvitee(email) || oversees(resource.data.communityId) || inMyOffice(resource.data)
+        || (signedIn() && resource.data.get('byCode', false) == true);
+      allow list: if isInvitee(email) || oversees(resource.data.communityId) || inMyOffice(resource.data);
+      allow create: if request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'officeId', 'officeRole', 'invitedBy', 'invitedAt', 'byCode'])
+        // By code, only neighbours, and the id is no email anyone could sign in with
+        && (!('byCode' in request.resource.data) || (request.resource.data.byCode == true && request.resource.data.role == 'user' && !email.matches('.*@.*')))
         && request.resource.data.email == email
         // Comments are signed with it, so it can't be missing
         && request.resource.data.name is string && request.resource.data.name.size() > 0
@@ -399,7 +420,11 @@ service cloud.firestore {
             && !('officeId' in request.resource.data) && !('officeRole' in request.resource.data)
             && (!('communityIds' in request.resource.data) || isSuperadmin()))
           || invitesToOffice(request.resource.data));
-      allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId) || inMyOffice(resource.data);
+      allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId) || inMyOffice(resource.data)
+        // Redeemed, with the profile made from it in the same write
+        || (signedIn() && resource.data.get('byCode', false) == true
+          && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('inviteCode', '') == email
+          && !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
     }
 
     // Notifications of the community, sent by whoever manages it

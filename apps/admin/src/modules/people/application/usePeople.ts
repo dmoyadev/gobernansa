@@ -72,7 +72,7 @@ async function commit(communityId: string | undefined, summary: string, change: 
 
 // Each community's name, read once per session, so inviting a whole census doesn't read it once per owner
 const communityNames = new Map<string, Promise<string>>();
-async function communityName(communityId: string) {
+export async function communityName(communityId: string) {
 	if (!communityNames.has(communityId)) {
 		communityNames.set(communityId, loadCommunity(communityId).then(community => community?.name ?? '', (error: unknown) => {
 			communityNames.delete(communityId);
@@ -96,10 +96,11 @@ async function invitationEmail({ email, name, role, communityId }: Pick<Invitati
 
 // Its id is the email in lowercase, as sign-in tokens have it. Fails when that email already has one. byEmail also queues
 // the invitation email
-export async function invite({ email, name, role, communityId, communityIds, officeId, officeRole }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds' | 'officeId' | 'officeRole'>, summary?: string, byEmail = false) {
-	const id = email.trim().toLowerCase();
+// A neighbour without email (byCode, B2.4) has the printed code as its id and email
+export async function invite({ email, name, role, communityId, communityIds, officeId, officeRole, byCode }: Pick<Invitation, 'email' | 'name' | 'role' | 'communityId' | 'communityIds' | 'officeId' | 'officeRole' | 'byCode'>, summary?: string, byEmail = false) {
+	const id = byCode ? email : email.trim().toLowerCase();
 	const mail = byEmail ? await invitationEmail({ email: id, name, role, communityId }) : undefined;
-	await commit(communityId, summary ?? `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}${byEmail ? ' y le envió la invitación por email' : ''}`, (batch) => {
+	await commit(communityId, summary ?? `Invitó a ${name.trim()} como ${roles[role].label.toLowerCase()}${byCode ? ' con un código impreso' : ''}${byEmail ? ' y le envió la invitación por email' : ''}`, (batch) => {
 		batch.set(doc(invitationsRef, id), {
 			email: id,
 			name: name.trim(),
@@ -107,6 +108,7 @@ export async function invite({ email, name, role, communityId, communityIds, off
 			communityId,
 			...(role === 'admin' ? { communityIds: communityIds ?? [] } : {}),
 			...(officeId ? { officeId, officeRole } : {}),
+			...(byCode ? { byCode } : {}),
 			invitedBy: auth.currentUser!.uid,
 			invitedAt: serverTimestamp(),
 		});

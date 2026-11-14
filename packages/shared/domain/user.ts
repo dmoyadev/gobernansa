@@ -21,12 +21,35 @@ export interface User {
 	name: string;
 	// By whoever manages their community: they can still read, but not report, comment, vote or book
 	blocked?: boolean;
+	// Neighbours without email (B2.4): the printed code they signed in with. Their email is ''
+	inviteCode?: string;
 }
 
 // Sent from the admin platform, and turned into the profile of whoever it's for on their first sign-in
 export interface Invitation extends Pick<User, 'email' | 'name' | 'role' | 'communityId' | 'communityIds' | 'officeId' | 'officeRole'> {
 	invitedBy: string;
 	invitedAt: Timestamp;
+	// For a neighbour without email (B2.4): the office prints it, and its id and email are the code
+	byCode?: boolean;
+}
+
+// No 0, O, 1 or I to misread on paper. 32 letters, so each random byte gives one without bias: 10 of them are 50 bits,
+// out of reach of guessing them one at a time
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+export function newInviteCode() {
+	return Array.from(crypto.getRandomValues(new Uint8Array(10)), byte => CODE_ALPHABET[byte % 32]).join('');
+}
+
+// As printed, in two halves
+export function formatInviteCode(code: string) {
+	return `${code.slice(0, 5)}-${code.slice(5)}`;
+}
+
+// As typed: in any case, with spaces or dashes
+const NOT_IN_CODE = /[^A-Z0-9]/g;
+export function parseInviteCode(typed: string) {
+	return typed.toUpperCase().replace(NOT_IN_CODE, '');
 }
 
 export const roles: Record<Role, { label: string }> = {

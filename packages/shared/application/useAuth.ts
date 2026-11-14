@@ -4,6 +4,7 @@ import type { Invitation, User } from '../domain/user.ts';
 import {
 	isSignInWithEmailLink,
 	sendSignInLinkToEmail,
+	signInAnonymously,
 	signInWithEmailAndPassword,
 	signInWithEmailLink,
 	signOut,
@@ -12,7 +13,7 @@ import {
 import { arrayUnion, clearIndexedDbPersistence, doc, getDoc, terminate, updateDoc, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
-import { homeCommunities, managesCommunity } from '../domain/user.ts';
+import { homeCommunities, managesCommunity, parseInviteCode } from '../domain/user.ts';
 import { auth, db } from '../infrastructure/firebase.ts';
 import { reportError } from '../infrastructure/monitoring.ts';
 
@@ -119,9 +120,11 @@ function createAuth() {
 		}
 	}
 
-	// Signed out in another tab, which also stopped this tab's Firestore to clear its copy: started again from /login
+	// Signed out in another tab, which also stopped this tab's Firestore to clear its copy: started again from /login. Not
+	// the account of a wrong code, removed here (signInWithCode)
+	let discarded: string | undefined;
 	watch(() => authUser.value?.uid, (uid, before) => {
-		if (before && !uid) {
+		if (before && !uid && before !== discarded) {
 			window.location.assign('/login');
 		}
 	});
@@ -204,6 +207,33 @@ function createAuth() {
 		await signInWithEmailAndPassword(auth, email, password);
 	}
 
+	// A neighbour without email (B2.4): an account on this device, made from the code the office printed for them. Fails
+	// with nobody left signed in when there's no such code
+	async function signInWithCode(typed: string) {
+		const code = parseInviteCode(typed);
+		if (code.length !== 10) {
+			throw new Error('INVALID_CODE');
+		}
+
+		const { user: account } = await signInAnonymously(auth);
+		try {
+			const invitationRef = doc(db, 'invitations', code);
+			const invitation = (await getDoc(invitationRef)).data() as Invitation | undefined;
+			if (!invitation?.byCode) {
+				throw new Error('INVALID_CODE');
+			}
+			const batch = writeBatch(db);
+			batch.set(doc(db, 'users', account.uid), { email: '', name: invitation.name, role: 'user', communityId: invitation.communityId, inviteCode: code });
+			batch.delete(invitationRef);
+			await batch.commit();
+		} catch (error) {
+			// The rules don't let read a code that isn't one, so a wrong one ends here too
+			discarded = account.uid;
+			await account.delete();
+			throw new Error('INVALID_CODE', { cause: error });
+		}
+	}
+
 	// Firebase asks to have signed in recently (auth/requires-recent-login) to change it
 	async function changePassword(password: string) {
 		if (!auth.currentUser) {
@@ -234,6 +264,7 @@ function createAuth() {
 		sendMagicLink,
 		completeMagicLink,
 		signInWithPassword,
+		signInWithCode,
 		changePassword,
 		logout,
 	};
