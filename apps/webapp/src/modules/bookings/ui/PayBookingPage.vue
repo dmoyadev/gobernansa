@@ -23,7 +23,7 @@ const { userCommunity } = useUserCommunity();
 const { areaId: slotAreaId, date: slotDate, from } = parseBookingId(props.id);
 const date = ref(slotDate);
 const areaId = ref(slotAreaId);
-const { dayBookings, myBookings, book, pay: payBooking } = useBookings(date, areaId);
+const { dayBookings, myBookings, book, pay: payBooking } = useBookings(date);
 
 const area = computed(() => getBookableAreas(userCommunity.value).find(({ id }) => id === areaId.value));
 const slot = computed(() => area.value && getSlots(area.value, date.value).find(option => option.from === from));
@@ -40,7 +40,7 @@ const loading = computed(() => !userCommunity.value || dayBookings.pending.value
 
 const weekFull = computed(() => {
 	const week = getWeek(date.value);
-	return !!area.value?.maxPerWeek && myBookings.value.filter(({ date: day }) => day >= week.from && day <= week.to).length >= area.value.maxPerWeek;
+	return !!area.value?.maxPerWeek && myBookings.value.filter(({ areaId: id, date: day }) => id === areaId.value && day >= week.from && day <= week.to).length >= area.value.maxPerWeek;
 });
 
 // Why it can't be paid here, the same checks as the bookings page

@@ -10,7 +10,7 @@ import { useCollection } from 'vuefire';
 import { preparePayment } from '@/modules/finances/application/useMyCharges.ts';
 
 // Equality filters only, so no composite index is needed
-export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) {
+export function useBookings(date: Ref<string>) {
 	const { user } = useAuth();
 	const db = getFirestore();
 	const communityId = computed(() => user.value?.communityId);
@@ -21,10 +21,10 @@ export function useBookings(date: Ref<string>, areaId: Ref<string | undefined>) 
 		? query(bookingsRef.value, where('date', '==', date.value))
 		: null));
 
-	// All of the user's bookings of the area, to count them against maxPerWeek and list the upcoming ones
+	// All of the user's bookings, of every area: listed in Mis reservas, and those of an area counted against its maxPerWeek
 	// ponytail: past ones are read too, filter by date (needs an index) if a neighbour piles up hundreds
-	const myBookings = useCollection<Booking>(computed(() => bookingsRef.value && user.value && areaId.value
-		? query(bookingsRef.value, where('uid', '==', user.value.id), where('areaId', '==', areaId.value))
+	const myBookings = useCollection<Booking>(computed(() => bookingsRef.value && user.value
+		? query(bookingsRef.value, where('uid', '==', user.value.id))
 		: null));
 
 	// An area with a price or fianza is booked owed (paidAt null), or paid at once with the test checkout

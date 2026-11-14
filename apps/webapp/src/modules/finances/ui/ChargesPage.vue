@@ -73,7 +73,7 @@ function transferConcept(charge: Charge) {
 </script>
 
 <template>
-	<TheHeader>
+	<TheHeader back="/neighborhood">
 		<h1>Mis recibos</h1>
 		<p>Tus cuotas y derramas, lo que tienes pendiente y lo que ya has pagado.</p>
 	</TheHeader>

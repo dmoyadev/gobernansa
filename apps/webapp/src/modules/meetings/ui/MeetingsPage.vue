@@ -21,7 +21,7 @@ function minutesHint(meeting: Meeting) {
 </script>
 
 <template>
-	<TheHeader>
+	<TheHeader back="/neighborhood">
 		<h1>Juntas</h1>
 		<p>Convocatorias y resultados de las juntas de propietarios.</p>
 	</TheHeader>

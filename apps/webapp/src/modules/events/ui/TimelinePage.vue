@@ -11,7 +11,7 @@ const { userCommunity } = useUserCommunity();
 </script>
 
 <template>
-	<TheHeader>
+	<TheHeader back="/">
 		<h1>Avisos</h1>
 		<p>Lo que comunica tu administración y lo que se ha hecho en tu comunidad.</p>
 	</TheHeader>
