@@ -4,7 +4,7 @@ import { contactTypes, getPhoneLink, getWhatsappLink } from '@gobernansa/shared/
 import { getVotingMonth, ISSUE_ICON } from '@gobernansa/shared/domain/issue.ts';
 import { scrollTop } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
@@ -21,7 +21,28 @@ import TheHeader from '@/shared/ui/TheHeader.vue';
 const user = useCurrentUser();
 const { selectedProperty } = useUserProperties();
 const { userCommunity } = useUserCommunity();
-const { communities } = useAuth();
+const { communities, user: profile, viewingAs } = useAuth();
+
+// Who entered with a code (B2.4) is reminded to add an email, until they do or for a week after «Ahora no»
+const REMIND_KEY = 'emailReminder';
+const WEEK = 7 * 24 * 60 * 60 * 1000;
+const remindedAt = ref(Number(readStorage(REMIND_KEY) ?? 0));
+const remindEmail = computed(() => !!profile.value && !profile.value.email && !viewingAs.value && Date.now() - remindedAt.value > WEEK);
+
+function remindLater() {
+	remindedAt.value = Date.now();
+	try {
+		localStorage.setItem(REMIND_KEY, String(remindedAt.value));
+	} catch {}
+}
+
+function readStorage(key: string) {
+	try {
+		return localStorage.getItem(key);
+	} catch {
+		return null;
+	}
+}
 const { events } = useCommunityEvents(3);
 const { issues, votingProperty, canVoteAsOwner, votesLeft, monthlyVotes } = useUserActivity();
 const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
@@ -58,6 +79,22 @@ async function showMyIssues() {
 	</TheHeader>
 
 	<MainLayout>
+		<div v-if="remindEmail" class="reminder" role="status">
+			<LnxIcon icon="lucide:mail-plus" :size="24" />
+			<div>
+				<h2>Añade tu email</h2>
+				<p>Si cambias de móvil o cierras la sesión, con él podrás volver a entrar sin pedir otro código.</p>
+				<div class="actions">
+					<LnxButton to="/profile#email">
+						Añadir email
+					</LnxButton>
+					<LnxButton mode="clear" variant="grayscale" @click="remindLater()">
+						Ahora no
+					</LnxButton>
+				</div>
+			</div>
+		</div>
+
 		<div class="cta">
 			<h2>¿Algo no va bien?</h2>
 			<p class="text-cursive">
@@ -181,6 +218,32 @@ async function showMyIssues() {
 .greeting {
 	p {
 		color: var(--color-gray-6);
+	}
+}
+
+.reminder {
+	display: flex;
+	gap: var(--lnx-spacing-3);
+	padding: var(--lnx-spacing-4);
+	border: 1px solid var(--color-gray-3);
+	border-radius: var(--lnx-radius-3);
+	background: var(--color-gray-0);
+	color: var(--color-primary);
+
+	h2 {
+		color: var(--color-gray-9);
+		font-size: 1.1rem;
+	}
+
+	p {
+		margin: var(--lnx-spacing-1) 0 var(--lnx-spacing-3);
+		color: var(--color-gray-7);
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--lnx-spacing-2);
 	}
 }
 

@@ -35,7 +35,7 @@ Cada comunidad nueva abre con **Puesta en marcha**, que se tacha sola:
 
 Haz la primera con él y deja que haga la segunda solo mientras miras.
 
-Los vecinos sin email se invitan igual, marcando **No tiene email**: se imprime una hoja con un código para entrar desde su móvil, que el despacho entrega en mano o en la junta. Sirve una vez; si lo pierde o cambia de móvil, se le imprime otro desde **Invitaciones pendientes** o con una invitación nueva.
+Los vecinos sin email se invitan igual, marcando **No tiene email**: se imprime una hoja con un código para entrar desde su móvil, que el despacho entrega en mano o en la junta. Sirve una vez; si lo pierde o cambia de móvil, se le imprime otro desde **Invitaciones pendientes** o con una invitación nueva. La app le irá recordando que añada un email desde su perfil: en cuanto lo hace, entra como cualquier otro vecino.
 
 ## 4. Su equipo (el titular)
 

@@ -2,7 +2,9 @@ import type { User as AuthUser } from 'firebase/auth';
 import type { DocumentReference } from 'firebase/firestore';
 import type { Invitation, User } from '../domain/user.ts';
 import {
+	EmailAuthProvider,
 	isSignInWithEmailLink,
+	linkWithCredential,
 	sendSignInLinkToEmail,
 	signInAnonymously,
 	signInWithEmailAndPassword,
@@ -19,6 +21,7 @@ import { reportError } from '../infrastructure/monitoring.ts';
 
 const VIEW_AS_KEY = 'viewAs';
 const COMMUNITY_KEY = 'community';
+const LINK_KEY = 'linkEmail';
 
 // Shared by every caller so the user document is listened to only once
 let shared: ReturnType<typeof createAuth> | undefined;
@@ -234,6 +237,30 @@ function createAuth() {
 		}
 	}
 
+	// Who entered with a code (B2.4) adds an email to that same account, profile and all, so they can sign in on any device.
+	// The link comes back to the profile, and only works on the device they entered with, where that account is
+	async function sendEmailLink(email: string) {
+		await sendSignInLinkToEmail(auth, email, { url: `${window.location.origin}/profile?email=link`, handleCodeInApp: true });
+		localStorage.setItem(LINK_KEY, email);
+	}
+
+	// Whether there was a link to complete
+	async function completeEmailLink() {
+		const url = window.location.href;
+		const email = readStorage(LINK_KEY);
+		const account = auth.currentUser;
+		if (!email || !account?.isAnonymous || !isSignInWithEmailLink(auth, url)) {
+			return false;
+		}
+
+		await linkWithCredential(account, EmailAuthProvider.credentialWithLink(email, url));
+		localStorage.removeItem(LINK_KEY);
+		// The rules check the email in the token
+		await account.getIdToken(true);
+		await updateDoc(doc(db, 'users', account.uid), { email: account.email });
+		return true;
+	}
+
 	// Firebase asks to have signed in recently (auth/requires-recent-login) to change it
 	async function changePassword(password: string) {
 		if (!auth.currentUser) {
@@ -265,6 +292,8 @@ function createAuth() {
 		completeMagicLink,
 		signInWithPassword,
 		signInWithCode,
+		sendEmailLink,
+		completeEmailLink,
 		changePassword,
 		logout,
 	};

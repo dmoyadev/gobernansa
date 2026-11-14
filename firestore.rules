@@ -294,6 +294,11 @@ service cloud.firestore {
       )
         // Joining another community they're invited to as a neighbour, by themselves
         || (signedIn() && request.auth.uid == uid && changedOnly(['otherCommunityIds']) && joinsByInvitation())
+        // Their email, by a neighbour who entered with a code (B2.4) and linked that account to it
+        || (signedIn() && request.auth.uid == uid && changedOnly(['email'])
+          && resource.data.email == ''
+          && request.auth.token.email_verified == true
+          && request.resource.data.email == request.auth.token.email)
         // Catching up with the office's communities, by a member whose invitation was sent before some of them (B4)
         || (signedIn() && request.auth.uid == uid && changedOnly(['communityIds'])
           && resource.data.get('officeId', '') != ''

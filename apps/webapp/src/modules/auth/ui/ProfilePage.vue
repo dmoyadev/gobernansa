@@ -6,7 +6,8 @@ import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitori
 import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
 import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxSwitch, useConfirm } from 'lnxjs-components';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { getCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
 import InstallApp from '@/shared/ui/InstallApp.vue';
@@ -19,7 +20,51 @@ import { userDocumentCategories } from '../domain/user.ts';
 
 const ask = useConfirm();
 
-const { user, logout, changePassword } = useAuth();
+const { user, logout, changePassword, sendEmailLink, completeEmailLink } = useAuth();
+
+/* Email, for who entered with a code (B2.4) */
+const newEmail = ref('');
+const sendingLink = ref(false);
+const linkMessage = ref<{ error: boolean; text: string }>();
+
+async function sendLink() {
+	sendingLink.value = true;
+	linkMessage.value = undefined;
+	try {
+		await sendEmailLink(newEmail.value.trim());
+		linkMessage.value = { error: false, text: `Te hemos enviado un enlace a ${newEmail.value.trim()}. Ábrelo en este móvil para terminar.` };
+	} catch (error) {
+		reportError(error, { action: 'Enviar el enlace para añadir el email' });
+		linkMessage.value = { error: true, text: 'No se ha podido enviar. Revisa el email e inténtalo de nuevo.' };
+	} finally {
+		sendingLink.value = false;
+	}
+}
+
+// Back from the link in the email
+onMounted(async () => {
+	await getCurrentUser();
+	try {
+		if (await completeEmailLink()) {
+			linkMessage.value = { error: false, text: 'Email añadido. Ya puedes entrar con él desde cualquier móvil.' };
+		}
+	} catch (error) {
+		const code = (error as { code?: string }).code;
+		linkMessage.value = {
+			error: true,
+			text: code === 'auth/email-already-in-use' || code === 'auth/credential-already-in-use'
+				? 'Ese email ya tiene otra cuenta en gobernança. Pide a tu administrador que lo revise.'
+				: 'El enlace no es válido o ha caducado. Pide otro.',
+		};
+		if (code !== 'auth/email-already-in-use' && code !== 'auth/credential-already-in-use') {
+			reportError(error, { action: 'Añadir el email' });
+		}
+	}
+	// Without navigating: the page would mount again, message gone
+	if (window.location.search) {
+		window.history.replaceState(window.history.state, '', '/profile');
+	}
+});
 
 // Without email (B2.4) the account lives on this device only: signed out, they need a new code to come back
 async function signOut() {
@@ -180,6 +225,26 @@ async function savePassword() {
 	</TheHeader>
 
 	<MainLayout>
+		<section v-if="user && (!user.email || linkMessage)" id="email">
+			<h2>Tu email</h2>
+			<form v-if="!user.email" class="link-email" @submit.prevent="sendLink()">
+				<p class="hint">
+					Ahora solo puedes entrar desde este móvil. Con tu email podrás volver a entrar si cambias de móvil o cierras la sesión, y recibir los avisos de la comunidad.
+				</p>
+				<LnxInput v-model="newEmail" type="email" autocomplete="email" required>
+					Tu email
+				</LnxInput>
+				<LnxButton type="submit" is-block :is-loading="sendingLink" :disabled="sendingLink">
+					<LnxIcon icon="lucide:mail" />
+					Enviarme el enlace
+				</LnxButton>
+			</form>
+			<p v-if="linkMessage" :class="linkMessage.error ? 'error' : 'success'" role="status">
+				<LnxIcon :icon="linkMessage.error ? 'lucide:circle-alert' : 'lucide:circle-check'" :size="16" />
+				{{ linkMessage.text }}
+			</p>
+		</section>
+
 		<section v-if="selectedProperty">
 			<TiltCard>
 				<div class="owner-card">
@@ -637,6 +702,12 @@ li.row {
 			opacity: .5;
 		}
 	}
+}
+
+.link-email {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
 }
 
 .upload {
