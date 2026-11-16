@@ -111,13 +111,19 @@ service cloud.firestore {
         && profile.get('officeRole', null) == invitation.get('officeRole', null);
     }
 
-    // A neighbour without email (B2.4) signs in anonymously with the code the office printed for them: the profile is the
-    // invitation's, it keeps the code, and the invitation is gone in the same write, so each code makes a single account
+    // The made-up email of the account an access code opens (B2.4), with the code as its password. Mirrors codeEmail() in
+    // packages/shared/domain/user.ts: never change it, or every account made with a code is lost
+    function codeEmail(code) {
+      return code.lower() + '@codigo.gobernansa.dmoya.dev';
+    }
+
+    // The first time an access code (B2.4) is used its account is made: the profile is the invitation's, it keeps the
+    // code, and the invitation is gone in the same write, so each code makes a single account
     function redeemsCode(profile) {
       let invitation = get(/databases/$(database)/documents/invitations/$(profile.inviteCode)).data;
-      return request.auth.token.firebase.sign_in_provider == 'anonymous'
-        && profile.keys().hasOnly(['email', 'name', 'role', 'communityId', 'inviteCode'])
-        && profile.inviteCode is string
+      return profile.keys().hasOnly(['email', 'name', 'role', 'communityId', 'inviteCode'])
+        && profile.inviteCode is string && profile.inviteCode.size() == 10
+        && request.auth.token.email == codeEmail(profile.inviteCode)
         && invitation.get('byCode', false) == true
         && profile.email == ''
         && profile.name == invitation.name
@@ -135,6 +141,38 @@ service cloud.firestore {
         && invitation.get('officeId', null) == null
         && !(invitation.communityId in myCommunities())
         && request.resource.data.otherCommunityIds == resource.data.get('otherCommunityIds', []).concat([invitation.communityId]);
+    }
+
+    // Someone signed in who's given another access code adds a home with it (B10): another community joins their others,
+    // or theirs stays as it is. Signed with the code, which is gone in the same write
+    function joinsWithCode() {
+      let code = request.resource.data.get('joinedWith', '');
+      let invitation = get(/databases/$(database)/documents/invitations/$(code)).data;
+      let others = resource.data.get('otherCommunityIds', []);
+      return resource.data.role in ['user', 'manager']
+        && changedOnly(['otherCommunityIds', 'joinedWith'])
+        && code is string && code.size() == 10 && code != resource.data.get('joinedWith', '')
+        && invitation.get('byCode', false) == true
+        && !existsAfter(/databases/$(database)/documents/invitations/$(code))
+        && ((invitation.communityId in myCommunities() && request.resource.data.get('otherCommunityIds', []) == others)
+          || (!(invitation.communityId in myCommunities()) && request.resource.data.otherCommunityIds == others.concat([invitation.communityId])));
+    }
+
+    // An access code links the properties it's for to whoever uses it: their owner's, while they have none, or their tenant's.
+    // Signed with the code (claimedWith), in the same write that uses it up
+    function claimsWithCode(propertyId) {
+      let code = request.resource.data.claimedWith;
+      let invitation = get(/databases/$(database)/documents/invitations/$(code)).data;
+      return invitation.get('byCode', false) == true
+        && invitation.communityId == resource.data.communityId
+        && !existsAfter(/databases/$(database)/documents/invitations/$(code))
+        && ((propertyId in invitation.get('propertyIds', [])
+            && resource.data.ownerUid == ''
+            && request.resource.data.ownerUid == request.auth.uid
+            && changedOnly(['ownerUid', 'claimedWith']))
+          || (invitation.get('tenantOf', '') == propertyId
+            && request.resource.data.tenantUid == request.auth.uid
+            && changedOnly(['tenantUid', 'claimedWith'])));
     }
 
     // An invitation to work in the owner's office, with its communities and a role other than theirs
@@ -294,7 +332,8 @@ service cloud.firestore {
       )
         // Joining another community they're invited to as a neighbour, by themselves
         || (signedIn() && request.auth.uid == uid && changedOnly(['otherCommunityIds']) && joinsByInvitation())
-        // Their email, by a neighbour who entered with a code (B2.4) and linked that account to it
+        || (signedIn() && request.auth.uid == uid && joinsWithCode())
+        // Their email, by a neighbour who entered with a code (B2.4) and has confirmed their own since
         || (signedIn() && request.auth.uid == uid && changedOnly(['email'])
           && resource.data.email == ''
           && request.auth.token.email_verified == true
@@ -345,6 +384,8 @@ service cloud.firestore {
       // Its createdAt stays: the census imported again over one already there (two tabs, a batch sent again) is turned down
       allow update: if manages(resource.data.communityId) && request.resource.data.communityId == resource.data.communityId
         && isPropertyData(request.resource.data) && keepsCreation();
+      allow update: if signedIn() && request.resource.data.get('claimedWith', '') is string
+        && request.resource.data.get('claimedWith', '').size() == 10 && claimsWithCode(propertyId);
       allow delete: if manages(resource.data.communityId);
     }
 
@@ -413,9 +454,13 @@ service cloud.firestore {
       allow get: if isInvitee(email) || oversees(resource.data.communityId) || inMyOffice(resource.data)
         || (signedIn() && resource.data.get('byCode', false) == true);
       allow list: if isInvitee(email) || oversees(resource.data.communityId) || inMyOffice(resource.data);
-      allow create: if request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'officeId', 'officeRole', 'invitedBy', 'invitedAt', 'byCode'])
-        // By code, only neighbours, and the id is no email anyone could sign in with
+      allow create: if request.resource.data.keys().hasOnly(['email', 'name', 'role', 'communityId', 'communityIds', 'officeId', 'officeRole', 'invitedBy', 'invitedAt', 'byCode', 'propertyIds', 'tenantOf'])
+        // By code, only neighbours, and the id is no email anyone could sign in with. The properties it's for are checked
+        // when they're claimed, against its community
         && (!('byCode' in request.resource.data) || (request.resource.data.byCode == true && request.resource.data.role == 'user' && !email.matches('.*@.*')))
+        && (!('propertyIds' in request.resource.data) || (request.resource.data.get('byCode', false) == true
+          && request.resource.data.propertyIds is list && request.resource.data.propertyIds.size() <= 50))
+        && (!('tenantOf' in request.resource.data) || (request.resource.data.get('byCode', false) == true && request.resource.data.tenantOf is string))
         && request.resource.data.email == email
         // Comments are signed with it, so it can't be missing
         && request.resource.data.name is string && request.resource.data.name.size() > 0
@@ -426,10 +471,12 @@ service cloud.firestore {
             && (!('communityIds' in request.resource.data) || isSuperadmin()))
           || invitesToOffice(request.resource.data));
       allow delete: if isInvitee(email) || canAssign(resource.data.role, resource.data.communityId) || inMyOffice(resource.data)
-        // Redeemed, with the profile made from it in the same write
+        // Used, with the profile made from it, or a home added with it, in the same write
         || (signedIn() && resource.data.get('byCode', false) == true
-          && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('inviteCode', '') == email
-          && !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+          && ((getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('inviteCode', '') == email
+              && !exists(/databases/$(database)/documents/users/$(request.auth.uid)))
+            || (getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('joinedWith', '') == email
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('joinedWith', '') != email)));
     }
 
     // Notifications of the community, sent by whoever manages it
@@ -978,7 +1025,10 @@ service cloud.firestore {
               && charge.interest.to is string && charge.interest.to.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')));
         }
 
-        allow read: if oversees(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid);
+        // Those issued while their property had no account, to its owner, who takes them on (claimUnpaidCharges)
+        allow read: if oversees(communityId) || (inCommunity(communityId) && resource.data.ownerUid == request.auth.uid)
+          || (inCommunity(communityId) && resource.data.ownerUid == '' && resource.data.paidAt == null
+            && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerUid == request.auth.uid);
         allow create: if manages(communityId) && request.resource.data.communityId == communityId && isChargeData(request.resource.data);
         // ROB-6: issued again over one already there (another tab, a batch sent again after losing the connection) its
         // createdAt changes and it's turned down, so a paid charge is never left unpaid. It goes in one remittance at a
@@ -1015,6 +1065,10 @@ service cloud.firestore {
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && isCardSummary(request.resource.data)
+        allow update: if inCommunity(communityId)
+          && resource.data.ownerUid == '' && resource.data.paidAt == null
+          && changedOnly(['ownerUid']) && request.resource.data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerUid == request.auth.uid;
           && (('chargeId' in request.resource.data
               && getAfter(/databases/$(database)/documents/communities/$(communityId)/charges/$(request.resource.data.chargeId)).data.get('payment', {}).get('id', '') == paymentId)
             || ('bookingId' in request.resource.data

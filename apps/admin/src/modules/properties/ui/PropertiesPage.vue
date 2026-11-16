@@ -77,7 +77,7 @@ function save() {
 		...form.value,
 		coefficient: String(form.value.coefficient ?? ''),
 		...(owner ? { ownerName: owner.name, ownerEmail: owner.email } : {}),
-	}, createId);
+	}, createId, properties.value.find(property => property.id === editingId.value));
 	close();
 	createId = newId();
 	void optimistic(action, {

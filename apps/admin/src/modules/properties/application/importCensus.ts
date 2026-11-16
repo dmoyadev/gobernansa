@@ -1,12 +1,11 @@
 import type { CensusRow } from '@gobernansa/shared/domain/census.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
-import type { User } from '@gobernansa/shared/domain/user.ts';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { createCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { invite } from '@/modules/people/application/usePeople.ts';
+import { moveUnpaidCharges } from './useProperties.ts';
 
 // Per batch, leaving room in its 500 writes for the activity entry
 const BATCH_PROPERTIES = 499;
@@ -48,20 +47,11 @@ export async function importCensus(communityId: string, rows: CensusRow[], file:
 		});
 		await batch.commit();
 	}
-}
-
-/**
- * Invites each owner once as a neighbour, but those who already have a profile or an invitation in the community, as
- * its people page checks. One by one: an email invited to another community fails on its own without stopping the rest.
- * byEmail also queues each one's invitation email, as the people page does
- */
-export async function inviteOwners(communityId: string, owners: { name: string; email: string }[], byEmail: boolean) {
-	const [users, invitations] = await Promise.all([
-		getDocs(query(collection(db, 'users'), where('communityId', '==', communityId))),
-		getDocs(query(collection(db, 'invitations'), where('communityId', '==', communityId))),
-	]);
-	const taken = new Set([...users.docs.map(user => (user.data() as User).email?.toLowerCase()), ...invitations.docs.map(invitation => invitation.id)]);
-	const pending = [...new Map(owners.filter(owner => !taken.has(owner.email)).map(owner => [owner.email, owner])).values()];
-	const results = await Promise.allSettled(pending.map(async ({ name, email }) => invite({ email, name: name || email, role: 'user', communityId }, undefined, byEmail)));
-	return { sent: results.filter(result => result.status === 'fulfilled').length, failed: results.filter(result => result.status === 'rejected').length };
+	// A new owner takes on the unpaid charges, one batch per property as each has a few
+	for (const row of changed.filter(row => row.property && ('ownerUid' in row.data || 'ownerName' in row.data))) {
+		const batch = writeBatch(db);
+		if (await moveUnpaidCharges(batch, communityId, row.property!.id, row.data.ownerUid ?? row.property!.ownerUid, row.data.ownerName ?? row.property!.ownerName ?? '')) {
+			await batch.commit();
+		}
+	}
 }

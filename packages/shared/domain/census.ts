@@ -134,7 +134,7 @@ export interface CensusLine {
 	cells: string[];
 }
 
-export type CensusData = Partial<Pick<Property, 'name' | 'type' | 'coefficient' | 'ownerName' | 'ownerEmail' | 'ownerNif' | 'ownerPhone' | 'tenantName' | 'tenantEmail' | 'mandate'>>;
+export type CensusData = Partial<Pick<Property, 'name' | 'type' | 'coefficient' | 'ownerUid' | 'ownerName' | 'ownerEmail' | 'ownerNif' | 'ownerPhone' | 'tenantName' | 'tenantEmail' | 'mandate'>>;
 
 export interface CensusRow {
 	line: number;
@@ -158,6 +158,7 @@ const dataLabels: Record<keyof CensusData, string> = {
 	name: 'Nombre',
 	type: 'Tipo',
 	coefficient: 'Coeficiente',
+	ownerUid: 'Cuenta del propietario',
 	ownerName: 'Propietario',
 	ownerEmail: 'Email',
 	ownerNif: 'NIF',
@@ -204,7 +205,9 @@ export function readCensus(lines: CensusLine[], columns: CensusColumns, properti
 		const signedAt = parseDate(signedText);
 		const debtorName = ownerName || property?.ownerName || '';
 		const hasMandate = !!(iban && reference && signedText);
-		const linked = !!property?.ownerUid;
+		// Another NIF is another owner: the property was sold, so the seller's account is unlinked
+		const sold = !!(property?.ownerUid && ownerNif && property.ownerNif && ownerNif !== property.ownerNif);
+		const linked = !!property?.ownerUid && !sold;
 		const firstLine = seen.get(key);
 
 		const error = ([
@@ -232,6 +235,7 @@ export function readCensus(lines: CensusLine[], columns: CensusColumns, properti
 			...(linked && ((ownerName && ownerName !== property?.ownerName) || (ownerEmail && ownerEmail !== property?.ownerEmail))
 				? ['Su propietario tiene cuenta: su nombre y email se cambian desde Propiedades']
 				: []),
+			...(sold ? ['Ha cambiado el NIF del propietario: se desvincula la cuenta del anterior y los recibos pendientes pasan al nuevo'] : []),
 			...((iban || reference || signedText) && !hasMandate ? ['El mandato SEPA necesita IBAN, referencia y fecha de firma: no se guarda'] : []),
 		];
 		const values = Object.fromEntries(Object.entries({
@@ -247,6 +251,9 @@ export function readCensus(lines: CensusLine[], columns: CensusColumns, properti
 			tenantEmail,
 			mandate: hasMandate ? { reference, debtorName, iban, signedAt, status: 'active', firstRemittanceId: MIGRATED_MANDATE } satisfies SepaMandate : undefined,
 		}).filter(([, value]) => value !== undefined && value !== '')) as CensusData;
+		if (sold) {
+			values.ownerUid = '';
+		}
 		const changed = property && !error
 			? (Object.keys(values) as (keyof CensusData)[]).filter(field => field !== 'name' && !same(field, values[field], property))
 			: [];

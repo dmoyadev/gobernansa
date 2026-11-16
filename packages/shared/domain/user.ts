@@ -21,16 +21,22 @@ export interface User {
 	name: string;
 	// By whoever manages their community: they can still read, but not report, comment, vote or book
 	blocked?: boolean;
-	// Neighbours without email (B2.4): the printed code they signed in with. Their email is ''
+	// Neighbours who entered with an access code (B2.4): the code their account was made with. Their email is '' until they add one
 	inviteCode?: string;
+	// The last access code they used to add a home, in the same or another community (B10), which the rules check
+	joinedWith?: string;
 }
 
 // Sent from the admin platform, and turned into the profile of whoever it's for on their first sign-in
 export interface Invitation extends Pick<User, 'email' | 'name' | 'role' | 'communityId' | 'communityIds' | 'officeId' | 'officeRole'> {
 	invitedBy: string;
 	invitedAt: Timestamp;
-	// For a neighbour without email (B2.4): the office prints it, and its id and email are the code
+	// An access code (B2.4): the office prints it in a letter, and its id and email are the code
 	byCode?: boolean;
+	// The properties whose owner it's for, linked to their account when it's used
+	propertyIds?: string[];
+	// Or the one whose tenant it's for
+	tenantOf?: string;
 }
 
 // No 0, O, 1 or I to misread on paper. 32 letters, so each random byte gives one without bias: 10 of them are 50 bits,
@@ -44,6 +50,21 @@ export function newInviteCode() {
 // As printed, in two halves
 export function formatInviteCode(code: string) {
 	return `${code.slice(0, 5)}-${code.slice(5)}`;
+}
+
+/*
+ * An access code is a key: the account it opens has a made-up email from it, under a subdomain with no mailbox, and the
+ * code as its password, so it opens the same account on any device. Mirrored by firestore.rules: never change it, or
+ * every account made with a code is lost
+ */
+export const CODE_EMAIL_DOMAIN = 'codigo.gobernansa.dmoya.dev';
+
+export function codeEmail(code: string) {
+	return `${code.toLowerCase()}@${CODE_EMAIL_DOMAIN}`;
+}
+
+export function isCodeEmail(email?: string | null) {
+	return !!email?.endsWith(`@${CODE_EMAIL_DOMAIN}`);
 }
 
 // As typed: in any case, with spaces or dashes

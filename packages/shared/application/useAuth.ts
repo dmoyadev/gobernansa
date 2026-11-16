@@ -1,27 +1,28 @@
 import type { User as AuthUser } from 'firebase/auth';
-import type { DocumentReference } from 'firebase/firestore';
+import type { DocumentReference, WriteBatch } from 'firebase/firestore';
 import type { Invitation, User } from '../domain/user.ts';
 import {
+	createUserWithEmailAndPassword,
 	EmailAuthProvider,
-	isSignInWithEmailLink,
-	linkWithCredential,
-	sendSignInLinkToEmail,
-	signInAnonymously,
+	reauthenticateWithCredential,
+	sendEmailVerification,
+	sendPasswordResetEmail,
 	signInWithEmailAndPassword,
-	signInWithEmailLink,
 	signOut,
 	updatePassword,
+	verifyBeforeUpdateEmail,
 } from 'firebase/auth';
-import { arrayUnion, clearIndexedDbPersistence, doc, getDoc, terminate, updateDoc, writeBatch } from 'firebase/firestore';
+import { arrayUnion, clearIndexedDbPersistence, collection, doc, getDoc, getDocs, query, terminate, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
-import { homeCommunities, managesCommunity, parseInviteCode } from '../domain/user.ts';
+import { codeEmail, homeCommunities, isCodeEmail, managesCommunity, parseInviteCode } from '../domain/user.ts';
 import { auth, db } from '../infrastructure/firebase.ts';
 import { reportError } from '../infrastructure/monitoring.ts';
 
 const VIEW_AS_KEY = 'viewAs';
 const COMMUNITY_KEY = 'community';
-const LINK_KEY = 'linkEmail';
+// What Firebase answers to a wrong email or password, with and without email enumeration protection
+const WRONG_CREDENTIALS = ['auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found', 'auth/wrong-password'];
 
 // Shared by every caller so the user document is listened to only once
 let shared: ReturnType<typeof createAuth> | undefined;
@@ -95,34 +96,6 @@ function createAuth() {
 		{ data: userData.data, error: userData.error, pending: userData.pending, promise: userData.promise, stop: userData.stop },
 	) as unknown as typeof userData;
 
-	async function sendMagicLink(email: string) {
-		const actionCodeSettings = {
-			url: `${window.location.origin}/login${window.location.search}`,
-			handleCodeInApp: true,
-		};
-
-		await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-		localStorage.setItem('user', email);
-	}
-
-	async function completeMagicLink() {
-		const url = window.location.href;
-
-		if (isSignInWithEmailLink(auth, url)) {
-			const email = localStorage.getItem('user');
-			if (!email) {
-				return;
-			}
-
-			const result = await signInWithEmailLink(auth, email, url);
-			localStorage.removeItem('user');
-
-			if (result.user?.uid) {
-				userRef.value = doc(db, 'users', result.user.uid);
-			}
-		}
-	}
-
 	// Signed out in another tab, which also stopped this tab's Firestore to clear its copy: started again from /login. Not
 	// the account of a wrong code, removed here (signInWithCode)
 	let discarded: string | undefined;
@@ -148,6 +121,11 @@ function createAuth() {
 		}
 		const accept = profile === null ? acceptInvitation(authUser.value) : profile.role === 'user' || profile.role === 'manager' ? joinCommunity(authUser.value) : undefined;
 		await accept?.catch((error: unknown) => reportError(error, { action: 'Aceptar la invitación' }));
+		// Who entered with a code and has since confirmed their own email: the profile has it too, so the office sees it
+		const { email, emailVerified } = authUser.value;
+		if (profile?.email === '' && email && emailVerified && !isCodeEmail(email)) {
+			await updateDoc(doc(db, 'users', authUser.value.uid), { email }).catch((error: unknown) => reportError(error, { action: 'Guardar el email' }));
+		}
 	});
 
 	async function acceptInvitation({ uid, email, emailVerified }: AuthUser) {
@@ -205,28 +183,78 @@ function createAuth() {
 		await batch.commit();
 	}
 
-	// Fallback for when the daily quota of sign-in emails runs out
 	async function signInWithPassword(email: string, password: string) {
-		await signInWithEmailAndPassword(auth, email, password);
+		await signInWithEmailAndPassword(auth, email.trim(), password);
 	}
 
-	// A neighbour without email (B2.4): an account on this device, made from the code the office printed for them. Fails
-	// with nobody left signed in when there's no such code
+	// To make one, for whoever was invited by email but never had one, or to recover it. 150 a day in the free plan
+	async function resetPassword(email: string) {
+		await sendPasswordResetEmail(auth, email.trim(), { url: `${window.location.origin}/login` });
+	}
+
+	// The office's staff, invited by email: their profile is made once they confirm it, as the rules only take verified ones
+	async function signUp(email: string, password: string) {
+		const { user: account } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+		await sendEmailVerification(account, { url: `${window.location.origin}/login` });
+	}
+
+	async function resendVerification() {
+		if (auth.currentUser) {
+			await sendEmailVerification(auth.currentUser, { url: `${window.location.origin}/login` });
+		}
+	}
+
+	// Once they've clicked the link in another tab or device: the token says so only after it's refreshed. Whether it is
+	async function checkVerification() {
+		const account = auth.currentUser;
+		if (!account) {
+			return false;
+		}
+		await account.reload();
+		if (!account.emailVerified) {
+			return false;
+		}
+		await account.getIdToken(true);
+		if (userData.value === null) {
+			await acceptInvitation(account);
+		}
+		return true;
+	}
+
+	/*
+	 * An access code (B2.4) is a key to an account of its own, with a made-up email and the code as its password, so it
+	 * opens it on any device. The first time the account is made, with the profile and the properties the invitation is
+	 * for, and the invitation is gone in the same write. Fails with nobody signed in when there's no such code
+	 */
 	async function signInWithCode(typed: string) {
 		const code = parseInviteCode(typed);
 		if (code.length !== 10) {
 			throw new Error('INVALID_CODE');
 		}
 
-		const { user: account } = await signInAnonymously(auth);
+		try {
+			await signInWithEmailAndPassword(auth, codeEmail(code), code);
+			return;
+		} catch (error) {
+			if (!WRONG_CREDENTIALS.includes((error as { code?: string }).code ?? '')) {
+				throw error;
+			}
+		}
+
+		// Already made, its password changed since: the code no longer opens it
+		const { user: account } = await createUserWithEmailAndPassword(auth, codeEmail(code), code).catch((error: unknown) => {
+			throw new Error('INVALID_CODE', { cause: error });
+		});
+		let invitation: Invitation | undefined;
 		try {
 			const invitationRef = doc(db, 'invitations', code);
-			const invitation = (await getDoc(invitationRef)).data() as Invitation | undefined;
+			invitation = (await getDoc(invitationRef)).data() as Invitation | undefined;
 			if (!invitation?.byCode) {
 				throw new Error('INVALID_CODE');
 			}
 			const batch = writeBatch(db);
 			batch.set(doc(db, 'users', account.uid), { email: '', name: invitation.name, role: 'user', communityId: invitation.communityId, inviteCode: code });
+			claimProperties(batch, invitation, code, account.uid);
 			batch.delete(invitationRef);
 			await batch.commit();
 		} catch (error) {
@@ -235,30 +263,66 @@ function createAuth() {
 			await account.delete();
 			throw new Error('INVALID_CODE', { cause: error });
 		}
+		await claimUnpaidCharges(invitation, account.uid);
 	}
 
-	// Who entered with a code (B2.4) adds an email to that same account, profile and all, so they can sign in on any device.
-	// The link comes back to the profile, and only works on the device they entered with, where that account is
-	async function sendEmailLink(email: string) {
-		await sendSignInLinkToEmail(auth, email, { url: `${window.location.origin}/profile?email=link`, handleCodeInApp: true });
-		localStorage.setItem(LINK_KEY, email);
-	}
-
-	// Whether there was a link to complete
-	async function completeEmailLink() {
-		const url = window.location.href;
-		const email = readStorage(LINK_KEY);
+	// Someone signed in who's given another code: one more home, in their community or another one (B10). Its community
+	async function joinWithCode(typed: string) {
+		const code = parseInviteCode(typed);
 		const account = auth.currentUser;
-		if (!email || !account?.isAnonymous || !isSignInWithEmailLink(auth, url)) {
-			return false;
+		const profile = userData.value;
+		if (code.length !== 10 || !account || !profile) {
+			throw new Error('INVALID_CODE');
 		}
 
-		await linkWithCredential(account, EmailAuthProvider.credentialWithLink(email, url));
-		localStorage.removeItem(LINK_KEY);
-		// The rules check the email in the token
-		await account.getIdToken(true);
-		await updateDoc(doc(db, 'users', account.uid), { email: account.email });
-		return true;
+		const invitationRef = doc(db, 'invitations', code);
+		const invitation = (await getDoc(invitationRef).catch(() => undefined))?.data() as Invitation | undefined;
+		if (!invitation?.byCode) {
+			throw new Error('INVALID_CODE');
+		}
+		const joins = !homeCommunities(profile).includes(invitation.communityId);
+		const batch = writeBatch(db);
+		batch.update(doc(db, 'users', account.uid), { joinedWith: code, ...(joins ? { otherCommunityIds: arrayUnion(invitation.communityId) } : {}) });
+		claimProperties(batch, invitation, code, account.uid);
+		batch.delete(invitationRef);
+		await batch.commit();
+		await claimUnpaidCharges(invitation, account.uid);
+		return invitation.communityId;
+	}
+
+	// The properties it's for, signed with the code so the rules check it against the invitation
+	function claimProperties(batch: WriteBatch, invitation: Invitation, code: string, uid: string) {
+		for (const id of invitation.propertyIds ?? []) {
+			batch.update(doc(db, 'properties', id), { ownerUid: uid, claimedWith: code });
+		}
+		if (invitation.tenantOf) {
+			batch.update(doc(db, 'properties', invitation.tenantOf), { tenantUid: uid, claimedWith: code });
+		}
+	}
+
+	// The charges issued while the property had no account are its new owner's: debts follow the property. Not to stop
+	// them entering, the office can still move them when it edits the property
+	async function claimUnpaidCharges(invitation: Invitation, uid: string) {
+		const charges = collection(db, 'communities', invitation.communityId, 'charges');
+		await Promise.all((invitation.propertyIds ?? []).map(async (propertyId) => {
+			const unpaid = await getDocs(query(charges, where('propertyId', '==', propertyId), where('ownerUid', '==', ''), where('paidAt', '==', null)));
+			await Promise.all(unpaid.docs.map(async charge => updateDoc(charge.ref, { ownerUid: uid })));
+		})).catch((error: unknown) => reportError(error, { action: 'Pasar los recibos pendientes al propietario' }));
+	}
+
+	// Who entered with a code adds their email, to sign in with it too and recover the password. Firebase asks to have
+	// signed in recently, so the code is asked again. Their email changes once they click the link sent to it, and then they
+	// sign in with it and the code as password until they change it
+	async function addEmail(typedCode: string, email: string) {
+		const account = auth.currentUser;
+		if (!account?.email) {
+			throw new Error('The user must be signed in to add an email');
+		}
+		const code = parseInviteCode(typedCode);
+		await reauthenticateWithCredential(account, EmailAuthProvider.credential(account.email, code)).catch((error: unknown) => {
+			throw new Error('INVALID_CODE', { cause: error });
+		});
+		await verifyBeforeUpdateEmail(account, email.trim(), { url: `${window.location.origin}/login` });
 	}
 
 	// Firebase asks to have signed in recently (auth/requires-recent-login) to change it
@@ -288,12 +352,14 @@ function createAuth() {
 		switchCommunity,
 		viewingAs,
 		exitViewAs,
-		sendMagicLink,
-		completeMagicLink,
 		signInWithPassword,
+		resetPassword,
+		signUp,
+		resendVerification,
+		checkVerification,
 		signInWithCode,
-		sendEmailLink,
-		completeEmailLink,
+		joinWithCode,
+		addEmail,
 		changePassword,
 		logout,
 	};
@@ -305,4 +371,25 @@ function readStorage(key: string) {
 	} catch {
 		return undefined;
 	}
+}
+
+// What to tell whoever's signing in when Firebase says no
+export function authErrorMessage(error: unknown) {
+	const code = (error as { code?: string }).code ?? '';
+	if (WRONG_CREDENTIALS.includes(code) || code === 'auth/invalid-email') {
+		return 'El email o la contraseña no son correctos.';
+	}
+	if (code === 'auth/email-already-in-use') {
+		return 'Ese email ya tiene cuenta. Entra con él o recupera la contraseña.';
+	}
+	if (code === 'auth/weak-password') {
+		return 'Usa una contraseña de al menos 6 caracteres.';
+	}
+	if (code === 'auth/too-many-requests' || code === 'auth/quota-exceeded') {
+		return 'Demasiados intentos. Espera unos minutos y vuelve a probar.';
+	}
+	if (code === 'auth/network-request-failed') {
+		return 'Sin conexión. Revísala y vuelve a probar.';
+	}
+	return 'No se ha podido. Inténtalo de nuevo.';
 }

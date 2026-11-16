@@ -35,7 +35,7 @@ Cierre de la parte:
 
 > gobernança es el programa del despacho y la app del vecino en uno. La misma herramienta en la que lleváis las cuotas, las remesas, la contabilidad y las juntas es la que ve el vecino en su móvil: su recibo, su incidencia, su voto. No hay que pasar nada de un sitio a otro.
 
-> Funciona en el navegador. No se instala nada en el despacho, y el vecino entra con un enlace que le llega al correo, sin contraseñas. Si alguien no tiene correo, le imprimís un código y entra con él.
+> Funciona en el navegador. No se instala nada en el despacho, y cada vecino recibe una carta con un QR: apunta con la cámara del móvil y está dentro, sin email ni contraseña. La imprimís para toda la comunidad de una vez.
 
 > Lo hago yo, desde [tu ciudad]. Si algo falla o echáis algo en falta, hablas conmigo directamente, no con una centralita.
 
@@ -117,7 +117,7 @@ Prueba: «Exportar en un ZIP» en la configuración ([B8](v1.md#b8)). ⚠️ Men
 > Hoy la junta sigue siendo presencial, y la app la acompaña: la convocatoria notificada a cada propietario, las delegaciones, el voto y el acta firmada por el presidente, con el acuse de cada vecino. Cuando se apruebe la reforma de la Ley, ya está hecho.
 
 **«Mis vecinos son mayores.»**
-> Entran sin contraseña, con un enlace al correo. Al que no tiene correo le imprimís un código desde aquí, y quien no quiera móvil sigue recibiendo papel.
+> No tienen que registrarse ni recordar nada: les llega una carta con un QR, apuntan con la cámara y entran. Los inquilinos también. Y quien no quiera móvil sigue recibiendo papel.
 
 Prueba: «No tiene email» al invitar ([B2](v1.md#b2), paso 4). La app aguanta la letra grande del sistema ([C4](v1.md#c4)).
 

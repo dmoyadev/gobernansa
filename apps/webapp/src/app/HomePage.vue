@@ -83,7 +83,7 @@ async function showMyIssues() {
 			<LnxIcon icon="lucide:mail-plus" :size="24" />
 			<div>
 				<h2>Añade tu email</h2>
-				<p>Si cambias de móvil o cierras la sesión, con él podrás volver a entrar sin pedir otro código.</p>
+				<p>Si pierdes la carta con tu código, con tu email podrás recuperar el acceso.</p>
 				<div class="actions">
 					<LnxButton to="/profile#email">
 						Añadir email

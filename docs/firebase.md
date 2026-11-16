@@ -129,7 +129,7 @@ What's shown to the offices runs on its own Firebase project, `gobernansa-demo`,
 Once:
 
 1. **Firebase console → Add project** `gobernansa-demo`, without Analytics. **Firestore → Create database** in `europe-southwest1` (Madrid), production mode.
-2. **Authentication → Sign-in method → Email/Password**, with **Email link** on, and **Anonymous** on too: neighbours without email sign in with the code the office prints ([B2.4](v1.md#b2)). Free, like the rest of Auth on this plan.
+2. **Authentication → Sign-in method → Email/Password**, with **Email link** and **Anonymous** off: neighbours sign in with the code of their access letter, which is an Email/Password account on `codigo.gobernansa.dmoya.dev` that receives nothing ([B2.4](v1.md#b2)). Free, like the rest of Auth on this plan. The password reset and email confirmation emails count against Auth's daily email limit.
 3. **Project settings → Your apps → Web**, and **Cloud Messaging → Web Push certificates → Generate**. Copy `.env.example` to `.env.demo.local` at the root and fill it with that config and:
    - `VITE_FIREBASE_EMULATORS='false'`, `VITE_ENV_NAME='demo'` (the tab reads «gobernança DEMO») and `VITE_MAIL_MODE='demo'`;
    - `VITE_WEBAPP_URL='https://gobernansa-demo.web.app'`;
@@ -143,7 +143,7 @@ Once:
 
 Then:
 
-- **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day, and recreates its accounts with `DEMO_PASSWORD` (they also take a magic link, within the free plan's daily emails). It spends about the demo's size in writes of the demo project's own quota.
+- **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day, and recreates its accounts with `DEMO_PASSWORD`. It spends about the demo's size in writes of the demo project's own quota.
 - **After a release worth showing:** `npm run deploy:demo`, by hand, never on each push. It builds both apps in `demo` mode with a `VITE_RELEASE` like CI's and deploys the rules, the indexes and both sites.
 - **Errors** of the demo go to its own **Errores** page: sign in as the team's demo account.
 - Custom domains (`demo.` and `demo-admin.`) come with the product's own domain ([A2](v1.md#a2) in [v1.md](v1.md)).

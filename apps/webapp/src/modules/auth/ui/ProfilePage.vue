@@ -8,7 +8,7 @@ import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxSwitch, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
-import { getCurrentUser } from 'vuefire';
+import { useRoute } from 'vue-router';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
 import InstallApp from '@/shared/ui/InstallApp.vue';
@@ -21,9 +21,11 @@ import { userDocumentCategories } from '../domain/user.ts';
 
 const ask = useConfirm();
 
-const { user, logout, changePassword, sendEmailLink, completeEmailLink } = useAuth();
+const { user, logout, changePassword, addEmail, joinWithCode } = useAuth();
+const route = useRoute();
 
-/* Email, for who entered with a code (B2.4) */
+/* Email, for who entered with their access code (B2.4) */
+const emailCode = ref('');
 const newEmail = ref('');
 const sendingLink = ref(false);
 const linkMessage = ref<{ error: boolean; text: string }>();
@@ -32,46 +34,63 @@ async function sendLink() {
 	sendingLink.value = true;
 	linkMessage.value = undefined;
 	try {
-		await sendEmailLink(newEmail.value.trim());
-		linkMessage.value = { error: false, text: `Te hemos enviado un enlace a ${newEmail.value.trim()}. Ábrelo en este móvil para terminar.` };
+		await addEmail(emailCode.value, newEmail.value);
+		linkMessage.value = { error: false, text: `Te hemos enviado un enlace a ${newEmail.value.trim()}. Ábrelo y, desde entonces, entra con tu email y tu código como contraseña: el QR de la carta ya no abrirá tu cuenta. Luego podrás cambiar la contraseña aquí.` };
+		emailCode.value = '';
 	} catch (error) {
-		reportError(error, { action: 'Enviar el enlace para añadir el email' });
-		linkMessage.value = { error: true, text: 'No se ha podido enviar. Revisa el email e inténtalo de nuevo.' };
+		const code = (error as Error).message === 'INVALID_CODE' ? 'invalid-code' : (error as { code?: string }).code;
+		linkMessage.value = {
+			error: true,
+			text: code === 'invalid-code'
+				? 'Ese no es tu código de acceso. Es el de la carta con la que entraste.'
+				: code === 'auth/email-already-in-use'
+					? 'Ese email ya tiene otra cuenta en gobernança. Pide a tu administrador que lo revise.'
+					: 'No se ha podido enviar. Revisa el email e inténtalo de nuevo.',
+		};
+		if (code !== 'invalid-code' && code !== 'auth/email-already-in-use') {
+			reportError(error, { action: 'Añadir el email' });
+		}
 	} finally {
 		sendingLink.value = false;
 	}
 }
 
-// Back from the link in the email
-onMounted(async () => {
-	await getCurrentUser();
-	try {
-		if (await completeEmailLink()) {
-			linkMessage.value = { error: false, text: 'Email añadido. Ya puedes entrar con él desde cualquier móvil.' };
-		}
-	} catch (error) {
-		const code = (error as { code?: string }).code;
-		linkMessage.value = {
-			error: true,
-			text: code === 'auth/email-already-in-use' || code === 'auth/credential-already-in-use'
-				? 'Ese email ya tiene otra cuenta en gobernança. Pide a tu administrador que lo revise.'
-				: 'El enlace no es válido o ha caducado. Pide otro.',
-		};
-		if (code !== 'auth/email-already-in-use' && code !== 'auth/credential-already-in-use') {
-			reportError(error, { action: 'Añadir el email' });
-		}
-	}
-	// Without navigating: the page would mount again, message gone
-	if (window.location.search) {
-		window.history.replaceState(window.history.state, '', '/profile');
+/* Another home, with the access code of its letter (B10). The letter's QR opened with a session brings it here */
+const joinCode = ref(typeof route.query.code === 'string' ? route.query.code : '');
+const joining = ref(false);
+const joinMessage = ref<{ error: boolean; text: string }>();
+onMounted(() => {
+	// Without navigating, so the code doesn't stay in the history
+	if (route.query.code) {
+		window.history.replaceState(window.history.state, '', '/profile#home');
 	}
 });
 
-// Without email (B2.4) the account lives on this device only: signed out, they need a new code to come back
+async function join() {
+	joining.value = true;
+	joinMessage.value = undefined;
+	try {
+		const communityId = await joinWithCode(joinCode.value);
+		joinCode.value = '';
+		joinMessage.value = {
+			error: false,
+			text: communityId === user.value?.communityId ? 'Listo, ya la tienes en tu cuenta.' : 'Listo. Cambia de comunidad desde el inicio para verla.',
+		};
+	} catch (error) {
+		if ((error as Error).message !== 'INVALID_CODE') {
+			reportError(error, { action: 'Añadir una casa con un código' });
+		}
+		joinMessage.value = { error: true, text: 'Ese código no es válido o ya se ha usado. Pide uno nuevo a tu administrador.' };
+	} finally {
+		joining.value = false;
+	}
+}
+
+// Without email (B2.4) the letter is the only way back in
 async function signOut() {
 	if (!user.value?.email && !await ask({
 		title: '¿Cerrar sesión?',
-		message: 'Entraste con un código. Para volver a entrar necesitarás que el administrador te dé uno nuevo.',
+		message: 'Para volver a entrar necesitarás el código de tu carta de acceso. Guárdala bien.',
 		confirmText: 'Cerrar sesión',
 		variant: 'danger',
 	})) {
@@ -204,7 +223,7 @@ async function savePassword() {
 		await changePassword(password.value);
 		password.value = '';
 		passwordRepeat.value = '';
-		passwordMessage.value = { error: false, text: 'Contraseña guardada. Podrás usarla si no te llega el email para entrar.' };
+		passwordMessage.value = { error: false, text: 'Contraseña guardada. Úsala a partir de ahora para entrar con tu email.' };
 	} catch (error) {
 		const code = (error as { code?: string }).code;
 		passwordMessage.value = {
@@ -222,7 +241,7 @@ async function savePassword() {
 <template>
 	<TheHeader>
 		<h1>{{ user?.name || 'Perfil' }}</h1>
-		<p>{{ user?.email || 'Entraste con un código del administrador' }}</p>
+		<p>{{ user?.email || 'Entraste con tu código de acceso' }}</p>
 	</TheHeader>
 
 	<MainLayout>
@@ -230,8 +249,11 @@ async function savePassword() {
 			<h2>Tu email</h2>
 			<form v-if="!user.email" class="link-email" @submit.prevent="sendLink()">
 				<p class="hint">
-					Ahora solo puedes entrar desde este móvil. Con tu email podrás volver a entrar si cambias de móvil o cierras la sesión, y recibir los avisos de la comunidad.
+					Entras con el código de tu carta. Si añades tu email, entrarás con él y podrás recuperar el acceso si pierdes la carta, y recibirás los avisos de la comunidad.
 				</p>
+				<LnxInput v-model="emailCode" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+					Tu código de acceso
+				</LnxInput>
 				<LnxInput v-model="newEmail" type="email" autocomplete="email" required>
 					Tu email
 				</LnxInput>
@@ -281,6 +303,26 @@ async function savePassword() {
 			<LnxRadioGroup v-if="userProperties.length > 1" v-model="selectedProperty" class="property-picker" :options="propertyChoices" hide-legend>
 				Propiedad
 			</LnxRadioGroup>
+		</section>
+
+		<section id="home">
+			<h2>Añadir otra casa</h2>
+			<form class="link-email" @submit.prevent="join()">
+				<p class="hint">
+					¿Tienes otra carta de acceso, de otro piso, garaje o comunidad? Escribe su código para verlo todo desde esta cuenta.
+				</p>
+				<LnxInput v-model="joinCode" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+					Código de la carta
+				</LnxInput>
+				<LnxButton type="submit" is-block :is-loading="joining" :disabled="joining">
+					<LnxIcon icon="lucide:house-plus" />
+					Añadir
+				</LnxButton>
+				<p v-if="joinMessage" :class="joinMessage.error ? 'error' : 'success'" role="status">
+					<LnxIcon :icon="joinMessage.error ? 'lucide:circle-alert' : 'lucide:circle-check'" :size="16" />
+					{{ joinMessage.text }}
+				</p>
+			</form>
 		</section>
 
 		<section>
@@ -391,7 +433,7 @@ async function savePassword() {
 						</span>
 					</LnxSwitch>
 				</li>
-				<!-- Without email there's nothing to sign in with a password -->
+				<!-- Without email the code is their password: changing it would leave them with no way in -->
 				<li v-if="user?.email">
 					<details class="password">
 						<summary class="row">
@@ -400,7 +442,7 @@ async function savePassword() {
 							</span>
 							<span class="body">
 								<strong>Cambiar contraseña</strong>
-								<small>Para entrar si no te llega el email</small>
+								<small>La que usas para entrar con tu email</small>
 							</span>
 							<LnxIcon class="chevron" icon="lucide:chevron-down" :size="16" />
 						</summary>

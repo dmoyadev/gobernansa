@@ -13,7 +13,7 @@ import { readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { columnIndex, columnLetter, readXlsx } from '@gobernansa/shared/utils/xlsx.ts';
-import { LnxButton, LnxCheckbox, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, toast, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, toast, useShortcut } from 'lnxjs-components';
 import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -21,8 +21,7 @@ import { downloadFile } from '@/app/ux/download.ts';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { loadProperties } from '@/modules/finances/application/useExchange.ts';
-import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
-import { importCensus, inviteOwners } from '../application/importCensus.ts';
+import { importCensus } from '../application/importCensus.ts';
 
 // With a community, its census. Without one, the portfolio's: several communities, each row saying its own
 const props = defineProps<{ id?: string }>();
@@ -238,26 +237,14 @@ function difference(total: number) {
 	return formatCoefficient(Math.round(Math.abs(100 - total) * 100) / 100);
 }
 
-// Owners without an account and with an email
-function owners(group: Group) {
-	return group.rows.flatMap((row) => {
-		const email = row.status === 'error' || row.property?.ownerUid ? '' : shown(row).ownerEmail;
-		return email ? [{ email, name: shown(row).ownerName ?? '' }] : [];
-	});
-}
-
-const ownerEmails = computed(() => new Set(imported.value.flatMap(group => owners(group).map(owner => owner.email))).size);
-const inviting = ref(false);
-const byEmail = ref(true);
 const importing = ref(false);
 
 async function apply() {
-	if (!remote.censusImport || !source.value || importing.value || comparing.value || (!toWrite.value && !newCommunities.value && !inviting.value)) {
+	if (!remote.censusImport || !source.value || importing.value || comparing.value || (!toWrite.value && !newCommunities.value)) {
 		return;
 	}
 	const file = source.value.name;
 	importing.value = true;
-	const invited = { sent: 0, failed: 0 };
 	const summary = [
 		newCommunities.value && plural(newCommunities.value, 'comunidad nueva', 'comunidades nuevas'),
 		counts.value.new?.length && plural(counts.value.new.length, 'propiedad nueva', 'propiedades nuevas'),
@@ -270,20 +257,10 @@ async function apply() {
 			await importCensus(communityId, group.rows, file, group.communityId
 				? undefined
 				: { name: group.name, address: group.address, ...(group.cif ? { cif: group.cif } : {}), ...(group.iban ? { iban: group.iban } : {}) });
-			if (inviting.value) {
-				const result = await inviteOwners(communityId, owners(group), byEmail.value);
-				invited.sent += result.sent;
-				invited.failed += result.failed;
-			}
 		}
-		toast([
-			`Censo importado${summary ? `: ${summary}` : ''}`,
-			invited.sent && `${plural(invited.sent, 'propietario invitado', 'propietarios invitados')}${byEmail.value ? ' por email' : ''}`,
-			invited.failed && `${invited.failed} sin invitar, puede que ya tengan invitación en otra comunidad`,
-		].filter(Boolean).join(' · '));
+		toast(`Censo importado${summary ? `: ${summary}` : ''}`);
 		source.value = undefined;
 		pasted.value = '';
-		inviting.value = false;
 		await router.push(props.id ? `/communities/${props.id}/properties` : '/');
 	} catch (e) {
 		// What was written stays: compared again, what's left is what to import again
@@ -483,26 +460,14 @@ async function apply() {
 				</template>
 			</section>
 
-			<LnxCheckbox v-model="inviting" :disabled="!ownerEmails || importing">
-				Invitar a los propietarios con email ({{ ownerEmails }})
-				<template #helper>
-					Como vecinos, salvo quien ya tenga cuenta o invitación en su comunidad.
-				</template>
-			</LnxCheckbox>
-			<template v-if="inviting">
-				<LnxCheckbox v-model="byEmail" :disabled="importing">
-					Enviar invitación por email
-					<template #helper>
-						{{ byEmail ? 'Con el enlace para entrar en la app.' : 'Avísales tú de que entren en gobernança con su email.' }}
-					</template>
-				</LnxCheckbox>
-				<MailModeNote v-if="byEmail" />
-			</template>
+			<p class="hint">
+				Después, imprime las cartas de acceso de los propietarios desde Vecinos y gestores: con su código entran en la app sin email ni contraseña.
+			</p>
 			<p v-if="!remote.censusImport" class="warning" role="note">
 				La importación del censo está desactivada temporalmente mientras se revisa.
 			</p>
 			<div class="actions">
-				<LnxButton :disabled="!remote.censusImport || importing || comparing || (!toWrite && !newCommunities && !inviting)" @click="apply()">
+				<LnxButton :disabled="!remote.censusImport || importing || comparing || (!toWrite && !newCommunities)" @click="apply()">
 					<LnxIcon :icon="importing ? 'lucide:loader-circle' : 'lucide:check'" :class="{ spin: importing }" />
 					{{ importing ? 'Importando…' : toWrite ? `Importar ${plural(toWrite, 'propiedad', 'propiedades')}` : 'Importar' }}
 				</LnxButton>

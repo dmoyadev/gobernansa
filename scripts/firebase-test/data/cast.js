@@ -71,7 +71,7 @@ export const commonAreas = {
 	comm3: [],
 };
 
-// Everyone with a profile. Emails are the same inbox with a +alias, so every magic link reaches it
+// Everyone with a profile. Emails are the same inbox with a +alias, so every password reset reaches it
 export const users = [
 	{ uid: uids.team, email: 'lynx9011+admin@gmail.com', name: 'Equipo gobernança', role: 'superadmin', communityId: 'comm1' },
 	{ uid: uids.office, email: 'lynx9011+fincas@gmail.com', name: 'Fincas Jaén', role: 'admin', communityId: '', communityIds: ['comm1', 'comm2'] },

@@ -1,102 +1,96 @@
 <script setup lang="ts">
-import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import useAuth, { authErrorMessage } from '@gobernansa/shared/application/useAuth.ts';
+import { parseInviteCode } from '@gobernansa/shared/domain/user.ts';
+import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
-import {
-	BUTTON_VARIANTS,
-	LnxButton,
-	LnxIcon,
-	LnxInput,
-} from 'lnxjs-components';
-import { computed, onBeforeMount, ref, watch } from 'vue';
+import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
+import { onBeforeMount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
 import router from '@/app/router.ts';
 import BackgroundImage from '@/shared/ui/BackgroundImage.vue';
 import { version } from '../../../../package.json';
 
-const EMAIL_REGEX = /.[^\n\r}@\u2028\u2029]*@.+\..+/;
-
-const email = ref<string>('');
-const password = ref<string>('');
-
-// Manage the error state of the form
-const triedSubmit = ref(false);
-watch(email, () => triedSubmit.value = false);
-const isEmailValid = computed<boolean>(() => {
-	return !triedSubmit.value
-		|| (triedSubmit.value
-			&& !!email.value
-			&& EMAIL_REGEX.test(email.value));
-});
-const errorLogin = ref<unknown>();
-// Once the daily quota of sign-in emails runs out, users who set a password can still sign in with it
-const askPassword = ref(false);
-const emailSent = ref(false);
-const loadingLogin = ref(false);
+// The letter's QR opens /login#codigo-XXXXXXXXXX: in the hash, so it never reaches a server's logs
+const CODE_HASH = '#codigo-';
 
 const route = useRoute();
+const loading = ref(false);
+
+// Neighbours get a letter with their access code (B2.4), so it's what the page asks first
+const withCode = ref(true);
+const code = ref('');
+const codeError = ref<string>();
+watch(code, () => codeError.value = undefined);
+
+const email = ref('');
+const password = ref('');
+const errorLogin = ref<string>();
+const resetSent = ref(false);
+watch([email, password], () => errorLogin.value = undefined);
+
+function enter() {
+	return router.replace((route.query?.unauthorized as string) || '/');
+}
 
 onBeforeMount(async () => {
-	try {
-		await useAuth().completeMagicLink();
-
-		const user = await getCurrentUser();
-		if (user) {
-			if (route.query?.unauthorized) {
-				await router.replace(route.query.unauthorized as string);
-				return;
-			}
-
-			await router.replace('/');
-		}
-	} catch (e) {
-		errorLogin.value = e as Error;
+	const fromQr = route.hash.startsWith(CODE_HASH) ? parseInviteCode(route.hash.slice(CODE_HASH.length)) : '';
+	if (fromQr) {
+		window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+	}
+	if (await getCurrentUser()) {
+		// Already in: the letter's code adds that home to their account
+		await (fromQr ? router.replace({ path: '/profile', query: { code: fromQr } }) : enter());
+		return;
+	}
+	if (fromQr) {
+		code.value = fromQr;
+		await signInWithCode();
 	}
 });
 
-// A neighbour without email (B2.4) enters with the code the administrator printed for them
-const withCode = ref(false);
-const code = ref('');
-const codeError = ref(false);
-watch(code, () => codeError.value = false);
-
 async function signInWithCode() {
-	loadingLogin.value = true;
+	loading.value = true;
 	try {
 		await useAuth().signInWithCode(code.value);
-		await router.replace('/');
-	} catch {
-		codeError.value = true;
+		await enter();
+	} catch (error) {
+		const invalid = (error as Error).message === 'INVALID_CODE';
+		if (!invalid) {
+			reportError(error, { action: 'Entrar con el código' });
+		}
+		codeError.value = invalid ? 'Ese código no es válido. Revisa que esté bien escrito o pide uno nuevo a tu administrador.' : authErrorMessage(error);
 	} finally {
-		loadingLogin.value = false;
+		loading.value = false;
 	}
 }
 
-async function doSignIn() {
-	errorLogin.value = undefined;
-	triedSubmit.value = true;
+async function signIn() {
+	loading.value = true;
+	try {
+		await useAuth().signInWithPassword(email.value, password.value);
+		await enter();
+	} catch (error) {
+		errorLogin.value = authErrorMessage(error);
+	} finally {
+		loading.value = false;
+	}
+}
 
-	if (!isEmailValid.value) {
+// Also to make one, for whoever was invited by email and never had a password
+async function resetPassword() {
+	if (!email.value.trim()) {
+		errorLogin.value = 'Escribe tu email y te enviaremos un enlace para crear una contraseña nueva.';
 		return;
 	}
-
-	loadingLogin.value = true;
-
+	loading.value = true;
 	try {
-		if (password.value) {
-			await useAuth().signInWithPassword(email.value, password.value);
-			await router.replace((route.query?.unauthorized as string) || '/');
-			return;
-		}
-
-		await useAuth().sendMagicLink(email.value);
-
-		emailSent.value = true;
-	} catch (e) {
-		errorLogin.value = e as Error;
-		askPassword.value ||= (e as Error).message.includes('QUOTA_EXCEEDED');
+		await useAuth().resetPassword(email.value);
+		resetSent.value = true;
+	} catch (error) {
+		errorLogin.value = authErrorMessage(error);
 	} finally {
-		loadingLogin.value = false;
+		loading.value = false;
 	}
 }
 </script>
@@ -125,98 +119,77 @@ async function doSignIn() {
 			<section>
 				<LnxInput
 					v-model="code"
-					:has-error="codeError"
-					:disabled="loadingLogin"
+					:has-error="!!codeError"
+					:disabled="loading"
 					autocomplete="off"
 					autocapitalize="characters"
 					spellcheck="false"
+					placeholder="ABCDE-23456"
 					required
 					autofocus
 				>
-					Introduce tu código
+					Tu código de acceso
 					<template #helper>
-						El que te ha dado tu administrador, en papel. Por ejemplo: ABCDE-23456
+						Debería estar en la carta de tu administrador.
+						<br>
+						Si hay un QR, usa la cámara del móvil.
 					</template>
 					<template #error>
-						Ese código no es válido o ya se ha usado. Pide uno nuevo a tu administrador.
+						{{ codeError }}
 					</template>
 				</LnxInput>
 
-				<LnxButton type="submit" :loading="loadingLogin" :disabled="loadingLogin">
+				<LnxButton type="submit" :loading="loading" :disabled="loading">
 					<LnxIcon icon="lucide:arrow-right" />
 					Entrar
 				</LnxButton>
 				<LnxButton mode="clear" @click="withCode = false">
-					Entrar con mi email
+					Entrar con email y contraseña
 				</LnxButton>
 			</section>
 		</form>
 
-		<form v-else @submit.prevent="doSignIn()">
+		<form v-else @submit.prevent="signIn()">
 			<section>
 				<LnxInput
 					v-model="email"
 					type="email"
-					:has-error="triedSubmit && !!errorLogin && !password"
-					:disabled="loadingLogin"
+					:has-error="!!errorLogin"
+					:disabled="loading"
 					autocomplete="username"
 					required
 					autofocus
 				>
-					Introduce tu email
-					<template #error>
-						Ese email no está registrado: {{ errorLogin }}
-					</template>
-
-					<template
-						v-if="triedSubmit && !errorLogin && emailSent && !password"
-						#helper
-					>
-						Hemos enviado un enlace para iniciar sesión a tu correo electrónico. Revisa tu bandeja de entrada y haz clic en el enlace para acceder a tu cuenta.
+					Tu email
+					<template v-if="resetSent" #helper>
+						Si ese email tiene cuenta, te hemos enviado un enlace para crear una contraseña nueva. Mira también en el correo no deseado.
 					</template>
 				</LnxInput>
 
 				<LnxInput
-					v-if="askPassword"
 					v-model="password"
 					v-password-toggle
 					type="password"
-					:has-error="triedSubmit && !!errorLogin && !!password"
-					:disabled="loadingLogin"
-					autocomplete="password"
+					:has-error="!!errorLogin"
+					:disabled="loading"
+					autocomplete="current-password"
 					required
 				>
-					Introduce tu contraseña
+					Tu contraseña
 					<template #error>
-						La contraseña no es correcta: {{ errorLogin }}
+						{{ errorLogin }}
 					</template>
 				</LnxInput>
 
-				<LnxButton
-					type="submit"
-					:color="(triedSubmit && errorLogin) ? BUTTON_VARIANTS.DANGER : BUTTON_VARIANTS.PRIMARY"
-					:loading="loadingLogin"
-					:disabled="!isEmailValid || loadingLogin || (emailSent && !password)"
-				>
-					<template v-if="(triedSubmit && errorLogin && !password)">
-						<LnxIcon icon="lucide:x" />
-						Error
-					</template>
-					<template v-else-if="emailSent && !password">
-						<LnxIcon icon="lucide:check" />
-						¡Enviado!
-					</template>
-					<template v-else-if="emailSent">
-						<LnxIcon icon="lucide:check" />
-						Entrando...
-					</template>
-					<template v-else>
-						<LnxIcon icon="lucide:arrow-right" />
-						Entrar
-					</template>
+				<LnxButton type="submit" :loading="loading" :disabled="loading">
+					<LnxIcon icon="lucide:arrow-right" />
+					Entrar
+				</LnxButton>
+				<LnxButton mode="clear" :disabled="loading" @click="resetPassword()">
+					No tengo contraseña o la he olvidado
 				</LnxButton>
 				<LnxButton mode="clear" @click="withCode = true">
-					No tengo email: tengo un código
+					Tengo una carta con un código
 				</LnxButton>
 			</section>
 		</form>

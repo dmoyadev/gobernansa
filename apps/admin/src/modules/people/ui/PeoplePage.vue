@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
+import type { PrintedLetter } from './AccessLetterPrint.vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { assignableRoles, formatInviteCode, newInviteCode, roles } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
@@ -10,10 +11,12 @@ import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
-import { mailOutcome, WEBAPP_URL } from '@/modules/mail/application/mail.ts';
+import { mailOutcome } from '@/modules/mail/application/mail.ts';
 import MailModeNote from '@/modules/mail/ui/MailModeNote.vue';
 import { setBlocked } from '../application/useModeration.ts';
 import { cancelInvitation, communityName, invite, removePerson, resendInvitation, restoreInvitation, setCommunityAssigned, setRole, usePeople } from '../application/usePeople.ts';
+import AccessLetterPrint from './AccessLetterPrint.vue';
+import AccessLetters from './AccessLetters.vue';
 
 // A community's neighbours and managers or, without one, the administrators
 const props = defineProps<{ id?: string }>();
@@ -50,9 +53,8 @@ function isSecondary(person: User & { id: string; secondary?: boolean }) {
 
 const form = ref({ name: '', email: '', role: scopeRoles[0], communityIds: [] as string[] });
 const byEmail = ref(true);
-// A neighbour without email (B2.4) gets a code on paper instead
-const byCode = ref(false);
-const withCode = computed(() => !!communityId && form.value.role === 'user' && byCode.value);
+// Neighbours get an access letter (B2.4) instead of an email
+const withCode = computed(() => !!communityId && form.value.role === 'user');
 const formError = ref<string>();
 const formElement = useTemplateRef<HTMLFormElement>('formElement');
 
@@ -104,16 +106,23 @@ function inviteWithCode() {
 			form.value = sent;
 			open.value = true;
 		},
-	}).then(async invited => invited && printCode({ name: sent.name.trim(), id: code }));
+	}).then(async invited => invited && printLetters([{ name: sent.name.trim(), code, places: '' }]));
 }
 
-// The sheet handed to a neighbour without email: where to go and the code, alone on the page when printing
-const webappHost = new URL(WEBAPP_URL).host;
-const sheet = ref<{ name: string; code: string; community: string }>();
-async function printCode({ name, id }: { name: string; id: string }) {
-	sheet.value = { name, code: formatInviteCode(id), community: await communityName(communityId).catch(() => '') };
+// Access letters, alone on the page when printing
+const community = ref('');
+if (communityId) {
+	void communityName(communityId).then(name => community.value = name, () => {});
+}
+const printing = ref<PrintedLetter[]>([]);
+async function printLetters(letters: PrintedLetter[]) {
+	printing.value = letters;
 	await nextTick();
 	window.print();
+}
+
+function printCode(invitation: Invitation & { id: string }) {
+	return printLetters([{ name: invitation.name, code: invitation.id, places: '' }]);
 }
 
 useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar la invitación' });
@@ -200,7 +209,9 @@ function cancel(invitation: Invitation & { id: string }) {
 	<form v-if="open && roleOptions.length" ref="formElement" class="card lnx-appear" @submit.prevent="sendInvitation()">
 		<h2>Invitar a alguien</h2>
 		<p class="hint">
-			{{ withCode ? 'Su cuenta se crea la primera vez que entre con el código que se imprime.' : 'Su cuenta se crea la primera vez que entre en gobernança con este email.' }}
+			{{ withCode
+				? 'Se imprime una carta con su código para entrar en la app. Para un propietario o inquilino del censo, usa mejor su carta de acceso, más abajo: así su cuenta queda unida a su casa.'
+				: 'Recibe un email para crear su cuenta en gobernança admin con ese email.' }}
 		</p>
 		<div class="fields">
 			<LnxInput v-model="form.name" required>
@@ -229,13 +240,6 @@ function cancel(invitation: Invitation & { id: string }) {
 			Comunidades que administra
 		</LnxRadioGroup>
 
-		<LnxCheckbox v-if="communityId && form.role === 'user'" v-model="byCode">
-			No tiene email
-			<template #helper>
-				{{ byCode ? 'Se imprime una hoja con un código para entrar en la app desde su móvil. Sirve una sola vez.' : 'Si no tiene, entra con un código que le das impreso.' }}
-			</template>
-		</LnxCheckbox>
-
 		<div v-if="!withCode">
 			<LnxCheckbox v-model="byEmail">
 				Enviar invitación por email
@@ -256,7 +260,7 @@ function cancel(invitation: Invitation & { id: string }) {
 			</LnxButton>
 			<LnxButton type="submit">
 				<LnxIcon :icon="withCode ? 'lucide:printer' : 'lucide:send'" />
-				{{ withCode ? 'Invitar e imprimir' : 'Invitar' }}
+				{{ withCode ? 'Imprimir su carta' : 'Invitar' }}
 				<LnxKbd combo="mod+enter" />
 			</LnxButton>
 		</footer>
@@ -282,7 +286,7 @@ function cancel(invitation: Invitation & { id: string }) {
 			<li v-for="person in sortedPeople" :key="person.id" class="person">
 				<div class="who">
 					<strong :style="communityId ? { viewTransitionName: `person-${person.id}` } : undefined">{{ person.name }}<template v-if="person.id === me?.id"> (tú)</template></strong>
-					<small>{{ person.email || 'Sin email, entró con un código' }}</small>
+					<small>{{ person.email || 'Entra con su carta de acceso' }}</small>
 				</div>
 				<span class="badges">
 					<span v-if="person.blocked" class="badge blocked">Bloqueado</span>
@@ -340,6 +344,15 @@ function cancel(invitation: Invitation & { id: string }) {
 		</p>
 	</section>
 
+	<AccessLetters
+		v-if="communityId"
+		:community-id="communityId"
+		:community="community"
+		:invitations="invitations"
+		:can-invite="roleOptions.includes('user')"
+		@print="printLetters"
+	/>
+
 	<section v-if="invitations.length" class="card">
 		<h2>Invitaciones pendientes</h2>
 		<TransitionGroup tag="ul" name="row" class="list">
@@ -352,9 +365,10 @@ function cancel(invitation: Invitation & { id: string }) {
 				<div v-if="assignableRoles(me, invitation.communityId).includes(invitation.role)" class="person-actions">
 					<LnxButton v-if="invitation.byCode" mode="clear" class="lnx-size-small" @click="printCode(invitation)">
 						<LnxIcon icon="lucide:printer" />
-						Imprimir el código
+						Imprimir la carta
 					</LnxButton>
-					<LnxButton v-else mode="clear" class="lnx-size-small" @click="resend(invitation)">
+					<!-- Neighbours' are letters now: one by email can't be used in the app -->
+					<LnxButton v-else-if="invitation.role !== 'user'" mode="clear" class="lnx-size-small" @click="resend(invitation)">
 						<LnxIcon icon="lucide:mail" />
 						Reenviar invitación por email
 					</LnxButton>
@@ -372,62 +386,14 @@ function cancel(invitation: Invitation & { id: string }) {
 		</TransitionGroup>
 	</section>
 
-	<!-- Only on paper -->
-	<article v-if="sheet" class="code-sheet">
-		<h1>{{ sheet.name }}, ya puedes entrar en la app de tu comunidad</h1>
-		<p v-if="sheet.community">
-			{{ sheet.community }}
-		</p>
-		<ol>
-			<li>Abre en tu móvil <strong>{{ webappHost }}</strong></li>
-			<li>Pulsa <strong>No tengo email: tengo un código</strong></li>
-			<li>Escribe este código y pulsa <strong>Entrar</strong>:</li>
-		</ol>
-		<p class="code">
-			{{ sheet.code }}
-		</p>
-		<p>
-			Sirve una sola vez y solo para ti. Si cambias de móvil o cierras la sesión, pide uno nuevo a tu administrador.
-		</p>
-	</article>
+	<AccessLetterPrint :letters="printing" :community="community" />
 </template>
 
 <style lang="scss" scoped>
-.code-sheet {
-	display: none;
-}
-
 @media print {
 	.page-header,
 	.card {
 		display: none;
-	}
-
-	.code-sheet {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-		font-size: 16pt;
-		line-height: 1.4;
-
-		h1 {
-			font-size: 22pt;
-		}
-
-		ol {
-			padding-left: 1.2em;
-		}
-
-		.code {
-			padding: 16px 0;
-			border: 2px solid #000;
-			border-radius: 12px;
-			font-family: ui-monospace, monospace;
-			font-size: 36pt;
-			font-weight: bold;
-			letter-spacing: .12em;
-			text-align: center;
-		}
 	}
 }
 

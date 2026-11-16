@@ -6,6 +6,7 @@ import type { WorkOrder } from '@gobernansa/shared/domain/workOrder.ts';
 import type { DocumentData, DocumentReference } from 'firebase/firestore';
 import { mailId, renderMail } from '@gobernansa/shared/domain/mail.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
+import { formatInviteCode } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { doc, serverTimestamp } from 'firebase/firestore';
 
@@ -14,6 +15,23 @@ export const MAIL_MODE: MailMode = import.meta.env.VITE_MAIL_MODE === 'extension
 
 // The neighbours' app, for the links that go to it
 export const WEBAPP_URL = (import.meta.env.VITE_WEBAPP_URL as string | undefined) || 'https://gobernansa.dmoya.dev';
+
+// The access letter's link (B2.4), which its QR has: the code in the hash, so it never reaches a server's logs
+export function letterUrl(code: string) {
+	return `${WEBAPP_URL}/login#codigo-${code}`;
+}
+
+// The access letter as an email written from the office's own mail app: nothing is queued, so it's sent even on the free plan
+export function letterMailto(to: string, name: string, code: string, community: string) {
+	const body = [
+		`Hola, ${name}:`,
+		`Ya puedes entrar en la app de ${community || 'tu comunidad'}. Abre este enlace en tu móvil:`,
+		letterUrl(code),
+		`O entra en ${new URL(WEBAPP_URL).host} y escribe tu código: ${formatInviteCode(code)}`,
+		'Este código es tu llave: te sirve para entrar desde cualquier móvil. No lo compartas.',
+	].join('\n\n');
+	return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(`Tu acceso a la app de ${community || 'tu comunidad'}`)}&body=${encodeURIComponent(body)}`;
+}
 
 // What a toast says of an email it queued: in demo mode it isn't sent, it stays in the outbox
 export function mailOutcome(to: string) {
@@ -67,9 +85,9 @@ export function invitationMail({ name, email, role }: { name: string; email: str
 		blocks: [
 			`Hola, ${name}:`,
 			INVITATION_TEXT[role](inviter, community),
-			`Entra con este email, ${email}, y te enviaremos un enlace para acceder sin contraseña. Tu cuenta se crea la primera vez que entras.`,
+			`Crea tu cuenta con este email, ${email}: en la página de entrada pulsa «Me han invitado: crear cuenta», elige tu contraseña y confirma tu email.`,
 		],
-		action: { label: neighbour ? 'Entrar en la app' : 'Entrar en gobernança admin', url: neighbour ? WEBAPP_URL : window.location.origin },
+		action: { label: 'Crear mi cuenta', url: `${window.location.origin}/login` },
 		footer: community ? [communityLine({ name: community })] : [],
 	};
 }

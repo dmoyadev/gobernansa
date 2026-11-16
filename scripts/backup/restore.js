@@ -8,7 +8,7 @@ import { BACKUP_DIR, decode, decrypt, readKey } from './archive.js';
 /*
  * Restaurar una copia (ROB-2, docs/fiabilidad.md) into the local emulators, never the live project: it empties the
  * emulator and writes every document of the copy. With the Auth emulator too, each profile in users gets its account back
- * with the same id and email, to sign in by magic link as that person. The last copy, or the one given:
+ * with the same id and email, to sign in as that person by asking for a new password (the emulator logs its link). The last copy, or the one given:
  *   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run restore -- [file]
  */
 

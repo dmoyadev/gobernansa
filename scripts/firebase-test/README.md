@@ -23,7 +23,7 @@ It asks, step by step:
 2. **What to do**: leave the whole demo as new (empties every demo collection and loads everything) or choose.
 3. **What to delete**, by group, with how many documents each has now, and **how**: exactly the documents the seed makes (what was created by hand stays, even under them), or the whole collections (also what was created by hand, and other groups' documents in them, which it offers to load again).
 4. **What to load**, by group, adding the groups the chosen ones need when they aren't there, and **how**: overwriting the demo documents or creating only the missing ones.
-5. **Auth** (emulator and demo project only): recreate the demo accounts, so each one signs in with a magic link, and on the demo project also with `DEMO_PASSWORD` from `.env.demo.local`.
+5. **Auth** (emulator and demo project only): recreate the demo accounts, so each one signs in with `DEMO_PASSWORD` from `.env.demo.local` (without it, by asking for a new password by email). Neighbours without an account get their access letter from the admin's "Vecinos y gestores".
 
 Before touching anything it shows a summary, with the quota it spends on the live project, and asks to go on.
 

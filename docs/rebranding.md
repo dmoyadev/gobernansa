@@ -71,6 +71,7 @@ El `README.md` enlaza `apps/webapp/public/screenshot.png` y `screenshot.gif`, qu
 | Sitio de Hosting por defecto `dmoyadev-gobernansa` (webapp) | Es el del proyecto, no se renombra ni se borra | Se queda, detrás de `app.<dominio>` |
 | Sitio `gobernansa-admin` (y `gobernansa-landing` si ya existe) | Los sitios no se renombran | Se quedan, detrás de `admin.<dominio>` y `<dominio>`. Si la landing aún no tiene sitio, se crea ya como `<slug>-landing` |
 | Secreto de GitHub `FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA` | Su nombre es el del proyecto, que se queda | Se queda |
+| Dominio `codigo.gobernansa.dmoya.dev` de las cuentas con código llave (`CODE_EMAIL_DOMAIN`) | Cada vecino que entra con su carta tiene una cuenta con ese correo: cambiarlo deja fuera a todos | **Se queda**, aunque el dominio viejo deje de existir: no recibe correo, solo es el nombre de la cuenta |
 | Cabecera `GOBK1` de las copias de seguridad | Cambiarla deja ilegibles las copias que ya hay | Se queda |
 | Carpeta `gobernança/` de Cloudinary | Las fotos y vídeos de las incidencias que ya existen apuntan a ella | **No moverla ni renombrarla**. Las subidas nuevas irán a `<slug>/` |
 | Correos ya encolados en **Correo saliente** | Son el registro de lo que se envió | Se quedan con el nombre viejo |

@@ -163,8 +163,8 @@ async function load(db, target, docs, mode) {
 	return { written: docs.size - skipped - failed.length, skipped, failed };
 }
 
-// The demo's accounts, so each can sign in with a magic link, and on the demo project also with DEMO_PASSWORD, which doesn't
-// depend on the daily quota of sign-in emails. Others signed in before go, or their emails would map to other uids
+// The demo's accounts, so on the demo project each can sign in with DEMO_PASSWORD, which doesn't depend on the daily quota
+// of emails; in the emulator, with "He olvidado mi contraseña". Others signed in before go, or their emails would map to other uids
 async function resetAuth(target) {
 	// Never the live project's accounts
 	if (target === 'live') {
@@ -322,7 +322,7 @@ async function main() {
 		console.log(`${styleText('green', '✔')} Cuentas de la demo`);
 	}
 
-	console.log(`\n${bold('Cuentas de la demo')} ${dim(target === 'demo' ? '(se entra con DEMO_PASSWORD o con enlace mágico al correo)' : '(se entra con enlace mágico al correo)')}`);
+	console.log(`\n${bold('Cuentas de la demo')} ${dim(target === 'demo' ? '(se entra con DEMO_PASSWORD)' : '(se entra pidiendo una contraseña nueva al correo)')}`);
 	for (const user of users) {
 		console.log(`  ${user.name.padEnd(20)} ${roles[user.role].label.padEnd(18)} ${user.email}${user.blocked ? dim(' · bloqueado') : ''}`);
 	}

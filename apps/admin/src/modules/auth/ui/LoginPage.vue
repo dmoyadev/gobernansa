@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import useAuth, { authErrorMessage } from '@gobernansa/shared/application/useAuth.ts';
 import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, useShortcut } from 'lnxjs-components';
-import { onBeforeMount, ref, useTemplateRef } from 'vue';
+import { onBeforeMount, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
 
-const { completeMagicLink, sendMagicLink, signInWithPassword } = useAuth();
+const { signInWithPassword, signUp, resetPassword } = useAuth();
 const route = useRoute();
 const router = useRouter();
 
 const email = ref('');
 const password = ref('');
 const loading = ref(false);
-const emailSent = ref(false);
+// Whoever was invited makes their account with the email it was sent to
+const creating = ref(false);
+const message = ref<string>();
 const error = ref<string>();
-// Once the daily quota of sign-in emails runs out, users who set a password can still sign in with it
-const askPassword = ref(false);
+watch([email, password, creating], () => error.value = undefined);
 const form = useTemplateRef('form');
 
 async function goToApp() {
@@ -24,43 +25,44 @@ async function goToApp() {
 }
 
 onBeforeMount(async () => {
-	try {
-		await completeMagicLink();
-		if (await getCurrentUser()) {
-			await goToApp();
-		}
-	} catch (e) {
-		error.value = (e as Error).message;
+	if (await getCurrentUser()) {
+		await goToApp();
 	}
 });
 
-// A sign-in link is emailed first; with a password (only asked once the email quota runs out) it signs in right away
-async function signIn() {
+async function submit() {
 	error.value = undefined;
+	message.value = undefined;
 	loading.value = true;
 	try {
-		if (password.value) {
-			await signInWithPassword(email.value, password.value);
-			await goToApp();
-			return;
-		}
-
-		await sendMagicLink(email.value);
-		emailSent.value = true;
+		await (creating.value ? signUp(email.value, password.value) : signInWithPassword(email.value, password.value));
+		await goToApp();
 	} catch (e) {
-		const message = (e as Error).message;
-		if (message.includes('QUOTA_EXCEEDED') && !askPassword.value) {
-			askPassword.value = true;
-			return;
-		}
-		error.value = message;
+		error.value = authErrorMessage(e);
+	} finally {
+		loading.value = false;
+	}
+}
+
+async function forgot() {
+	error.value = undefined;
+	if (!email.value.trim()) {
+		error.value = 'Escribe tu email y te enviaremos un enlace para crear una contraseña nueva.';
+		return;
+	}
+	loading.value = true;
+	try {
+		await resetPassword(email.value);
+		message.value = 'Si ese email tiene cuenta, te hemos enviado un enlace para crear una contraseña nueva.';
+	} catch (e) {
+		error.value = authErrorMessage(e);
 	} finally {
 		loading.value = false;
 	}
 }
 
 useShortcut('mod+enter', () => {
-	if (!loading.value && !emailSent.value) {
+	if (!loading.value) {
 		form.value?.requestSubmit();
 	}
 }, { description: 'Entrar' });
@@ -68,7 +70,7 @@ useShortcut('mod+enter', () => {
 
 <template>
 	<main>
-		<form ref="form" class="lnx-appear" @submit.prevent="signIn()">
+		<form ref="form" class="lnx-appear" @submit.prevent="submit()">
 			<header>
 				<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="180">
 				<h1>Administración</h1>
@@ -87,33 +89,40 @@ useShortcut('mod+enter', () => {
 			</LnxInput>
 
 			<LnxInput
-				v-if="askPassword"
 				v-model="password"
 				v-password-toggle
 				type="password"
-				autocomplete="current-password"
+				:autocomplete="creating ? 'new-password' : 'current-password'"
 				:disabled="loading"
+				minlength="6"
 				required
-				autofocus
 			>
 				Contraseña
-				<template #helper>
-					Ahora mismo no podemos enviarte un enlace de acceso. Entra con tu contraseña.
+				<template v-if="creating" #helper>
+					Al menos 6 caracteres. Después te pediremos que confirmes tu email.
 				</template>
 			</LnxInput>
 
-			<p v-if="emailSent" class="message" role="status">
-				Te hemos enviado un enlace para entrar. Ábrelo en este mismo navegador.
+			<p v-if="message" class="message" role="status">
+				{{ message }}
 			</p>
 			<p v-if="error" class="message error" role="alert">
-				No se ha podido iniciar sesión: {{ error }}
+				{{ error }}
 			</p>
 
-			<LnxButton type="submit" :is-loading="loading" :disabled="emailSent" is-block>
-				<LnxIcon :icon="emailSent ? 'lucide:check' : 'lucide:arrow-right'" />
-				{{ emailSent ? '¡Enviado!' : 'Entrar' }}
-				<LnxKbd v-if="!emailSent" combo="mod+enter" />
+			<LnxButton type="submit" :is-loading="loading" is-block>
+				<LnxIcon :icon="creating ? 'lucide:user-plus' : 'lucide:arrow-right'" />
+				{{ creating ? 'Crear cuenta' : 'Entrar' }}
+				<LnxKbd combo="mod+enter" />
 			</LnxButton>
+			<div class="links">
+				<LnxButton v-if="!creating" mode="clear" :disabled="loading" @click="forgot()">
+					He olvidado mi contraseña
+				</LnxButton>
+				<LnxButton mode="clear" @click="creating = !creating">
+					{{ creating ? 'Ya tengo cuenta' : 'Me han invitado: crear cuenta' }}
+				</LnxButton>
+			</div>
 		</form>
 
 		<RouterLink to="/legal" class="legal">
@@ -165,6 +174,13 @@ header {
 .legal {
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
+}
+
+.links {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
 }
 
 .message {

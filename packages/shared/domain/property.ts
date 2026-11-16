@@ -17,6 +17,10 @@ export interface Property extends Datable {
 	// Who lives there when it's rented
 	tenantName?: string;
 	tenantEmail?: string;
+	// The tenant's account, once they've entered with their access code
+	tenantUid?: string;
+	// The access code the owner or tenant linked their account with, which the rules check
+	claimedWith?: string;
 	// Share of the community's expenses and votes, as a percentage (e.g. 3.25). The census should add up to 100
 	coefficient?: number;
 	// Domiciliación of its charges. Its owner sees it, as it's their account

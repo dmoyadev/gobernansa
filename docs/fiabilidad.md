@@ -95,8 +95,8 @@ La fase 2 ([MON-4](#mon-4), [MON-5](#mon-5), [MON-7](#mon-7), [ROB-4](#rob-4) y 
 ### Lo que falta
 
 - **Las previews de cada PR apuntan a producción**, con el mismo proyecto y las mismas reglas ([ROB-1](#rob-1), aplazado):
-  - el enlace mágico no funciona en ellas, porque su dominio no está autorizado;
-  - lo que sí funciona en ellas (entrar con contraseña, el parte de trabajo por enlace) escribe en datos reales;
+  - lo que se hace en ellas (entrar con código o contraseña, el parte de trabajo por enlace) escribe en datos reales;
+  - el QR de una carta impresa desde una preview lleva a producción;
   - un cambio que necesita reglas nuevas falla en la preview aunque esté bien.
 - **Las copias de seguridad dependen de tu equipo** ([ROB-2](#rob-2), puente gratuito): solo se hacen si está encendido o se despierta, leen toda la base de datos cada vez y aún no se ha restaurado ninguna copia real.
 - **No hay pruebas automáticas**, tampoco en lo que mueve dinero o va a la AEAT.
@@ -261,7 +261,7 @@ Las dos opciones leen todos los documentos, así que gastan cuota y solo sirven 
 - **Clave:** se crea la primera vez en `~/.config/gobernansa/backup.key`, fuera de la carpeta de las copias. **Guarda una copia en el gestor de contraseñas:** sin ella no se puede restaurar ninguna copia.
 - **Programarla:** `npm run backup -- --schedule` escribe `~/Library/LaunchAgents/com.gobernansa.backup.plist` y dice cómo activarlo (`launchctl bootstrap gui/<uid> <plist>`). Se lanza cada día a las 14:00; si el equipo estaba dormido, al despertar. Su registro, en `~/Documents/Backups/gobernansa/backup.log`. Si cambias de versión de Node o mueves el repositorio, vuelve a ejecutarlo.
 - **Vigilancia:** la página «Errores» muestra cuándo fue la última copia y cuántos documentos tenía, y un aviso en rojo si tiene más de 26 horas o no hay ninguna. Cuesta una lectura al abrir la página.
-- **Restaurar:** `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run restore` vacía el emulador y escribe la última copia (o la que se le pase). Con el emulador de Auth, crea la cuenta de cada perfil con su mismo identificador y correo, para entrar como esa persona con enlace mágico. Se niega a escribir en producción.
+- **Restaurar:** `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run restore` vacía el emulador y escribe la última copia (o la que se le pase). Con el emulador de Auth, crea la cuenta de cada perfil con su mismo identificador y correo, para entrar como esa persona pidiendo una contraseña nueva (el emulador escribe el enlace en su registro). Se niega a escribir en producción.
 - **Cuota:** cada copia gasta una lectura por documento, más una por colección vacía. El script avisa si pasa de 25.000, la mitad de las diarias: entonces hay que pasar a Blaze.
 - **No incluye** las cuentas de Auth (se rehacen desde `users` al restaurar en los emuladores) ni los ficheros de Cloudinary.
 
@@ -327,12 +327,12 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 - **Previews.** El workflow de PR compila con los valores de ese proyecto (un *environment* de GitHub con sus propios secretos) y despliega en él sus reglas antes de la preview. Así cada PR se prueba con las reglas que trae.
 - **Producción** solo se toca al hacer merge a `main`, como ahora.
 - **Datos de prueba** con el script de seed que ya existe, solo contra ese proyecto: borra lo que haya.
-- **Acceso.** Autorizar el dominio de sus previews en la autenticación de ese proyecto, para poder entrar con enlace mágico.
+- **Acceso.** Autorizar el dominio de sus previews en la autenticación de ese proyecto, para que lleguen bien los correos de contraseña nueva.
 - **Usos.** Ahí se ensayarían las restauraciones ([ROB-2](#rob-2)), se reproducirían los fallos ([MON-7](#mon-7)) y se probaría el propio sistema de errores sin gastar la cuota de producción. Mientras esté aplazado, eso se hace en los emuladores locales.
 
 **Coste:** 0 €. Se puede tener más de un proyecto en el plan gratuito.
 
-**Hecho cuando** una PR se puede probar entrando con enlace mágico, sin tocar producción.
+**Hecho cuando** una PR se puede probar entrando con un código o una contraseña de prueba, sin tocar producción.
 
 ---
 

@@ -3,7 +3,7 @@ import type { WriteBatch } from 'firebase/firestore';
 import type { MaybeRefOrGetter } from 'vue';
 import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { officeRoles, roles } from '@gobernansa/shared/domain/user.ts';
+import { newInviteCode, officeRoles, roles } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { arrayRemove, arrayUnion, collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
@@ -114,6 +114,34 @@ export async function invite({ email, name, role, communityId, communityIds, off
 		});
 		mail?.(batch);
 	});
+}
+
+// What an access letter (B2.4) is for: the owner of some properties without an account, or a tenant
+export type LetterTarget = Pick<Invitation, 'name' | 'propertyIds' | 'tenantOf'>;
+
+// A new code for each, in batches well under 500 writes. The codes, in the same order
+export async function createLetters(communityId: string, letters: LetterTarget[]) {
+	const codes = letters.map(() => newInviteCode());
+	for (let start = 0; start < letters.length; start += 400) {
+		const chunk = letters.slice(start, start + 400);
+		await commit(communityId, chunk.length === 1 ? `Preparó la carta de acceso de ${chunk[0].name}` : `Preparó ${chunk.length} cartas de acceso`, (batch) => {
+			chunk.forEach(({ name, propertyIds, tenantOf }, index) => {
+				const code = codes[start + index];
+				batch.set(doc(invitationsRef, code), {
+					email: code,
+					name,
+					role: 'user',
+					communityId,
+					byCode: true,
+					...(propertyIds?.length ? { propertyIds } : {}),
+					...(tenantOf ? { tenantOf } : {}),
+					invitedBy: auth.currentUser!.uid,
+					invitedAt: serverTimestamp(),
+				});
+			});
+		});
+	}
+	return codes;
 }
 
 // The same email again for a pending one, e.g. invited without it or lost in their inbox

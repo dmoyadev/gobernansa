@@ -4,8 +4,9 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { keepsBooks, managesCommunity, officeRoleOf, readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon, LnxShortcutsSheet, shortcutTitle, useShortcut } from 'lnxjs-components';
-import { computed, useTemplateRef, watch } from 'vue';
+import { computed, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useCurrentUser } from 'vuefire';
 import { errorAlerts, watchErrorAlerts } from '@/modules/errors/application/useErrorAlerts.ts';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
 import { useSearchHighlight } from './useSearchHighlight.ts';
@@ -14,7 +15,33 @@ import { workspaceMove, workspacePage } from './workspace/workspaces.ts';
 import WorkspaceTabs from './workspace/WorkspaceTabs.vue';
 
 const route = useRoute();
-const { user, logout } = useAuth();
+const { user, logout, checkVerification, resendVerification } = useAuth();
+
+// Who signed up and hasn't confirmed their email yet: their invitation becomes their profile once they do
+const account = useCurrentUser();
+const verified = ref(false);
+const unverified = computed(() => user.value === null && !!account.value && !account.value.emailVerified && !verified.value);
+const verifyMessage = ref<string>();
+const checking = ref(false);
+
+async function checkVerified() {
+	checking.value = true;
+	try {
+		verified.value = await checkVerification();
+		verifyMessage.value = verified.value ? undefined : 'Todavía no consta. Abre el enlace del email que te hemos enviado y vuelve a probar.';
+	} finally {
+		checking.value = false;
+	}
+}
+
+async function resend() {
+	try {
+		await resendVerification();
+		verifyMessage.value = 'Te lo hemos vuelto a enviar. Mira también en el correo no deseado.';
+	} catch {
+		verifyMessage.value = 'No se ha podido enviar. Espera unos minutos y vuelve a probar.';
+	}
+}
 
 // The profile is read after signing in. Missing, unreadable or a neighbour's (they use the webapp), the account can't use the admin.
 // Pages marked `superadmin` are the team's, `office` ones the administrators' (not managers'), `books` ones also only
@@ -152,6 +179,25 @@ const KEPT_PAGES = 6;
 				<LnxButton to="/" mode="outline">
 					<LnxIcon icon="lucide:arrow-left" />
 					Volver a comunidades
+				</LnxButton>
+			</section>
+
+			<section v-else-if="access === 'denied' && unverified" class="status">
+				<LnxIcon icon="lucide:mail-check" :size="40" />
+				<h1>Confirma tu email</h1>
+				<p>Te hemos enviado un enlace a {{ account?.email }}. Ábrelo y vuelve aquí para entrar.</p>
+				<p v-if="verifyMessage" role="status">
+					{{ verifyMessage }}
+				</p>
+				<LnxButton :is-loading="checking" @click="checkVerified()">
+					<LnxIcon icon="lucide:check" />
+					Ya lo he confirmado
+				</LnxButton>
+				<LnxButton mode="clear" @click="resend()">
+					Reenviar el enlace
+				</LnxButton>
+				<LnxButton mode="clear" @click="logout()">
+					Cerrar sesión
 				</LnxButton>
 			</section>
 

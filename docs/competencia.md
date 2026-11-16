@@ -15,7 +15,7 @@ Referencia de producto para decidir y priorizar features de gobernança. Antes d
 
 | Área | Admin (`apps/admin`) | Webapp de vecinos (`apps/webapp`) |
 |---|---|---|
-| Acceso | Enlace mágico, contraseña solo como alternativa; roles e invitaciones con email de invitación (en el correo saliente, modo de prueba); cada administrador ve solo sus comunidades; instalable como app (PWA) | Enlace mágico; perfil; instalable como app (PWA) con push web, apertura sin conexión y aviso de nueva versión |
+| Acceso | Carta con código llave y QR para propietarios e inquilinos (sin email ni contraseña), email y contraseña para quien lo prefiera; roles e invitaciones con email de invitación (en el correo saliente, modo de prueba); cada administrador ve solo sus comunidades; instalable como app (PWA) | Código llave con QR o contraseña; perfil con email para recuperar el acceso y varias casas; instalable como app (PWA) con push web, apertura sin conexión y aviso de nueva versión |
 | Comunidades | Cartera con dashboard y bandeja de entrada, búsqueda de comunidades y vecinos, dashboard personalizable por comunidad, ficha fiscal 3D, propiedades. Importación del censo (propiedades, propietarios, coeficientes, teléfonos y mandatos SEPA) y de comunidades desde .xlsx, CSV o pegando celdas, con revisión fila a fila | Página de la comunidad (seguro, horarios de contacto, ficha fiscal) |
 | Incidencias | Crear, gestionar estado, antigüedad; categorías propias de cada comunidad (nombre, icono, color, orden); solo la administración sabe quién dio cada aviso; proveedor asignado con parte de trabajo por enlace (el gremio acepta, programa la visita y cierra con notas y fotos sin cuenta); urgencia y gremio sugeridos, resumen del hilo | Asistente de alta con categoría y urgencia sugeridas (con consejo en emergencias), comentarios, fotos, votos por propiedad con cupo mensual, avisos sin que los demás vecinos sepan quién los dio, filtros. Página del parte de trabajo para el gremio |
 | Juntas | Convocatoria, orden del día, votación, delegaciones. Acta firmada por presidente y secretario (firma electrónica simple), sellada con huella SHA-256 y QR e imprimible. Notificación de la convocatoria y del acta a cada propietario con acuse en la app y correo certificado en modo de prueba, discrepancias de ausentes (también recibidas por correo postal) y cómputo del art. 17.8 LPH | Ver convocatoria, unirse por enlace, votar y delegar; firmar el acta como presidente, leerla, acusar recibo y manifestar discrepancia en 30 días |
@@ -295,7 +295,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 - *Amenaza:* media. Es el listón en reservas; no tiene plataforma de administración.
 
 **ResidenciAPP**
-- *Qué es:* proyecto de una persona con **el mismo stack que gobernança** (Firebase, enlace mágico por email) más Expo/RN y Stripe Connect.
+- *Qué es:* proyecto de una persona con **el mismo stack que gobernança** (Firebase; el acceso, por enlace mágico al email) más Expo/RN y Stripe Connect.
 - *Producto:* reservas con pago y monedero, votaciones delegadas con PDF, inquilinos, conserje.
 - *Precio:* 275 / 350 / 425 €/año por comunidad.
 - *Tracción:* más de 20 comunidades declaradas, 100+ descargas en Android.
@@ -472,7 +472,7 @@ Leyenda: ✅ sí · ◐ parcial · ❌ no · ? desconocido · — no aplica (nor
 - **Riesgo regulatorio asumido y acotado:** los ficheros AEAT siguen los diseños de registro oficiales, pero hay que validarlos en la Sede antes de venderlos como listos; Verifactu solo afecta a los honorarios del despacho.
 - **Ser neutral frente a los despachos**, al contrario que Ciudadela o Supervecina. gobernança no les quita clientes.
 - **Migrar o convivir:** importar el censo (comunidades, propiedades, propietarios, coeficientes y mandatos SEPA) y la deuda de cada propiedad desde el Excel o CSV de otro programa, y exportar el diario a ContaPlus y a Excel, para entrar aunque el despacho no cambie de ERP el primer día.
-- **Por el lado del vecino,** competir contra el 2,1★ de TucomunidApp y TuAdministrador con un acceso sin fricción (el enlace mágico es una ventaja frente al «no puedo registrarme», que es una queja recurrente) y una experiencia cuidada.
+- **Por el lado del vecino,** competir contra el 2,1★ de TucomunidApp y TuAdministrador con un acceso sin fricción (la carta con QR, que entra sin registrarse, es una ventaja frente al «no puedo registrarme», que es una queja recurrente) y una experiencia cuidada.
 
 ### 9.2 Huecos, por prioridad
 
@@ -541,7 +541,7 @@ Detallados, con cómo hacerlos en este código, en [fiabilidad.md](fiabilidad.md
 
 ### 9.3 Diferenciadores defendibles
 
-1. **Experiencia del vecino y fiabilidad:** acceso por enlace mágico y una interfaz estable. Medible en las notas de las tiendas o en el NPS en cuanto haya app o PWA.
+1. **Experiencia del vecino y fiabilidad:** acceso con la carta del código llave y una interfaz estable. Medible en las notas de las tiendas o en el NPS en cuanto haya app o PWA.
 2. **Doble cara con un mismo modelo de datos:** panel de despacho (búsqueda transversal de comunidades y vecinos, dashboard por comunidad, ficha fiscal) y webapp del vecino. Las apps de comunidades autogestionadas no tienen lo primero y los ERP no tienen lo segundo bien hecho.
 3. **ERP y vecino en un solo producto:** los cobros, la contabilidad y los modelos fiscales comparten datos con la app del vecino (sus recibos, pagos y reservas), y se puede convivir con el ERP actual exportando a ContaPlus mientras se migra.
 4. **La junta de punta a punta:** convocatoria notificada, voto ponderado y delegación, acta firmada y sellada, acuse de cada propietario y cómputo de los ausentes del art. 17.8 LPH, sin coste.
