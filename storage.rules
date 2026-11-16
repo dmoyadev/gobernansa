@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// Photos and videos of issues and work orders, uploaded from the webapp (uploadMedia). Everyone else opens them through
+// their download URL, whose token skips these rules: the community, the office and the provider, who has no account.
+// Nobody changes nor removes them from the apps; every week purgeOldMedia (functions/retention.js) deletes those nobody sees
+// anymore
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Photos the app already made smaller, those it can't read (e.g. HEIC) as they are
+    function isPhoto() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif|heic|heif|avif)')
+        && request.resource.size <= 20 * 1000 * 1000;
+    }
+
+    // As MAX_VIDEO_SIZE and VIDEO_TYPE_REGEX
+    function isVideo() {
+      return request.resource.contentType.matches('video/(mp4|quicktime|webm)')
+        && request.resource.size <= 100 * 1000 * 1000;
+    }
+
+    // A neighbour's issue, in the folder of their secret key (Issue.authorKey): the issue already shows it, their uid
+    // would tell the community whose it is. They read it back only for its URL
+    match /issues/{communityId}/{authorKey}/{name} {
+      function hasKey() {
+        return request.auth != null
+          && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)/keys/issues).data.key == authorKey;
+      }
+
+      // Who can report in that community, as firestore.rules' issues: one of its neighbours, not blocked
+      function canReport() {
+        let me = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+        return (me.get('communityId', '') == communityId || communityId in me.get('otherCommunityIds', []))
+          && me.get('blocked', false) != true;
+      }
+
+      allow get: if hasKey();
+      allow create: if hasKey() && canReport() && (isPhoto() || isVideo());
+    }
+
+    // The provider's photos of the finished job, while its work order can still be answered: as in firestore.rules, the
+    // token is their only credential
+    match /workOrders/{token}/{name} {
+      function isOpen() {
+        let order = firestore.get(/databases/(default)/documents/workOrders/$(token));
+        return order != null
+          && order.data.get('revokedAt', null) == null
+          && order.data.status in ['sent', 'accepted', 'scheduled'];
+      }
+
+      allow get: if isOpen();
+      allow create: if isOpen() && isPhoto();
+    }
+  }
+}

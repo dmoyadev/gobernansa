@@ -5,12 +5,14 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import admin from 'firebase-admin';
-import { BACKUP_DIR, encode, encrypt, KEY_FILE, readKey, SERVICE_ACCOUNT } from './archive.js';
+import { purge } from '../../functions/retention.js';
+import { BACKUP_DIR, connect, encode, encrypt, KEY_FILE, readKey } from './archive.js';
 
 /*
  * Copia de seguridad (ROB-2, puente gratuito, docs/fiabilidad.md): every document of Firestore, encrypted, to this
- * computer, and ops/backup with when and how many, for the admin's warning. It reads every document once, so it spends
- * that many reads of the day's 50.000. --schedule sets it to run every day with launchd
+ * computer (but the Historial's actions), and ops/backup with when and how many, for the admin's warning. It reads every document once, so it spends
+ * that many reads of the day's 50.000. Then deletes what's expired (functions/retention.js), now that it's copied (the actions never are).
+ * --schedule sets it to run every day with launchd
  */
 
 const KEEP = 14;
@@ -20,6 +22,9 @@ const LABEL = 'com.gobernansa.backup';
 // match in the rules (they deny the rest), plus users/{uid}/{collection}, whose names the rules list in a condition
 const RULES = new URL('../../firestore.rules', import.meta.url);
 const USER_COLLECTIONS = ['documents', 'documentFiles', 'devices', 'keys'];
+// The Historial's actions stay out: they grow with every screen opened and would take each copy past the day's free reads,
+// and losing them loses nothing of a community's
+const SKIPPED = new Set(['actions']);
 const MATCH = /match \/(\w+)\//g;
 
 function schedule() {
@@ -52,15 +57,11 @@ async function main() {
 		return schedule();
 	}
 
-	const emulator = !!process.env.FIRESTORE_EMULATOR_HOST;
-	const account = emulator ? null : JSON.parse(readFileSync(SERVICE_ACCOUNT, 'utf8'));
-	const projectId = account?.project_id ?? process.env.GCLOUD_PROJECT ?? 'demo-gobernansa';
-	admin.initializeApp(account ? { credential: admin.credential.cert(account) } : { projectId });
-	const db = admin.firestore();
+	const { db, projectId, emulator } = connect();
 	const key = readKey({ create: true });
 
 	const root = (await db.listCollections()).map(collection => collection.id);
-	const groups = [...new Set([...root, ...Array.from(readFileSync(RULES, 'utf8').matchAll(MATCH), ([, name]) => name), ...USER_COLLECTIONS])];
+	const groups = [...new Set([...root, ...Array.from(readFileSync(RULES, 'utf8').matchAll(MATCH), ([, name]) => name), ...USER_COLLECTIONS])].filter(group => !SKIPPED.has(group));
 	const documents = new Map();
 	// ponytail: the whole database in memory, fine up to the free plan's 1 GiB; stream it to the file if it gets near
 	for (const group of groups) {
@@ -80,6 +81,13 @@ async function main() {
 	await db.doc('ops/backup').set({ at: admin.firestore.FieldValue.serverTimestamp(), documents: documents.size, collections: collections.size, bytes: file.length });
 
 	console.log(`${at.toLocaleString('es')} ${styleText('green', '✔')} ${documents.size.toLocaleString('es')} documentos de ${collections.size} colecciones ${emulator ? `del emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : `de ${projectId}`} en ${join(BACKUP_DIR, name)} (${(file.length / 1024).toFixed(0)} KB)${old.length ? `, borradas ${old.length} antiguas` : ''}`);
+
+	// What's expired of the Historial and the errors, once it's in this copy, the actions too (functions/retention.js): on
+	// Blaze, purgeExpired
+	const purged = Object.entries(await purge(db)).filter(([, count]) => count);
+	if (purged.length) {
+		console.log(`  Borrado lo caducado: ${purged.map(([what, count]) => `${count.toLocaleString('es')} de ${what}`).join(', ')}`);
+	}
 	if (documents.size > DAILY_READS / 2) {
 		console.warn(styleText('yellow', `⚠ Ha gastado ${documents.size.toLocaleString('es')} lecturas de las ${DAILY_READS.toLocaleString('es')} diarias: es hora de las copias programadas de Blaze (INF-1)`));
 	}

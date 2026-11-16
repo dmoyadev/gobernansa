@@ -1,8 +1,12 @@
-// Saves a file made in the browser (SEPA, AEAT, Norma 43, CSV, Verifactu XML…): nothing is uploaded anywhere
+import { logAction } from '@gobernansa/shared/infrastructure/actions.ts';
+
+// Saves a file made in the browser (SEPA, AEAT, Norma 43, CSV, Verifactu XML, a document…): nothing is uploaded anywhere.
+// Each one goes to the Historial
 export function downloadFile(name: string, content: BlobPart, type: string) {
 	const url = URL.createObjectURL(new Blob([content], { type }));
 	Object.assign(document.createElement('a'), { href: url, download: name }).click();
 	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	void logAction('download', { detail: name, meta: { type } });
 }
 
 // CRC-32 of the zip format, its table made once

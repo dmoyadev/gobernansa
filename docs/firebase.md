@@ -1,6 +1,6 @@
-# Firebase and Cloudinary setup
+# Firebase setup
 
-What the live project needs for every feature to work. Only the security rules are deployed by CI, the rest is set by hand.
+What the live project needs for every feature to work. Only Firestore's security rules are deployed by CI; the rest (Storage's rules, the indexes, the functions) is set or deployed by hand.
 
 ## 1. Security rules
 
@@ -18,6 +18,17 @@ The local emulator enforces it too. Each rule that checks the user's community o
 - a year closed again over its closing.
 
 When one is turned down, the action shows an error and nothing of its batch is written. What needs to know the state on the server first (marking a charge or invoice paid by hand, returns, recibos de intereses, closing the year) goes in a transaction, so it needs a connection.
+
+**Photos are links too.** An issue's `assets` must be up to 6 download URLs of files in its reporter's own Storage folder (`issues/{communityId}/{authorKey}/`); until now any text went in, `javascript:` links included, which the admin and the provider's page show as links. A provider's photos must be up to 10 download URLs of files under their own work order (`workOrders/{token}/`). Both take the URL absolute (`https://firebasestorage.googleapis.com/v0/b/…`) or, with the emulators, relative (`/v0/b/…`), see section 3.
+
+**Historial** (section 10). `audit` is read only by the superadmin and nobody writes it from the apps: the functions do. `actions` is created by whoever is signed in, with their own uid and email, the server's time, only its known fields, each with a size cap, and any type but `restore`, which only the restore function writes; read only by the superadmin, never changed or removed.
+
+**Storage** has its own rules, [`storage.rules`](../storage.rules), which only let files be created, never changed, removed or listed from the apps. Everyone else opens a file through its download URL, whose token skips the rules.
+- **An issue's photos and videos**: in the folder of the reporter's secret key, only by that key's owner while they're a neighbour of that community and not blocked (as Firestore's `issues` create rule). Images up to 20 MB (jpeg, png, webp, gif, heic, heif, avif) and videos up to 100 MB (mp4, mov, webm).
+- **A provider's photos**: images only, up to 20 MB, while their work order exists, isn't revoked and is sent, accepted or scheduled. The token is their only credential, as in Firestore.
+- **Reads**: the rules read Firestore, which counts: two documents for each issue upload (the key and the profile) and one for a work order's, plus one more when the app then asks for the file's download URL.
+
+CI doesn't deploy `storage.rules`: after each change, `npx firebase deploy --only storage --project dmoyadev-gobernansa` (section 3). A neighbour's photo upload has been tried in the local demo (section 12); a provider's photos and the cases the rules must refuse (another's key, another community, a blocked neighbour, another type, too big, a revoked or finished order) are still to be tried in the emulator.
 
 ## 2. Indexes
 
@@ -51,17 +62,39 @@ The admin's **Errores** page (only the team) orders the errors by when they were
 
 `ops` is written only with the Admin SDK (the backup script) and read only by the team; `vitals` takes the sampled sessions' performance, one write each, with no reads, and the rules cap what each write adds (docs/fiabilidad.md, [MON-6](fiabilidad.md#mon-6)).
 
-Samples expire 30 days after they're taken (`expiresAt`), and **Limpiar caducadas** removes them, along with the errors resolved or ignored that went 180 days without coming back. If Firestore's TTL turns out to work on the free plan, a TTL policy on the `samples` collection group's `expiresAt` field (Firestore → Time-to-live) removes them on its own; its deletes count against the daily quota too.
+Samples expire 30 days after they're taken (`expiresAt`), and the deletion of what's expired (section 10, Retention) removes them; **Limpiar caducadas** does it too, along with the errors resolved or ignored that went 180 days without coming back.
 
-## 3. Cloudinary (issue photos and videos)
+The superadmin's **Historial** (section 10) lists the newest first, and each filter needs its own index. Firestore merges them when several filters are on:
 
-Cloud Storage needs the paid plan, so uploads go to Cloudinary, where the existing issue media already is.
+| Feature | Index |
+| --- | --- |
+| Historial → Cambios, by community, collection, operation or person | Composite on `audit`: `communityId` (or `collection`, `op`, `actorId`) ascending, `at` descending |
+| Historial → Versiones de este documento | Composite on `audit`: `path` ascending, `at` descending |
+| Historial → Acciones, by person, type or app | Composite on `actions`: `uid` (or `type`, `app`) ascending, `at` descending |
+| The copies of whole documents | No index: `before` and `after` of `audit` and `meta` of `actions` are exempted (`fieldOverrides`), so they don't add an index entry per field to each write |
+| Deleting what's expired (section 10, Retention) | Composite on `audit` and on `actions`: `keep` ascending, `at` ascending. Single field on the `activity` **collection group**: `at` ascending (a `fieldOverrides` entry, which also keeps the collection's own ascending and descending) |
 
-1. **Cloudinary → Settings → Upload → Upload presets → Add upload preset**
-   - Name: `gobernanca_issues` (what `.env.local` uses)
-   - Signing mode: **Unsigned**
-   - Restrict it, since anyone who knows its name can upload with it: allowed formats `jpg,png,webp,heic,mp4,mov,webm`, max file size 100 MB
-2. Without the preset, the photo picker hides itself and issues are created without media.
+Every index of this section is in `firestore.indexes.json`. CI deploys only the rules, so production gets them by hand, also on the free plan: `npx firebase deploy --only firestore:indexes --project dmoyadev-gobernansa`. Until then the Historial's filters fail.
+
+## 3. Firebase Storage (photos and videos of issues and work orders)
+
+The photos and videos neighbours attach to an issue, and those a provider adds when finishing a parte de trabajo, go to the project's Storage bucket ([A4.6](v1.md#a4)) from the webapp (`uploadMedia()` in `apps/webapp/src/shared/infrastructure/storage.ts`). Storage needs Blaze ([B1](v1.md#b1)): until then production is built without a bucket and hides the pickers, so issues are created and jobs finished without photos.
+
+- **Folders**: `issues/{communityId}/{authorKey}/`, the reporter's secret key and not their uid, so a URL every neighbour sees doesn't say who reported it ([Who reported an issue](#who-reported-an-issue)); and `workOrders/{token}/`. Each file is named with a random token, its name and its type's extension, so nobody finds another's files by name.
+- **Limits** (the rules, section 1): up to 6 per issue and 10 per work order; images up to 20 MB, issue videos mp4, mov or webm up to 100 MB. The browser shrinks photos to 1920 px JPEG before uploading; those it can't read (HEIC on most browsers but Safari) and videos go as they are, with no conversion, so a HEIC photo only shows in Safari.
+- **URLs**: Firestore keeps each file's download URL, whose token opens it without an account, as the provider does. In production they're absolute (`https://firebasestorage.googleapis.com/v0/b/…`). With the emulators they're relative (`/v0/b/…`) and the page's own server forwards them to the Storage emulator, so they also open from a phone in the local demo. Issues and work orders from before may still have URLs of the previous photo service: they show while that account exists, but the rules only take Storage URLs for new ones.
+- **Deleted**: `purgeOldMedia`, scheduled with the functions (section 10), every Sunday at 05:00 (Madrid), deletes those of an issue removed over 90 days before, taking them out of its `assets` so a restored issue shows no broken links, and out of the copy its work orders keep (`issue.assets`), so the provider's page shows none rather than broken ones, and those uploaded over 90 days before that no issue or work order has (a save that failed). Those of an issue or a work order still there stay. It lists every file in both folders and reads the issues of each reporter with old files, a query per folder, and, when some go, the work orders of their community, a query per community.
+- **Not in the backups**: `npm run backup` copies Firestore, not the bucket ([ROB-2](fiabilidad.md#rob-2), [B5](v1.md#b5)).
+- **Known limits**: the lists load the whole photo as their thumbnail; the rules can't count, so whoever holds a key or a work order's token can upload any number of files (the lists in Firestore are capped); an upload the rules refuse shows the generic connection error.
+- **Cost**: Storage's no-cost allowance only covers buckets in US regions, so an EU bucket is billed from the first GB. The Firestore reads the rules make are in section 1.
+
+To turn it on, once the project is on Blaze:
+
+1. **Firebase console → Storage → Get started**: **production mode** (test mode leaves the bucket open to anyone for 30 days) and a location in the EU ([GAR-3](competencia.md#gar-3)), e.g. `europe-southwest1` (Madrid). The location can't be changed later.
+2. Right away, deploy the rules by hand, as CI doesn't: `npx firebase deploy --only storage --project dmoyadev-gobernansa`.
+3. The first deploy asks to let Storage's rules read Firestore (it grants the **Firebase Rules Firestore Service Agent** role): accept, or every upload is refused, as the rules read the user's profile, their key and the work order.
+4. Set the GitHub secret `VITE_FIREBASE_STORAGE_BUCKET` (section 4) to the new bucket (`storageBucket` in **Project settings → Your apps**), replacing any older value, and uncomment its line in both workflows, `.github/workflows/firebase-hosting-merge.yml` and `firebase-hosting-pull-request.yml`. The next deploy shows the pickers.
+5. Deploy the functions again (section 10), even with no change: they take the bucket's name when deployed, and `purgeOldMedia` does nothing without it.
 
 ## 4. GitHub secrets for the deploy
 
@@ -69,8 +102,7 @@ The workflows now pass these, add them in **GitHub → Settings → Secrets and 
 
 | Secret | Value |
 | --- | --- |
-| `VITE_CLOUDINARY_CLOUD_NAME` | `dqd7np8vk` |
-| `VITE_CLOUDINARY_UPLOAD_PRESET` | `gobernanca_issues` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `storageBucket` in **Project settings → Your apps**. Its line is commented out in both workflows until the bucket exists, so the apps hide the photo pickers (section 3) |
 | `VITE_FIREBASE_VAPID_KEY` | Firebase console → Project settings → Cloud Messaging → Web Push certificates |
 | `VITE_MAIL_MODE` | `demo` (or unset) until the email extension is installed, then `extension`, see [Correo saliente](#correo-saliente) |
 | `VITE_APP_CHECK_KEY` | The reCAPTCHA key id from section 9 (unset: no App Check) |
@@ -87,7 +119,7 @@ The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to t
    ```
 2. Check the webapp's site id with `npx firebase hosting:sites:list --project dmoyadev-gobernansa`. `.firebaserc` maps the `webapp` target to `dmoyadev-gobernansa`; if the default site has another id, change it there.
 3. **Hosting → gobernansa-admin → Add custom domain**: `admin.gobernansa.dmoya.dev`, then add the DNS records the wizard shows at the DNS provider of `dmoya.dev`. The certificate can take a few hours.
-4. **Authentication → Settings → Authorized domains → Add domain**: `admin.gobernansa.dmoya.dev` and `gobernansa-admin.web.app`. Without them the email sign-in links aren't sent from the admin. PR preview URLs aren't authorized (the list takes no wildcards), so signing in doesn't work there.
+4. **Authentication → Settings → Authorized domains → Add domain**: `admin.gobernansa.dmoya.dev` and `gobernansa-admin.web.app`. Without them the admin can't send the emails with a link (confirming an email, making a new password). PR preview URLs aren't authorized (the list takes no wildcards), so signing in doesn't work there.
 
 To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
 
@@ -98,7 +130,7 @@ To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (
 Both apps install from the browser as apps (Chrome and Edge offer it; Safari adds them from its share menu, which the webapp explains on iPhone and iPad) and open without a connection. Nothing to set up: it's all in each app's `public/` and in `firebase.json`, on the free plan.
 
 - **Manifest and icons**: `public/manifest.webmanifest`, linked from `index.html` with the iOS tags. The icons (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`) are the isotype, white on the brand's navy for the webapp and coral on white for the admin. The webapp's has shortcuts to Nueva incidencia, Reservas and Mis recibos.
-- **Service worker**: `public/sw.js`, written by hand and registered by `packages/shared/application/pwa.ts`. It saves `index.html` and the files it loads, serves Vite's hashed `/assets/*` from the cache and pages from the network, falling back to the saved one offline. Other origins (Firestore, Google APIs, Cloudinary) and writes go straight to the network. On `localhost` it caches nothing, so Vite's dev server and hot reload work as usual: try it offline on a PR's preview channel or the live site (DevTools → Network → Offline).
+- **Service worker**: `public/sw.js`, written by hand and registered by `packages/shared/application/pwa.ts`. It saves `index.html` and the files it loads, serves Vite's hashed `/assets/*` from the cache and pages from the network, falling back to the saved one offline. Other origins (Firestore, Google APIs, Storage's photos) and writes go straight to the network. On `localhost` it caches nothing, so Vite's dev server and hot reload work as usual: try it offline on a PR's preview channel or the live site (DevTools → Network → Offline).
 - **Updates**: after each deploy the worker saves the new `index.html` and drops the old hashed files. An app left open checks `index.html` each time it comes back to the foreground (a few hundred bytes, no reads) and shows **Nueva versión disponible · Actualizar**; a new `sw.js` also waits for that button to take over. Renaming its caches (`shell-v1`, `assets-v1`) drops the old ones when it does.
 - **Push notifications**: they arrive through the same `sw.js`, whose registration `getToken` gets. `firebase-messaging-sw.js` is kept as a one line shim that imports it, for devices that turned them on before and still have that worker and its token; it can go once they've turned them on again.
 - **Hosting headers**: `firebase.json` serves the pages (`/`, `index.html` and every path without an extension, the app's routes) and the workers and the manifest with `Cache-Control: no-cache` instead of Hosting's default hour, so the browser checks them each time and a deploy reaches them at once (an unchanged file is a short 304). Vite's hashed `/assets/**` are cached for a year, as their names change with their content. The two rules never match the same path, so it doesn't matter which one Hosting would apply first; the icons and images keep Hosting's default hour.
@@ -116,15 +148,16 @@ Both apps read these switches from **Firebase console → Remote Config** when t
 | `aeatFiles` | Boolean | `true` | `false` disables downloading the 347, 190 and 184 in the admin |
 | `censusImport` | Boolean | `true` | `false` disables importing a census or a portfolio in the admin |
 | `errorReporting` | Boolean | `true` | `false` stops sending errors to the **Errores** page |
+| `actionsLog` | Boolean | `true` | `false` stops recording what each user does for the **Historial**'s **Acciones** (section 10), one write per screen opened |
 | `errorSampleRate` | Number | `1` | Share of sessions, from 0 to 1, whose errors carry a sample (stack, trail and context); lower it when errors spend too many writes |
 | `minVersion` | String | empty | The lowest release still allowed, e.g. `2026.11.04-1200`. Older ones (`VITE_RELEASE`, shown in the webapp's profile and the admin's menu) are covered by a notice that only lets them update. Releases sort as text, so a date and time is enough |
 | `maintenance` | String | empty | A message shown in both apps while it isn't empty |
 
-Remote Config needs the **Firebase Installations API** and the **Firebase Remote Config API**, which a new Firebase project has on. If the API key is ever restricted ([ROB-8](fiabilidad.md#rob-8)), keep both in its list of APIs, or every app keeps the defaults.
+Remote Config needs the **Firebase Installations API** and the **Firebase Remote Config API**, which a new Firebase project has on. If the API key is ever restricted ([ROB-8](fiabilidad.md#rob-8)), keep both in its list of APIs, or every app keeps the defaults. With the emulators the apps don't ask Remote Config at all and keep the defaults, so the local demo makes no request to the internet.
 
 ## 8. Demo project
 
-What's shown to the offices runs on its own Firebase project, `gobernansa-demo`, on the free plan: its own data, quota and accounts, so a demo never touches production nor spends its customers' quota. `.firebaserc` calls it `demo`; if that id is taken, create it with another and change both mentions there. Indexes are in `firestore.indexes.json` (section 2), which only the demo deploys: CI still deploys only the rules to production.
+What's shown to the offices runs on its own Firebase project, `gobernansa-demo`, on the free plan: its own data, quota and accounts, so a demo never touches production nor spends its customers' quota. `.firebaserc` calls it `demo`; if that id is taken, create it with another and change both mentions there. Indexes are in `firestore.indexes.json` (section 2), which `npm run deploy:demo` deploys with the rules; production's go by hand. On the free plan it has no Storage nor functions: its issues have no photos and its **Historial** only fills **Acciones**. For a demo with photos and without internet, see the local demo (section 12).
 
 Once:
 
@@ -133,7 +166,7 @@ Once:
 3. **Project settings → Your apps → Web**, and **Cloud Messaging → Web Push certificates → Generate**. Copy `.env.example` to `.env.demo.local` at the root and fill it with that config and:
    - `VITE_FIREBASE_EMULATORS='false'`, `VITE_ENV_NAME='demo'` (the tab reads «gobernança DEMO») and `VITE_MAIL_MODE='demo'`;
    - `VITE_WEBAPP_URL='https://gobernansa-demo.web.app'`;
-   - the Cloudinary ones as in `.env.local` (the demo's photos land in the same account until [GAR-3](competencia.md#gar-3));
+   - `VITE_FIREBASE_STORAGE_BUCKET=''`, empty and not left out, or the one in `.env.local` comes through and the pickers show for uploads that would fail;
    - `DEMO_PASSWORD`, at least 6 characters: the password of every demo account. Only the seed reads it, the apps never get it.
 
    The build reads `.env.local` too, and `.env.demo.local` wins: anything left out comes from there, so `npm run deploy:demo` stops unless the project is the demo one, the emulators are off and `VITE_WEBAPP_URL` is set.
@@ -143,7 +176,7 @@ Once:
 
 Then:
 
-- **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day, and recreates its accounts with `DEMO_PASSWORD`. It spends about the demo's size in writes of the demo project's own quota.
+- **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day. It removes any account that isn't the demo's and keeps the demo's, so whoever is signed in stays so; those missing are created with `DEMO_PASSWORD`, so a new `DEMO_PASSWORD` only reaches the accounts created after it. It spends about the demo's size in writes of the demo project's own quota. The seed only uploads photos to the Storage emulator, so here issues and work orders load without them, with a yellow warning.
 - **After a release worth showing:** `npm run deploy:demo`, by hand, never on each push. It builds both apps in `demo` mode with a `VITE_RELEASE` like CI's and deploys the rules, the indexes and both sites.
 - **Errors** of the demo go to its own **Errores** page: sign in as the team's demo account.
 - Custom domains (`demo.` and `demo-admin.`) come with the product's own domain ([A2](v1.md#a2) in [v1.md](v1.md)).
@@ -159,6 +192,77 @@ The apps ask for an App Check token when `VITE_APP_CHECK_KEY` is set, and never 
 5. In development the SDK prints a debug token in the console the first time; add it in **App Check → Apps → ⋮ → Manage debug tokens**, or the local app is blocked once enforced. Not needed with the emulators.
 
 Also restrict the API key (**Google Cloud console → APIs & Services → Credentials**) to the apps' domains, keeping the Installations and Remote Config APIs (section 7).
+
+## 10. Cloud Functions and the Historial
+
+The admin's **Historial** (`/history`, superadmin only, `g h`) shows every change to the data, with each document's versions and a restore, and what each user does in both apps ([B12](v1.md#b12), most of [GAR-1](competencia.md#gar-1)). The changes are recorded by Cloud Functions, which need Blaze ([B1](v1.md#b1)); the actions are written by the apps themselves and work on the free plan. Until the functions are deployed, **Cambios** stays empty and restoring fails, while **Acciones** already fills in.
+
+- **Node**: they run on Node 24, `engines` in `functions/package.json`; the emulators run them on the local Node, newer, with a warning. ESLint refuses in `functions/` Node's own modules and APIs newer than that (`node/no-unsupported-features/*`), but not yet the newest JavaScript built-ins (`Promise.try`, `RegExp.escape`…), so check those by hand. Node 24 is supported until 30/04/2028.
+- **Code**: `functions/`, a workspace of its own (Node 24, ES modules, `firebase-functions` 7 and `firebase-admin` 13), set up in `firebase.json`. `auditTop`, `auditNested` and `auditDeep` are Firestore triggers for documents 1, 2 and 3 levels deep; `auditAccountCreated` and `auditAccountDeleted`, Auth triggers of the first generation (the second has none), record accounts; `restoreVersion` is a callable only the superadmin can use; `purgeExpired`, scheduled, deletes what's expired (Retention, below), and `purgeOldMedia` the photos nobody sees anymore (section 3).
+- **Region**: `REGION`, in `functions/index.js` and in `apps/admin/src/modules/history/application/restoreVersion.ts`, is `europe-southwest1`. Firestore triggers must run in the database's region, production's is there (checked on 16/11/2026), and section 8 creates the demo project's there too. A project in another region needs both files changed.
+- **Deploy** (CI only deploys Firestore's rules): on Blaze, the indexes first (section 2), then `npx firebase deploy --only functions --project dmoyadev-gobernansa`, and again after each change in `functions/`. The first one turns on the APIs it needs; if it says to retry in a few minutes, do so. `purgeExpired` and `purgeOldMedia` run in `europe-west1` whatever `REGION` is, as Cloud Scheduler may not be in Madrid.
+
+```text
+audit/{eventId}       path, collection, docId, communityId? (the path's, or the one the document carries), op create | update | delete,
+                      changed (field names), before, after (whole, or only what changed, cut, with truncated: true),
+                      authType, authId, actorId, actorName, actorEmail, actorInferred?, restoredFrom?, keep short | year | fiscal, at
+                      accounts as path auth/{uid}, collection auth, with { email, providers, anonymous, disabled, createdAt, lastSignInAt }
+actions/{id}          uid, email?, name, app webapp | admin, type signin | signout | page | print | download | view-as | view-as-exit
+                      | email | password | restore, path, detail?, meta?, communityId?, viewAs?, device, keep short | year | admin, at
+ops/restore-{sha1}    { uid, name, email, auditId, side, at }, by restoreVersion, the sha1 of the restored document's path
+```
+
+- **Changes**: every create, update and delete, but in `audit`, `actions`, `errors`, `vitals`, `ops` and each community's `activity` (a register already), under `users/{uid}` the secret keys (`keys`), the push devices (`devices`, whose id is the token) and the documents' files (`documentFiles`: their list, `documents`, says who, when, name and size), and writes that change nothing. Who made it comes from the session; writes without one, like a provider's report, show as without a session. In the emulators no event carries a session, so it's guessed from a person field the write itself set (`updatedBy`, `authorId`…) and marked `actorInferred`, and a delete shows as unknown. That production's events bring the user's uid hasn't been checked yet. A document too big to keep twice (over about 900 KB) keeps only what changed, cut, and can't be restored. The superadmin sees who created an anonymous issue, as they could already read its `private/author`: anonymity is towards neighbours.
+- **Retried**: a Firestore trigger that fails runs again, so a passing error doesn't lose an entry, and each event writes its entry once (`audit/{eventId}`). A failure that never goes away retries for up to 24 hours (second generation functions).
+- **Restore**: **Restaurar la versión anterior** or **Restaurar esta versión** writes that state back, or removes the document if it didn't exist then. It's refused when the document is already so, for accounts, for cut entries and for anything under `offices/`: invoices, the Verifactu register and the office's counters and end of the chain are corrected with a rectificativa, never put back. The restore is a change like any other, so it can be undone the same way: it leaves an `ops/restore-*` marker that its own entry takes (within 60 seconds) to name the superadmin and the change it came from, and logs a `restore` action.
+- **Actions**: written by `packages/shared/infrastructure/actions.ts`, one document each: every screen opened, printing, signing in (with password or an access code) and out, asking to add an email, changing the password, starting and stopping «Ver como vecino» and every download. `name` is what the app sends, unchecked by the rules (the uid and email are). Not sent once the quota has run out, nor in development against the live project. The `actionsLog` switch (section 7, [ROB-5](fiabilidad.md#rob-5)) turns them off.
+- **Cost**: each write to any document wakes a trigger, the skipped collections too (they stop at once): one invocation, one `audit` write and, once per instance, a read of that person's profile. A bulk write (a census import, `npm run restore`) makes one of each per document. The entries keep whole documents, so `audit` also grows in stored size with every change. Each action is a write, mostly one per screen opened, out of the free plan's 20,000 a day.
+
+<a id="retention"></a>
+
+### Retention
+
+Each entry of `audit` and `actions` carries its class in `keep`, set when it's written (`functions/retention.js`, `packages/shared/infrastructure/actions.ts`; the rules require it and leave `admin` to the superadmin), and is deleted whole once its time is up. The legal pages of both apps say the same:
+
+| What | `keep` | Kept |
+| --- | --- | --- |
+| Screens opened | `short` | 90 days |
+| Screens of a person or a property (a route with `uid` or `propertyId`) | `year` | 12 months |
+| Signing in and out, downloads, printing, «Ver como vecino», password and email changes; accounts (`auth/*`) | `year` | 12 months |
+| Everything the superadmin does, restores included | `admin` | 3 years |
+| Versions of charges, payments, remittances, debts, accounting, budgets and expenses, bookings, meetings, votes, actas, properties, communities, invoices and Verifactu | `fiscal` | Until the 31st of December of the year after the change |
+| Every other version (profiles, invitations, mail, issues, comments, work orders, providers…) | `short` | 90 days |
+| Anything, whatever its class | | 3 years at most |
+| Each community's `activity`, outside the Historial | | 5 years from the end of each year |
+| The errors' samples | | 30 days (`expiresAt`) |
+| Photos and videos of a removed issue, or never attached (section 3) | | 90 days |
+
+- **Who deletes**: on Blaze, `purgeExpired`, every night at 04:00 (Madrid), up to 10,000 documents a night (one of the three free Cloud Scheduler jobs; `purgeOldMedia` is the second). On the free plan, the copia de seguridad ([ROB-2](fiabilidad.md#rob-2)) after each copy, and `npm run purge`, which counts what's expired and, with `--delete`, deletes it. The daily copy isn't scheduled yet: until then, run `npm run purge -- --delete` once a month, again while it warns that it reached the 10,000 and there's more.
+- **Cost**: a read and a delete per document, up to 10,000 a run, half the free plan's daily deletes; counting, a read per 1,000.
+- **Restore**: an entry deleted takes its version with it, so it can no longer be restored. The copies keep it until they rotate out (the last 14), but the `actions`, which they never take. A profile document whose file was deleted isn't restored either: the file was never copied.
+- **Kept apart**: before something tied to a security breach, a claim or an access request expires, export only that case's `audit` and `actions` entries (by the person's `uid`, the community's `communityId` or the document's `path`), encrypt them with the copies' key (`encrypt` in `scripts/backup/archive.js`), date the file and keep it outside the backups' folder until it's resolved. A whole copy (`npm run backup`) only when a breach needs everything, with the `actions` exported apart first: the copy leaves them out and then deletes what's expired. By hand with the Admin SDK; ponytail: a script at the first case.
+- **End of an office's contract**: after handing it each community's export (**Exportar** in the community), delete its history: the `audit` entries with its communities' `communityId`, those whose `path` is under `offices/{officeId}`, those of its people's accounts and profiles (`auth/{uid}`, `users/{uid}` and below, their `invitations`), and the `actions` of its people (`uid`). By hand with the Admin SDK; ponytail: a script when the first one leaves.
+
+## 11. Local emulators
+
+`npm run dev` starts the emulators of `firebase.json` (Auth on 9099, Firestore on 8080, Storage on 9199, Functions on 5001 and their UI), loads the seed (`--reset`) and serves the webapp at `https://localhost:5400` and the admin at `https://localhost:5401`, with `VITE_FIREBASE_EMULATORS='true'` in `.env.local`. The apps connect to all of them or to none, as the real project rejects the emulators' tokens. Firestore's and Storage's emulators need Java 21, and their first start downloads their jars (`~/.cache/firebase/emulators`, Storage's rules runtime included), the only time they need internet.
+
+- **Rules**: both files are enforced, Firestore's and Storage's.
+- **Photos**: the seed uploads captioned SVG placeholders to the Storage emulator, in the folders of section 3, and stores their relative URLs; Vite forwards `/v0/b` to it. There's no video in the seed. Without the Storage emulator (`FIREBASE_STORAGE_EMULATOR_HOST` unset) issues and work orders load without photos, with a yellow warning.
+- **Functions**: the Historial records each change made in the apps and restores, guessing who made each change (section 10).
+- **Remote Config**: not read, the defaults of section 7 apply.
+
+## 12. Local demo
+
+`npm run demo` (`scripts/demo.js`) runs the sales demo on the laptop alone, with no internet, and a phone on the same network opens the webapp: the guide is [demo.md](demo.md). What it needs and does:
+
+- **Before**: Java 21 on the PATH (`brew install openjdk@21`) and `DEMO_PASSWORD` in `.env.local`, the password of every account. The first run on a machine needs internet once, to download the emulator jars (`~/.cache/firebase/emulators`, Storage's rules runtime included); the script warns when one is missing.
+- **Ports**, apart from `npm run dev`'s, so both can run at once: webapp 5480, admin 5481, Auth 9095, Firestore 8085 (websocket 9155), Storage 9195, hub 4405, logging 4505. The project is `demo-gobernansa`, which only exists in the emulators.
+- **What it does**: starts the Auth, Firestore and Storage emulators, loads the seed with its photos, builds both apps against them with the laptop's network address and serves them over http on every interface, forwarding the emulators' paths through each page's own address. It prints both addresses, a QR code for the webapp and the accounts. The admin goes at `http://localhost:5481` on the laptop, not the address: copying links and `crypto` need localhost.
+- **No functions**: the Historial records no changes and can't restore there, and says so; **Acciones** does fill in.
+- **`npm run demo:reset`** loads the data again while it runs, without signing anyone out. Ctrl+C or closing the terminal stops everything. A full restart signs the phones out, and a network change needs one, as the address is in the build.
+- **Proxy**: it clears `HTTP(S)_PROXY` for the emulators; with one set, Storage's rules couldn't read Firestore and every upload was refused.
+- **Network**: while it runs, anyone on that network reaches the emulators. The data is made up, but the phone's hotspot is better than a client's guest wifi.
 
 ## Roles
 
@@ -235,11 +339,11 @@ users/{uid}/keys/issues                   { key }, the secret key of the issues 
 
 ### Who reported an issue
 
-Only the administration knows it. The issue has no `createdBy` and its author's changes aren't signed (`updatedBy`, and `deletedBy` when they remove it): who reported it goes in `private/author`, which only whoever manages the community reads, written in the same batch and never changed. To find their own issues ("Mis incidencias" and the count on the home page) and remove them, the issue carries `authorKey`, 192 random bits made the first time the user needs it and kept in `users/{uid}/keys/issues`, which only they can read. Neighbours see the key but can't tell whose it is. They can tell that two issues share an author, though not who; an issue about a property (`location.type: property`) still says which one, as before.
+Only the administration knows it. The issue has no `createdBy` and its author's changes aren't signed (`updatedBy`, and `deletedBy` when they remove it): who reported it goes in `private/author`, which only whoever manages the community reads, written in the same batch and never changed. To find their own issues ("Mis incidencias" and the count on the home page) and remove them, the issue carries `authorKey`, 192 random bits made the first time the user needs it and kept in `users/{uid}/keys/issues`, which only they can read. Neighbours see the key but can't tell whose it is. They can tell that two issues share an author, though not who; an issue about a property (`location.type: property`) still says which one, as before. Its photos go in a Storage folder named after the key, not the uid, so their URLs don't say who either (section 3).
 
 ## Community management
 
-Everything below runs in the browser and is enforced by [`firestore.rules`](../firestore.rules), so it stays on the free plan: no Cloud Functions, no Cloud Storage and no scheduled jobs. The types are in `packages/shared/domain`.
+Everything below runs in the browser and is enforced by [`firestore.rules`](../firestore.rules), with no Cloud Functions and no scheduled jobs, so it works on the free plan. Only the providers' photos need Storage, on Blaze (section 3). The types are in `packages/shared/domain`.
 
 ```text
 properties/{id}                                 census: name, type, coefficient (%), ownerUid ('' without account), ownerName, ownerEmail, ownerNif, ownerPhone (≤ 40), tenantName, tenantEmail
@@ -319,7 +423,7 @@ charges/{id}.interest          a recibo de intereses: { chargeIds, to: 'YYYY-MM-
 
 ### Partes de trabajo
 
-With a provider assigned to an issue, the administration creates a link for them (**Parte de trabajo** on the issue) and sends it by WhatsApp (a `wa.me` link, no API), email (queued in the [correo saliente](#correo-saliente) when it's created, if the directory has the provider's, or `mailto`) or copied. The provider opens `/gremio/<token>` in the webapp without an account: they see the job, its photos, the address with a map link and the administration's contact, and they accept or reject it (with a reason), schedule the visit and mark it done with a note and photos (uploaded to Cloudinary, hidden without the preset of section 3). The issue page shows their answers live; once done it offers to mark the issue as solved, and a scheduled visit can be posted to the neighbours as a comment (offered once per visit date: one already among the issue's comments isn't offered again).
+With a provider assigned to an issue, the administration creates a link for them (**Parte de trabajo** on the issue) and sends it by WhatsApp (a `wa.me` link, no API), email (queued in the [correo saliente](#correo-saliente) when it's created, if the directory has the provider's, or `mailto`) or copied. The provider opens `/gremio/<token>` in the webapp without an account: they see the job, its photos, the address with a map link and the administration's contact, and they accept or reject it (with a reason), schedule the visit and mark it done with a note and photos (uploaded to Storage, hidden without a bucket, section 3). The issue page shows their answers live; once done it offers to mark the issue as solved, and a scheduled visit can be posted to the neighbours as a comment (offered once per visit date: one already among the issue's comments isn't offered again).
 
 ```text
 workOrders/{token}   communityId, issueId, community { name, address }, issue { title, description, category, location, assets },
@@ -330,7 +434,7 @@ workOrders/{token}   communityId, issueId, community { name, address }, issue { 
 
 - **The token is the only credential**: 192 random bits in base64url from `crypto.getRandomValues`. Anyone can get one by its id, but nobody can list them, so they can't be found. It's kept in the issue's `private/admin` (`workOrder`), so the admin reads it by id with no query or index.
 - **A copy, not a view of the issue**: only what the provider needs, taken when the link is made. The community's name and address, the issue without who reported it, and the community's **Administración** contact (or whoever made the link). Changing the issue later doesn't change it, but for the expected date: when the issue's differs from the order's while the provider can still act, the issue page offers **Actualizar la fecha en el parte**. Anything else needs a new link.
-- **Rules**: whoever manages the community creates, revokes (`revokedAt`) and deletes them, and can change `expectedAt` alone. Without signing in, an update can only add one step to the history (up to 20, with a note of up to 2000 characters) with an allowed status change (accepting only comes first, the visit can be rescheduled, rejecting or finishing ends it), the visit date when scheduling and up to 10 photos from `https://res.cloudinary.com/`, one URL each, with `updatedAt` set by the server and only while it isn't revoked.
+- **Rules**: whoever manages the community creates, revokes (`revokedAt`) and deletes them, and can change `expectedAt` alone. Without signing in, an update can only add one step to the history (up to 20, with a note of up to 2000 characters) with an allowed status change (accepting only comes first, the visit can be rescheduled, rejecting or finishing ends it), the visit date when scheduling and up to 10 photos, download URLs of files under `workOrders/{token}/` in Storage (relative with the emulators), one URL each, with `updatedAt` set by the server and only while it isn't revoked.
 - **Revoked**: from the issue (**Anular** or **Nuevo enlace**) and when its provider is changed or removed. The link then says it was cancelled.
 - **Cost**: one listener on that document while the provider's page or the issue page is open. The issues list doesn't show its status, as that would read one more document per issue.
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { styleText } from 'node:util';
@@ -7,7 +8,7 @@ import { roles } from '../../packages/shared/domain/user.ts';
 import accounting from './data/accounting.js';
 import billing from './data/billing.js';
 import bookings from './data/bookings.js';
-import { users } from './data/cast.js';
+import { MEDIA_PREFIX, users } from './data/cast.js';
 import charges from './data/charges.js';
 import core from './data/core.js';
 import errors from './data/errors.js';
@@ -16,7 +17,7 @@ import meetings from './data/meetings.js';
 
 // In the order they're offered and loaded
 const GROUPS = [core, maintenance, meetings, charges, accounting, bookings, billing, errors];
-const EMULATORS = { firestore: '127.0.0.1:8080', auth: '127.0.0.1:9099' };
+const EMULATORS = { firestore: '127.0.0.1:8080', auth: '127.0.0.1:9099', storage: '127.0.0.1:9199' };
 // The free plan's writes (and deletes) per day
 const DAILY_WRITES = 20_000;
 
@@ -63,7 +64,7 @@ function plan(group) {
 
 // `npm run dev` starts the emulators and this seed together: wait up to a minute for both to answer
 async function emulatorsUp() {
-	const hosts = [process.env.FIRESTORE_EMULATOR_HOST, process.env.FIREBASE_AUTH_EMULATOR_HOST].filter(Boolean);
+	const hosts = [process.env.FIRESTORE_EMULATOR_HOST, process.env.FIREBASE_AUTH_EMULATOR_HOST, process.env.FIREBASE_STORAGE_EMULATOR_HOST].filter(Boolean);
 	for (let tries = 0; tries < 60; tries++) {
 		if ((await Promise.all(hosts.map(host => fetch(`http://${host}/`).then(() => true, () => false)))).every(Boolean)) {
 			return true;
@@ -95,7 +96,7 @@ async function chooseTarget() {
 	const target = await select({
 		message: '¿Dónde cargar los datos?',
 		choices: [
-			{ name: `Emuladores locales (Firestore ${EMULATORS.firestore}, Auth ${EMULATORS.auth})`, value: 'emulator' },
+			{ name: `Emuladores locales (Firestore ${EMULATORS.firestore}, Auth ${EMULATORS.auth}, Storage ${EMULATORS.storage})`, value: 'emulator' },
 			{ name: `Proyecto de demo ${projects.demo ?? ''}`, value: 'demo', description: 'El que se enseña a los despachos: gasta su propia cuota, no la de los clientes', disabled: !readKey('demo') && '(falta serviceAccountKey.demo.local.json)' },
 			{ name: `Proyecto real ${key?.project_id ?? ''}`, value: 'live', description: 'Lo que usa la gente: cada lectura, escritura y borrado gasta la cuota diaria del plan gratuito', disabled: !key && '(falta serviceAccountKey.local.json)' },
 		],
@@ -105,6 +106,7 @@ async function chooseTarget() {
 	} else {
 		process.env.FIRESTORE_EMULATOR_HOST = EMULATORS.firestore;
 		process.env.FIREBASE_AUTH_EMULATOR_HOST = EMULATORS.auth;
+		process.env.FIREBASE_STORAGE_EMULATOR_HOST = EMULATORS.storage;
 	}
 	return target;
 }
@@ -163,18 +165,63 @@ async function load(db, target, docs, mode) {
 	return { written: docs.size - skipped - failed.length, skipped, failed };
 }
 
-// The demo's accounts, so on the demo project each can sign in with DEMO_PASSWORD, which doesn't depend on the daily quota
-// of emails; in the emulator, with "He olvidado mi contraseña". Others signed in before go, or their emails would map to other uids
+// The placeholders for photos in the data's lists (cast.js media), each one through url and left out when it gives none
+function withMedia(value, url) {
+	if (Array.isArray(value)) {
+		return value.flatMap(item => typeof item === 'string' && item.startsWith(MEDIA_PREFIX) ? url(item) ?? [] : [withMedia(item, url)]);
+	}
+	if (value?.constructor === Object) {
+		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withMedia(item, url)]));
+	}
+	return value;
+}
+
+// A picture with its caption in place of a photo
+function picture(caption) {
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900"><rect width="1200" height="900" fill="#dfe7ee"/><text x="600" y="450" fill="#48606f" font-family="system-ui, sans-serif" font-size="56" text-anchor="middle" dominant-baseline="middle">${caption}</text></svg>`;
+}
+
+// The photos of the data to load, uploaded to the Storage emulator, by placeholder. The real projects' buckets need the
+// paid plan, so there they're left out
+async function uploadMedia(target, projectId, docs) {
+	const placeholders = new Set();
+	docs.forEach(data => withMedia(data, placeholder => void placeholders.add(placeholder)));
+	if (!placeholders.size) {
+		return new Map();
+	}
+	if (target !== 'emulator' || !process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+		console.warn(styleText('yellow', `⚠ Sin el emulador de Storage, las incidencias y los partes de trabajo se cargan sin sus ${placeholders.size} fotos`));
+		return new Map();
+	}
+	// The webapp's, so it finds them with its own config
+	const bucket = admin.storage().bucket(process.env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`);
+	return new Map(await Promise.all(Array.from(placeholders, async (placeholder) => {
+		const [path, caption] = placeholder.slice(MEDIA_PREFIX.length).split('#');
+		const token = randomUUID();
+		await bucket.file(path).save(picture(caption), { contentType: 'image/svg+xml', metadata: { metadata: { firebaseStorageDownloadTokens: token } } });
+		// Without the host, as the webapp saves them with the emulators (uploadMedia)
+		return [placeholder, `/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`];
+	})));
+}
+
+// The demo's accounts, so each can sign in with DEMO_PASSWORD, which doesn't depend on the daily quota of emails nor on a
+// connection (npm run demo); without it, with "He olvidado mi contraseña". Others signed in before go, or their emails would map to other
+// uids. The ones already there stay as they are, so the phones of a demo don't get signed out when it's reset: a new
+// DEMO_PASSWORD only reaches the accounts created after it
 async function resetAuth(target) {
 	// Never the live project's accounts
 	if (target === 'live') {
 		throw new Error('Las cuentas del proyecto real no se tocan');
 	}
-	const password = target === 'demo' ? process.env.DEMO_PASSWORD : undefined;
+	const password = process.env.DEMO_PASSWORD || undefined;
 	const auth = admin.auth();
 	const { users: existing } = await auth.listUsers(1000);
-	await auth.deleteUsers(existing.map(user => user.uid));
-	await Promise.all(users.map(async ({ uid, email, name }) => auth.createUser({ uid, email, displayName: name, emailVerified: true, password })));
+	const cast = new Set(users.map(user => user.uid));
+	await auth.deleteUsers(existing.filter(user => !cast.has(user.uid)).map(user => user.uid));
+	const kept = new Set(existing.map(user => user.uid));
+	await Promise.all(users.map(async ({ uid, email, name }) => kept.has(uid)
+		? auth.updateUser(uid, { email, displayName: name, emailVerified: true })
+		: auth.createUser({ uid, email, displayName: name, emailVerified: true, password })));
 }
 
 async function ask(db, planned, ownsAuth) {
@@ -251,7 +298,7 @@ async function main() {
 		throw new Error('Falta DEMO_PASSWORD en .env.demo.local: es la contraseña de las cuentas de la demo');
 	}
 	if (target === 'emulator' && !await emulatorsUp()) {
-		throw new Error(`No hay emulador de Firestore en ${process.env.FIRESTORE_EMULATOR_HOST}: arráncalo con npm run start:firebase:emulators`);
+		throw new Error('No responden los emuladores: arráncalos con npm run start:firebase:emulators');
 	}
 	admin.initializeApp(target === 'emulator' ? { projectId } : { credential: admin.credential.cert(key) });
 	const db = admin.firestore();
@@ -291,7 +338,7 @@ async function main() {
 	console.log(`${bold('Borrar')}      ${choice.remove.length ? `${chosen(choice.remove).map(group => group.label).join(', ')} ${dim(choice.removeMode === 'empty' ? '(colecciones enteras)' : '(solo lo del seed)')}` : dim('nada')}`);
 	console.log(`${bold('Cargar')}      ${choice.add.length ? `${number(writes)} documentos de ${chosen(choice.add).map(group => group.label).join(', ')} ${dim(choice.addMode === 'set' ? '(sobrescribe)' : '(solo los que falten)')}` : dim('nada')}`);
 	if (choice.auth) {
-		console.log(`${bold('Auth')}        recrear ${users.length} cuentas en ${target === 'demo' ? 'el proyecto de demo, con DEMO_PASSWORD' : `el emulador ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`}`);
+		console.log(`${bold('Auth')}        dejar ${users.length} cuentas en ${target === 'demo' ? 'el proyecto de demo' : `el emulador ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`}${process.env.DEMO_PASSWORD ? ', con DEMO_PASSWORD' : ''}`);
 	}
 	if (target !== 'emulator') {
 		console.log(styleText('yellow', `Gasta unas ${number(writes)} escrituras, más un borrado por documento borrado (y al vaciar, una lectura), de las ${number(DAILY_WRITES)} diarias del plan gratuito`));
@@ -310,9 +357,14 @@ async function main() {
 		await (choice.removeMode === 'empty' ? empty(db, group) : removeSeeded(db, [...planned[group.id].keys()]));
 		console.log(`${styleText('red', '✗')} ${group.label} ${dim('borrado')}`);
 	}
+	const urls = await uploadMedia(target, projectId, chosen(choice.add).flatMap(group => [...planned[group.id].values()]));
+	if (urls.size) {
+		console.log(`${styleText('green', '✔')} Fotos ${dim(`· ${urls.size} en el emulador de Storage`)}`);
+	}
 	let failures = 0;
 	for (const group of chosen(choice.add)) {
-		const { written, skipped, failed } = await load(db, target, planned[group.id], choice.addMode);
+		const docs = new Map(Array.from(planned[group.id], ([path, data]) => [path, withMedia(data, placeholder => urls.get(placeholder))]));
+		const { written, skipped, failed } = await load(db, target, docs, choice.addMode);
 		failures += failed.length;
 		console.log(`${styleText(failed.length ? 'yellow' : 'green', '✔')} ${group.label} ${dim(`· ${number(written)} documentos${skipped ? `, ${number(skipped)} ya estaban` : ''}${failed.length ? `, ${failed.length} fallidos` : ''}`)}`);
 		failed.slice(0, 5).forEach(line => console.log(styleText('red', `  ${line}`)));
@@ -322,7 +374,7 @@ async function main() {
 		console.log(`${styleText('green', '✔')} Cuentas de la demo`);
 	}
 
-	console.log(`\n${bold('Cuentas de la demo')} ${dim(target === 'demo' ? '(se entra con DEMO_PASSWORD)' : '(se entra pidiendo una contraseña nueva al correo)')}`);
+	console.log(`\n${bold('Cuentas de la demo')} ${dim(process.env.DEMO_PASSWORD ? '(se entra con DEMO_PASSWORD)' : '(sin DEMO_PASSWORD: se entra pidiendo una contraseña nueva al correo)')}`);
 	for (const user of users) {
 		console.log(`  ${user.name.padEnd(20)} ${roles[user.role].label.padEnd(18)} ${user.email}${user.blocked ? dim(' · bloqueado') : ''}`);
 	}

@@ -378,7 +378,7 @@ async function savePassword() {
 					<LnxIcon :icon="uploading ? 'lucide:loader-circle' : 'lucide:upload'" :class="{ spin: uploading }" />
 					{{ uploading ? 'Subiendo…' : 'Elegir archivo' }}
 				</label>
-				<small class="hint">PDF o imagen de hasta 1 MB. Solo tú podrás verlo.</small>
+				<small class="hint">PDF o imagen de hasta 1 MB. Solo tú y tu administración podréis verlo.</small>
 			</form>
 
 			<p v-if="documentsError" class="error" role="alert">

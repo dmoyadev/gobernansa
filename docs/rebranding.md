@@ -4,13 +4,12 @@ Cambian el nombre y el logo. Colores (`#094067` azul marino, `#DF635B` coral), t
 
 En este documento, `<Nombre>` es la marca tal como se escribe, `<slug>` su versión en minúsculas sin tildes ni caracteres especiales (para dominios, identificadores y carpetas) y `<dominio>` el dominio nuevo.
 
-Hoy el nombre aparece de cuatro formas, y conviene que el nuevo solo tenga dos (`<Nombre>` y `<slug>`):
+Hoy el nombre aparece de tres formas, y conviene que el nuevo solo tenga dos (`<Nombre>` y `<slug>`):
 
 | Forma | Dónde |
 |---|---|
 | `gobernança` | Todo lo que se ve: pantallas, títulos, correos, manifest, landing, docs |
 | `gobernansa` | Código y servicios: paquetes npm, proyecto de Firebase, dominios, GitHub, copias de seguridad |
-| `gobernanca` | El preset de subida de Cloudinary (`gobernanca_issues`) |
 | `gobernanza` | Solo en `docs/v1.md`, como la forma en que lo buscaría un administrador |
 
 ---
@@ -26,7 +25,7 @@ Hoy el nombre aparece de cuatro formas, y conviene que el nuevo solo tenga dos (
 | D3 | **Nombre corto de la webapp** en la pantalla de inicio, 12 caracteres como mucho (iOS corta el resto) | `gobernança` | `manifest.webmanifest`, `apple-mobile-web-app-title` |
 | D4 | **Nombre del admin**, largo y corto (12 caracteres) | `gobernança admin` / `gob. admin` | Manifest, pestaña, botón de instalar, correos de invitación |
 | D5 | **Dominio y subdominios** | `gobernansa.dmoya.dev`, `admin.gobernansa.dmoya.dev` | Propuesta: `<dominio>` → landing, `app.` → webapp, `admin.` → admin, `demo.` y `demo-admin.` → demo |
-| D6 | **Correos**: contacto (aviso legal), remitente (`no-reply@`) y soporte | `no-reply@gobernansa.dmoya.dev` (previsto) | `legal.ts`, plantillas de Auth, Trigger Email (B2) |
+| D6 | **Correos**: contacto (aviso legal), remitente (`no-reply@`) y soporte | `no-reply@gobernansa.dmoya.dev` (previsto) | `legal.ts`, plantillas de Auth, Trigger Email ([B2](v1.md#b2)) |
 | D7 | **Siglas de 2 caracteres** del sistema para Verifactu | `GB` | `verifactu.ts` |
 | D8 | **Cuánto tiempo redirigir** el dominio viejo | — | Recomendado: un año como mínimo |
 
@@ -52,7 +51,7 @@ Todos en SVG vectorial: texto convertido a trazos (sin `<text>`), sin imágenes 
 | `favicon.ico` | 16, 32 y 48 | Igual en las dos | Igual en las dos |
 | `og-image.jpg` | 1200×630 | Si no hay A5 | Si no hay A5 |
 
-**Capturas que hay que repetir** después del cambio de código, porque salen con el logo viejo (tutorial T15):
+**Capturas que hay que repetir** después del cambio de código, porque salen con el logo viejo (tutorial T14):
 
 | Fichero | Tamaño | Qué muestra |
 |---|---|---|
@@ -67,15 +66,15 @@ El `README.md` enlaza `apps/webapp/public/screenshot.png` y `screenshot.gif`, qu
 
 | Qué | Por qué | Qué hacemos |
 |---|---|---|
-| ID del proyecto de Firebase `dmoyadev-gobernansa` | Firebase no deja cambiarlo nunca | Se queda. Solo se ve en `*.web.app`, `*.firebaseapp.com` y el remitente de los correos de acceso: con dominios propios (T5) y el remitente personalizado (T4) el cliente no lo ve. Migrar a un proyecto nuevo obliga a exportar Firestore y las cuentas, rehacer la configuración y los secretos y pierde las suscripciones a notificaciones: no compensa |
+| ID del proyecto de Firebase `dmoyadev-gobernansa` | Firebase no deja cambiarlo nunca | Se queda. Solo se ve en `*.web.app`, `*.firebaseapp.com`, el remitente de los correos de acceso y las URLs de las fotos, porque el bucket de Storage lleva el ID (sus carpetas, `issues/` y `workOrders/`, no llevan la marca). Con dominios propios (T5) y el remitente personalizado (T4) el cliente no lo ve, salvo si abre una foto aparte. Migrar a un proyecto nuevo obliga a exportar Firestore y las cuentas, rehacer la configuración y los secretos y pierde las suscripciones a notificaciones: no compensa |
 | Sitio de Hosting por defecto `dmoyadev-gobernansa` (webapp) | Es el del proyecto, no se renombra ni se borra | Se queda, detrás de `app.<dominio>` |
 | Sitio `gobernansa-admin` (y `gobernansa-landing` si ya existe) | Los sitios no se renombran | Se quedan, detrás de `admin.<dominio>` y `<dominio>`. Si la landing aún no tiene sitio, se crea ya como `<slug>-landing` |
 | Secreto de GitHub `FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA` | Su nombre es el del proyecto, que se queda | Se queda |
 | Dominio `codigo.gobernansa.dmoya.dev` de las cuentas con código llave (`CODE_EMAIL_DOMAIN`) | Cada vecino que entra con su carta tiene una cuenta con ese correo: cambiarlo deja fuera a todos | **Se queda**, aunque el dominio viejo deje de existir: no recibe correo, solo es el nombre de la cuenta |
 | Cabecera `GOBK1` de las copias de seguridad | Cambiarla deja ilegibles las copias que ya hay | Se queda |
-| Carpeta `gobernança/` de Cloudinary | Las fotos y vídeos de las incidencias que ya existen apuntan a ella | **No moverla ni renombrarla**. Las subidas nuevas irán a `<slug>/` |
+| Fotos y vídeos subidos antes de pasar a Storage | Siguen en el servicio de fotos anterior, en una carpeta con el nombre viejo, y sus enlaces la llevan | Se quedan. No muevas ni renombres esa carpeta |
 | Correos ya encolados en **Correo saliente** | Son el registro de lo que se envió | Se quedan con el nombre viejo |
-| Las URLs de `res.cloudinary.com/…/gobernan%C3%A7a/…` del seed | Son ficheros reales | Se quedan |
+| Entradas ya guardadas del **Historial** (cambios y acciones) | Son el registro de lo que pasó, con el nombre que tenía cada cuenta entonces | Se quedan con el nombre viejo |
 
 ---
 
@@ -90,8 +89,8 @@ El `README.md` enlaza `apps/webapp/public/screenshot.png` y `screenshot.gif`, qu
 7. Merge: CI despliega reglas, webapp y admin; la landing a mano (T7).
 8. Redirigir el dominio viejo (T8).
 9. Proyecto de demo con el nombre nuevo (T9).
-10. GitHub (T10), carpeta local y copias (T11), Cloudinary (T12), resto (T13–T14).
-11. Capturas (T15) y comprobación final (sección 5).
+10. GitHub (T10), carpeta local y copias (T11), resto (T12–T13).
+11. Capturas (T14) y comprobación final (sección 5).
 
 Los pasos 5 y 6 pueden ir antes del merge: un dominio propio conectado sirve la versión que haya desplegada, y los dominios autorizados no estorban.
 
@@ -116,7 +115,7 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `apps/admin/public/manifest.webmanifest` | `name`, `short_name`, `description` |
 | `apps/admin/src/app/router.ts` | Título de la pestaña |
 | `apps/admin/src/app/AdminLayout.vue` | `alt` del logo, «Instalar gobernança admin como app», aviso de cuenta sin permisos |
-| `apps/admin/src/app/LegalPage.vue` | Cuatro menciones |
+| `apps/admin/src/app/LegalPage.vue` | Cinco menciones |
 | `apps/admin/src/modules/auth/ui/LoginPage.vue` | `alt` y «Gestiona las comunidades de gobernança» |
 | `apps/admin/src/modules/communities/ui/CommunitiesPage.vue` | Los dos mensajes de lista vacía |
 | `apps/admin/src/modules/people/ui/PeoplePage.vue` | Dos textos de la invitación |
@@ -126,7 +125,8 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `apps/admin/src/modules/obligations/ui/ObligationsPage.vue` | `PRODID` del calendario `.ics` |
 | `packages/shared/domain/mail.ts` | Cabecera del correo, «Enviado con gobernança» y versión en texto plano |
 | `packages/shared/domain/user.ts` | Rol «Equipo gobernança» |
-| `packages/shared/domain/verifactu.ts` | `NombreSistemaInformatico` (D1), `IdSistemaInformatico` (D7). `NombreRazon` pasa a ser la razón social del productor cuando exista (EMP-1) |
+| `packages/shared/domain/verifactu.ts` | `NombreSistemaInformatico` (D1), `IdSistemaInformatico` (D7). `NombreRazon` pasa a ser la razón social del productor cuando exista ([EMP-1](competencia.md#emp-1)) |
+| `functions/index.js` | «Solo el equipo de gobernança puede restaurar versiones», el error de restaurar en el Historial |
 | `apps/landing/index.html` | `<title>`, `og:title`, `aria-label` y `alt` del logo, la notificación «gobernança · ahora», la ventana «gobernança admin», la «g» de los dos iconos de app de las notificaciones y el icono en miniatura que imita el aro coral del isotipo |
 
 ### 3.2 Logos e imágenes
@@ -138,7 +138,7 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `packages/shared/ui/IsotypeSVG.vue` | A3 |
 | `apps/webapp/public/` y `apps/admin/public/` | Los cinco iconos y `og-image.jpg` de cada una |
 | `apps/landing/index.html` | El favicon pasa del logo entero (ilegible a 16 px) al isotipo. `og:image` pasa a URL absoluta con el dominio nuevo (las tarjetas no aceptan rutas relativas) y se añade `og:url` |
-| `apps/landing/img/cartera.png`, `vecino.jpg` | Las capturas de T15 |
+| `apps/landing/img/cartera.png`, `vecino.jpg` | Las capturas de T14 |
 | Tamaños en `AdminLayout.vue`, `TheToolbar.vue`, `LoginPage.vue` (las dos), `WorkOrderPage.vue` | Solo si el logo nuevo cambia de proporción |
 
 ### 3.3 Direcciones
@@ -158,19 +158,18 @@ Nadie los ve; los cambio para que el código diga un solo nombre.
 
 | Dónde | Qué | Efecto |
 |---|---|---|
-| `package.json` (raíz y las tres de `apps/` y `packages/`) y todas las importaciones `@gobernansa/shared/…` | Pasa a `@<slug>/…` | Regenero `package-lock.json` con `npm install` |
+| `package.json` (raíz, las tres de `apps/` y `packages/` y la de `functions/`, `@gobernansa/functions`) y todas las importaciones `@gobernansa/shared/…` | Pasa a `@<slug>/…` | Regenero `package-lock.json` con `npm install` |
 | `.firebaserc` | Alias y sitios del proyecto de demo | Solo la demo, que aún no existe (T9). Producción se queda |
-| `CommunityDashboard.vue`, `CommunityPage.vue` | Claves `gobernansa.admin.*` del navegador | Quien había reordenado su panel lo ve una vez como viene de serie |
-| `IssuesCreatePage.vue`, `WorkOrderPage.vue` | Carpeta de Cloudinary de las subidas nuevas | Las fotos viejas siguen donde están |
+| `CommunityDashboard.vue`, `CommunityPage.vue`, `CommunitySetup.vue` | Claves `gobernansa.admin.*` del navegador | Quien había reordenado su panel lo ve una vez como viene de serie |
 | `ObligationsPage.vue` | `UID` de los eventos `.ics` (`@gobernansa`) | Quien ya importó un `.ics` vería el evento repetido; sin clientes todavía, no importa |
-| `scripts/backup/*.js` | Carpeta de copias, carpeta de la clave, etiqueta de launchd, prefijo de los ficheros, mensajes | **Obliga a hacer T11 el mismo día** |
-| `scripts/firebase-test/seed.js`, `scripts/backup/*.js`, `scripts/symbolicate.js` | IDs por defecto del emulador (`demo-gobernansa`) y carpeta temporal | Ninguno |
+| `scripts/backup/*.js` y sus valores por defecto en `.env.example` | Carpeta de copias, carpeta de la clave, etiqueta de launchd, prefijo de los ficheros, mensajes | **Obliga a hacer T11 el mismo día** |
+| `scripts/firebase-test/seed.js`, `scripts/backup/*.js`, `scripts/symbolicate.js`, `scripts/demo.js` | IDs por defecto del emulador y el de la demo local (`demo-gobernansa`) y carpeta temporal | Ninguno |
 | `scripts/firebase-test/data/*.js`, `README.md` del seed | «Equipo gobernança», textos de correo, semilla de los enlaces de la demo | Ninguno: el seed lo regenera todo |
 | `firestore.rules` y comentarios del código | Unos diez comentarios | Ninguno: las reglas no cambian |
 
 ### 3.5 Documentación
 
-`README.md`, `docs/competencia.md`, `docs/firebase.md`, `docs/v1.md` (A2 queda como hecha) y `docs/fiabilidad.md`. Los IDs que no cambian (sección 1) se quedan como están.
+`README.md`, `docs/competencia.md`, `docs/firebase.md`, `docs/v1.md` ([A2](v1.md#a2) queda como hecha) y `docs/fiabilidad.md`. Los IDs que no cambian (sección 1) se quedan como están.
 
 ---
 
@@ -196,7 +195,7 @@ Nadie los ve; los cambio para que el código diga un solo nombre.
 
 1. En el panel del registrador, crea los buzones o alias: `hola@`, `soporte@` y el tuyo. `no-reply@` no necesita buzón.
 2. Añade los registros MX, SPF, DKIM y DMARC que te indique el proveedor de correo; sin ellos los correos acaban en spam.
-3. Pásame el de contacto: va al aviso legal (`legal.ts`) cuando se rellene con los datos de EMP-1.
+3. Pásame el de contacto: va al aviso legal (`legal.ts`) cuando se rellene con los datos de [EMP-1](competencia.md#emp-1).
 
 ### T4. Firebase: nombre y correos de acceso
 
@@ -287,7 +286,7 @@ Haz también el paso 1 de T4 (nombre público) y el paso 2.1 (idioma) en este pr
    ```
 3. En la portada del repo, **⚙️ About**: descripción, **Website** `https://<dominio>` y temas.
 4. **Settings → General → Social preview → Edit → Upload an image**: el `og-image.jpg` nuevo.
-5. Secretos: nada que cambiar, salvo el preset de Cloudinary si haces T12.
+5. Secretos: nada que cambiar.
 
 ### T11. Carpeta local y copias de seguridad
 
@@ -315,28 +314,21 @@ Justo después del merge, y antes de la siguiente copia, porque el código pasar
    ```
 6. Si programas la copia diaria (hoy no lo está), hazlo después del paso 5, porque guarda la ruta del proyecto: `npm run backup -- --schedule` y el `launchctl bootstrap` que imprime.
 
-### T12. Cloudinary *(opcional, nadie lo ve)*
-
-1. **Settings → Upload → Upload presets → Add upload preset**: nombre `<slug>_issues`, **Signing mode: Unsigned** y el resto como `gobernanca_issues` (sección 3 de [firebase.md](firebase.md)).
-2. Cambia `VITE_CLOUDINARY_UPLOAD_PRESET` en `.env.local` y en **GitHub → Settings → Secrets and variables → Actions**.
-3. Tras el siguiente despliegue, borra el preset viejo.
-4. El *cloud name* no lleva la marca: no lo toques, rompería las URLs.
-
-### T13. Datos de producción
+### T12. Datos de producción
 
 1. En el admin, **Administradores**: si tu perfil u otro del equipo se llama «Equipo gobernança», cámbialo.
 2. Nada más: las comunidades, vecinos y documentos no guardan el nombre del producto.
 
-### T14. Fuera del repo
+### T13. Fuera del repo
 
 - `Diseño.sketch`: el logo nuevo, para tenerlo como fuente.
 - Bot de Telegram del formulario de la landing: aún sin configurar (`BOT` vacío), así que créalo directamente con el nombre nuevo en @BotFather.
 - Gestor de contraseñas: entradas de Firebase, de la clave de copias y de `DEMO_PASSWORD`.
-- Firma de correo, LinkedIn, tarjetas, la presentación y el vídeo de la demo (F en [v1.md](v1.md)).
+- Firma de correo, LinkedIn, tarjetas, la presentación y el vídeo de la demo ([F](v1.md#f)).
 - Google Search Console, cuando la landing esté en `<dominio>`: añade la propiedad del dominio.
 - Analytics no está activo en el código: nada que cambiar.
 
-### T15. Capturas de la landing
+### T14. Capturas de la landing
 
 1. Arranca todo con el despacho grande:
    ```bash

@@ -2,6 +2,7 @@
 import type { IssueStatus, IssueVote } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { findIssueCategory, getIssueCategories, getIssueStep, getVotingMonth, issueCategoryStyle, issueLifecycle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { isVideoUrl } from '@gobernansa/shared/domain/media.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
@@ -17,8 +18,6 @@ const props = defineProps<{ id: string }>();
 
 const ask = useConfirm();
 
-const VIDEO_EXTENSION_REGEX = /\.(?:mp4|mov)$/i;
-
 // The toolbar collapses as soon as the title starts going under it, so long titles on short pages still do
 const $titleTop = useTemplateRef('$titleTop');
 const {
@@ -33,18 +32,7 @@ const category = computed(() => issue.value && findIssueCategory(getIssueCategor
 const status = computed(() => issueStatus.find(status => status.value === issue.value?.status));
 const step = computed(() => issue.value ? getIssueStep(issue.value.status) : 0);
 
-const assets = computed(() => (issue.value?.assets || []).map(url => VIDEO_EXTENSION_REGEX.test(url)
-	? {
-			type: 'video',
-			url: url.replace('/upload/', '/upload/c_fill,w_800,h_600,q_auto/'),
-			poster: url.replace('/upload/', '/upload/c_fill,w_800,h_600/').replace(VIDEO_EXTENSION_REGEX, '.jpg'),
-			original: url,
-		}
-	: {
-			type: 'image',
-			url: url.replace('/upload/', '/upload/c_auto,g_auto,w_800,h_600,f_auto,q_auto/'),
-			original: url,
-		}));
+const assets = computed(() => (issue.value?.assets || []).map(url => ({ url, isVideo: isVideoUrl(url) })));
 const currentAsset = ref(0);
 
 function onGalleryScroll(event: Event) {
@@ -142,18 +130,19 @@ async function share() {
 
 			<template v-else-if="assets.length">
 				<ul class="gallery" @scroll.passive="onGalleryScroll">
-					<li v-for="(asset, index) in assets" :key="asset.original">
+					<li v-for="(asset, index) in assets" :key="asset.url">
+						<!-- #t skips to the first frame, iOS shows nothing otherwise -->
 						<video
-							v-if="asset.type === 'video'"
-							:src="asset.url"
-							:poster="asset.poster"
+							v-if="asset.isVideo"
+							:src="`${asset.url}#t=0.1`"
+							:aria-label="`Vídeo ${index + 1} de ${issue?.title}`"
 							controls
 							playsinline
-							preload="none"
+							preload="metadata"
 						/>
 						<a
 							v-else
-							:href="asset.original"
+							:href="asset.url"
 							target="_blank"
 							rel="noopener"
 						>

@@ -154,10 +154,16 @@ export function providerById(id) {
 	return providers.find(provider => provider.id === id);
 }
 
-// Hosted pictures, as neighbours attach them to issues (Cloudinary only, the rules check it for work orders)
+// Photos neighbours attach to issues and providers to work orders, as placeholder pictures with a caption
 export const images = {
-	leak: 'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855576/gobernan%C3%A7a/issues/filtraciones-agua-residencia_tmvhv0.jpg',
-	flood: 'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855624/gobernan%C3%A7a/issues/Resi_ponfe_3_-krLB-U20721300682AMB-1200x840_Leonoticias_r7nbg4.webp',
-	inside: 'https://res.cloudinary.com/dqd7np8vk/image/upload/v1776855576/gobernan%C3%A7a/issues/inside-view_ftqxjx.jpg',
-	video: 'https://res.cloudinary.com/dqd7np8vk/video/upload/v1776855577/gobernan%C3%A7a/issues/bigbuck_bunny_8bit_15000kbps_1080p_60.0fps_h264_tpr6rn.mp4',
+	leak: { file: 'techo-garaje.svg', caption: 'Agua cayendo del techo del garaje' },
+	flood: { file: 'charco-garaje.svg', caption: 'Charco junto a la plaza 12' },
+	inside: { file: 'bajante-nueva.svg', caption: 'Bajante nueva de PVC' },
 };
+
+// What the data holds in place of one of them until seed.js uploads it to the Storage emulator and writes its URL: its
+// path, as uploadMedia names them, and its caption
+export const MEDIA_PREFIX = 'storage:';
+export function media(folder, image) {
+	return `${MEDIA_PREFIX}${folder}/${image.file}#${image.caption}`;
+}

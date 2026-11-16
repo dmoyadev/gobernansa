@@ -10,7 +10,7 @@ import TheToolbar from '@/shared/ui/TheToolbar.vue';
 	<MainLayout class="legal">
 		<header>
 			<h1>Información legal</h1>
-			<p>Última actualización: octubre de 2026</p>
+			<p>Última actualización: noviembre de 2026</p>
 		</header>
 
 		<nav aria-label="Secciones">
@@ -51,20 +51,31 @@ import TheToolbar from '@/shared/ui/TheToolbar.vue';
 				<li>Las incidencias, comentarios y votos que hagas.</li>
 				<li>Los documentos que subas a tu perfil.</li>
 				<li>Un identificador de tu dispositivo, solo si activas las notificaciones.</li>
-				<li>Los errores técnicos que te salgan, con tu identificador de usuario y lo que hiciste justo antes en la app, para corregirlos. Se borran a los 30 días.</li>
+				<li>Los errores técnicos que te salgan, con tu identificador de usuario y lo que hiciste justo antes en la app, para corregirlos.</li>
+				<li>Lo que haces en la app, con la fecha, tu usuario y el navegador y sistema de tu dispositivo: cuándo entras, qué pantallas abres, qué descargas y cada cambio que haces en los datos, con cómo estaban y cómo quedaron. Solo para la seguridad del servicio.</li>
 			</ul>
 			<h3>Quién puede verlos</h3>
 			<ul>
 				<li>Las incidencias, con sus fotos, las ve toda tu comunidad.</li>
-				<li>Los documentos de tu perfil solo los ves tú.</li>
+				<li>Los documentos de tu perfil los ves tú y la administración de tu comunidad, que también puede enviarte alguno, como un certificado.</li>
 				<li>La administración de la comunidad ve lo necesario para gestionarla.</li>
-				<li>Los errores técnicos solo los ve el equipo de gobernança.</li>
+				<li>Los errores técnicos y el registro de lo que haces en la app solo los ve el equipo de gobernança.</li>
 			</ul>
 			<h3>Dónde se guardan</h3>
 			<p>
-				En los servicios de Google Firebase (acceso, base de datos y notificaciones) y, las fotos de las incidencias, en Cloudinary.
-				Los guardamos mientras tengas cuenta.
+				En los servicios de Google Firebase: acceso, base de datos, notificaciones y Cloud Storage, donde están las fotos y vídeos de las incidencias.
+				Las fotos y vídeos subidos antes de pasar a Cloud Storage siguen en el servicio de imágenes que usábamos entonces, aunque se borre su incidencia, hasta que los pasemos o los borremos.
 			</p>
+			<h3>Cuánto tiempo los guardamos</h3>
+			<ul>
+				<li>Tus datos, mientras tengas cuenta.</li>
+				<li>Los errores técnicos, 30 días.</li>
+				<li>Las pantallas que abres, 90 días.</li>
+				<li>Cuándo entras y sales, qué descargas o imprimes y tus cambios de contraseña o email, 12 meses.</li>
+				<li>Las fotos y vídeos de Cloud Storage de una incidencia que se borra, 90 días después.</li>
+				<li>Cómo estaban los datos antes de cada cambio, 90 días. Los de recibos, pagos, cuentas, reservas, juntas, votos, actas y propiedades, hasta el 31 de diciembre del año siguiente.</li>
+				<li>Pasado ese tiempo se borran en el mes siguiente, y de las copias de seguridad cuando se renuevan, salvo lo que haga falta para atender una reclamación, una petición tuya o un fallo de seguridad, que se guarda aparte, cifrado, hasta que se resuelva.</li>
+			</ul>
 			<h3>Tus derechos</h3>
 			<p>
 				Puedes pedir ver, corregir o borrar tus datos, u oponerte a su uso, a la administración de tu comunidad.

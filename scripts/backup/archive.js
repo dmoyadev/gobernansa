@@ -19,6 +19,15 @@ export const BACKUP_DIR = process.env.BACKUP_DIR ?? join(homedir(), 'Documents',
 export const KEY_FILE = process.env.BACKUP_KEY ?? join(homedir(), '.config', 'gobernansa', 'backup.key');
 export const SERVICE_ACCOUNT = new URL('../firebase-test/serviceAccountKey.local.json', import.meta.url);
 
+// The live project, with its service account, or the emulator FIRESTORE_EMULATOR_HOST names
+export function connect() {
+	const emulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+	const account = emulator ? null : JSON.parse(readFileSync(SERVICE_ACCOUNT, 'utf8'));
+	const projectId = account?.project_id ?? process.env.GCLOUD_PROJECT ?? 'demo-gobernansa';
+	admin.initializeApp(account ? { credential: admin.credential.cert(account) } : { projectId });
+	return { db: admin.firestore(), projectId, emulator };
+}
+
 export function readKey({ create = false } = {}) {
 	if (!existsSync(KEY_FILE)) {
 		if (!create) {

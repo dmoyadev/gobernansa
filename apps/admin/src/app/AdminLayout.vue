@@ -102,6 +102,7 @@ const SECTIONS = [
 	{ to: '/billing', label: 'Honorarios', icon: 'lucide:receipt-text', combo: 'g f', books: true },
 	{ to: '/team', label: 'Equipo', icon: 'lucide:users-round', combo: 'g t', owner: true },
 	{ to: '/errors', label: 'Errores', icon: 'lucide:bug', combo: 'g r', superadmin: true },
+	{ to: '/history', label: 'Historial', icon: 'lucide:history', combo: 'g h', superadmin: true },
 	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
 ];
 const sections = computed(() => SECTIONS.filter(allowed));
@@ -355,7 +356,7 @@ const KEPT_PAGES = 6;
 	}
 }
 
-// The team's nine sections need a wider screen to keep their names, the user's name and the version beside them
+// The team's nine or more sections need a wider screen to keep their names, the user's name and the version beside them
 @media (max-width: 1600px) {
 	.topbar nav.crowded a {
 		padding: var(--lnx-spacing-2);
@@ -406,6 +407,15 @@ const KEPT_PAGES = 6;
 
 	.brand img {
 		width: 96px;
+	}
+
+	// The team's ten icons don't fit beside the logo on a phone: they scroll, not the page (relative, so the alerts'
+	// hidden text scrolls with them)
+	.topbar nav {
+		position: relative;
+		min-width: 0;
+		overflow-x: auto;
+		scrollbar-width: none;
 	}
 
 	.topbar nav a {

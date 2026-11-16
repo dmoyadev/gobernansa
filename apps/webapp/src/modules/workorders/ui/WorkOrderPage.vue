@@ -3,12 +3,13 @@ import type { WorkOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getPhoneLink, getWhatsappLink } from '@gobernansa/shared/domain/community.ts';
 import { DEFAULT_ISSUE_CATEGORIES, findIssueCategory } from '@gobernansa/shared/domain/issue.ts';
+import { isVideoUrl } from '@gobernansa/shared/domain/media.ts';
 import { WORK_ORDER_LIMITS, workOrderStatus } from '@gobernansa/shared/domain/workOrder.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxTextarea } from 'lnxjs-components';
 import { computed, onUnmounted, ref } from 'vue';
-import { canUploadMedia, uploadMedia } from '@/shared/infrastructure/cloudinary.ts';
+import { canUploadMedia, uploadMedia } from '@/shared/infrastructure/storage.ts';
 import { useWorkOrder } from '../application/useWorkOrder.ts';
 
 const props = defineProps<{ token: string }>();
@@ -16,7 +17,6 @@ const props = defineProps<{ token: string }>();
 const { workOrder, report } = useWorkOrder(props.token);
 const { pending: loading, error } = workOrder;
 
-const VIDEO_REGEX = /\/video\//;
 const dayFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full' });
 const visitFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle: 'short' });
 const stepFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
@@ -77,7 +77,7 @@ async function send(status: WorkOrderStatus) {
 	try {
 		const urls: string[] = [];
 		for (const [index, photo] of photos.value.entries()) {
-			urls.push(await uploadMedia(photo.file, 'gobernança/workorders', (fraction) => {
+			urls.push(await uploadMedia(photo.file, `workOrders/${props.token}`, (fraction) => {
 				progress.value = (index + fraction) / photos.value.length;
 			}));
 		}
@@ -282,7 +282,7 @@ async function send(status: WorkOrderStatus) {
 				<ul v-if="workOrder.issue.assets.length" class="media-grid">
 					<li v-for="asset in workOrder.issue.assets" :key="asset">
 						<a :href="asset" target="_blank" rel="noopener">
-							<video v-if="VIDEO_REGEX.test(asset)" :src="`${asset}#t=0.1`" muted playsinline preload="metadata" />
+							<video v-if="isVideoUrl(asset)" :src="`${asset}#t=0.1`" muted playsinline preload="metadata" aria-label="Vídeo de la incidencia" />
 							<img v-else :src="asset" alt="Foto de la incidencia" loading="lazy">
 						</a>
 					</li>

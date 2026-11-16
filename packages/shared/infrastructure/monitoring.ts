@@ -7,6 +7,8 @@ import { AggregateQuerySnapshot, arrayUnion, collection, doc, DocumentSnapshot, 
 import { ref, watch } from 'vue';
 import { installed, isIos, updateReady } from '../application/pwa.ts';
 import useAuth from '../application/useAuth.ts';
+import { sha256 } from '../domain/minutes.ts';
+import { installActions } from './actions.ts';
 import { auth, db } from './firebase.ts';
 import { remote } from './remoteConfig.ts';
 import { measurePerformance } from './vitals.ts';
@@ -167,6 +169,8 @@ export function installMonitoring(app: App, router: Router, name: ErrorApp) {
 	reportExhaustedQuota();
 	// MON-6, with the same switch and limits as the errors
 	measurePerformance(router, name, () => SENDS && remote.errorReporting && !quotaExhausted.value);
+	// The superadmin's Historial: the screens each user opens and what they print
+	installActions(router, name);
 
 	if (import.meta.env.DEV) {
 		countReads();
@@ -357,8 +361,13 @@ function sample(message: string, stack: string, route: string, context: Context 
 }
 
 // The fingerprint: 16 characters of the SHA-1 of the app, the kind, the normalized message and the first file of ours
+// (SHA-256 where there's no crypto.subtle, as on a phone opening the local demo over http)
 async function fingerprint(parts: string[]) {
-	const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(parts.join('\n')));
+	const bytes = new TextEncoder().encode(parts.join('\n'));
+	if (!globalThis.crypto?.subtle) {
+		return sha256(bytes).slice(0, 16);
+	}
+	const digest = await crypto.subtle.digest('SHA-1', bytes);
 	return [...new Uint8Array(digest)].slice(0, 8).map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -396,7 +405,7 @@ function routeName() {
 
 // The browser and system with their main version, from the user agent. In this order: Edge and Opera also say Chrome,
 // and all of them Safari
-function device() {
+export function device() {
 	const agent = navigator.userAgent;
 	const browser = BROWSERS.map(([pattern, name]) => [name, agent.match(pattern)?.[1]]).find(([, version]) => version);
 	const android = agent.match(ANDROID_VERSION)?.[1];

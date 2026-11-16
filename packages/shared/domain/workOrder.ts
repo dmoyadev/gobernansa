@@ -23,7 +23,7 @@ export interface WorkOrder {
 	status: WorkOrderStatus;
 	// The visit the provider scheduled, the last one if they changed it
 	scheduledAt?: Timestamp;
-	// Sent by the provider, only Cloudinary URLs
+	// Sent by the provider: download URLs of their uploads under workOrders/{token}/, the rules check it
 	photos?: string[];
 	// Each step the provider took with what they wrote, oldest first. The rules only let them add one at a time, up to WORK_ORDER_LIMITS.steps
 	history: WorkOrderStep[];

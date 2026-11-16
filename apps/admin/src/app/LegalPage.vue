@@ -42,13 +42,37 @@ import { LnxIcon } from 'lnxjs-components';
 			<h3>Los datos de quienes trabajáis en el despacho</h3>
 			<ul>
 				<li>Tu email y tu nombre, para que puedas entrar, y las comunidades que gestionas.</li>
-				<li>Quién cambió qué y cuándo en cada comunidad, en su registro de actividad.</li>
-				<li>Los errores técnicos que te salgan, con tu identificador de usuario y lo que hiciste justo antes, para corregirlos. Se borran a los 30 días.</li>
+				<li>Quién cambió qué y cuándo en cada comunidad, en su registro de actividad, que se guarda cinco años desde el final de cada año.</li>
+				<li>Los errores técnicos que te salgan, con tu identificador de usuario y lo que hiciste justo antes, para corregirlos.</li>
+				<li>
+					Lo que haces en la plataforma, con la fecha, tu usuario y el navegador y sistema de tu dispositivo: cuándo entras,
+					qué pantallas abres, qué descargas y cada cambio en los datos, con cómo estaban y cómo quedaron. Solo para la
+					seguridad del servicio, y solo lo ve el equipo de gobernança.
+				</li>
+			</ul>
+			<h3>Cuánto tiempo guardamos ese registro y los errores</h3>
+			<ul>
+				<li>Los errores técnicos, 30 días.</li>
+				<li>Las pantallas, 90 días. Las de la ficha de una persona o de un inmueble, 12 meses.</li>
+				<li>Las entradas y salidas, descargas, impresiones, «ver como vecino» y cambios de contraseña o email, 12 meses.</li>
+				<li>
+					Cómo estaban los datos antes de cada cambio: los de recibos, remesas, deudas, contabilidad, reservas, juntas, votos,
+					actas, propiedades, coeficientes y facturas, hasta el 31 de diciembre del año siguiente; el resto, 90 días.
+				</li>
+				<li>Lo que hace el equipo de gobernança, como entrar, ver como otro usuario o restaurar una versión, 3 años.</li>
+				<li>
+					Pasado su plazo, cada entrada se borra entera en el mes siguiente, y de las copias de seguridad cuando se renuevan, salvo
+					lo que haga falta para un fallo de seguridad, una reclamación o una petición de acceso, que se exporta cifrado y fechado
+					antes de que caduque.
+				</li>
+				<li>Al terminar el contrato, después de entregar al despacho la exportación de cada comunidad, borramos todo su registro.</li>
 			</ul>
 			<h3>Dónde se guardan</h3>
 			<p>
-				En los servicios de Google Firebase (acceso, base de datos y notificaciones) y, las fotos y vídeos de las incidencias,
-				en Cloudinary. Son nuestros subencargados, y figuran en el contrato de encargado.
+				En los servicios de Google Firebase: acceso, base de datos, notificaciones y Cloud Storage, donde están las fotos y
+				vídeos de las incidencias y de los partes de trabajo. Google es nuestro subencargado, y figura en el contrato de encargado.
+				Las fotos y vídeos subidos antes de pasar a Cloud Storage siguen en el servicio de imágenes que usábamos entonces, aunque
+				se borre su incidencia, hasta que los pasemos o los borremos.
 			</p>
 			<h3>Tus derechos</h3>
 			<p>

@@ -8,6 +8,7 @@ import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxText
 import { computed, ref } from 'vue';
 import { useCollection } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -269,12 +270,7 @@ function downloadIcs(obligation: Obligation) {
 		'END:VEVENT',
 		'END:VCALENDAR',
 	];
-	const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar' }));
-	const link = document.createElement('a');
-	link.href = url;
-	link.download = `${obligation.title}.ics`;
-	link.click();
-	URL.revokeObjectURL(url);
+	downloadFile(`${obligation.title}.ics`, lines.join('\r\n'), 'text/calendar');
 }
 </script>
 

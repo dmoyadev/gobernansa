@@ -5,6 +5,7 @@ import type { ClaimStatus, IssueComment, IssueStatus } from '@gobernansa/shared/
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { claimStatus, findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { isVideoUrl } from '@gobernansa/shared/domain/media.ts';
 import { providerCategories } from '@gobernansa/shared/domain/provider.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useConfirm, useEventListener, useShortcut } from 'lnxjs-components';
@@ -38,7 +39,6 @@ loadCommunity(props.id).then(loaded => community.value = loaded, () => {});
 const category = computed(() => issue.value && findIssueCategory(getIssueCategories(community.value), issue.value.category));
 const reporter = computed(() => people.value.find(person => person.id === author.value?.uid)?.name);
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
-const VIDEO_REGEX = /\/video\//;
 const SPACES_REGEX = /\s+/;
 
 const age = computed(() => issue.value && getIssueAge(issue.value));
@@ -113,7 +113,9 @@ const providerMail = computed(() => {
 	const when = assignment.value.expectedAt ? `\nFecha prevista: ${new Date(`${assignment.value.expectedAt}T00:00`).toLocaleDateString('es')}` : '';
 	const token = adminData.value?.workOrder;
 	const link = token ? `\n\nParte de trabajo, para aceptarlo, programar la visita y avisarnos al terminar:\n${workOrderUrl(token)}` : '';
-	const body = `${issue.value.title}\n\n${issue.value.description || ''}${where}${when}${issue.value.assets?.length ? `\n\nFotos:\n${issue.value.assets.join('\n')}` : ''}${link}`;
+	// With the emulators they're saved without their host (uploadMedia), the mail needs it
+	const photos = (issue.value.assets ?? []).map(asset => asset.startsWith('/') ? location.origin + asset : asset);
+	const body = `${issue.value.title}\n\n${issue.value.description || ''}${where}${when}${photos.length ? `\n\nFotos:\n${photos.join('\n')}` : ''}${link}`;
 	return `mailto:${email}?subject=${encodeURIComponent(`Incidencia: ${issue.value.title}`)}&body=${encodeURIComponent(body)}`;
 });
 
@@ -420,11 +422,13 @@ useEventListener(window, 'keydown', (event) => {
 						<li v-for="asset in issue.assets" :key="asset">
 							<a :href="asset" target="_blank" rel="noopener" class="ux-lift" :class="{ loaded: loadedAssets.has(asset) }">
 								<video
-									v-if="VIDEO_REGEX.test(asset)"
+									v-if="isVideoUrl(asset)"
 									:ref="element => checkLoaded(asset, element)"
-									:src="asset"
+									:src="`${asset}#t=0.1`"
 									muted
+									playsinline
 									preload="metadata"
+									aria-label="Vídeo de la incidencia"
 									@loadeddata="loadedAssets.add(asset)"
 								/>
 								<img

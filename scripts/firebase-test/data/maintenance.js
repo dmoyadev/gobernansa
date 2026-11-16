@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { taxDeadlines } from '../../../packages/shared/domain/aeat.ts';
 import { DEFAULT_MONTHLY_VOTES, findIssueCategory, getIssueCategories, getVotingMonth, issueLocationTypes } from '../../../packages/shared/domain/issue.ts';
 import { obligationTypes } from '../../../packages/shared/domain/obligation.ts';
-import { audit, commonAreas, communities, days, images, now, office, properties, providerById, providers, uids, userById, year } from './cast.js';
+import { audit, commonAreas, communities, days, images, media, now, office, properties, providerById, providers, uids, userById, year } from './cast.js';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -18,6 +18,11 @@ const authorKeys = {};
 function authorKey(who) {
 	authorKeys[who] ??= randomBytes(24).toString('base64url');
 	return authorKeys[who];
+}
+
+// In the folder of its author's key, as the webapp uploads them (storage.rules)
+function issueAssets(communityId, issue) {
+	return (issue.assets ?? []).map(image => media(`issues/${communityId}/${authorKey(issue.by)}`, image));
 }
 
 // Properties vote, not people: each neighbour votes with their first property in the community, the home they live in
@@ -104,7 +109,6 @@ const issues = {
 			by: 'lucia',
 			at: [-62, '17:20'],
 			location: typed('Segunda planta'),
-			assets: [images.video],
 			assignedTo: 'carmen',
 			comments: [
 				move('carmen', -61, '09:30', 'in_progress'),
@@ -549,7 +553,7 @@ function seedIssue(set, communityId, issue, spent) {
 		// As the apps count them: messages written minus those their authors removed (hiding one doesn't change it)
 		commentsCount: issue.comments.filter(comment => !comment.status && !comment.deleted).length,
 		// The admin platform's form has no attachments
-		assets: issue.by === 'office' ? undefined : issue.assets ?? [],
+		assets: issue.by === 'office' ? undefined : issueAssets(communityId, issue),
 		location: issue.location,
 		// Who reported it only goes in private/author: the issue has their key, the office's none (the admin platform's)
 		authorKey: issue.by === 'office' ? undefined : authorKey(issue.by),
@@ -619,7 +623,7 @@ function seedWorkOrder(set, order) {
 			// As the community has it, the provider can't read it
 			category: (({ name, icon }) => ({ name, icon }))(findIssueCategory(getIssueCategories(community), issue.category)),
 			location: [issueLocationTypes[issue.location.type], issue.location.reference].filter(Boolean).join(' · '),
-			assets: issue.assets ?? [],
+			assets: issueAssets(order.communityId, issue),
 		},
 		expectedAt: order.expectedAt,
 		// The office's contact in core's communities
@@ -627,7 +631,7 @@ function seedWorkOrder(set, order) {
 		provider: { id: provider.id, name: provider.name },
 		status: history.at(-1)?.status ?? 'sent',
 		scheduledAt: history.findLast(step => step.scheduledAt)?.scheduledAt,
-		photos: order.photos,
+		photos: order.photos?.map(image => media(`workOrders/${order.token}`, image)),
 		history,
 		createdAt,
 		createdBy: order.by,

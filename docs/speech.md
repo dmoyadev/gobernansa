@@ -59,7 +59,7 @@ Transición:
 
 > Mejor que contároslo, os lo enseño con una comunidad de ejemplo de [tu ciudad]. Os cuento una historia: un vecino avisa de una humedad, y seguimos lo que pasa hasta que se arregla. Luego el dinero y la junta.
 
-El guion está en [F](v1.md#f). Vuelve a lo que te contestaron en el punto 1: si lo que más les duele son las llamadas, alarga las incidencias; si es el cobro, la remesa y la morosidad.
+El guion, clic a clic, está en [demo.md](demo.md). Vuelve a lo que te contestaron en el punto 1: si lo que más les duele son las llamadas, alarga las incidencias; si es el cobro, la remesa y la morosidad.
 
 ## 5. Lo que no hacemos todavía (1 minuto)
 
@@ -101,7 +101,7 @@ Prueba: «Exportar en un ZIP» en la configuración ([B8](v1.md#b8)). ⚠️ Men
 **«¿Dónde están los datos? ¿Cumple el RGPD?»**
 > En los servidores de Google, y firmamos con vosotros el contrato de encargado del tratamiento.
 
-⚠️ Hasta [A4.2](v1.md#a4) y [A4.6](v1.md#a4): «El contrato de encargado os lo paso antes de meter un solo dato real». No digas «en la UE» hasta que lo estén también las fotos de las incidencias ([GAR-3](competencia.md#gar-3)).
+⚠️ Hasta [A4.2](v1.md#a4) y [A4.6](v1.md#a4): «El contrato de encargado os lo paso antes de meter un solo dato real». La base de datos de producción está en Madrid (comprobado el 16/11/2026, [B1](v1.md#b1)), pero no digas «todo en la UE» hasta que lo estén también las fotos y vídeos ([GAR-3](competencia.md#gar-3)) y hasta saber qué responder por las cuentas de acceso, que Firebase no deja elegir dónde se guardan ([A4.8](v1.md#a4)).
 
 **«Ya tengo Gesfincas, TAAF…»**
 > No hace falta que lo dejéis. Podéis empezar por la app del vecino y las incidencias y seguir con vuestro programa para la contabilidad. El censo se importa pegándolo desde un Excel, y el diario se exporta a ContaPlus.
@@ -119,7 +119,7 @@ Prueba: «Exportar en un ZIP» en la configuración ([B8](v1.md#b8)). ⚠️ Men
 **«Mis vecinos son mayores.»**
 > No tienen que registrarse ni recordar nada: les llega una carta con un QR, apuntan con la cámara y entran. Los inquilinos también. Y quien no quiera móvil sigue recibiendo papel.
 
-Prueba: «No tiene email» al invitar ([B2](v1.md#b2), paso 4). La app aguanta la letra grande del sistema ([C4](v1.md#c4)).
+Prueba: las «Cartas de acceso» de «Vecinos y gestores» ([B2](v1.md#b2), paso 4). La app aguanta la letra grande del sistema ([C4](v1.md#c4)).
 
 **«¿Y mis empleados?»**
 > Cada uno con su usuario y su función: oficial, contable o solo lectura. Las comunidades que dais de alta las ven todos los del despacho.
@@ -137,7 +137,9 @@ Prueba: la página «Equipo» ([B3](v1.md#b3)).
 **«¿Qué pasa si se cae?»**
 > Hay copias de seguridad, y los errores de la app quedan registrados y los reviso cada día. Si hay mantenimiento, la app avisa a los usuarios antes.
 
-⚠️ Hasta que la copia diaria esté activada ([B5](v1.md#b5)), no digas «copias diarias». Di «hago copias completas y las he restaurado para comprobarlas».
+⚠️ Hasta que la copia diaria esté activada ([B5](v1.md#b5)), no digas «copias diarias». Di «hago copias de los datos de las comunidades y las he restaurado para comprobarlas».
+
+Y nunca digas «copias completas», tampoco después de B5: no llevan las fotos y vídeos, las cuentas ni el Historial de acciones.
 
 ---
 

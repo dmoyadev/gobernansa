@@ -11,6 +11,7 @@ import { LnxButton, LnxIcon, LnxKbd, LnxRadioGroup, useConfirm, useShortcut } fr
 import { computed, ref, useTemplateRef } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -125,9 +126,7 @@ async function download(document: PersonDocument) {
 			throw new Error('El documento no tiene archivo');
 		}
 
-		const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: document.type }));
-		Object.assign(window.document.createElement('a'), { href: url, download: document.name }).click();
-		setTimeout(() => URL.revokeObjectURL(url), 60_000);
+		downloadFile(document.name, bytes as BlobPart, document.type);
 	} catch (e) {
 		actionError.value = `No se ha podido descargar: ${(e as Error).message}`;
 	}

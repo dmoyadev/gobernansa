@@ -1,5 +1,6 @@
 import type { UserDocument } from '../domain/user.ts';
 import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS } from '@gobernansa/shared/domain/user.ts';
+import { logAction } from '@gobernansa/shared/infrastructure/actions.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { Bytes, collection, doc, getDoc, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
@@ -64,6 +65,7 @@ export function useUserDocuments() {
 		const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: document.type }));
 		Object.assign(window.document.createElement('a'), { href: url, download: document.name }).click();
 		setTimeout(() => URL.revokeObjectURL(url), 60_000);
+		void logAction('download', { detail: document.name, meta: { type: document.type } });
 	}
 
 	async function deleteDocument(document: UserDocument) {

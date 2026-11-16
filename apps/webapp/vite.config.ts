@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
 import mkcert from 'vite-plugin-mkcert';
 import vueDevTools from 'vite-plugin-vue-devtools';
+import icons from '../../packages/shared/build/icons.ts';
 
 const GOOGLE_FONTS_IMPORT = /@import\s*["']https:\/\/fonts\.googleapis\.com[^"']*["'];?/g;
 
@@ -11,6 +12,9 @@ export default defineConfig({
 	build: { sourcemap: 'hidden' }, // Maps to read production errors (MON-10), never linked from the code: CI keeps them apart and deploys without them
 	resolve: {
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }, // Import from src as '@/...'
+	},
+	server: {
+		proxy: { '/v0/b': 'http://127.0.0.1:9199' }, // Photos from the Storage emulator, saved with relative addresses
 	},
 	plugins: [
 		// lnxjs-components' base.css imports Google Fonts the theme replaces (typography.scss): dropped, so no IP reaches Google
@@ -26,6 +30,7 @@ export default defineConfig({
 				},
 			},
 		}),
+		icons(), // The icons the code uses, bundled: none is fetched from the internet
 		mkcert(), // Use mkcert for enabling HTTPS in localhost
 		vueDevTools(),
 	],

@@ -9,7 +9,7 @@ Objetivos:
 
 Es la base para el piloto con despachos reales ([EMP-4](competencia.md#emp-4) en [competencia.md](competencia.md)).
 
-**Principio: ningún servicio externo nuevo.** Todo se construye en casa, a medida de gobernança, sobre lo que el proyecto ya usa: Firebase (Firestore, Hosting, Auth, mensajería push, Remote Config) y GitHub (código y CI). Así se gana:
+**Principio: ningún servicio externo nuevo.** Todo se construye en casa, a medida de gobernança, sobre lo que el proyecto ya usa: Firebase (Firestore, Hosting, Auth, mensajería push, Remote Config y, con Blaze, Cloud Storage y Functions) y GitHub (código y CI). Así se gana:
 - **Los datos no salen del proyecto**, así que no hay subencargados nuevos que declarar a los despachos ([EMP-2](competencia.md#emp-2)).
 - **Se adapta a nuestros casos:** comunidad, despacho, remesa, fichero AEAT.
 - **No depende de los límites ni de los cambios de precio de otro.**
@@ -98,7 +98,7 @@ La fase 2 ([MON-4](#mon-4), [MON-5](#mon-5), [MON-7](#mon-7), [ROB-4](#rob-4) y 
   - lo que se hace en ellas (entrar con código o contraseña, el parte de trabajo por enlace) escribe en datos reales;
   - el QR de una carta impresa desde una preview lleva a producción;
   - un cambio que necesita reglas nuevas falla en la preview aunque esté bien.
-- **Las copias de seguridad dependen de tu equipo** ([ROB-2](#rob-2), puente gratuito): solo se hacen si está encendido o se despierta, leen toda la base de datos cada vez y aún no se ha restaurado ninguna copia real.
+- **Las copias de seguridad dependen de tu equipo** ([ROB-2](#rob-2), puente gratuito): solo se hacen si está encendido o se despierta, leen toda la base de datos cada vez y la copia diaria aún no está activada.
 - **No hay pruebas automáticas**, tampoco en lo que mueve dinero o va a la AEAT.
 - **La cuota se puede gastar desde fuera.** La configuración de Firebase es pública por diseño, y cada petición evalúa `me()` en las reglas. Esa lectura se cobra aunque la regla rechace la petición, así que un script podría agotar la cuota de todos. Incluye enviar errores falsos a `errors`: los topes de envío están en el navegador.
 - **Límites de cuota del uso normal:**
@@ -106,6 +106,7 @@ La fase 2 ([MON-4](#mon-4), [MON-5](#mon-5), [MON-7](#mon-7), [ROB-4](#rob-4) y 
   - **Los documentos dentro de Firestore** comparten el 1 GiB con todo lo demás: unos 1.000 archivos de 1 MB lo llenan. El tope de 10 por persona lo comprueban las apps, no las reglas. Con Blaze ([INF-1](competencia.md#inf-1)), a Cloud Storage.
   - **«Ver más»** en la cronología de la webapp y en las incidencias y notificaciones del admin vuelve a leer las páginas anteriores. Crece con cada pulsación, pero solo la de quien pulsa.
   - **Contención:** si muchos usuarios disparan el mismo error a la vez, todas las escrituras van al mismo grupo. Si Firestore empieza a rechazarlas, repartir el contador por días (`errors/{huella}/days/{fecha}`).
+  - **El registro de acciones del Historial** ([GAR-1](competencia.md#gar-1)) escribe una vez por cada pantalla abierta, también en el plan gratuito. Si se acerca a las 20.000 escrituras, apagarlo con `actionsLog` ([ROB-5](#rob-5)). Con Blaze, el historial de cambios suma una ejecución de función por cada escritura, también las de acciones y errores, y una escritura más por cada cambio que guarda.
 - **Límites de [ROB-6](#rob-6):**
   - **Marcar pagado o pendiente a mano ya no funciona sin conexión.** Necesita leer el estado en el servidor, como ya pasaba con las entregas a cuenta.
   - **Dos pestañas que importan el mismo censo a la vez** pueden duplicar las propiedades nuevas. Con un identificador fijo, una propiedad renombrada bloquearía la importación entera.
@@ -115,7 +116,7 @@ La fase 2 ([MON-4](#mon-4), [MON-5](#mon-5), [MON-7](#mon-7), [ROB-4](#rob-4) y 
   - Safari no tiene LCP ni la medida de las interacciones: de sus sesiones solo llegan los saltos (CLS).
   - La respuesta es la interacción más lenta de la sesión, no el INP exacto, que descarta una de cada 50.
   - Las reglas limitan cada envío a sumar 1 en como mucho tres tramos por pantalla y tres pantallas, pero no a uno por medida: alguien con sesión podría falsear las cifras, igual que los errores ([ROB-8](#rob-8)).
-- **Privacidad:** falta añadir a la página legal que se guardan errores técnicos con el identificador del usuario durante 30 días, para corregir fallos.
+- **Privacidad:** las páginas legales cuentan los errores técnicos (30 días) y los plazos del Historial ([GAR-1](competencia.md#gar-1), [tabla](firebase.md#retention)). Con el plan gratuito, lo caducado solo se borra tras cada copia o con `npm run purge -- --delete`, y hasta activar la copia diaria hay que lanzarlo a mano.
 
 ---
 
@@ -213,6 +214,7 @@ Comprobado con un build local: una línea del código minificado se traduce a la
 **Cómo.** Con Remote Config, que es del mismo Firebase y no añade proveedor. Es gratis, funciona en web y no gasta cuota de Firestore (su límite son 100.000 consultas al día por proyecto).
 - **Funciones:** `payments`, `remittances`, `aeatFiles` y `censusImport`.
 - **Monitorización:** `errorReporting` (encendido o apagado) y `errorSampleRate` (de 0 a 1).
+- **Historial:** `actionsLog` (15/11/2026) apaga el registro de acciones ([GAR-1](competencia.md#gar-1)), que escribe una vez por cada pantalla abierta.
 - **Versión mínima:** un `minVersion` que activa el aviso de actualización que ya tiene la PWA.
 - **Mantenimiento:** un mensaje opcional para las dos apps.
 - **Comportamiento:** la app los consulta al abrirse y cada pocas horas. Si no puede consultarlos, todo queda como está por defecto (encendido).
@@ -242,7 +244,9 @@ Alternativa sin Remote Config: un documento `config/app` en Firestore. Más senc
 **Cómo, con Blaze ([INF-1](competencia.md#inf-1)).**
 - **Copias programadas de Firestore** (requieren Blaze): una diaria con unos 14 días de retención y una semanal que dure más. También la recuperación a un momento concreto, si su precio encaja.
 - **Restauración:** se hace en una base de datos nueva y desde ahí se copia lo necesario, sin pisar producción.
-- **Fotos y vídeos de Cloudinary:** no entran en estas copias. O se incluyen aparte, o se deja por escrito que se asume perderlos.
+- **Fotos y vídeos:** están en Cloud Storage, y estas copias son solo de Firestore: guardan sus enlaces, no los ficheros. Las apps no pueden cambiar ni borrar ficheros (`storage.rules`), así que no se pierden por un fallo de la app, sino si se borra el bucket o el proyecto. Solo los borra, cada domingo, la función de los plazos: los de una incidencia borrada hace más de 90 días y los que nunca se adjuntaron ([tabla](firebase.md#retention)). Para [B5](v1.md#b5), «copia diaria, restaurada y comprobada» vale para los datos, no para las fotos: o se copian aparte, o se deja por escrito que se asume perderlas. Las de incidencias anteriores siguen en el servicio de fotos anterior y se ven mientras exista esa cuenta.
+
+**El Historial ayuda, pero no es una copia** ([GAR-1](competencia.md#gar-1)). Con Blaze guarda cada versión de cada documento, y el superadmin puede volver uno a una versión anterior desde el admin: una escritura mala se deshace documento a documento, sin tocar el resto. Pero vive en la misma base de datos, solo tiene lo escrito desde que se despliegan las funciones y durante su plazo (90 días casi todo, [tabla](firebase.md#retention)), y no restaura cuentas, fotos, facturas ni los documentos demasiado grandes, que guarda recortados. Cada restauración escribe el documento entero como estaba, así que pisa lo que cambió después en él.
 
 **Puente gratuito hasta entonces.** Un script con el Admin SDK (`npm run backup`) que exporta las colecciones, las cifra y las guarda. Hay dos opciones:
 - **a) En tu propio equipo,** programado con `launchd`. Los datos no salen de tu equipo, pero solo se hace si el equipo está encendido.
@@ -262,8 +266,9 @@ Las dos opciones leen todos los documentos, así que gastan cuota y solo sirven 
 - **Programarla:** `npm run backup -- --schedule` escribe `~/Library/LaunchAgents/com.gobernansa.backup.plist` y dice cómo activarlo (`launchctl bootstrap gui/<uid> <plist>`). Se lanza cada día a las 14:00; si el equipo estaba dormido, al despertar. Su registro, en `~/Documents/Backups/gobernansa/backup.log`. Si cambias de versión de Node o mueves el repositorio, vuelve a ejecutarlo.
 - **Vigilancia:** la página «Errores» muestra cuándo fue la última copia y cuántos documentos tenía, y un aviso en rojo si tiene más de 26 horas o no hay ninguna. Cuesta una lectura al abrir la página.
 - **Restaurar:** `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run restore` vacía el emulador y escribe la última copia (o la que se le pase). Con el emulador de Auth, crea la cuenta de cada perfil con su mismo identificador y correo, para entrar como esa persona pidiendo una contraseña nueva (el emulador escribe el enlace en su registro). Se niega a escribir en producción.
-- **Cuota:** cada copia gasta una lectura por documento, más una por colección vacía. El script avisa si pasa de 25.000, la mitad de las diarias: entonces hay que pasar a Blaze.
-- **No incluye** las cuentas de Auth (se rehacen desde `users` al restaurar en los emuladores) ni los ficheros de Cloudinary.
+- **Cuota:** cada copia gasta una lectura por documento, más una por colección vacía. El script avisa si pasa de 25.000, la mitad de las diarias: entonces hay que pasar a Blaze. Deja fuera las acciones del Historial, que crecen con cada pantalla abierta y perderlas no pierde nada de las comunidades. Con Blaze sí lleva el historial de cambios, que crece con cada escritura: cada copia leerá más, hasta que su plazo empiece a borrar lo antiguo.
+- **Borrar lo caducado:** después de cada copia, el script borra lo que ha cumplido su plazo del Historial, del registro de actividad y de las muestras de errores ([tabla](firebase.md#retention)), hasta 10.000 documentos: una lectura y un borrado por cada uno. Lo borrado sigue en las copias hasta que salen de las 14 últimas, salvo las acciones del Historial, que nunca entran. Mientras la copia diaria no esté activada, `npm run purge` cuenta lo caducado y `npm run purge -- --delete` lo borra.
+- **No incluye** las cuentas de Auth (se rehacen desde `users` al restaurar en los emuladores), las acciones del Historial ni las fotos y vídeos de Cloud Storage, solo sus enlaces.
 
 Ensayado entero en los emuladores con la demo: copia de 993 documentos de 40 colecciones, vaciado, restauración y una segunda copia idéntica a la primera; y el admin abierto sobre lo restaurado con la cuenta del equipo.
 
@@ -352,16 +357,16 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 | El workflow de despliegue falla en el último paso | Qué web o qué fichero no respondió, en el registro del paso | Volver atrás esa web (abajo) y corregir con calma |
 | Errores nuevos justo después de un despliegue | «Errores», filtrado por la versión | Volver atrás la app (abajo) y corregir con calma |
 | Muchos `permission-denied` después de cambiar las reglas | Qué versiones aparecen en el grupo | Si vienen de clientes antiguos, volver atrás las reglas (abajo) y hacer el cambio en tres pasos |
-| Cuota agotada | Consola de Firebase → Uso: qué la disparó | Avisar a los despachos de que vuelve hacia las 9:00. Si fue una pantalla, corregirla ([INF-2](competencia.md#inf-2)); si se repite, pasar a Blaze ([INF-1](competencia.md#inf-1)) |
+| Cuota agotada | Consola de Firebase → Uso: qué la disparó | Avisar a los despachos de que vuelve hacia las 9:00. Si fue una pantalla, corregirla ([INF-2](competencia.md#inf-2)); si fue el registro de acciones, apagar `actionsLog` ([ROB-5](#rob-5)); si se repite, pasar a Blaze ([INF-1](competencia.md#inf-1)) |
 | Picos de lecturas o de errores sin explicación | Uso por horas en la consola y grupos sin sesión | Puede ser un abuso: restringir la clave y activar App Check ([ROB-8](#rob-8)) |
-| Un despacho dice que algo salió mal | La actividad de la comunidad: cada operación de dinero lleva sus cifras y cada fichero descargado, su comprobación. Y los grupos de esa comunidad y fecha en «Errores» | Reproducirlo en los emuladores locales (o en el entorno de pruebas, si se hace [ROB-1](#rob-1)) |
+| Un despacho dice que algo salió mal | La actividad de la comunidad: cada operación de dinero lleva sus cifras y cada fichero descargado, su comprobación. Y los grupos de esa comunidad y fecha en «Errores». En el «Historial», las acciones de quien lo hizo y, con Blaze, los cambios de esa comunidad | Reproducirlo en los emuladores locales (o en el entorno de pruebas, si se hace [ROB-1](#rob-1)) |
 | Falla en producción una función de dinero | «Errores» | Apagarla con su interruptor ([ROB-5](#rob-5)) mientras se corrige |
 | Hay que obligar a todos a actualizar | La versión que lleva el arreglo | Subir `minVersion` ([ROB-5](#rob-5)) a esa versión |
 | Hay demasiados errores y gastan cuota | El contador `count` de los grupos | Bajar `errorSampleRate` o apagar `errorReporting` ([ROB-5](#rob-5)) |
 | No se ha hecho la copia diaria | El aviso de «Errores» y `~/Documents/Backups/gobernansa/backup.log` ([ROB-2](#rob-2)) | Lanzarla a mano el mismo día con `npm run backup` |
 | Una pila de error no se entiende | La versión de la muestra | `pbpaste \| npm run symbolicate -- <versión>` ([MON-10](#mon-10)) |
 | Una pantalla va lenta | La pestaña «Rendimiento» de «Errores» ([MON-6](#mon-6)) | Medirla en local con las herramientas del navegador y corregirla |
-| Hay que recuperar datos borrados o estropeados | La última copia anterior al fallo ([ROB-2](#rob-2)) | Restaurarla en los emuladores, comprobar qué falta y copiarlo a mano a producción con el Admin SDK, sin pisar el resto |
+| Hay que recuperar datos borrados o estropeados | Con Blaze, las versiones de esos documentos en el «Historial». Si no están, o son muchos, la última copia anterior al fallo ([ROB-2](#rob-2)) | Pocos documentos: en el cambio que lo estropeó, «Restaurar la versión anterior», o «Recuperar el documento» si lo borró. Pisa lo que cambió después en él, y los recortados no se restauran. Si no: restaurar la copia en los emuladores, comprobar qué falta y copiarlo a mano a producción con el Admin SDK, sin pisar el resto |
 | Firebase caído | status.firebase.google.com | Avisar a los despachos; no hay nada que desplegar |
 
 ### Volver atrás la app

@@ -8,8 +8,8 @@ import router from './app/router.ts';
 import { installPrefetch, installViewTransitions } from './app/ux/navigation.ts';
 
 /* Firebase */
-import { VueFire, VueFireAuth } from 'vuefire';
-import { firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { VueFire, VueFireAuthOptionsFromAuth } from 'vuefire';
+import { auth, firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 
 /* Installable app: offline shell, updates and install prompt */
 import { registerServiceWorker } from '@gobernansa/shared/application/pwa.ts';
@@ -17,8 +17,8 @@ import { registerServiceWorker } from '@gobernansa/shared/application/pwa.ts';
 /* Errors sent to Firestore, for the admin's Errores page */
 import { installMonitoring, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 
-/* Icons */
-import 'iconify-icon';
+/* Icons, bundled with the app (packages/shared/build/icons.ts) */
+import 'virtual:icons';
 
 /* CSS Utils */
 import '@gobernansa/shared/theme/colors.scss';
@@ -41,7 +41,8 @@ installPrefetch(router, ['/', '/dashboard', '/issues', '/announcements', '/provi
 app.use(VueFire, {
 	firebaseApp,
 	modules: [
-		VueFireAuth(),
+		// The one firebase.ts set up, with its options: VueFireAuth() would ask for another, with Google's sign-in popups
+		VueFireAuthOptionsFromAuth({ auth }),
 	],
 });
 

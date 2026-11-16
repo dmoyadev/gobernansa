@@ -54,7 +54,7 @@ globalThis.addEventListener('message', (event) => {
 globalThis.addEventListener('fetch', (event) => {
 	const { request } = event;
 	const url = new URL(request.url);
-	// Firestore, Google APIs, Cloudinary and any write go straight to the network
+	// Firestore, Google APIs, Storage and any write go straight to the network
 	if (!CACHING || request.method !== 'GET' || url.origin !== globalThis.location.origin) {
 		return;
 	}

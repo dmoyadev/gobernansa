@@ -10,12 +10,14 @@ import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
 import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput, LnxTextarea } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useCurrentUser } from 'vuefire';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
-import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia } from '@/shared/infrastructure/cloudinary.ts';
+import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia, VIDEO_TYPE_REGEX } from '@/shared/infrastructure/storage.ts';
 import MainLayout from '@/shared/ui/MainLayout.vue';
 import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { useWizardSteps } from '@/shared/ui/useWizardSteps.ts';
+import { getAuthorKey } from '../application/authorKey.ts';
 import { useCreateIssue } from '../application/useIssues.ts';
 
 type Place = NonNullable<Issue['location']> & { reference: string };
@@ -27,6 +29,7 @@ const router = useRouter();
 const { createIssue } = useCreateIssue();
 // Blocked neighbours, and whoever is viewing the community as a neighbour, can't report (the rules reject it too)
 const { user } = useAuth();
+const authUser = useCurrentUser();
 const { userCommunity } = useUserCommunity();
 const { userProperties } = useUserProperties();
 
@@ -127,6 +130,10 @@ function addMedia(event: Event) {
 		}
 
 		const isVideo = file.type.startsWith('video/');
+		if (isVideo && !VIDEO_TYPE_REGEX.test(file.type)) {
+			mediaError.value = `«${file.name}» no se puede subir, prueba con un vídeo MP4 o MOV.`;
+			continue;
+		}
 		if (isVideo && file.size > MAX_VIDEO_SIZE) {
 			mediaError.value = `«${file.name}» ocupa más de 100 MB, prueba con un vídeo más corto.`;
 			continue;
@@ -158,8 +165,10 @@ async function submit() {
 
 	try {
 		const assets: string[] = [];
+		// In the folder of the author's secret key, which the issue shows anyway: their uid would tell neighbours whose it is
+		const folder = media.value.length ? `issues/${userCommunity.value!.id}/${await getAuthorKey(authUser.value!.uid)}` : '';
 		for (const [index, item] of media.value.entries()) {
-			assets.push(await uploadMedia(item.file, 'gobernança/issues', (fraction) => {
+			assets.push(await uploadMedia(item.file, folder, (fraction) => {
 				uploadProgress.value = (index + fraction) / media.value.length;
 			}));
 		}

@@ -493,12 +493,15 @@ service cloud.firestore {
     // the id is the only credential, so one can be got by id but they can't be listed. The administration keeps it in the
     // issue's private/admin document
     match /workOrders/{token} {
-      // The provider's next step with its visit date, note and photos (Cloudinary only), added to the history one at a time.
+      // The provider's next step with its visit date, note and photos (uploaded to Storage under this work order, storage.rules),
+      // added to the history one at a time.
       // Accepting only comes first, rescheduling is allowed, and rejecting or finishing ends it. Signed in or not
       function isProviderReport() {
         let before = resource.data;
         let after = request.resource.data;
         let photos = after.get('photos', []);
+        // A download URL of a file under workOrders/{token}/; without the host with the emulators (scripts/demo.js)
+        let photo = '(https://firebasestorage[.]googleapis[.]com)?/v0/b/[^/ ]{1,100}/o/workOrders%2F' + token + '%2F[^ ]{1,300}';
         return changedOnly(['status', 'scheduledAt', 'photos', 'history', 'updatedAt'])
           && after.updatedAt == request.time
           && before.status in ['sent', 'accepted', 'scheduled']
@@ -510,7 +513,7 @@ service cloud.firestore {
           && isStep(after.history[before.history.size()], before, after)
           && photos is list
           && photos.size() <= 10
-          && (photos.size() == 0 || (photos.join(' ').matches('https://res[.]cloudinary[.]com/[^ ]{1,300}( https://res[.]cloudinary[.]com/[^ ]{1,300})*')
+          && (photos.size() == 0 || (photos.join(' ').matches(photo + '( ' + photo + ')*')
             && photos.join(' ').split(' ').size() == photos.size()));
       }
 
@@ -725,6 +728,20 @@ service cloud.firestore {
           return /databases/$(database)/documents/communities/$(communityId)/issues/$(issueId)/private/author;
         }
 
+        // Up to 6 photos and videos, download URLs of the reporter's own folder (storage.rules); without the host with the
+        // emulators. Anything else would end up as a link in the admin and in the provider's page. The key and the community
+        // go into the pattern, so they can only be ids: a key like 'x|.*' would let any link through, javascript: ones too
+        function validAssets(data) {
+          let assets = data.get('assets', []);
+          let key = data.get('authorKey', '');
+          let asset = '(https://firebasestorage[.]googleapis[.]com)?/v0/b/[^/ ]{1,100}/o/issues%2F' + communityId + '%2F' + key + '%2F[^ ]{1,300}';
+          return assets is list
+            && assets.size() <= 6
+            && (assets.size() == 0 || (communityId.matches('[A-Za-z0-9_-]{1,100}') && key.matches('[A-Za-z0-9_-]{1,64}')
+              && assets.join(' ').matches(asset + '( ' + asset + ')*')
+              && assets.join(' ').split(' ').size() == assets.size()));
+        }
+
         allow read: if inOrOversees(communityId);
 
         // By neighbours, or by the administration on their behalf. Neighbours never know who reported one: the issue only
@@ -734,6 +751,7 @@ service cloud.firestore {
           && !request.resource.data.keys().hasAny(['createdBy', 'updatedBy'])
           && request.resource.data.get('authorKey', '') is string
           && request.resource.data.get('authorKey', '').size() <= 64
+          && validAssets(request.resource.data)
           && getAfter(authorPath()).data.uid == request.auth.uid
           && request.resource.data.status == 'open'
           && request.resource.data.votesScore == 0
@@ -1047,6 +1065,10 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time
           && request.resource.data.updatedBy == request.auth.uid
           && paidOnline(communityId, request.resource.data.payment, 'chargeId', chargeId, resource.data.amount - resource.data.get('collected', 0));
+        allow update: if inCommunity(communityId)
+          && resource.data.ownerUid == '' && resource.data.paidAt == null
+          && changedOnly(['ownerUid']) && request.resource.data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerUid == request.auth.uid;
         allow delete: if manages(communityId);
       }
 
@@ -1065,10 +1087,6 @@ service cloud.firestore {
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && isCardSummary(request.resource.data)
-        allow update: if inCommunity(communityId)
-          && resource.data.ownerUid == '' && resource.data.paidAt == null
-          && changedOnly(['ownerUid']) && request.resource.data.ownerUid == request.auth.uid
-          && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.ownerUid == request.auth.uid;
           && (('chargeId' in request.resource.data
               && getAfter(/databases/$(database)/documents/communities/$(communityId)/charges/$(request.resource.data.chargeId)).data.get('payment', {}).get('id', '') == paymentId)
             || ('bookingId' in request.resource.data
@@ -1195,6 +1213,43 @@ service cloud.firestore {
     // The votes each user has given, counted across all issues for their stats on the home page
     match /{path=**}/votes/{voteId} {
       allow read: if signedIn() && resource.data.voterId == request.auth.uid;
+    }
+
+    // Every change to every document, written by the functions (functions/index.js) with what it was before and after and
+    // who did it. The superadmin's Historial, which also restores a version through restoreVersion. Nobody writes here,
+    // and the functions delete each one when its time is up (functions/retention.js)
+    match /audit/{eventId} {
+      allow read: if isSuperadmin();
+    }
+
+    // What each user does that doesn't change a document: signing in and out, the pages they open, viewing as someone,
+    // printing and downloading. Each app adds its own, with the time set by the server and nothing to edit later; only
+    // the functions delete it when its time is up (functions/retention.js)
+    match /actions/{actionId} {
+      function isAction(action) {
+        return action.keys().hasAll(['uid', 'app', 'type', 'keep', 'at'])
+          && action.keys().hasOnly(['uid', 'email', 'name', 'app', 'type', 'path', 'detail', 'meta', 'communityId', 'viewAs', 'device', 'keep', 'at'])
+          && action.uid == request.auth.uid
+          && action.get('email', null) == request.auth.token.get('email', null)
+          && action.at == request.time
+          && action.app in ['webapp', 'admin']
+          // Restores are written by restoreVersion alone, so no one passes one off as the team's
+          && action.type is string && action.type.size() <= 40 && action.type != 'restore'
+          && action.get('name', '') is string && action.get('name', '').size() <= 200
+          && action.get('path', '') is string && action.get('path', '').size() <= 500
+          && action.get('detail', '') is string && action.get('detail', '').size() <= 2000
+          // A few words (the file's type, how they signed in): the size of its texts too, or one could weigh 1 MiB
+          && action.get('meta', {}) is map && action.get('meta', {}).size() <= 30
+          && action.get('meta', {}).values().join('').size() <= 1000
+          && action.get('communityId', '') is string && action.get('communityId', '').size() <= 100
+          && action.get('viewAs', '') is string && action.get('viewAs', '').size() <= 200
+          && action.get('device', '') is string && action.get('device', '').size() <= 300
+          // How long it's kept (functions/retention.js): the team's three years, checked last so no one else reads the profile
+          && (action.keep in ['short', 'year'] || (action.keep == 'admin' && isSuperadmin()));
+      }
+
+      allow read: if isSuperadmin();
+      allow create: if signedIn() && isAction(request.resource.data);
     }
   }
 }

@@ -373,6 +373,13 @@ const router = createRouter({
 					component: async () => import('@/modules/errors/ui/ErrorsPage.vue'),
 					meta: { title: 'Errores', superadmin: true },
 				},
+				// Every change to the data and everything each user did, for the team
+				{
+					path: 'history',
+					name: 'Historial',
+					component: async () => import('@/modules/history/ui/HistoryPage.vue'),
+					meta: { title: 'Historial', superadmin: true },
+				},
 				// The office's own staff (B3), for its owner
 				{
 					path: 'team',

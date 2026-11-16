@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Issue } from '@gobernansa/shared/domain/issue.ts';
 import { findIssueCategory, getIssueCategories, getIssueStep, issueCategoryStyle, issueLifecycle, issueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { isVideoUrl } from '@gobernansa/shared/domain/media.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -13,7 +14,8 @@ const props = defineProps<{
 const { userCommunity } = useUserCommunity();
 const category = computed(() => findIssueCategory(getIssueCategories(userCommunity.value), props.issue.category));
 const status = computed(() => issueStatus.find(status => status.value === props.issue.status));
-const thumbnail = computed(() => props.issue.assets?.[0]?.replace('/upload/', '/upload/c_auto,g_auto,w_128,h_128,f_auto,q_auto/').replace('.mp4', '.jpg').replace('.mov', '.jpg'));
+// ponytail: the photo itself (already made smaller on upload), a thumbnail saved with it if long lists get slow on mobile data
+const thumbnail = computed(() => props.issue.assets?.[0]);
 
 const step = computed(() => getIssueStep(props.issue.status));
 
@@ -54,7 +56,16 @@ const date = computed(() => {
 			:class="{ 'vt-morph': openedIssueId === issue.id }"
 			:style="{ '--vt-name': `issue-media-${issue.id}` }"
 		>
-			<img v-if="thumbnail" :src="thumbnail" alt="" width="64" height="64">
+			<!-- #t skips to the first frame, iOS shows nothing otherwise -->
+			<video
+				v-if="thumbnail && isVideoUrl(thumbnail)"
+				:src="`${thumbnail}#t=0.1`"
+				muted
+				playsinline
+				preload="metadata"
+				aria-hidden="true"
+			/>
+			<img v-else-if="thumbnail" :src="thumbnail" alt="" width="64" height="64" loading="lazy">
 			<LnxIcon v-else :icon="category.icon" :size="26" />
 			<span
 				v-if="(issue.assets?.length || 0) > 1"
@@ -134,7 +145,8 @@ const date = computed(() => {
 		color: var(--cat-color);
 		background: var(--cat-color-bg);
 
-		img {
+		img,
+		video {
 			width: 100%;
 			height: 100%;
 			object-fit: cover;

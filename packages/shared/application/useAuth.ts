@@ -16,6 +16,7 @@ import { arrayUnion, clearIndexedDbPersistence, collection, doc, getDoc, getDocs
 import { computed, effectScope, ref, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { codeEmail, homeCommunities, isCodeEmail, managesCommunity, parseInviteCode } from '../domain/user.ts';
+import { logAction, logActionBeforeLeaving } from '../infrastructure/actions.ts';
 import { auth, db } from '../infrastructure/firebase.ts';
 import { reportError } from '../infrastructure/monitoring.ts';
 
@@ -51,15 +52,28 @@ function createAuth() {
 	// Only once the profile is loaded, so it isn't cleared while signing in
 	watch(() => !!userData.value && !viewingAs.value && !!viewAs.value, (notAllowed) => {
 		if (notAllowed) {
-			exitViewAs(false);
+			void exitViewAs(false);
 		}
 	});
+	// For the Historial, once it's allowed: when opened from the admin, not on each reload of the tab
+	if (viewAsParam) {
+		const stop = watch(viewingAs, (communityId) => {
+			if (communityId) {
+				stop();
+				void logAction('view-as', { communityId, detail: 'Empezó a ver la comunidad como vecino' });
+			}
+		});
+	}
 
-	function exitViewAs(reload = true) {
+	async function exitViewAs(reload = true) {
+		const leaving = viewingAs.value;
 		sessionStorage.removeItem(VIEW_AS_KEY);
 		viewAs.value = undefined;
 		// A full reload, so nothing loaded for that community stays in memory
 		if (reload) {
+			if (leaving) {
+				await logActionBeforeLeaving('view-as-exit', { communityId: leaving, detail: 'Dejó de ver la comunidad como vecino' });
+			}
 			window.location.assign('/');
 		}
 	}
@@ -185,6 +199,7 @@ function createAuth() {
 
 	async function signInWithPassword(email: string, password: string) {
 		await signInWithEmailAndPassword(auth, email.trim(), password);
+		void logAction('signin', { detail: 'Con email y contraseña', meta: { method: 'password' } });
 	}
 
 	// To make one, for whoever was invited by email but never had one, or to recover it. 150 a day in the free plan
@@ -234,6 +249,7 @@ function createAuth() {
 
 		try {
 			await signInWithEmailAndPassword(auth, codeEmail(code), code);
+			void logAction('signin', { detail: 'Con su código de acceso', meta: { method: 'code' } });
 			return;
 		} catch (error) {
 			if (!WRONG_CREDENTIALS.includes((error as { code?: string }).code ?? '')) {
@@ -263,6 +279,7 @@ function createAuth() {
 			await account.delete();
 			throw new Error('INVALID_CODE', { cause: error });
 		}
+		void logAction('signin', { detail: 'Con su código de acceso, por primera vez', meta: { method: 'code' } });
 		await claimUnpaidCharges(invitation, account.uid);
 	}
 
@@ -286,6 +303,7 @@ function createAuth() {
 		claimProperties(batch, invitation, code, account.uid);
 		batch.delete(invitationRef);
 		await batch.commit();
+		void logAction('signin', { detail: 'Añadió una casa con un código de acceso', communityId: invitation.communityId, meta: { method: 'code' } });
 		await claimUnpaidCharges(invitation, account.uid);
 		return invitation.communityId;
 	}
@@ -323,6 +341,7 @@ function createAuth() {
 			throw new Error('INVALID_CODE', { cause: error });
 		});
 		await verifyBeforeUpdateEmail(account, email.trim(), { url: `${window.location.origin}/login` });
+		void logAction('email', { detail: 'Pidió añadir su email a la cuenta de su código' });
 	}
 
 	// Firebase asks to have signed in recently (auth/requires-recent-login) to change it
@@ -332,9 +351,12 @@ function createAuth() {
 		}
 
 		await updatePassword(auth.currentUser, password);
+		void logAction('password', { detail: 'Cambió su contraseña' });
 	}
 
 	async function logout() {
+		// Before Firestore stops, or it would never be sent
+		await logActionBeforeLeaving('signout');
 		// Firestore's copy of what this user read is removed first, as the device may be shared, along with every tab's.
 		// Changes not sent yet go with it. At most a few seconds, so signing out never waits on a tab that holds it
 		// eslint-disable-next-line no-console

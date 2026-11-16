@@ -4,7 +4,8 @@
 	"private": true,
 	"workspaces": [
 		"apps/*",
-		"packages/*"
+		"packages/*",
+		"functions"
 	],
 	"scripts": {
 		"dev:webapp": "npm run dev -w apps/webapp",
@@ -16,11 +17,14 @@
 		"check-deps": "npx taze -r",
 		"seed-firebase": "node --env-file-if-exists=.env.demo.local ./scripts/firebase-test/seed.js",
 		"seed-firebase:demo": "node --env-file-if-exists=.env.demo.local ./scripts/firebase-test/seed.js --demo --reset",
-		"seed-firebase:emulators": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node ./scripts/firebase-test/seed.js",
-		"start:firebase:emulators": "firebase emulators:start",
+		"seed-firebase:emulators": "METADATA_SERVER_DETECTION=none FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 node --env-file-if-exists=.env.local ./scripts/firebase-test/seed.js",
+		"start:firebase:emulators": "JAVA_TOOL_OPTIONS='-Duser.language=en -Duser.country=US' firebase emulators:start",
 		"deploy:demo": "node ./scripts/deploy-demo.js",
-		"backup": "node ./scripts/backup/backup.js",
-		"restore": "node ./scripts/backup/restore.js",
+		"demo": "node --env-file-if-exists=.env.local ./scripts/demo.js",
+		"demo:reset": "node --env-file-if-exists=.env.local ./scripts/demo.js --reset",
+		"backup": "node --env-file-if-exists=.env.local ./scripts/backup/backup.js",
+		"restore": "node --env-file-if-exists=.env.local ./scripts/backup/restore.js",
+		"purge": "node --env-file-if-exists=.env.local ./scripts/backup/purge.js",
 		"symbolicate": "node ./scripts/symbolicate.js"
 	},
 	"dependencies": {
@@ -34,6 +38,7 @@
 	},
 	"devDependencies": {
 		"@antfu/eslint-config": "^7.7.3",
+		"@iconify-json/lucide": "^1.2.155",
 		"@inquirer/prompts": "^7.10.1",
 		"@types/node": "^24.19.2",
 		"@vitejs/plugin-vue": "^6.0.10",
