@@ -9,6 +9,7 @@ import type { Provider } from '@gobernansa/shared/domain/provider.ts';
 import type { User } from '@gobernansa/shared/domain/user.ts';
 import type { Query } from 'firebase/firestore';
 import type { MaybeRefOrGetter } from 'vue';
+import type { Needle, Searchable } from '@/app/useSearchHighlight.ts';
 import { contactTypes, documentTypes, formatIban, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
 import { DEFAULT_MONTHLY_VOTES, findIssueCategory, getIssueCategories } from '@gobernansa/shared/domain/issue.ts';
@@ -19,7 +20,7 @@ import { roles } from '@gobernansa/shared/domain/user.ts';
 import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { computed, ref, shallowRef, toValue } from 'vue';
-import { findRanges, fold, searchWords } from '@/app/useSearchHighlight.ts';
+import { contains, findRanges, needle, searchable, searchWords } from '@/app/useSearchHighlight.ts';
 import { workspaces } from '@/app/workspace/workspaces.ts';
 
 export interface SearchEntry {
@@ -112,8 +113,9 @@ function loadEntries(id: string, base: string, categories: IssueCategory[]) {
 			section: sectionTitles.properties,
 			icon: propertyTypeIcons[property.type] ?? 'lucide:house',
 			title: property.name,
-			text: join(propertyTypeLabels[property.type], property.ownerName, property.ownerEmail, property.tenantName, property.tenantEmail),
-			to: `${base}/properties`,
+			text: join(propertyTypeLabels[property.type], property.ownerName, property.ownerNif, property.ownerEmail, property.ownerPhone, property.tenantName, property.tenantEmail),
+			// Their home marked, the page doesn't show the NIF or the phone
+			to: `${base}/properties?highlight=${encodeURIComponent(property.name)}`,
 		})),
 		// The same query as the issues page, so it uses its index
 		load<Issue>(query(community('issues'), where('deletedAt', '==', null), orderBy('createdAt', 'desc'), limit(150)), issue => ({
@@ -175,17 +177,30 @@ function loadEntries(id: string, base: string, categories: IssueCategory[]) {
 	];
 }
 
-// Exact phrase in the title first, then words starting in it, then anywhere in the text. Every word has to be there
-function score(entry: SearchEntry, phrase: string, words: string[]) {
-	const title = fold(entry.title);
-	const text = fold(entry.text);
-	// Word starts are found as ' word' with punctuation turned into spaces, which keeps positions
-	const titleWords = ` ${title.replace(NON_ALPHANUMERIC_REGEX, ' ')}`;
-	const textWords = ` ${text.replace(NON_ALPHANUMERIC_REGEX, ' ')}`;
-	let total = title === phrase ? 200 : title.includes(phrase) ? 100 : text.includes(phrase) ? 20 : 0;
+// What each entry is searched in, prepared the first time it's searched rather than at every key
+const prepared = new WeakMap<SearchEntry, { title: Searchable; text: Searchable; titleWords: string; textWords: string }>();
+
+function prepare(entry: SearchEntry) {
+	let result = prepared.get(entry);
+	if (!result) {
+		const title = searchable(entry.title);
+		const text = searchable(entry.text);
+		// Word starts are found as ' word' with punctuation turned into spaces, which keeps positions
+		result = { title, text, titleWords: ` ${title.folded.replace(NON_ALPHANUMERIC_REGEX, ' ')}`, textWords: ` ${text.folded.replace(NON_ALPHANUMERIC_REGEX, ' ')}` };
+		prepared.set(entry, result);
+	}
+	return result;
+}
+
+// Exact phrase in the title first, then words starting in it, then anywhere in the text. Every word has to be there, unless
+// the phrase is: a phone typed in other groups than it's written, e.g. 600 20 00 04 for "600 200 004"
+function score(entry: SearchEntry, phrase: Needle, words: (Needle & { start: string })[]) {
+	const { title, text, titleWords, textWords } = prepare(entry);
+	let total = title.folded === phrase.word ? 200 : contains(title, phrase) ? 100 : contains(text, phrase) ? 20 : 0;
+	const inPhrase = total > 0;
 	for (const word of words) {
-		const points = titleWords.includes(` ${word}`) ? 10 : title.includes(word) ? 6 : textWords.includes(` ${word}`) ? 4 : text.includes(word) ? 2 : 0;
-		if (!points) {
+		const points = titleWords.includes(word.start) ? 10 : contains(title, word) ? 6 : textWords.includes(word.start) ? 4 : contains(text, word) ? 2 : 0;
+		if (!points && !inPhrase) {
 			return 0;
 		}
 		total += points;
@@ -206,9 +221,7 @@ function segments(text: string, words: string[]): Segment[] {
 
 // A piece of the text around its first match, so it's seen in long descriptions
 function snippet(text: string, words: string[]) {
-	const folded = fold(text);
-	const first = Math.min(...words.map(word => folded.indexOf(word)).filter(index => index !== -1));
-	const start = Number.isFinite(first) ? Math.max(0, first - SNIPPET_BEFORE) : 0;
+	const start = Math.max(0, (findRanges(text, words)[0]?.[0] ?? 0) - SNIPPET_BEFORE);
 	const piece = text.slice(start, start + SNIPPET_LENGTH);
 	return `${start > 0 ? '…' : ''}${piece}${start + SNIPPET_LENGTH < text.length ? '…' : ''}`;
 }
@@ -219,16 +232,19 @@ export function rank(entries: SearchEntry[], text: string) {
 	if (!words.length) {
 		return [];
 	}
-	const phrase = words.join(' ');
+	const phrase = needle(words.join(' '));
+	const needles = words.map(word => ({ ...needle(word), start: ` ${word}` }));
+	// A phone or a NIF marked whole, separators included, also when typed in other groups
+	const marks = phrase.compact ? [phrase.word, ...words] : words;
 	return entries
-		.map(entry => ({ entry, score: score(entry, phrase, words) }))
+		.map(entry => ({ entry, score: score(entry, phrase, needles) }))
 		.filter(match => match.score)
 		.sort((a, b) => b.score - a.score)
 		.slice(0, MAX_RESULTS)
 		.map(({ entry }) => ({
 			...entry,
-			titleSegments: segments(entry.title, words),
-			textSegments: segments(snippet(entry.text, words), words),
+			titleSegments: segments(entry.title, marks),
+			textSegments: segments(snippet(entry.text, marks), marks),
 		}));
 }
 
@@ -289,8 +305,9 @@ async function loadCensus({ id, name }: Community) {
 			entries: load<Property>(query(collection(db, 'properties'), where('communityId', '==', id), limit(500)), property => ({
 				section: name || 'Sin nombre',
 				icon: propertyTypeIcons[property.type] ?? 'lucide:house',
-				title: property.ownerName || property.name,
-				text: join(property.name, property.ownerNif, property.ownerEmail, property.ownerPhone, property.tenantName && `Inquilino: ${property.tenantName}`, property.tenantEmail),
+				// With the home, so someone with several of them is told apart whatever the text shows around the match
+				title: property.ownerName ? `${property.ownerName} · ${property.name}` : property.name,
+				text: join(property.ownerNif, property.ownerEmail, property.ownerPhone, property.tenantName && `Inquilino: ${property.tenantName}`, property.tenantEmail),
 				// Their home marked in the census, which doesn't show the NIF or the phone
 				to: `/communities/${id}/properties?highlight=${encodeURIComponent(property.name)}`,
 			})).catch(() => []),

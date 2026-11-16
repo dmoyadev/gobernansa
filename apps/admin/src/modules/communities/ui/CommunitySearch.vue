@@ -35,9 +35,9 @@ function go(index: number) {
 		return;
 	}
 	open.value = false;
-	// Some results already carry a query, e.g. the aviso to open
+	// Some results already carry a query, e.g. the aviso to open or the home to mark instead of what was typed
 	const { path, query } = router.resolve(result.to);
-	void router.push({ path, query: { ...query, highlight: text.value.trim() } });
+	void router.push({ path, query: { highlight: text.value.trim(), ...query } });
 }
 
 function onKeydown(event: KeyboardEvent) {

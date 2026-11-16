@@ -8,6 +8,7 @@ import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import { contains, needle, searchable, searchWords } from '@/app/useSearchHighlight.ts';
 import BackButton from '@/app/ux/BackButton.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
@@ -30,10 +31,21 @@ const filterOptions: { value: ProviderCategory | ''; label: string }[] = [{ valu
 
 const category = ref<ProviderCategory | ''>('');
 const search = ref('');
+// What each one is found by, prepared when they change rather than at every key
+const searchTexts = computed(() => new Map(providers.value.map(provider => [
+	provider.id,
+	searchable([provider.name, provider.fiscalName, provider.phone, provider.email, provider.cif, provider.notes].filter(Boolean).join(' · ')),
+])));
+// Every word somewhere in them, or all of them together, like the search in a community: accents and case ignored, phones
+// and NIFs with or without spaces or dashes
 const visibleProviders = computed(() => {
-	const text = search.value.trim().toLocaleLowerCase('es');
-	return providers.value.filter(provider => (!category.value || provider.category === category.value)
-		&& (!text || [provider.name, provider.fiscalName, provider.phone, provider.email, provider.cif, provider.notes].some(field => field?.toLocaleLowerCase('es').includes(text))));
+	const words = searchWords(search.value);
+	const phrase = needle(words.join(' '));
+	const needles = words.map(needle);
+	return providers.value.filter((provider) => {
+		const text = searchTexts.value.get(provider.id)!;
+		return (!category.value || provider.category === category.value) && (contains(text, phrase) || needles.every(word => contains(text, word)));
+	});
 });
 
 function emptyForm(): ProviderForm {
