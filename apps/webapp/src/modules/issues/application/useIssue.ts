@@ -2,8 +2,8 @@ import type { Issue } from '@gobernansa/shared/domain/issue.ts';
 import type { MaybeRefOrGetter } from 'vue';
 import { getFirestore } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
+import { communityDoc, useFirestoreDocument } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import { communityDoc, useFirestoreDocument } from '@/shared/infrastructure/useFirestoreDocument.ts';
 
 export function useIssue(issueId: MaybeRefOrGetter<string | undefined>) {
 	const { userCommunity } = useUserCommunity();

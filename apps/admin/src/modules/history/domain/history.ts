@@ -1,7 +1,7 @@
 import type { ActionType } from '@gobernansa/shared/infrastructure/actions.ts';
 import type { DocumentData, Timestamp } from 'firebase/firestore';
 
-// A change to a document, at audit/{eventId}, written by the functions (functions/index.js)
+// A change to a document, at audit/{eventId}, written by the functions (apps/functions/index.js)
 export interface Change {
 	id: string;
 	path: string;

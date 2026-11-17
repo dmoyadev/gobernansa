@@ -8,12 +8,12 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 import { useOwedBookings } from '@/modules/bookings/application/useBookings.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useMyCharges } from '@/modules/finances/application/useMyCharges.ts';
 import { formatMeetingDate, useMeetings } from '@/modules/meetings/application/useMeetings.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
 
 const { user } = useAuth();
 const { userCommunity } = useUserCommunity();

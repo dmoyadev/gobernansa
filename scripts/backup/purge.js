@@ -1,10 +1,10 @@
 import process from 'node:process';
 import { styleText } from 'node:util';
-import { MAX, purge } from '../../functions/retention.js';
+import { MAX, purge } from '../../apps/functions/retention.js';
 import { connect } from './archive.js';
 
 /*
- * Plazos de conservación (functions/retention.js) by hand, on the free plan, where purgeExpired doesn't run and until the
+ * Plazos de conservación (apps/functions/retention.js) by hand, on the free plan, where purgeExpired doesn't run and until the
  * copia de seguridad does it every day: counts what's expired and, with --delete, deletes it
  */
 

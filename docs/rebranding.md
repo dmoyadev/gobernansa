@@ -68,7 +68,7 @@ El `README.md` enlaza `apps/webapp/public/screenshot.png` y `screenshot.gif`, qu
 |---|---|---|
 | ID del proyecto de Firebase `dmoyadev-gobernansa` | Firebase no deja cambiarlo nunca | Se queda. Solo se ve en `*.web.app`, `*.firebaseapp.com`, el remitente de los correos de acceso y las URLs de las fotos, porque el bucket de Storage lleva el ID (sus carpetas, `issues/` y `workOrders/`, no llevan la marca). Con dominios propios (T5) y el remitente personalizado (T4) el cliente no lo ve, salvo si abre una foto aparte. Migrar a un proyecto nuevo obliga a exportar Firestore y las cuentas, rehacer la configuración y los secretos y pierde las suscripciones a notificaciones: no compensa |
 | Sitio de Hosting por defecto `dmoyadev-gobernansa` (webapp) | Es el del proyecto, no se renombra ni se borra | Se queda, detrás de `app.<dominio>` |
-| Sitio `gobernansa-admin` (y `gobernansa-landing` si ya existe) | Los sitios no se renombran | Se quedan, detrás de `admin.<dominio>` y `<dominio>`. Si la landing aún no tiene sitio, se crea ya como `<slug>-landing` |
+| Sitio `gobernansa-admin` | Los sitios no se renombran | Se queda, detrás de `admin.<dominio>`. La landing no está en Firebase sino en GitHub Pages, y su dominio se pone en el repositorio (T5) |
 | Secreto de GitHub `FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA` | Su nombre es el del proyecto, que se queda | Se queda |
 | Dominio `codigo.gobernansa.dmoya.dev` de las cuentas con código llave (`CODE_EMAIL_DOMAIN`) | Cada vecino que entra con su carta tiene una cuenta con ese correo: cambiarlo deja fuera a todos | **Se queda**, aunque el dominio viejo deje de existir: no recibe correo, solo es el nombre de la cuenta |
 | Cabecera `GOBK1` de las copias de seguridad | Cambiarla deja ilegibles las copias que ya hay | Se queda |
@@ -86,7 +86,7 @@ El `README.md` enlaza `apps/webapp/public/screenshot.png` y `screenshot.gif`, qu
 4. Cambio de código en una rama (sección 3). Hasta el merge no se despliega nada.
 5. Nombres y correos de acceso en Firebase (T4).
 6. Dominios propios en Hosting (T5) y dominios autorizados (T6).
-7. Merge: CI despliega reglas, webapp y admin; la landing a mano (T7).
+7. Merge: CI despliega reglas, webapp y admin en Firebase y la landing en GitHub Pages (T7).
 8. Redirigir el dominio viejo (T8).
 9. Proyecto de demo con el nombre nuevo (T9).
 10. GitHub (T10), carpeta local y copias (T11), resto (T12–T13).
@@ -126,7 +126,7 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `packages/shared/domain/mail.ts` | Cabecera del correo, «Enviado con gobernança» y versión en texto plano |
 | `packages/shared/domain/user.ts` | Rol «Equipo gobernança» |
 | `packages/shared/domain/verifactu.ts` | `NombreSistemaInformatico` (D1), `IdSistemaInformatico` (D7). `NombreRazon` pasa a ser la razón social del productor cuando exista ([EMP-1](competencia.md#emp-1)) |
-| `functions/index.js` | «Solo el equipo de gobernança puede restaurar versiones», el error de restaurar en el Historial |
+| `apps/functions/index.js` | «Solo el equipo de gobernança puede restaurar versiones», el error de restaurar en el Historial |
 | `apps/landing/index.html` | `<title>`, `og:title`, `aria-label` y `alt` del logo, la notificación «gobernança · ahora», la ventana «gobernança admin», la «g» de los dos iconos de app de las notificaciones y el icono en miniatura que imita el aro coral del isotipo |
 
 ### 3.2 Logos e imágenes
@@ -148,7 +148,7 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `apps/admin/src/modules/mail/application/mail.ts` | `WEBAPP_URL` por defecto: el enlace de las invitaciones, partes de trabajo y «Ver como vecino» en producción |
 | `apps/webapp/index.html`, `apps/admin/index.html` | `og:url` y `og:image`, del `web.app` al dominio propio |
 | `.env.example`, `README.md` | Las URLs de ejemplo y del proyecto |
-| `scripts/firebase-test/data/meetings.js`, `errors.js` | Las URLs del seed |
+| `scripts/seed/data/meetings.js`, `errors.js` | Las URLs del seed |
 
 El chequeo de CI (`firebase-hosting-merge.yml`) sigue con las direcciones `web.app`: no cambian nunca.
 
@@ -158,13 +158,13 @@ Nadie los ve; los cambio para que el código diga un solo nombre.
 
 | Dónde | Qué | Efecto |
 |---|---|---|
-| `package.json` (raíz, las tres de `apps/` y `packages/` y la de `functions/`, `@gobernansa/functions`) y todas las importaciones `@gobernansa/shared/…` | Pasa a `@<slug>/…` | Regenero `package-lock.json` con `npm install` |
+| `package.json` (raíz, las tres de `apps/` y `packages/` y la de `apps/functions/`, `@gobernansa/functions`) y todas las importaciones `@gobernansa/shared/…` | Pasa a `@<slug>/…` | Regenero `package-lock.json` con `npm install` |
 | `.firebaserc` | Alias y sitios del proyecto de demo | Solo la demo, que aún no existe (T9). Producción se queda |
 | `CommunityDashboard.vue`, `CommunityPage.vue`, `CommunitySetup.vue` | Claves `gobernansa.admin.*` del navegador | Quien había reordenado su panel lo ve una vez como viene de serie |
 | `ObligationsPage.vue` | `UID` de los eventos `.ics` (`@gobernansa`) | Quien ya importó un `.ics` vería el evento repetido; sin clientes todavía, no importa |
 | `scripts/backup/*.js` y sus valores por defecto en `.env.example` | Carpeta de copias, carpeta de la clave, etiqueta de launchd, prefijo de los ficheros, mensajes | **Obliga a hacer T11 el mismo día** |
-| `scripts/firebase-test/seed.js`, `scripts/backup/*.js`, `scripts/symbolicate.js`, `scripts/demo.js` | IDs por defecto del emulador y el de la demo local (`demo-gobernansa`) y carpeta temporal | Ninguno |
-| `scripts/firebase-test/data/*.js`, `README.md` del seed | «Equipo gobernança», textos de correo, semilla de los enlaces de la demo | Ninguno: el seed lo regenera todo |
+| `scripts/seed/seed.js`, `scripts/backup/*.js`, `scripts/symbolicate.js`, `scripts/demo.js` | IDs por defecto del emulador y el de la demo local (`demo-gobernansa`) y carpeta temporal | Ninguno |
+| `scripts/seed/data/*.js`, `README.md` del seed | «Equipo gobernança», textos de correo, semilla de los enlaces de la demo | Ninguno: el seed lo regenera todo |
 | `firestore.rules` y comentarios del código | Unos diez comentarios | Ninguno: las reglas no cambian |
 
 ### 3.5 Documentación
@@ -218,22 +218,24 @@ En [console.firebase.google.com](https://console.firebase.google.com), proyecto 
 
 ### T5. Dominios propios en Hosting
 
-Para cada sitio, en **Hosting**:
+| Sitio | Dónde | Dominio |
+|---|---|---|
+| `dmoyadev-gobernansa` (webapp) | Firebase Hosting | `app.<dominio>` |
+| `gobernansa-admin` | Firebase Hosting | `admin.<dominio>` |
+| Landing | GitHub Pages | `<dominio>` y `www.<dominio>` (redirigido a `<dominio>`) |
 
-| Sitio | Dominio |
-|---|---|
-| `dmoyadev-gobernansa` (webapp) | `app.<dominio>` |
-| `gobernansa-admin` | `admin.<dominio>` |
-| Landing | `<dominio>` y `www.<dominio>` (redirigido a `<dominio>`) |
+**Webapp y admin**, en **Hosting** de Firebase:
 
-1. Si la landing aún no tiene sitio, créalo ya con el nombre nuevo y dímelo para cambiar `.firebaserc`:
-   ```bash
-   npx firebase hosting:sites:create <slug>-landing --project dmoyadev-gobernansa
-   ```
-2. **Hosting** → en la tarjeta del sitio, **Ver** → **Añadir dominio personalizado**.
-3. Escribe el dominio. Para `www.<dominio>`, marca **Redirigir a un sitio web existente** → `<dominio>`.
-4. Firebase te da los registros (un TXT para verificar y uno o dos A, o un CNAME para subdominios). Añádelos tal cual en el DNS de tu registrador.
-5. **Verificar**. El estado pasa por *Pendiente* hasta **Conectado** cuando emite el certificado: de minutos a 24 h.
+1. En la tarjeta del sitio, **Ver** → **Añadir dominio personalizado**.
+2. Escribe el dominio.
+3. Firebase te da los registros (un TXT para verificar y uno o dos A, o un CNAME para subdominios). Añádelos tal cual en el DNS de tu registrador.
+4. **Verificar**. El estado pasa por *Pendiente* hasta **Conectado** cuando emite el certificado: de minutos a 24 h.
+
+**Landing**, en GitHub:
+
+1. En el DNS de tu registrador, para `<dominio>` cuatro registros A a `185.199.108.153`, `185.199.109.153`, `185.199.110.153` y `185.199.111.153`, y para `www.<dominio>` un CNAME a `dmoyadev.github.io`.
+2. Repositorio → **Settings → Pages → Custom domain** → `<dominio>` → **Save**. GitHub comprueba el DNS y redirige `www.<dominio>` solo.
+3. Cuando aparezca el certificado, marca **Enforce HTTPS** (de minutos a 24 h).
 
 ### T6. Dominios autorizados
 
@@ -243,12 +245,8 @@ Deja `gobernansa.dmoya.dev` y `admin.gobernansa.dmoya.dev` hasta terminar T8; de
 
 ### T7. Desplegar
 
-1. Haz merge de la rama del cambio. CI despliega las reglas, la webapp y el admin.
-2. La landing va a mano:
-   ```bash
-   npx firebase deploy --only hosting:landing --project dmoyadev-gobernansa
-   ```
-3. Abre `app.<dominio>`, `admin.<dominio>` y `<dominio>` y recarga dos veces: el service worker sirve la versión vieja la primera vez.
+1. Haz merge de la rama del cambio. CI despliega las reglas, la webapp y el admin en Firebase, y la landing en GitHub Pages si el cambio la toca (si no, **Actions → Deploy the landing to GitHub Pages → Run workflow**).
+2. Abre `app.<dominio>`, `admin.<dominio>` y `<dominio>` y recarga dos veces: el service worker sirve la versión vieja la primera vez.
 
 ### T8. Redirigir el dominio viejo
 
@@ -321,7 +319,7 @@ Justo después del merge, y antes de la siguiente copia, porque el código pasar
 
 ### T13. Fuera del repo
 
-- `Diseño.sketch`: el logo nuevo, para tenerlo como fuente.
+- `design/Diseño.sketch`: el logo nuevo, para tenerlo como fuente.
 - Bot de Telegram del formulario de la landing: aún sin configurar (`BOT` vacío), así que créalo directamente con el nombre nuevo en @BotFather.
 - Gestor de contraseñas: entradas de Firebase, de la clave de copias y de `DEMO_PASSWORD`.
 - Firma de correo, LinkedIn, tarjetas, la presentación y el vídeo de la demo ([F](v1.md#f)).
@@ -335,7 +333,7 @@ Justo después del merge, y antes de la siguiente copia, porque el código pasar
    npm run dev
    ```
    ```bash
-   npm run seed-firebase:emulators -- --reset --volume
+   npm run seed:emulators -- --reset --volume
    ```
 2. **Cartera**: en Chrome abre el admin (`https://localhost:5401`) con la cuenta del despacho → **Panel**. DevTools (`⌥⌘I`) → icono de dispositivo (`⇧⌘M`) → **Dimensions: Responsive**, 800 × 500, *DPR* 1 → menú **⋮** de esa barra → **Capture screenshot**. Guárdala como `apps/landing/img/cartera.png`.
 3. **Vecino**: la webapp (`https://localhost:5400`) como el Piso 1A, en el inicio. Misma barra a 390 × 800, *DPR* 1 → **Capture screenshot**. Pásala a JPG:

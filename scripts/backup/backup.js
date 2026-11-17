@@ -5,13 +5,13 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import admin from 'firebase-admin';
-import { purge } from '../../functions/retention.js';
+import { purge } from '../../apps/functions/retention.js';
 import { BACKUP_DIR, connect, encode, encrypt, KEY_FILE, readKey } from './archive.js';
 
 /*
  * Copia de seguridad (ROB-2, puente gratuito, docs/fiabilidad.md): every document of Firestore, encrypted, to this
  * computer (but the Historial's actions), and ops/backup with when and how many, for the admin's warning. It reads every document once, so it spends
- * that many reads of the day's 50.000. Then deletes what's expired (functions/retention.js), now that it's copied (the actions never are).
+ * that many reads of the day's 50.000. Then deletes what's expired (apps/functions/retention.js), now that it's copied (the actions never are).
  * --schedule sets it to run every day with launchd
  */
 
@@ -20,7 +20,7 @@ const DAILY_READS = 50_000;
 const LABEL = 'com.gobernansa.backup';
 // Collection groups get each collection at any depth with one read per document. Every collection a client writes has its
 // match in the rules (they deny the rest), plus users/{uid}/{collection}, whose names the rules list in a condition
-const RULES = new URL('../../firestore.rules', import.meta.url);
+const RULES = new URL('../../firebase/firestore.rules', import.meta.url);
 const USER_COLLECTIONS = ['documents', 'documentFiles', 'devices', 'keys'];
 // The Historial's actions stay out: they grow with every screen opened and would take each copy past the day's free reads,
 // and losing them loses nothing of a community's
@@ -82,7 +82,7 @@ async function main() {
 
 	console.log(`${at.toLocaleString('es')} ${styleText('green', '✔')} ${documents.size.toLocaleString('es')} documentos de ${collections.size} colecciones ${emulator ? `del emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : `de ${projectId}`} en ${join(BACKUP_DIR, name)} (${(file.length / 1024).toFixed(0)} KB)${old.length ? `, borradas ${old.length} antiguas` : ''}`);
 
-	// What's expired of the Historial and the errors, once it's in this copy, the actions too (functions/retention.js): on
+	// What's expired of the Historial and the errors, once it's in this copy, the actions too (apps/functions/retention.js): on
 	// Blaze, purgeExpired
 	const purged = Object.entries(await purge(db)).filter(([, count]) => count);
 	if (purged.length) {

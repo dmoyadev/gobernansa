@@ -8,7 +8,7 @@ import { onBeforeMount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
 import router from '@/app/router.ts';
-import BackgroundImage from '@/shared/ui/BackgroundImage.vue';
+import BackgroundImage from '@/app/ui/BackgroundImage.vue';
 import { version } from '../../../../package.json';
 
 // The letter's QR opens /login#codigo-XXXXXXXXXX: in the hash, so it never reaches a server's logs

@@ -3,10 +3,10 @@ import type { Checkout } from '../application/useMyCharges.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { useTemplateRef } from 'vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheToolbar from '@/app/ui/TheToolbar.vue';
+import { useWizardSteps } from '@/app/ui/useWizardSteps.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheToolbar from '@/shared/ui/TheToolbar.vue';
-import { useWizardSteps } from '@/shared/ui/useWizardSteps.ts';
 import TestCheckout from './TestCheckout.vue';
 
 // Paying from the app in three steps, like reporting an issue: what's paid, the card, and its justificante

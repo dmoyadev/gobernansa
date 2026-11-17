@@ -6,8 +6,8 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { collection, doc, getFirestore, increment, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed, watch } from 'vue';
 import { useCollection } from 'vuefire';
+import { communityDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import { communityDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
 import { updateListedIssue } from './useIssues.ts';
 
 /**

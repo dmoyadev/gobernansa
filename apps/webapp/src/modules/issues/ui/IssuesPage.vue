@@ -3,8 +3,8 @@ import { ISSUE_ICON } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, onMounted, onUnmounted, useTemplateRef } from 'vue';
 
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 
 import { useIssues } from '../application/useIssues.ts';
 import IssueItem from './IssueItem.vue';

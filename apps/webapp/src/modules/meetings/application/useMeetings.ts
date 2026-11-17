@@ -9,8 +9,8 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { arrayUnion, collection, doc, getDocFromServer, getFirestore, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
+import { communityCollection, communityDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import { communityCollection, communityDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
 
 // The rules only let neighbours read convened meetings, so drafts must be left out of the query itself
 const VISIBLE_STATUS: Meeting['status'][] = ['convened', 'held', 'cancelled'];

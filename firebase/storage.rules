@@ -2,7 +2,7 @@ rules_version = '2';
 
 // Photos and videos of issues and work orders, uploaded from the webapp (uploadMedia). Everyone else opens them through
 // their download URL, whose token skips these rules: the community, the office and the provider, who has no account.
-// Nobody changes nor removes them from the apps; every week purgeOldMedia (functions/retention.js) deletes those nobody sees
+// Nobody changes nor removes them from the apps; every week purgeOldMedia (apps/functions/retention.js) deletes those nobody sees
 // anymore
 service firebase.storage {
   match /b/{bucket}/o {

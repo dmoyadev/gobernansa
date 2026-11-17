@@ -1,7 +1,7 @@
 import { emulatorAt, emulators, firebaseApp } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 
-// The functions' region, REGION in functions/index.js: Firestore's triggers run in the database's
+// The functions' region, REGION in apps/functions/index.js: Firestore's triggers run in the database's
 const REGION = 'europe-southwest1';
 
 const functions = getFunctions(firebaseApp, REGION);
@@ -14,5 +14,5 @@ if (emulators && hasFunctions) {
 	connectFunctionsEmulator(functions, host, port);
 }
 
-// Puts a document back as it was before or after a change of the Historial (restoreVersion in functions/index.js)
+// Puts a document back as it was before or after a change of the Historial (restoreVersion in apps/functions/index.js)
 export const restoreVersion = httpsCallable<{ auditId: string; side: 'before' | 'after' }, { path: string; deleted: boolean }>(functions, 'restoreVersion');

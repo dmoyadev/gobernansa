@@ -4,8 +4,8 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { doc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
+import { communityCollection, mapFirestoreDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import { communityCollection, mapFirestoreDoc } from '@/shared/infrastructure/useFirestoreDocument.ts';
 import { getAuthorKey } from './authorKey.ts';
 import { invalidateUserActivity } from './useUserActivity.ts';
 

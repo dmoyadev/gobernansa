@@ -9,7 +9,7 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxTextarea } from 'lnxjs-components';
 import { computed, onUnmounted, ref } from 'vue';
-import { canUploadMedia, uploadMedia } from '@/shared/infrastructure/storage.ts';
+import { canUploadMedia, uploadMedia } from '@/app/infrastructure/storage.ts';
 import { useWorkOrder } from '../application/useWorkOrder.ts';
 
 const props = defineProps<{ token: string }>();

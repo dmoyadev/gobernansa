@@ -261,7 +261,7 @@ Las dos opciones leen todos los documentos, así que gastan cuota y solo sirven 
 **Ensayo.** Cada trimestre, restaurar la última copia en los emuladores locales (o en el entorno de pruebas, si se hace [ROB-1](#rob-1)) y comprobar que la app funciona con ella. Una copia que nunca se ha restaurado no garantiza nada.
 
 **Puente gratuito hecho en el código** (04/11/2026), con la opción a), en `scripts/backup`:
-- **Copia:** `npm run backup` lee todos los documentos con el Admin SDK y la cuenta de servicio de `scripts/firebase-test/serviceAccountKey.local.json`, los comprime y los cifra (AES-256-GCM) en `~/Documents/Backups/gobernansa`, y deja las 14 últimas. Busca cada colección por su nombre en `firestore.rules`, así que una colección nueva entra sola en cuanto tiene sus reglas. Al terminar escribe `ops/backup`. Con `FIRESTORE_EMULATOR_HOST`, copia el emulador en vez de producción.
+- **Copia:** `npm run backup` lee todos los documentos con el Admin SDK y la cuenta de servicio de `scripts/seed/serviceAccountKey.local.json`, los comprime y los cifra (AES-256-GCM) en `~/Documents/Backups/gobernansa`, y deja las 14 últimas. Busca cada colección por su nombre en `firestore.rules`, así que una colección nueva entra sola en cuanto tiene sus reglas. Al terminar escribe `ops/backup`. Con `FIRESTORE_EMULATOR_HOST`, copia el emulador en vez de producción.
 - **Clave:** se crea la primera vez en `~/.config/gobernansa/backup.key`, fuera de la carpeta de las copias. **Guarda una copia en el gestor de contraseñas:** sin ella no se puede restaurar ninguna copia.
 - **Programarla:** `npm run backup -- --schedule` escribe `~/Library/LaunchAgents/com.gobernansa.backup.plist` y dice cómo activarlo (`launchctl bootstrap gui/<uid> <plist>`). Se lanza cada día a las 14:00; si el equipo estaba dormido, al despertar. Su registro, en `~/Documents/Backups/gobernansa/backup.log`. Si cambias de versión de Node o mueves el repositorio, vuelve a ejecutarlo.
 - **Vigilancia:** la página «Errores» muestra cuándo fue la última copia y cuántos documentos tenía, y un aviso en rojo si tiene más de 26 horas o no hay ninguna. Cuesta una lectura al abrir la página.
@@ -301,10 +301,10 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 **Cómo.**
 - **Dependabot:** activar en GitHub sus alertas y actualizaciones de seguridad (son gratis).
 - **CI:** un `npm audit --omit=dev --audit-level=high` que pare el despliegue.
-- **Cada trimestre:** revisar el resto con el `check-deps` que ya existe.
+- **Cada trimestre:** revisar el resto con el `check:deps` que ya existe.
 
 **Hecho en el código** (10/11/2026):
-- `.github/dependabot.yml` solo abre PRs de seguridad (`open-pull-requests-limit: 0` apaga las de versiones); el resto se revisa con `check-deps`.
+- `.github/dependabot.yml` solo abre PRs de seguridad (`open-pull-requests-limit: 0` apaga las de versiones); el resto se revisa con `check:deps`.
 - Los dos workflows pasan `npm audit --omit=dev --audit-level=high` antes de ESLint y del build.
 - `@firebase/firestore` fijaba `@grpc/grpc-js` en la 1.9, con una vulnerabilidad alta sin arreglo en esa rama. Un `overrides` en el `package.json` raíz lo sube a la 1.14, la misma que ya usa el resto del árbol. En el navegador no cambia nada: Firestore solo usa gRPC en Node. Quitar el override cuando Firebase suba esa dependencia.
 

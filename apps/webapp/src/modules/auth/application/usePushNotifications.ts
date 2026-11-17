@@ -4,7 +4,7 @@ import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { deleteToken, getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { computed, ref } from 'vue';
 import { useCurrentUser } from 'vuefire';
-import { useStorage } from '@/shared/utils/useStorage.ts';
+import { useStorage } from '@/app/utils/useStorage.ts';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
 

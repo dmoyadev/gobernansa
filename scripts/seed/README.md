@@ -14,12 +14,12 @@ Only needed for the live project, the emulators don't use it:
 ## ▶️ Usage
 
 ```bash
-npm run seed-firebase
+npm run seed
 ```
 
 It asks, step by step:
 
-1. **Where**: the local emulators (start them first with `npm run start:firebase:emulators`), the demo project (`serviceAccountKey.demo.local.json`, see docs/firebase.md, section 8) or the live project, which has to be confirmed by typing its id. `npm run seed-firebase:emulators` skips this question.
+1. **Where**: the local emulators (start them first with `npm run emulators`), the demo project (`serviceAccountKey.demo.local.json`, see docs/firebase.md, section 8) or the live project, which has to be confirmed by typing its id. `npm run seed:emulators` skips this question.
 2. **What to do**: leave the whole demo as new (empties every demo collection and loads everything) or choose.
 3. **What to delete**, by group, with how many documents each has now, and **how**: exactly the documents the seed makes (what was created by hand stays, even under them), or the whole collections (also what was created by hand, and other groups' documents in them, which it offers to load again).
 4. **What to load**, by group, adding the groups the chosen ones need when they aren't there, and **how**: overwriting the demo documents or creating only the missing ones.
@@ -49,14 +49,14 @@ Dates are relative to the day it runs, so the demo always has upcoming meetings,
 Any flag skips them, e.g. in a script:
 
 ```bash
-FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/firebase-test/seed.js --reset --only=core,meetings
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/seed/seed.js --reset --only=core,meetings
 ```
 
 - `--only=<groups>` loads only those groups (all by default)
 - `--reset` empties their collections first
 - `--yes` loads everything without other flags
-- `--volume` adds 38 generated communities with about 2.000 homes to Fincas Jaén, to try the admin at the size of a real office (about 3.200 more writes; `npm run seed-firebase:demo -- --volume`)
-- `--demo` writes to the demo project, accounts included (`npm run seed-firebase:demo` is `--demo --reset`)
+- `--volume` adds 38 generated communities with about 2.000 homes to Fincas Jaén, to try the admin at the size of a real office (about 3.200 more writes; `npm run seed:demo -- --volume`)
+- `--demo` writes to the demo project, accounts included (`npm run seed:demo` is `--demo --reset`)
 - Without `FIRESTORE_EMULATOR_HOST` nor `--demo` it writes to the live project, and then it needs `--project=<project id>` to confirm it
 
 ## ⚠️ Limitations

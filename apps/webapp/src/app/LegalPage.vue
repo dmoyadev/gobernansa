@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { hasHolder, holder } from '@gobernansa/shared/domain/legal.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheToolbar from '@/shared/ui/TheToolbar.vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheToolbar from '@/app/ui/TheToolbar.vue';
 </script>
 
 <template>

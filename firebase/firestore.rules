@@ -1215,16 +1215,16 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.voterId == request.auth.uid;
     }
 
-    // Every change to every document, written by the functions (functions/index.js) with what it was before and after and
+    // Every change to every document, written by the functions (apps/functions/index.js) with what it was before and after and
     // who did it. The superadmin's Historial, which also restores a version through restoreVersion. Nobody writes here,
-    // and the functions delete each one when its time is up (functions/retention.js)
+    // and the functions delete each one when its time is up (apps/functions/retention.js)
     match /audit/{eventId} {
       allow read: if isSuperadmin();
     }
 
     // What each user does that doesn't change a document: signing in and out, the pages they open, viewing as someone,
     // printing and downloading. Each app adds its own, with the time set by the server and nothing to edit later; only
-    // the functions delete it when its time is up (functions/retention.js)
+    // the functions delete it when its time is up (apps/functions/retention.js)
     match /actions/{actionId} {
       function isAction(action) {
         return action.keys().hasAll(['uid', 'app', 'type', 'keep', 'at'])
@@ -1244,7 +1244,7 @@ service cloud.firestore {
           && action.get('communityId', '') is string && action.get('communityId', '').size() <= 100
           && action.get('viewAs', '') is string && action.get('viewAs', '').size() <= 200
           && action.get('device', '') is string && action.get('device', '').size() <= 300
-          // How long it's kept (functions/retention.js): the team's three years, checked last so no one else reads the profile
+          // How long it's kept (apps/functions/retention.js): the team's three years, checked last so no one else reads the profile
           && (action.keep in ['short', 'year'] || (action.keep == 'admin' && isSuperadmin()));
       }
 

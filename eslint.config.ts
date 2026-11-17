@@ -22,7 +22,7 @@ export default antfu({
 	},
 }, {
 	// The functions run on the Node of their package.json's engines, not on the local one: nothing newer than that
-	files: ['functions/**/*.js'],
+	files: ['apps/functions/**/*.js'],
 	rules: {
 		'node/no-unsupported-features/es-builtins': 'error',
 		'node/no-unsupported-features/es-syntax': 'error',

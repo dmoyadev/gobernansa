@@ -1,6 +1,6 @@
 # Guion de la demo
 
-Borrador del 15/11/2026 del bloque [F](v1.md#f) de v1.md. Va después del punto 4 del [speech](speech.md). Son 12–15 minutos con una sola historia, no un recorrido de menús. Los datos son los del seed: el despacho «Fincas Jaén» y su comunidad «Residencial Los Olivos». Corre entera en el portátil, sin internet. Las cuentas y sus correos están en `scripts/firebase-test/data/cast.js`, y la contraseña de todas es `DEMO_PASSWORD`, en `.env.local`.
+Borrador del 15/11/2026 del bloque [F](v1.md#f) de v1.md. Va después del punto 4 del [speech](speech.md). Son 12–15 minutos con una sola historia, no un recorrido de menús. Los datos son los del seed: el despacho «Fincas Jaén» y su comunidad «Residencial Los Olivos». Corre entera en el portátil, sin internet. Las cuentas y sus correos están en `scripts/seed/data/cast.js`, y la contraseña de todas es `DEMO_PASSWORD`, en `.env.local`.
 
 Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursiva y con raya es lo que dices.
 

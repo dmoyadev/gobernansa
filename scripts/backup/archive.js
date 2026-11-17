@@ -17,7 +17,7 @@ export const BACKUP_DIR = process.env.BACKUP_DIR ?? join(homedir(), 'Documents',
 // Outside the backups' folder, so a copy of it elsewhere can't be read. Lost, the backups are lost with it: keep a copy in
 // the password manager
 export const KEY_FILE = process.env.BACKUP_KEY ?? join(homedir(), '.config', 'gobernansa', 'backup.key');
-export const SERVICE_ACCOUNT = new URL('../firebase-test/serviceAccountKey.local.json', import.meta.url);
+export const SERVICE_ACCOUNT = new URL('../seed/serviceAccountKey.local.json', import.meta.url);
 
 // The live project, with its service account, or the emulator FIRESTORE_EMULATOR_HOST names
 export function connect() {

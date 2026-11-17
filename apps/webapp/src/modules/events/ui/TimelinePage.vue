@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { LnxButton, LnxIcon } from 'lnxjs-components';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useCommunityEvents } from '../application/useCommunityEvents.ts';
 import EventCard from './EventCard.vue';
 

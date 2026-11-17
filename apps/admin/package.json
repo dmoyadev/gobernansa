@@ -5,9 +5,9 @@
 	"private": true,
 	"scripts": {
 		"dev": "vite --mode localhost --host --port 5401",
-		"build": "rm -rf dist && npm run check-typing && vite build",
+		"build": "rm -rf dist && npm run check:types && vite build",
 		"preview": "vite preview --host --port 4401",
-		"check-typing": "vue-tsc --build --noEmit"
+		"check:types": "vue-tsc --build --noEmit"
 	},
 	"dependencies": {
 		"@gobernansa/shared": "*"

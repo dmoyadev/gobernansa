@@ -298,7 +298,7 @@ async function main() {
 		throw new Error('Falta DEMO_PASSWORD en .env.demo.local: es la contraseña de las cuentas de la demo');
 	}
 	if (target === 'emulator' && !await emulatorsUp()) {
-		throw new Error('No responden los emuladores: arráncalos con npm run start:firebase:emulators');
+		throw new Error('No responden los emuladores: arráncalos con npm run emulators');
 	}
 	admin.initializeApp(target === 'emulator' ? { projectId } : { credential: admin.credential.cert(key) });
 	const db = admin.firestore();

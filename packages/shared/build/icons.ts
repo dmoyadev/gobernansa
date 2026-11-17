@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const ID = 'virtual:icons';
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 // Where icons are named: both apps, this package, the seed's data (common areas, categories) and the components library
-const SOURCES = ['apps/webapp/src', 'apps/admin/src', 'packages/shared', 'scripts/firebase-test/data'];
+const SOURCES = ['apps/webapp/src', 'apps/admin/src', 'packages/shared', 'scripts/seed/data'];
 const LIBRARY = 'node_modules/lnxjs-components/dist/lnxjs-components.js';
 const LUCIDE = 'node_modules/@iconify-json/lucide/icons.json';
 const FILE_REGEX = /\.(?:ts|vue|js)$/;

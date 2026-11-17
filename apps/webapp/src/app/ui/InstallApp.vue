@@ -2,7 +2,7 @@
 import { canInstall, install, installed, isIos } from '@gobernansa/shared/application/pwa.ts';
 import IsotypeSVG from '@gobernansa/shared/ui/IsotypeSVG.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { useStorage } from '@/shared/utils/useStorage.ts';
+import { useStorage } from '@/app/utils/useStorage.ts';
 
 // The home page suggests it and can close it for good, the profile always offers it.
 // Safari has no install prompt: it's added from its share menu

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import { renderUnicodeCompact } from 'uqr';
 import { build, preview } from 'vite';
-import { uids, users } from './firebase-test/data/cast.js';
+import { uids, users } from './seed/data/cast.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 // The built apps, the emulators' config and their log, out of the repo's way
@@ -43,7 +43,7 @@ async function seed() {
 		// Not on Google Cloud: without it the Storage client asks the metadata server first
 		METADATA_SERVER_DETECTION: 'none',
 	};
-	const child = spawn(process.execPath, ['scripts/firebase-test/seed.js', '--reset'], { cwd: ROOT, env, stdio: 'inherit' });
+	const child = spawn(process.execPath, ['scripts/seed/seed.js', '--reset'], { cwd: ROOT, env, stdio: 'inherit' });
 	const code = await new Promise(resolve => child.on('exit', resolve));
 	// null when a signal stopped it halfway
 	if (code !== 0) {
@@ -70,8 +70,8 @@ async function startEmulators() {
 	}
 
 	writeFileSync(join(DIR, 'firebase.json'), JSON.stringify({
-		firestore: { rules: join(ROOT, 'firestore.rules') },
-		storage: { rules: join(ROOT, 'storage.rules') },
+		firestore: { rules: join(ROOT, 'firebase', 'firestore.rules') },
+		storage: { rules: join(ROOT, 'firebase', 'storage.rules') },
 		emulators: {
 			auth: { port: PORTS.auth },
 			firestore: { port: PORTS.firestore, websocketPort: PORTS.websocket },

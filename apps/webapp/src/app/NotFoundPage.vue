@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { LnxButton } from 'lnxjs-components';
-import MainLayout from '@/shared/ui/MainLayout.vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
 </script>
 
 <template>

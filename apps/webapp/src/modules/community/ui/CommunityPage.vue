@@ -4,9 +4,9 @@ import { contactTypes, documentTypes, formatIban, formatSchedule, getBookableAre
 import CommunityBusinessCard from '@gobernansa/shared/ui/CommunityBusinessCard.vue';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 import { formatMeetingDate, useMeetings } from '@/modules/meetings/application/useMeetings.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useUserCommunity } from '../application/useUserCommunity.ts';
 
 const SPACES_REGEX = /\s/g;

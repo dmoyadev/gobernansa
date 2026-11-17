@@ -4,7 +4,7 @@ What the live project needs for every feature to work. Only Firestore's security
 
 ## 1. Security rules
 
-[`firestore.rules`](../firestore.rules) covers everything the app reads and writes. It was tested against the local emulator with every flow (as a neighbour and as a manager), and it blocks a neighbour from changing an issue's status, inflating votes, removing other people's issues, posting as someone else or as the administration, and reading other users' data.
+[`firestore.rules`](../firebase/firestore.rules) covers everything the app reads and writes. It was tested against the local emulator with every flow (as a neighbour and as a manager), and it blocks a neighbour from changing an issue's status, inflating votes, removing other people's issues, posting as someone else or as the administration, and reading other users' data.
 
 Each push to `main` deploys it before the app, so change the rules here and not in the console: a console edit is overwritten by the next push. If a deploy breaks something, revert the commit, or roll back in **Firebase console → Firestore → Rules** (it keeps the history) and then fix the file. A file that doesn't compile fails the workflow and leaves both the live rules and the app as they were.
 
@@ -23,7 +23,7 @@ When one is turned down, the action shows an error and nothing of its batch is w
 
 **Historial** (section 10). `audit` is read only by the superadmin and nobody writes it from the apps: the functions do. `actions` is created by whoever is signed in, with their own uid and email, the server's time, only its known fields, each with a size cap, and any type but `restore`, which only the restore function writes; read only by the superadmin, never changed or removed.
 
-**Storage** has its own rules, [`storage.rules`](../storage.rules), which only let files be created, never changed, removed or listed from the apps. Everyone else opens a file through its download URL, whose token skips the rules.
+**Storage** has its own rules, [`storage.rules`](../firebase/storage.rules), which only let files be created, never changed, removed or listed from the apps. Everyone else opens a file through its download URL, whose token skips the rules.
 - **An issue's photos and videos**: in the folder of the reporter's secret key, only by that key's owner while they're a neighbour of that community and not blocked (as Firestore's `issues` create rule). Images up to 20 MB (jpeg, png, webp, gif, heic, heif, avif) and videos up to 100 MB (mp4, mov, webm).
 - **A provider's photos**: images only, up to 20 MB, while their work order exists, isn't revoked and is sent, accepted or scheduled. The token is their only credential, as in Firestore.
 - **Reads**: the rules read Firestore, which counts: two documents for each issue upload (the key and the profile) and one for a work order's, plus one more when the app then asks for the file's download URL.
@@ -78,7 +78,7 @@ Every index of this section is in `firestore.indexes.json`. CI deploys only the 
 
 ## 3. Firebase Storage (photos and videos of issues and work orders)
 
-The photos and videos neighbours attach to an issue, and those a provider adds when finishing a parte de trabajo, go to the project's Storage bucket ([A4.6](v1.md#a4)) from the webapp (`uploadMedia()` in `apps/webapp/src/shared/infrastructure/storage.ts`). Storage needs Blaze ([B1](v1.md#b1)): until then production is built without a bucket and hides the pickers, so issues are created and jobs finished without photos.
+The photos and videos neighbours attach to an issue, and those a provider adds when finishing a parte de trabajo, go to the project's Storage bucket ([A4.6](v1.md#a4)) from the webapp (`uploadMedia()` in `apps/webapp/src/app/infrastructure/storage.ts`). Storage needs Blaze ([B1](v1.md#b1)): until then production is built without a bucket and hides the pickers, so issues are created and jobs finished without photos.
 
 - **Folders**: `issues/{communityId}/{authorKey}/`, the reporter's secret key and not their uid, so a URL every neighbour sees doesn't say who reported it ([Who reported an issue](#who-reported-an-issue)); and `workOrders/{token}/`. Each file is named with a random token, its name and its type's extension, so nobody finds another's files by name.
 - **Limits** (the rules, section 1): up to 6 per issue and 10 per work order; images up to 20 MB, issue videos mp4, mov or webm up to 100 MB. The browser shrinks photos to 1920 px JPEG before uploading; those it can't read (HEIC on most browsers but Safari) and videos go as they are, with no conversion, so a HEIC photo only shows in Safari.
@@ -123,7 +123,7 @@ The admin (`apps/admin`) has its own Hosting site, `gobernansa-admin`, next to t
 
 To deploy by hand: `npm run build && npx firebase deploy --only hosting:admin` (or `hosting:webapp`).
 
-**Landing.** `apps/landing` is a plain HTML page with no build, served by GitHub Pages: every push to `main` that touches it deploys it (`.github/workflows/landing-pages.yml`), once **Settings → Pages → Source** is set to GitHub Actions. Its paths are relative, so it works under `/gobernansa/` as well as on its own domain ([A2](v1.md#a2)). The Firebase site `gobernansa-landing` (`npx firebase deploy --only hosting:landing`) still works if it's ever wanted there. Its demo form doesn't touch Firebase: it sends each request to a Telegram bot, whose address with the token and the chat id go in one constant, `BOT`, reversed and in base64. That only keeps token scanners away, anyone reading the code can still get it: if someone abuses the bot, revoke the token in @BotFather and put the new one in.
+**Landing.** `apps/landing` is a plain HTML page with no build, served by GitHub Pages: every push to `main` that touches it deploys it (`.github/workflows/landing-pages.yml`), once **Settings → Pages → Source** is set to GitHub Actions. Its paths are relative, so it works under `/gobernansa/` as well as on its own domain ([A2](v1.md#a2)). Its demo form doesn't touch Firebase: it sends each request to a Telegram bot, whose address with the token and the chat id go in one constant, `BOT`, reversed and in base64. That only keeps token scanners away, anyone reading the code can still get it: if someone abuses the bot, revoke the token in @BotFather and put the new one in.
 
 ## 6. Installable app
 
@@ -171,12 +171,12 @@ Once:
 
    The build reads `.env.local` too, and `.env.demo.local` wins: anything left out comes from there, so `npm run deploy:demo` stops unless the project is the demo one, the emulators are off and `VITE_WEBAPP_URL` is set.
 4. **Hosting → Add another site** `gobernansa-demo-admin`, and **Authentication → Settings → Authorized domains → Add** `gobernansa-demo-admin.web.app` (the default site's domains are already there).
-5. **Project settings → Service accounts → Generate new private key**, saved as `scripts/firebase-test/serviceAccountKey.demo.local.json`. The seed refuses it unless its project is the `demo` of `.firebaserc`.
-6. `npx firebase login --reauth` if the CLI asks, then `npm run deploy:demo` and `npm run seed-firebase:demo`.
+5. **Project settings → Service accounts → Generate new private key**, saved as `scripts/seed/serviceAccountKey.demo.local.json`. The seed refuses it unless its project is the `demo` of `.firebaserc`.
+6. `npx firebase login --reauth` if the CLI asks, then `npm run deploy:demo` and `npm run seed:demo`.
 
 Then:
 
-- **Before each demo:** `npm run seed-firebase:demo` empties it and loads the whole demo again, with dates relative to that day. It removes any account that isn't the demo's and keeps the demo's, so whoever is signed in stays so; those missing are created with `DEMO_PASSWORD`, so a new `DEMO_PASSWORD` only reaches the accounts created after it. It spends about the demo's size in writes of the demo project's own quota. The seed only uploads photos to the Storage emulator, so here issues and work orders load without them, with a yellow warning.
+- **Before each demo:** `npm run seed:demo` empties it and loads the whole demo again, with dates relative to that day. It removes any account that isn't the demo's and keeps the demo's, so whoever is signed in stays so; those missing are created with `DEMO_PASSWORD`, so a new `DEMO_PASSWORD` only reaches the accounts created after it. It spends about the demo's size in writes of the demo project's own quota. The seed only uploads photos to the Storage emulator, so here issues and work orders load without them, with a yellow warning.
 - **After a release worth showing:** `npm run deploy:demo`, by hand, never on each push. It builds both apps in `demo` mode with a `VITE_RELEASE` like CI's and deploys the rules, the indexes and both sites.
 - **Errors** of the demo go to its own **Errores** page: sign in as the team's demo account.
 - Custom domains (`demo.` and `demo-admin.`) come with the product's own domain ([A2](v1.md#a2) in [v1.md](v1.md)).
@@ -197,10 +197,10 @@ Also restrict the API key (**Google Cloud console → APIs & Services → Creden
 
 The admin's **Historial** (`/history`, superadmin only, `g h`) shows every change to the data, with each document's versions and a restore, and what each user does in both apps ([B12](v1.md#b12), most of [GAR-1](competencia.md#gar-1)). The changes are recorded by Cloud Functions, which need Blaze ([B1](v1.md#b1)); the actions are written by the apps themselves and work on the free plan. Until the functions are deployed, **Cambios** stays empty and restoring fails, while **Acciones** already fills in.
 
-- **Node**: they run on Node 24, `engines` in `functions/package.json`; the emulators run them on the local Node, newer, with a warning. ESLint refuses in `functions/` Node's own modules and APIs newer than that (`node/no-unsupported-features/*`), but not yet the newest JavaScript built-ins (`Promise.try`, `RegExp.escape`…), so check those by hand. Node 24 is supported until 30/04/2028.
-- **Code**: `functions/`, a workspace of its own (Node 24, ES modules, `firebase-functions` 7 and `firebase-admin` 13), set up in `firebase.json`. `auditTop`, `auditNested` and `auditDeep` are Firestore triggers for documents 1, 2 and 3 levels deep; `auditAccountCreated` and `auditAccountDeleted`, Auth triggers of the first generation (the second has none), record accounts; `restoreVersion` is a callable only the superadmin can use; `purgeExpired`, scheduled, deletes what's expired (Retention, below), and `purgeOldMedia` the photos nobody sees anymore (section 3).
-- **Region**: `REGION`, in `functions/index.js` and in `apps/admin/src/modules/history/application/restoreVersion.ts`, is `europe-southwest1`. Firestore triggers must run in the database's region, production's is there (checked on 16/11/2026), and section 8 creates the demo project's there too. A project in another region needs both files changed.
-- **Deploy** (CI only deploys Firestore's rules): on Blaze, the indexes first (section 2), then `npx firebase deploy --only functions --project dmoyadev-gobernansa`, and again after each change in `functions/`. The first one turns on the APIs it needs; if it says to retry in a few minutes, do so. `purgeExpired` and `purgeOldMedia` run in `europe-west1` whatever `REGION` is, as Cloud Scheduler may not be in Madrid.
+- **Node**: they run on Node 24, `engines` in `apps/functions/package.json`; the emulators run them on the local Node, newer, with a warning. ESLint refuses in `apps/functions/` Node's own modules and APIs newer than that (`node/no-unsupported-features/*`), but not yet the newest JavaScript built-ins (`Promise.try`, `RegExp.escape`…), so check those by hand. Node 24 is supported until 30/04/2028.
+- **Code**: `apps/functions/`, a workspace of its own (Node 24, ES modules, `firebase-functions` 7 and `firebase-admin` 13), set up in `firebase.json`. `auditTop`, `auditNested` and `auditDeep` are Firestore triggers for documents 1, 2 and 3 levels deep; `auditAccountCreated` and `auditAccountDeleted`, Auth triggers of the first generation (the second has none), record accounts; `restoreVersion` is a callable only the superadmin can use; `purgeExpired`, scheduled, deletes what's expired (Retention, below), and `purgeOldMedia` the photos nobody sees anymore (section 3).
+- **Region**: `REGION`, in `apps/functions/index.js` and in `apps/admin/src/modules/history/application/restoreVersion.ts`, is `europe-southwest1`. Firestore triggers must run in the database's region, production's is there (checked on 16/11/2026), and section 8 creates the demo project's there too. A project in another region needs both files changed.
+- **Deploy** (CI only deploys Firestore's rules): on Blaze, the indexes first (section 2), then `npx firebase deploy --only functions --project dmoyadev-gobernansa`, and again after each change in `apps/functions/`. The first one turns on the APIs it needs; if it says to retry in a few minutes, do so. `purgeExpired` and `purgeOldMedia` run in `europe-west1` whatever `REGION` is, as Cloud Scheduler may not be in Madrid.
 
 ```text
 audit/{eventId}       path, collection, docId, communityId? (the path's, or the one the document carries), op create | update | delete,
@@ -222,7 +222,7 @@ ops/restore-{sha1}    { uid, name, email, auditId, side, at }, by restoreVersion
 
 ### Retention
 
-Each entry of `audit` and `actions` carries its class in `keep`, set when it's written (`functions/retention.js`, `packages/shared/infrastructure/actions.ts`; the rules require it and leave `admin` to the superadmin), and is deleted whole once its time is up. The legal pages of both apps say the same:
+Each entry of `audit` and `actions` carries its class in `keep`, set when it's written (`apps/functions/retention.js`, `packages/shared/infrastructure/actions.ts`; the rules require it and leave `admin` to the superadmin), and is deleted whole once its time is up. The legal pages of both apps say the same:
 
 | What | `keep` | Kept |
 | --- | --- | --- |
@@ -343,7 +343,7 @@ Only the administration knows it. The issue has no `createdBy` and its author's 
 
 ## Community management
 
-Everything below runs in the browser and is enforced by [`firestore.rules`](../firestore.rules), with no Cloud Functions and no scheduled jobs, so it works on the free plan. Only the providers' photos need Storage, on Blaze (section 3). The types are in `packages/shared/domain`.
+Everything below runs in the browser and is enforced by [`firestore.rules`](../firebase/firestore.rules), with no Cloud Functions and no scheduled jobs, so it works on the free plan. Only the providers' photos need Storage, on Blaze (section 3). The types are in `packages/shared/domain`.
 
 ```text
 properties/{id}                                 census: name, type, coefficient (%), ownerUid ('' without account), ownerName, ownerEmail, ownerNif, ownerPhone (≤ 40), tenantName, tenantEmail

@@ -11,9 +11,9 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import SignaturePad from '@gobernansa/shared/ui/SignaturePad.vue';
 import { LnxButton, LnxIcon, LnxInput, useConfirm } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheToolbar from '@/app/ui/TheToolbar.vue';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { formatMeetingDate, useMeeting } from '../application/useMeetings.ts';
 
 const props = defineProps<{ id: string }>();

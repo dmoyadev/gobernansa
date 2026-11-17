@@ -22,7 +22,7 @@ import 'virtual:icons';
 /* CSS Utils */
 import '@gobernansa/shared/theme/colors.scss';
 import '@gobernansa/shared/theme/typography.scss';
-import './theme/view-transitions.scss';
+import './app/view-transitions.scss';
 
 /* Components Library */
 import 'lnxjs-components/dist/base.css';

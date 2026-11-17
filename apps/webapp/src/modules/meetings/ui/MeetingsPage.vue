@@ -3,8 +3,8 @@ import type { Meeting } from '@gobernansa/shared/domain/meeting.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { meetingStatus, meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { LnxIcon } from 'lnxjs-components';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 import { formatMeetingDate, useMeetings } from '../application/useMeetings.ts';
 
 const { meetings, loading, error } = useMeetings();

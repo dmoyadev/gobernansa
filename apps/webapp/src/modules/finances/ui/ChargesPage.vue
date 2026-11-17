@@ -8,9 +8,9 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref } from 'vue';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useMyCharges } from '../application/useMyCharges.ts';
 
 const SPACES_REGEX = /\s/g;

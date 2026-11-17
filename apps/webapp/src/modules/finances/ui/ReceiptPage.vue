@@ -5,8 +5,8 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { ref, watch } from 'vue';
+import TheToolbar from '@/app/ui/TheToolbar.vue';
 import { loadBooking } from '@/modules/bookings/application/useBookings.ts';
-import TheToolbar from '@/shared/ui/TheToolbar.vue';
 import { loadMyCharge } from '../application/useMyCharges.ts';
 import ReceiptSheet from './ReceiptSheet.vue';
 

@@ -11,12 +11,12 @@ import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput, LnxTextarea } from 'lnxj
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCurrentUser } from 'vuefire';
+import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia, VIDEO_TYPE_REGEX } from '@/app/infrastructure/storage.ts';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheToolbar from '@/app/ui/TheToolbar.vue';
+import { useWizardSteps } from '@/app/ui/useWizardSteps.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
-import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia, VIDEO_TYPE_REGEX } from '@/shared/infrastructure/storage.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheToolbar from '@/shared/ui/TheToolbar.vue';
-import { useWizardSteps } from '@/shared/ui/useWizardSteps.ts';
 import { getAuthorKey } from '../application/authorKey.ts';
 import { useCreateIssue } from '../application/useIssues.ts';
 

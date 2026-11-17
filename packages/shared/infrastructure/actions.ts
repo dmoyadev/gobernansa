@@ -8,13 +8,13 @@ import { remote } from './remoteConfig.ts';
 
 /*
  * Acciones: what each user does that doesn't change a document, for the superadmin's Historial (the changes themselves
- * are recorded by the functions, functions/index.js). One write each, in the shape the rules check (actions in
+ * are recorded by the functions, apps/functions/index.js). One write each, in the shape the rules check (actions in
  * firestore.rules). Never in the way: nothing waits for it unless the page is about to go, and it never throws
  */
 
 export type ActionType = 'signin' | 'signout' | 'page' | 'print' | 'download' | 'view-as' | 'view-as-exit' | 'password' | 'email' | 'restore';
 
-// How long it's kept (functions/retention.js): 90 days, 12 months or, the team's, 3 years
+// How long it's kept (apps/functions/retention.js): 90 days, 12 months or, the team's, 3 years
 export type ActionKeep = 'short' | 'year' | 'admin';
 
 interface Fields {

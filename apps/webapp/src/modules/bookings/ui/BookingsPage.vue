@@ -9,9 +9,9 @@ import { FirebaseError } from 'firebase/app';
 import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import MainLayout from '@/app/ui/MainLayout.vue';
+import TheHeader from '@/app/ui/TheHeader.vue';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
-import MainLayout from '@/shared/ui/MainLayout.vue';
-import TheHeader from '@/shared/ui/TheHeader.vue';
 import { useBookings } from '../application/useBookings.ts';
 
 const ask = useConfirm();
