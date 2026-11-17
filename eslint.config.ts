@@ -28,4 +28,29 @@ export default antfu({
 		'node/no-unsupported-features/es-syntax': 'error',
 		'node/no-unsupported-features/node-builtins': 'error',
 	},
+}, {
+	// One app never imports another: what both need goes in packages/shared
+	files: ['apps/**', 'packages/**'],
+	rules: {
+		'no-restricted-imports': ['warn', {
+			patterns: [{ regex: '(^|/)(webapp|admin)/src/', message: 'Una app no importa de otra: lo común va en packages/shared.' }],
+		}],
+	},
+}, {
+	// Reads and writes go in application/ (docs/desarrollo.md, Convenciones). A warning, because some pages still do it
+	files: ['apps/*/src/modules/*/ui/**'],
+	rules: {
+		'ts/no-restricted-imports': ['warn', {
+			paths: [{
+				name: 'firebase/firestore',
+				importNames: ['getFirestore', 'collection', 'collectionGroup', 'doc', 'query', 'getDoc', 'getDocs', 'getCountFromServer', 'onSnapshot', 'addDoc', 'setDoc', 'updateDoc', 'deleteDoc', 'writeBatch', 'runTransaction'],
+				allowTypeImports: true,
+				message: 'Las lecturas y escrituras de Firestore van en application/, no en ui/.',
+			}, {
+				name: 'vuefire',
+				importNames: ['useFirestore', 'useCollection', 'useDocument'],
+				message: 'Las lecturas y escrituras de Firestore van en application/, no en ui/.',
+			}],
+		}],
+	},
 });

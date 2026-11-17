@@ -15,8 +15,9 @@ Cómo arrancar el proyecto en local, qué escucha en cada puerto, las convencion
    - `VITE_FIREBASE_EMULATORS='true'`.
    - `VITE_FIREBASE_PROJECT_ID='dmoyadev-gobernansa'`, el proyecto de `.firebaserc`. Con los emuladores, el resto de la configuración de Firebase puede quedarse como está.
    - `DEMO_PASSWORD`, la contraseña de todas las cuentas del seed. Al menos 6 caracteres.
-2. `npm install`.
-3. `npm run dev`. Arranca los emuladores, carga el seed desde cero y sirve las dos apps. Los datos se borran cada vez que se para.
+2. `npm install`. Activa también los hooks de git (`.githooks`).
+3. `npm run doctor`. Comprueba Node, Java, las dependencias, `.env.local`, los puertos y los hooks, y dice cómo arreglar lo que falte.
+4. `npm run dev`. Arranca los emuladores, carga el seed desde cero y sirve las dos apps. Los datos se borran cada vez que se para.
 
 Para entrar, las cuentas están en [`scripts/seed/data/cast.js`](../scripts/seed/data/cast.js) y todas usan `DEMO_PASSWORD`. Para el admin, el despacho «Fincas Jaén»; para la webapp, cualquier vecino de la comunidad `comm1`. El emulador de Auth no envía correos: el enlace de acceso sale en la terminal de los emuladores, y `http://127.0.0.1:5501/emulator/v1/projects/dmoyadev-gobernansa/oobCodes` lista los últimos. Ábrelo en el mismo navegador donde lo pediste, que es donde queda guardado el correo.
 
@@ -64,6 +65,7 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 
 ## Antes de cada commit
 
+- Al hacer commit, un hook pasa ESLint a los ficheros del commit y comprueba el formato del mensaje. `git commit --no-verify` se lo salta.
 - `npm run check`: ESLint y los tipos de las dos apps, unos 10 segundos.
 - `npm run build` si tocas la configuración de Vite, el service worker o algo que solo se ve compilado.
 - CI repite ESLint y el build, y además `npm audit` de las dependencias de producción. Si falla, no despliega.
@@ -72,7 +74,7 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 
 - **Mensajes de commit:** una línea, `<emoji> [ámbito] Descripción`, en inglés.
 - **Idioma:** el código y sus comentarios en inglés; los textos de las apps y los docs, en español.
-- **Dónde va cada cosa:** el dominio común en `packages/shared/domain`; en cada app, `src/modules/<módulo>/` con `application/` (lo que lee y escribe en Firebase), `ui/` (páginas y componentes) y `domain/` (lo que solo usa esa app); lo de toda la app, en `src/app/`. La UI no debería llamar a Firestore directamente: aún hay componentes que lo hacen, y se pasan a `application/` cuando se tocan.
+- **Dónde va cada cosa:** el dominio común en `packages/shared/domain`; en cada app, `src/modules/<módulo>/` con `application/` (lo que lee y escribe en Firebase), `ui/` (páginas y componentes) y `domain/` (lo que solo usa esa app); lo de toda la app, en `src/app/`. La UI no debería llamar a Firestore directamente: aún hay componentes que lo hacen, ESLint los avisa, y se pasan a `application/` cuando se tocan. Una app tampoco importa de la otra: lo común va en `packages/shared`.
 - **Identificadores:** las tareas de los docs ([B5](v1.md#b5), [ROB-2](fiabilidad.md#rob-2)…) llevan un ancla `<a id="…">` y siempre se enlazan.
 - **Las reglas son producción:** cada push a `main` despliega `firebase/firestore.rules`. Los índices, las reglas de Storage y las functions van a mano ([setup.md](setup.md)).
 
@@ -93,3 +95,5 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 | Tras desplegar se sigue viendo la versión anterior | Es el service worker: recarga dos veces |
 | Un error de producción tiene la pila ilegible | `pbpaste \| npm run symbolicate -- <versión>`, con la versión que muestra **Errores** ([MON-10](fiabilidad.md#mon-10)) |
 | ESLint se queja del orden de los imports | `npm run lint` lo arregla |
+| El commit se para | El hook encontró errores de ESLint en los ficheros del commit, o el mensaje no es `<emoji> [ámbito] Descripción` en una línea |
+| No sé qué falta en un equipo nuevo | `npm run doctor` |

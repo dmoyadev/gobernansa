@@ -1,0 +1,11 @@
+#!/bin/sh
+# One line: <emoji> [scope] Description, e.g. 🐛 [issues] Fix pagination when filters change (docs/desarrollo.md)
+message=$(grep -v '^#' "$1" | sed '/^[[:space:]]*$/d')
+case "$message" in
+	Merge\ * | Revert\ * | fixup!\ * | squash!\ * | amend!\ *) exit 0 ;;
+esac
+if [ "$(printf '%s\n' "$message" | wc -l)" -ne 1 ] || ! printf '%s' "$message" | grep -Eq '^[^][ A-Za-z0-9]+ \[[a-z0-9-]+\] [^ ]'; then
+	echo 'El mensaje del commit va en una línea: <emoji> [ámbito] Descripción' >&2
+	echo 'Por ejemplo: 🐛 [issues] Fix pagination when filters change' >&2
+	exit 1
+fi

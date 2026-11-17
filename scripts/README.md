@@ -11,6 +11,7 @@ Scripts de Node que se lanzan con `npm run` desde la raíz. Los que tocan Fireba
 | `backup/restore.js` | `npm run restore` | Restaura una copia en los emuladores, nunca en producción |
 | `backup/purge.js` | `npm run purge` | Cuenta lo caducado y, con `-- --delete`, lo borra |
 | `symbolicate.js` | `npm run symbolicate` | Traduce la pila de un error de la página **Errores** a las líneas del código |
+| `doctor.js` | `npm run doctor` | Comprueba Node, Java, las dependencias, `.env.local`, los puertos de `npm run dev` y los hooks de git. De `.env.local` solo mira qué variables tienen valor |
 
 ## A tener en cuenta
 

@@ -1,0 +1,4 @@
+#!/bin/sh
+# ESLint on the files about to be committed (the whole repo is npm run check). git commit --no-verify skips it
+# shortcut: it lints the file on disk, not the staged version, so a partly staged file is checked as a whole
+git diff --cached --name-only --diff-filter=ACMR -z | xargs -0 -r npx eslint --no-warn-ignored

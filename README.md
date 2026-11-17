@@ -27,7 +27,8 @@ Hace falta Node 24 (`nvm use`) y Java 21 para los emuladores. Los pasos completo
 
 ```bash
 cp .env.example .env.local   # y rellénalo: VITE_FIREBASE_EMULATORS='true' y DEMO_PASSWORD
-npm install
+npm install                  # activa también los hooks de git
+npm run doctor               # comprueba Node, Java, .env.local y los puertos
 npm run dev                  # emuladores con el seed, webapp en https://localhost:5400 y admin en https://localhost:5401
 ```
 
@@ -38,6 +39,7 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 | `npm run dev` | Emuladores, seed desde cero y las dos apps |
 | `npm run dev:webapp`, `dev:admin`, `dev:landing` | Solo esa app, o la landing |
 | `npm run emulators` | Solo los emuladores |
+| `npm run doctor` | Comprueba que el equipo tiene lo que necesita `npm run dev` |
 | `npm run check` | ESLint y tipos de las dos apps, en paralelo |
 | `npm run lint` | ESLint arreglando lo que pueda |
 | `npm run build` | Build de producción de las dos apps y la landing |

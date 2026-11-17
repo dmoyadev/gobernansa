@@ -15,6 +15,7 @@
 		"check": "concurrently --group --names lint,webapp,admin \"eslint .\" \"npm run check:types -w apps/webapp\" \"npm run check:types -w apps/admin\"",
 		"check:types": "npm run check:types -w apps/webapp -w apps/admin",
 		"check:deps": "npx taze -r",
+		"doctor": "node ./scripts/doctor.js",
 		"lint": "eslint --fix",
 		"build": "npm run build -w apps/webapp -w apps/admin -w apps/landing",
 		"clean": "rm -rf dist apps/*/dist node_modules/.vite apps/*/node_modules/.vite node_modules/.demo *.log *.tsbuildinfo apps/*/*.tsbuildinfo",
@@ -27,7 +28,8 @@
 		"backup": "node --env-file-if-exists=.env.local ./scripts/backup/backup.js",
 		"restore": "node --env-file-if-exists=.env.local ./scripts/backup/restore.js",
 		"purge": "node --env-file-if-exists=.env.local ./scripts/backup/purge.js",
-		"symbolicate": "node ./scripts/symbolicate.js"
+		"symbolicate": "node ./scripts/symbolicate.js",
+		"prepare": "git config core.hooksPath .githooks || true"
 	},
 	"dependencies": {
 		"firebase": "^12.19.0",
