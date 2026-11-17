@@ -15,7 +15,7 @@ export default defineConfig({
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }, // Import from src as '@/...'
 	},
 	server: {
-		proxy: { '/v0/b': 'http://127.0.0.1:9199' }, // Photos from the Storage emulator, saved with relative addresses
+		proxy: { '/v0/b': 'http://127.0.0.1:5504' }, // Photos from the Storage emulator, saved with relative addresses
 	},
 	plugins: [
 		// lnxjs-components' base.css imports Google Fonts the theme replaces (typography.scss): dropped, so no IP reaches Google

@@ -20,8 +20,8 @@ Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursi
 **10 minutos antes, ya en el despacho:**
 - **Red:** el portátil conectado al punto de acceso de tu móvil, mejor que a la wifi de invitados del cliente: mientras la demo está en marcha, cualquiera en esa red llega a los emuladores (los datos son de mentira). Arranca `npm run demo` ya en esa red, o `npm run demo:reset` si ya estaba en marcha en ella. Los dos cargan el seed con las fechas de hoy, así que la junta, los vencimientos y la morosidad quedan «de esta semana».
 - **Si cambias de red, reinicia la demo:** la dirección del portátil queda fijada al arrancar, en el QR y en los enlaces del parte que copia el admin. Reiniciar cierra las sesiones de los móviles; `npm run demo:reset` no.
-- **Portátil:** el admin en `http://localhost:5481`, no en la IP: por `http`, el navegador solo deja copiar el enlace del parte o añadir partidas al presupuesto en `localhost`. Entra como «Fincas Jaén» (el titular), en **Comunidades**.
-- **Tu móvil, navegador 1:** la webapp desde el QR de la terminal (`http://<IP del portátil>:5480`), como **María Núñez** (Piso 2B y Garaje 13 de Los Olivos). Es la morosa del seed y aún no ha votado ni acusado recibo de la junta, así que sirve para las tres escenas.
+- **Portátil:** el admin en `http://localhost:5403`, no en la IP: por `http`, el navegador solo deja copiar el enlace del parte o añadir partidas al presupuesto en `localhost`. Entra como «Fincas Jaén» (el titular), en **Comunidades**.
+- **Tu móvil, navegador 1:** la webapp desde el QR de la terminal (`http://<IP del portátil>:5402`), como **María Núñez** (Piso 2B y Garaje 13 de Los Olivos). Es la morosa del seed y aún no ha votado ni acusado recibo de la junta, así que sirve para las tres escenas.
 - **Tu móvil, navegador 2:** la webapp como **Carmen Ruiz**, la presidenta, para firmar el acta. Por ejemplo, María en Chrome y Carmen en Safari.
 - Se entra con el correo y la contraseña. El enlace de acceso del emulador solo se abre en el portátil.
 - **Pantalla del móvil** duplicada en el portátil, o el móvil a la vista de todos.

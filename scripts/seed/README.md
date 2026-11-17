@@ -49,7 +49,7 @@ Dates are relative to the day it runs, so the demo always has upcoming meetings,
 Any flag skips them, e.g. in a script:
 
 ```bash
-FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/seed/seed.js --reset --only=core,meetings
+FIRESTORE_EMULATOR_HOST=127.0.0.1:5502 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:5501 node scripts/seed/seed.js --reset --only=core,meetings
 ```
 
 - `--only=<groups>` loads only those groups (all by default)

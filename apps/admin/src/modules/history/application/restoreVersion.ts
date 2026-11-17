@@ -10,7 +10,7 @@ const functions = getFunctions(firebaseApp, REGION);
 // In development (https) they're in the emulators with the rest
 export const hasFunctions = !emulators || location.protocol === 'https:';
 if (emulators && hasFunctions) {
-	const { host, port } = emulatorAt(5001);
+	const { host, port } = emulatorAt(5505);
 	connectFunctionsEmulator(functions, host, port);
 }
 

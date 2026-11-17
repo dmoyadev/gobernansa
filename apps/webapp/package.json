@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "vite --mode localhost --host --port 5400",
 		"build": "rm -rf dist && npm run check:types && vite build",
-		"preview": "vite preview --host --port 4400",
+		"preview": "vite preview --host --port 5410",
 		"check:types": "vue-tsc --build --noEmit"
 	},
 	"dependencies": {

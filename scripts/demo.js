@@ -17,8 +17,8 @@ const DIR = join(ROOT, 'node_modules/.demo');
 const LOG = join(DIR, 'emulators.log');
 const PROJECT = 'demo-gobernansa';
 const BUCKET = `${PROJECT}.appspot.com`;
-// Apart from npm run dev's (4000, 4400, 4500, 5400, 5401, 8080, 9099, 9150, 9199), so both can run at once
-const PORTS = { webapp: 5480, admin: 5481, auth: 9095, firestore: 8085, websocket: 9155, storage: 9195, hub: 4405, logging: 4505 };
+// Next to npm run dev's, so both can run at once: the apps after its 5400 and 5401, the emulators ten above its 550x
+const PORTS = { webapp: 5402, admin: 5403, auth: 5511, firestore: 5512, websocket: 5513, storage: 5514, hub: 5516, logging: 5517 };
 const APPS = ['webapp', 'admin'];
 // Who's who in docs/demo.md
 const CAST = [[uids.office, 'admin, en el portátil'], [uids.maria, 'webapp, navegador 1 del móvil'], [uids.carmen, 'webapp, navegador 2 del móvil']];

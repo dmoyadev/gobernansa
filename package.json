@@ -19,7 +19,7 @@
 		"clean": "rm -rf dist apps/*/dist node_modules/.vite apps/*/node_modules/.vite node_modules/.demo *.log *.tsbuildinfo apps/*/*.tsbuildinfo",
 		"seed": "node --env-file-if-exists=.env.demo.local ./scripts/seed/seed.js",
 		"seed:demo": "node --env-file-if-exists=.env.demo.local ./scripts/seed/seed.js --demo --reset",
-		"seed:emulators": "METADATA_SERVER_DETECTION=none FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 node --env-file-if-exists=.env.local ./scripts/seed/seed.js",
+		"seed:emulators": "METADATA_SERVER_DETECTION=none FIRESTORE_EMULATOR_HOST=127.0.0.1:5502 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:5501 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:5504 node --env-file-if-exists=.env.local ./scripts/seed/seed.js",
 		"demo": "node --env-file-if-exists=.env.local ./scripts/demo.js",
 		"demo:reset": "node --env-file-if-exists=.env.local ./scripts/demo.js --reset",
 		"deploy:demo": "node ./scripts/deploy-demo.js",

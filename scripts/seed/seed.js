@@ -17,7 +17,7 @@ import meetings from './data/meetings.js';
 
 // In the order they're offered and loaded
 const GROUPS = [core, maintenance, meetings, charges, accounting, bookings, billing, errors];
-const EMULATORS = { firestore: '127.0.0.1:8080', auth: '127.0.0.1:9099', storage: '127.0.0.1:9199' };
+const EMULATORS = { firestore: '127.0.0.1:5502', auth: '127.0.0.1:5501', storage: '127.0.0.1:5504' };
 // The free plan's writes (and deletes) per day
 const DAILY_WRITES = 20_000;
 

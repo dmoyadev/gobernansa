@@ -38,10 +38,10 @@ function emulatorAt(port: number) {
 
 // All or none: emulator auth tokens are rejected by the real Firestore and Storage
 if (emulators) {
-	const authAt = emulatorAt(9099);
+	const authAt = emulatorAt(5501);
 	connectAuthEmulator(auth, `http://${authAt.host}:${authAt.port}`, { disableWarnings: true });
-	connectFirestoreEmulator(db, emulatorAt(8080).host, emulatorAt(8080).port);
-	connectStorageEmulator(storage, emulatorAt(9199).host, emulatorAt(9199).port);
+	connectFirestoreEmulator(db, emulatorAt(5502).host, emulatorAt(5502).port);
+	connectStorageEmulator(storage, emulatorAt(5504).host, emulatorAt(5504).port);
 }
 
 // B7: only our pages get a token, so a script with the public config can't spend the quota once the console enforces it.
