@@ -1,5 +1,5 @@
 /*
- * Plazos de conservación del Historial (docs/firebase.md, section 10, Retention). Each entry of audit and actions is written
+ * Plazos de conservación del Historial (docs/setup.md#plazos). Each entry of audit and actions is written
  * with its class (keep) and deleted whole once its time is up, by purgeExpired every day (Blaze) or by the copia de
  * seguridad and `npm run purge` (free plan). And the photos nobody sees anymore, purgeMedia. No imports, so the scripts
  * use it with their own firebase-admin

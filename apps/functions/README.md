@@ -16,4 +16,4 @@ Las Cloud Functions del historial del superadmin y de los plazos de conservació
 - `REGION` tiene que coincidir con la de `restoreVersion.ts` del admin y con la de la base de datos.
 - La forma de una entrada del historial está también en `apps/admin/src/modules/history/domain/history.ts`: si cambia una, cambia la otra.
 - `retention.js` lo usan también `npm run backup` y `npm run purge`, que borran lo caducado en el plan gratuito.
-- Despliegue, región y plazos: [docs/firebase.md](../../docs/firebase.md), sección 10.
+- Despliegue, región y plazos: [docs/setup.md](../../docs/setup.md#functions).

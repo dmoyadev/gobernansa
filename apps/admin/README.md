@@ -1,6 +1,6 @@
 # admin
 
-La plataforma de los despachos y de los presidentes: comunidades, censo, finanzas y contabilidad, juntas, incidencias, proveedores, correo y facturación del despacho. El equipo de gobernança (superadmin) ve además los errores y el historial. Cada cuenta ve solo las comunidades que gestiona ([roles](../../docs/firebase.md#roles)).
+La plataforma de los despachos y de los presidentes: comunidades, censo, finanzas y contabilidad, juntas, incidencias, proveedores, correo y facturación del despacho. El equipo de gobernança (superadmin) ve además los errores y el historial. Cada cuenta ve solo las comunidades que gestiona ([roles](../../docs/datos.md#roles)).
 
 ```bash
 npm run dev:admin   # https://localhost:5401, contra lo que diga .env.local

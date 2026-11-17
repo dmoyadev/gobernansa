@@ -169,7 +169,7 @@ Nadie los ve; los cambio para que el código diga un solo nombre.
 
 ### 3.5 Documentación
 
-`README.md`, `docs/competencia.md`, `docs/firebase.md`, `docs/v1.md` ([A2](v1.md#a2) queda como hecha) y `docs/fiabilidad.md`. Los IDs que no cambian (sección 1) se quedan como están.
+`README.md`, `docs/competencia.md`, `docs/setup.md`, `docs/datos.md`, `docs/v1.md` ([A2](v1.md#a2) queda como hecha) y `docs/fiabilidad.md`. Los IDs que no cambian (sección 1) se quedan como están.
 
 ---
 
@@ -264,7 +264,7 @@ Qué notan los usuarios que ya tengas (cada dominio es otro sitio para el navega
 
 ### T9. Proyecto de demo
 
-Aún no existe (no hay `.env.demo.local` ni su clave). Créalo ya con el nombre nuevo siguiendo la sección 8 de [firebase.md](firebase.md), con estos nombres:
+Aún no existe (no hay `.env.demo.local` ni su clave). Créalo ya con el nombre nuevo siguiendo el [proyecto de demo](setup.md#proyecto-demo), con estos nombres:
 
 | Donde la guía dice | Pon |
 |---|---|

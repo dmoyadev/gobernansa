@@ -22,7 +22,7 @@ const auth = initializeAuth(firebaseApp, { persistence: [indexedDBLocalPersisten
 // 30 minutes only read what changed. Not with the emulators: their data is reset, and the live project's would mix with it
 const db = initializeFirestore(firebaseApp, emulators ? {} : { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 
-// Photos and videos of issues and work orders. Needs Firebase's paid plan in the real project (docs/firebase.md)
+// Photos and videos of issues and work orders. Needs Firebase's paid plan in the real project (docs/setup.md#storage)
 const storage = getStorage(firebaseApp);
 
 /*

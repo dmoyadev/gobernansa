@@ -70,10 +70,10 @@ La fase 2 ([MON-4](#mon-4), [MON-5](#mon-5), [MON-7](#mon-7), [ROB-4](#rob-4) y 
 - <a id="mon-1"></a><a id="mon-2"></a><a id="mon-3"></a><a id="mon-8"></a>**Errores propios** ([MON-1](#mon-1), [MON-2](#mon-2), [MON-3](#mon-3) y [MON-8](#mon-8), cerrados el 02/11/2026). Los errores de las dos apps se guardan en el propio Firestore (`errors/{huella}` y sus muestras en `samples`, que caducan a los 30 días), agrupados por una huella, con la versión, la pantalla, el contexto y los últimos 30 pasos del usuario. Lo hace `packages/shared/infrastructure/monitoring.ts`:
   - **Urgentes:** `permission-denied`, `failed-precondition` y los errores que vuelven después de resolverlos. Los de conexión y los avisos de la propia app no se envían.
   - **Límites:** un envío por huella cada 10 minutos, 20 por sesión y 40 al día por dispositivo; 1 o 2 escrituras por envío y ninguna lectura.
-  - **Panel:** la página «Errores» del admin, solo para el equipo, con filtros, «Ha vuelto», errores nuevos por versión, resolver, ignorar, fusionar y limpiar. Sus índices, en [firebase.md](firebase.md).
+  - **Panel:** la página «Errores» del admin, solo para el equipo, con filtros, «Ha vuelto», errores nuevos por versión, resolver, ignorar, fusionar y limpiar. Sus índices, en [setup.md](setup.md#indices).
 - **Versión:** CI pone a cada build una versión con la fecha y el commit (`VITE_RELEASE`), que va con cada error y se ve en el perfil de la webapp y en el menú del admin.
 - **Cuota:** cuando se agota, las dos apps muestran un aviso fijo y dejan de enviar errores. En desarrollo, la consola muestra lo que lee cada pantalla. Revisadas las dos apps ([ROB-9](competencia.md#rob-9), 02/11/2026): volver a una página no la relee entera, las lecturas pesadas se comparten 5 minutos entre páginas, las votaciones se leen ya contadas y no quedan consultas sin tope que crezcan con los años.
-- <a id="rob-6"></a>**Dinero sin duplicados** ([ROB-6](#rob-6), cerrado el 04/11/2026). Un doble clic, dos pestañas o un reintento después de perder la conexión ya no duplican cuotas, derramas, intereses, remesas, órdenes de pago, devoluciones, conciliaciones, gastos ni cierres. Casi todo lo paran las reglas, sin lecturas de más y también cuando una escritura hecha sin conexión llega más tarde (detalle en [firebase.md](firebase.md)):
+- <a id="rob-6"></a>**Dinero sin duplicados** ([ROB-6](#rob-6), cerrado el 04/11/2026). Un doble clic, dos pestañas o un reintento después de perder la conexión ya no duplican cuotas, derramas, intereses, remesas, órdenes de pago, devoluciones, conciliaciones, gastos ni cierres. Casi todo lo paran las reglas, sin lecturas de más y también cuando una escritura hecha sin conexión llega más tarde (detalle en [setup.md](setup.md#reglas)):
   - lo que se vuelve a crear encima de lo que ya existe se rechaza;
   - un recibo está en una sola remesa y se concilia con un solo movimiento, y solo mientras se debe; lo mismo una factura con su orden de pago;
   - un movimiento del banco se concilia o se aparta una sola vez;
@@ -116,7 +116,7 @@ La fase 2 ([MON-4](#mon-4), [MON-5](#mon-5), [MON-7](#mon-7), [ROB-4](#rob-4) y 
   - Safari no tiene LCP ni la medida de las interacciones: de sus sesiones solo llegan los saltos (CLS).
   - La respuesta es la interacción más lenta de la sesión, no el INP exacto, que descarta una de cada 50.
   - Las reglas limitan cada envío a sumar 1 en como mucho tres tramos por pantalla y tres pantallas, pero no a uno por medida: alguien con sesión podría falsear las cifras, igual que los errores ([ROB-8](#rob-8)).
-- **Privacidad:** las páginas legales cuentan los errores técnicos (30 días) y los plazos del Historial ([GAR-1](competencia.md#gar-1), [tabla](firebase.md#retention)). Con el plan gratuito, lo caducado solo se borra tras cada copia o con `npm run purge -- --delete`, y hasta activar la copia diaria hay que lanzarlo a mano.
+- **Privacidad:** las páginas legales cuentan los errores técnicos (30 días) y los plazos del Historial ([GAR-1](competencia.md#gar-1), [tabla](setup.md#plazos)). Con el plan gratuito, lo caducado solo se borra tras cada copia o con `npm run purge -- --delete`, y hasta activar la copia diaria hay que lanzarlo a mano.
 
 ---
 
@@ -221,7 +221,7 @@ Comprobado con un build local: una línea del código minificado se traduce a la
 
 Alternativa sin Remote Config: un documento `config/app` en Firestore. Más sencillo, pero cuesta una lectura por sesión.
 
-**Hecho en el código** (04/11/2026): `packages/shared/infrastructure/remoteConfig.ts` lee los interruptores al abrir y en cuanto se publica un cambio; los parámetros y qué hace cada uno, en [firebase.md](firebase.md). Comprobado en el admin de demo cambiando los valores en el navegador, no con la consola: allí no hay clave real.
+**Hecho en el código** (04/11/2026): `packages/shared/infrastructure/remoteConfig.ts` lee los interruptores al abrir y en cuanto se publica un cambio; los parámetros y qué hace cada uno, en [setup.md](setup.md#interruptores). Comprobado en el admin de demo cambiando los valores en el navegador, no con la consola: allí no hay clave real.
 
 **Hecho cuando** apagar `remittances` en la consola oculta la generación de remesas en el admin sin desplegar.
 
@@ -244,9 +244,9 @@ Alternativa sin Remote Config: un documento `config/app` en Firestore. Más senc
 **Cómo, con Blaze ([INF-1](competencia.md#inf-1)).**
 - **Copias programadas de Firestore** (requieren Blaze): una diaria con unos 14 días de retención y una semanal que dure más. También la recuperación a un momento concreto, si su precio encaja.
 - **Restauración:** se hace en una base de datos nueva y desde ahí se copia lo necesario, sin pisar producción.
-- **Fotos y vídeos:** están en Cloud Storage, y estas copias son solo de Firestore: guardan sus enlaces, no los ficheros. Las apps no pueden cambiar ni borrar ficheros (`storage.rules`), así que no se pierden por un fallo de la app, sino si se borra el bucket o el proyecto. Solo los borra, cada domingo, la función de los plazos: los de una incidencia borrada hace más de 90 días y los que nunca se adjuntaron ([tabla](firebase.md#retention)). Para [B5](v1.md#b5), «copia diaria, restaurada y comprobada» vale para los datos, no para las fotos: o se copian aparte, o se deja por escrito que se asume perderlas. Las de incidencias anteriores siguen en el servicio de fotos anterior y se ven mientras exista esa cuenta.
+- **Fotos y vídeos:** están en Cloud Storage, y estas copias son solo de Firestore: guardan sus enlaces, no los ficheros. Las apps no pueden cambiar ni borrar ficheros (`storage.rules`), así que no se pierden por un fallo de la app, sino si se borra el bucket o el proyecto. Solo los borra, cada domingo, la función de los plazos: los de una incidencia borrada hace más de 90 días y los que nunca se adjuntaron ([tabla](setup.md#plazos)). Para [B5](v1.md#b5), «copia diaria, restaurada y comprobada» vale para los datos, no para las fotos: o se copian aparte, o se deja por escrito que se asume perderlas. Las de incidencias anteriores siguen en el servicio de fotos anterior y se ven mientras exista esa cuenta.
 
-**El Historial ayuda, pero no es una copia** ([GAR-1](competencia.md#gar-1)). Con Blaze guarda cada versión de cada documento, y el superadmin puede volver uno a una versión anterior desde el admin: una escritura mala se deshace documento a documento, sin tocar el resto. Pero vive en la misma base de datos, solo tiene lo escrito desde que se despliegan las funciones y durante su plazo (90 días casi todo, [tabla](firebase.md#retention)), y no restaura cuentas, fotos, facturas ni los documentos demasiado grandes, que guarda recortados. Cada restauración escribe el documento entero como estaba, así que pisa lo que cambió después en él.
+**El Historial ayuda, pero no es una copia** ([GAR-1](competencia.md#gar-1)). Con Blaze guarda cada versión de cada documento, y el superadmin puede volver uno a una versión anterior desde el admin: una escritura mala se deshace documento a documento, sin tocar el resto. Pero vive en la misma base de datos, solo tiene lo escrito desde que se despliegan las funciones y durante su plazo (90 días casi todo, [tabla](setup.md#plazos)), y no restaura cuentas, fotos, facturas ni los documentos demasiado grandes, que guarda recortados. Cada restauración escribe el documento entero como estaba, así que pisa lo que cambió después en él.
 
 **Puente gratuito hasta entonces.** Un script con el Admin SDK (`npm run backup`) que exporta las colecciones, las cifra y las guarda. Hay dos opciones:
 - **a) En tu propio equipo,** programado con `launchd`. Los datos no salen de tu equipo, pero solo se hace si el equipo está encendido.
@@ -267,7 +267,7 @@ Las dos opciones leen todos los documentos, así que gastan cuota y solo sirven 
 - **Vigilancia:** la página «Errores» muestra cuándo fue la última copia y cuántos documentos tenía, y un aviso en rojo si tiene más de 26 horas o no hay ninguna. Cuesta una lectura al abrir la página.
 - **Restaurar:** `FIRESTORE_EMULATOR_HOST=127.0.0.1:5502 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:5501 npm run restore` vacía el emulador y escribe la última copia (o la que se le pase). Con el emulador de Auth, crea la cuenta de cada perfil con su mismo identificador y correo, para entrar como esa persona pidiendo una contraseña nueva (el emulador escribe el enlace en su registro). Se niega a escribir en producción.
 - **Cuota:** cada copia gasta una lectura por documento, más una por colección vacía. El script avisa si pasa de 25.000, la mitad de las diarias: entonces hay que pasar a Blaze. Deja fuera las acciones del Historial, que crecen con cada pantalla abierta y perderlas no pierde nada de las comunidades. Con Blaze sí lleva el historial de cambios, que crece con cada escritura: cada copia leerá más, hasta que su plazo empiece a borrar lo antiguo.
-- **Borrar lo caducado:** después de cada copia, el script borra lo que ha cumplido su plazo del Historial, del registro de actividad y de las muestras de errores ([tabla](firebase.md#retention)), hasta 10.000 documentos: una lectura y un borrado por cada uno. Lo borrado sigue en las copias hasta que salen de las 14 últimas, salvo las acciones del Historial, que nunca entran. Mientras la copia diaria no esté activada, `npm run purge` cuenta lo caducado y `npm run purge -- --delete` lo borra.
+- **Borrar lo caducado:** después de cada copia, el script borra lo que ha cumplido su plazo del Historial, del registro de actividad y de las muestras de errores ([tabla](setup.md#plazos)), hasta 10.000 documentos: una lectura y un borrado por cada uno. Lo borrado sigue en las copias hasta que salen de las 14 últimas, salvo las acciones del Historial, que nunca entran. Mientras la copia diaria no esté activada, `npm run purge` cuenta lo caducado y `npm run purge -- --delete` lo borra.
 - **No incluye** las cuentas de Auth (se rehacen desde `users` al restaurar en los emuladores), las acciones del Historial ni las fotos y vídeos de Cloud Storage, solo sus enlaces.
 
 Ensayado entero en los emuladores con la demo: copia de 993 documentos de 40 colecciones, vaciado, restauración y una segunda copia idéntica a la primera; y el admin abierto sobre lo restaurado con la cuenta del equipo.
@@ -322,7 +322,7 @@ Hoy el proyecto no tiene pruebas, por decisión propia: este punto es para cuand
 
 **Hecho cuando** la clave está restringida y App Check mide sin bloquear a nadie.
 
-**Hecho en el código** (14/11/2026): las dos apps piden el token de App Check con reCAPTCHA Enterprise si tienen `VITE_APP_CHECK_KEY`, y nunca con los emuladores. Los pasos de la consola, el token de depuración para desarrollo y cuándo pasar a obligatorio están en la sección 9 de [firebase.md](firebase.md). Con la duración del token al máximo (7 días), cada dispositivo gasta unas pocas comprobaciones al mes.
+**Hecho en el código** (14/11/2026): las dos apps piden el token de App Check con reCAPTCHA Enterprise si tienen `VITE_APP_CHECK_KEY`, y nunca con los emuladores. Los pasos de la consola, el token de depuración para desarrollo y cuándo pasar a obligatorio están en [setup.md](setup.md#app-check). Con la duración del token al máximo (7 días), cada dispositivo gasta unas pocas comprobaciones al mes.
 
 ### <a id="rob-1"></a>ROB-1 · Entorno de pruebas separado (P0, aplazado)
 
@@ -388,7 +388,7 @@ Cada web se vuelve atrás por separado, en minutos y sin tocar los datos:
 
 Una PWA instalada o una pestaña abierta siguen con su versión hasta que el usuario acepta la actualización. Un cambio en las reglas o en la forma de los datos que la versión anterior no entiende va así:
 1. **Primer despliegue:** las reglas aceptan la forma antigua y la nueva, y la app nueva escribe la nueva.
-2. **Subir la versión mínima:** en Remote Config, `minVersion` a la versión de ese despliegue (la que aparece en el menú del admin y en el perfil de la webapp, p. ej. `2026.11.04-1200`), y **Publicar cambios**. Quien tenga una anterior solo puede actualizar ([firebase.md](firebase.md), sección 7).
+2. **Subir la versión mínima:** en Remote Config, `minVersion` a la versión de ese despliegue (la que aparece en el menú del admin y en el perfil de la webapp, p. ej. `2026.11.04-1200`), y **Publicar cambios**. Quien tenga una anterior solo puede actualizar ([interruptores](setup.md#interruptores)).
 3. **Segundo despliegue:** las reglas dejan de aceptar la forma antigua.
 
 ## 6. Fuentes

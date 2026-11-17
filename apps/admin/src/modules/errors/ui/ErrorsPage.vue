@@ -90,7 +90,7 @@ const error = ref<string>();
 // Changing a filter while a page loads only keeps the last one asked for
 let latestLoad = 0;
 
-// Each filter with the date needs its index (docs/firebase.md); Firestore merges them when there are several
+// Each filter with the date needs its index (docs/setup.md#indices); Firestore merges them when there are several
 function filters() {
 	return [
 		...(app.value !== ALL ? [where('app', '==', app.value)] : []),
@@ -190,7 +190,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyl
 
 /*
  * Samples are kept 30 days and groups resolved or ignored are kept until they've gone 180 days without coming back, to
- * know when they do. Removed from here, as Firestore's TTL needs setting up in the console (docs/firebase.md)
+ * know when they do. Removed from here, as Firestore's TTL needs setting up in the console (docs/setup.md#plazos)
  */
 const cleaning = ref(false);
 async function clean() {

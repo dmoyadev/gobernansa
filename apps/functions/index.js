@@ -18,7 +18,7 @@ import { changeKeep, purge, purgeMedia } from './retention.js';
  */
 
 // Firestore triggers must run in the database's region: production's is in Madrid, and the demo's goes there too
-// (docs/firebase.md).
+// (docs/setup.md#functions).
 // The admin calls restoreVersion here too
 const REGION = 'europe-southwest1';
 setGlobalOptions({ region: REGION });
@@ -337,7 +337,7 @@ export const purgeExpired = onSchedule({ schedule: 'every day 04:00', timeZone: 
 	info('Borrado lo caducado', await purge(db));
 });
 
-// The photos and videos nobody sees anymore (retention.js), every Sunday. Without a bucket yet (docs/firebase.md, section 3),
+// The photos and videos nobody sees anymore (retention.js), every Sunday. Without a bucket yet (docs/setup.md#storage),
 // nothing to do
 export const purgeOldMedia = onSchedule({ schedule: 'every sunday 05:00', timeZone: 'Europe/Madrid', region: 'europe-west1', timeoutSeconds: 540 }, async () => {
 	const name = getApp().options.storageBucket;

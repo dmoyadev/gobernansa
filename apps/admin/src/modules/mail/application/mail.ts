@@ -10,7 +10,7 @@ import { formatInviteCode } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { doc, serverTimestamp } from 'firebase/firestore';
 
-// 'extension' once Firebase's Trigger Email extension is installed (docs/firebase.md). Until then they're kept, nothing is sent
+// 'extension' once Firebase's Trigger Email extension is installed (docs/datos.md#correo). Until then they're kept, nothing is sent
 export const MAIL_MODE: MailMode = import.meta.env.VITE_MAIL_MODE === 'extension' ? 'extension' : 'demo';
 
 // The neighbours' app, for the links that go to it

@@ -1,67 +1,66 @@
-# Firebase Firestore Seed Script
+# seed
 
-Loads a complete demo of gobernança: three communities, their census and people, and data for every screen of both apps.
+Carga una demo completa de gobernança: tres comunidades, su censo y su gente, y datos para cada pantalla de las dos apps.
 
-## 🔑 Configuration
+## Configuración
 
-Only needed for the live project, the emulators don't use it:
+Solo para el proyecto real; los emuladores no la usan:
 
-1. Go to Firebase Console
-2. Project Settings → Service Accounts
-3. Generate private key
-4. Save as `serviceAccountKey.local.json`
+1. Firebase console → **Project settings → Service accounts**.
+2. **Generate new private key**.
+3. Guárdala como `serviceAccountKey.local.json` en esta carpeta (git la ignora).
 
-## ▶️ Usage
+## Uso
 
 ```bash
 npm run seed
 ```
 
-It asks, step by step:
+Pregunta, paso a paso:
 
-1. **Where**: the local emulators (start them first with `npm run emulators`), the demo project (`serviceAccountKey.demo.local.json`, see docs/firebase.md, section 8) or the live project, which has to be confirmed by typing its id. `npm run seed:emulators` skips this question.
-2. **What to do**: leave the whole demo as new (empties every demo collection and loads everything) or choose.
-3. **What to delete**, by group, with how many documents each has now, and **how**: exactly the documents the seed makes (what was created by hand stays, even under them), or the whole collections (also what was created by hand, and other groups' documents in them, which it offers to load again).
-4. **What to load**, by group, adding the groups the chosen ones need when they aren't there, and **how**: overwriting the demo documents or creating only the missing ones.
-5. **Auth** (emulator and demo project only): recreate the demo accounts, so each one signs in with `DEMO_PASSWORD` from `.env.demo.local` (without it, by asking for a new password by email). Neighbours without an account get their access letter from the admin's "Vecinos y gestores".
+1. **Dónde**: los emuladores locales (arráncalos antes con `npm run emulators`), el proyecto de demo (`serviceAccountKey.demo.local.json`, ver [proyecto de demo](../../docs/setup.md#proyecto-demo)) o el proyecto real, que hay que confirmar escribiendo su id. `npm run seed:emulators` se salta esta pregunta.
+2. **Qué hacer**: dejar la demo entera como nueva (vacía cada colección de la demo y lo carga todo) o elegir.
+3. **Qué borrar**, por grupo, con cuántos documentos tiene ahora cada uno, y **cómo**: exactamente los documentos que crea el seed (lo creado a mano se queda, aunque cuelgue de ellos) o las colecciones enteras (también lo creado a mano, y los documentos de otros grupos que haya en ellas, que ofrece volver a cargar).
+4. **Qué cargar**, por grupo, añadiendo los grupos que necesitan los elegidos cuando no están, y **cómo**: sobrescribiendo los documentos de la demo o creando solo los que faltan.
+5. **Auth** (solo en el emulador y en el proyecto de demo): crear otra vez las cuentas de la demo, para que cada una entre con `DEMO_PASSWORD` de `.env.demo.local` (sin ella, pidiendo una contraseña nueva por correo). Los vecinos sin cuenta reciben su carta de acceso desde **Vecinos y gestores** en el admin.
 
-Before touching anything it shows a summary, with the quota it spends on the live project, and asks to go on.
+Antes de tocar nada muestra un resumen, con la cuota que gasta en el proyecto real, y pide seguir.
 
-### Groups
+### Grupos
 
-Each one is a file in `data/`, and `data/cast.js` holds the people, communities, census and providers they share:
+Cada uno es un fichero de `data/`, y `data/cast.js` tiene las personas, comunidades, censo y proveedores que comparten:
 
-| Group | Loads |
+| Grupo | Carga |
 | --- | --- |
-| `core` | Communities, properties, users, invitations, personal documents and the activity log |
-| `maintenance` | Issues with comments, votes and internal notes, providers and ratings, work orders, obligations |
-| `meetings` | Meetings with attendance, votes, minutes and notices, announcements and the mail outbox |
-| `charges` | Budgets, fees and charges, online payments, debt claims and SEPA remittances |
-| `accounting` | Supplier invoices, payment orders, bank movements, journal entries and the closed year |
-| `bookings` | Bookings of the common areas |
-| `billing` | The office's fee invoices and its Verifactu registry |
-| `errors` | The apps' errors for the team's Errores page |
+| `core` | Comunidades, inmuebles, usuarios, invitaciones, documentos personales y el registro de actividad |
+| `maintenance` | Incidencias con comentarios, votos y notas internas, proveedores y valoraciones, partes de trabajo, obligaciones |
+| `meetings` | Juntas con asistencia, votaciones, actas y avisos, comunicados y el correo saliente |
+| `charges` | Presupuestos, cuotas y cargos, pagos en línea, reclamaciones de deuda y remesas SEPA |
+| `accounting` | Facturas de proveedores, órdenes de pago, movimientos bancarios, asientos y el ejercicio cerrado |
+| `bookings` | Reservas de las zonas comunes |
+| `billing` | Las facturas de honorarios del despacho y su registro Verifactu |
+| `errors` | Los errores de las apps para la página **Errores** del equipo |
 
-Dates are relative to the day it runs, so the demo always has upcoming meetings, recent issues and overdue charges.
+Las fechas son relativas al día en que se ejecuta, así que la demo siempre tiene juntas próximas, incidencias recientes y cargos vencidos.
 
-### Without questions
+### Sin preguntas
 
-Any flag skips them, e.g. in a script:
+Cualquier opción se las salta, p. ej. en un script:
 
 ```bash
 FIRESTORE_EMULATOR_HOST=127.0.0.1:5502 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:5501 node scripts/seed/seed.js --reset --only=core,meetings
 ```
 
-- `--only=<groups>` loads only those groups (all by default)
-- `--reset` empties their collections first
-- `--yes` loads everything without other flags
-- `--volume` adds 38 generated communities with about 2.000 homes to Fincas Jaén, to try the admin at the size of a real office (about 3.200 more writes; `npm run seed:demo -- --volume`)
-- `--demo` writes to the demo project, accounts included (`npm run seed:demo` is `--demo --reset`)
-- Without `FIRESTORE_EMULATOR_HOST` nor `--demo` it writes to the live project, and then it needs `--project=<project id>` to confirm it
+- `--only=<grupos>` carga solo esos grupos (todos por defecto).
+- `--reset` vacía antes sus colecciones.
+- `--yes` lo carga todo sin más opciones.
+- `--volume` añade a Fincas Jaén 38 comunidades generadas con unas 2.000 viviendas, para probar el admin al tamaño de un despacho real (unas 3.200 escrituras más; `npm run seed:demo -- --volume`).
+- `--demo` escribe en el proyecto de demo, cuentas incluidas (`npm run seed:demo` es `--demo --reset`).
+- Sin `FIRESTORE_EMULATOR_HOST` ni `--demo` escribe en el proyecto real, y entonces necesita `--project=<id del proyecto>` para confirmarlo.
 
-## ⚠️ Limitations
+## A tener en cuenta
 
-- On the live project every count, delete and write counts against the free plan's daily quota (20,000 writes and deletes, 50,000 reads). The whole demo is a small part of it, but don't run it several times a day.
-- The live project's Auth accounts are never touched: the demo users with a real account keep their uids, the others only exist in the emulator.
-- The fees start 220 days before the day it runs, so the debts keep their ages. Seeded between January and early August, that falls in the previous year, and the fiscal pages (fees, closed year, taxes) mix it with the calendar year.
-- No data validation beyond the paths: it may insert inconsistent data if a group contains errors.
+- En el proyecto real, cada recuento, borrado y escritura gasta la cuota diaria del plan gratuito (20.000 escrituras y borrados, 50.000 lecturas). La demo entera es una parte pequeña, pero no la cargues varias veces al día.
+- Nunca toca las cuentas de Auth del proyecto real: los usuarios de la demo con cuenta real conservan sus uids, y los demás solo existen en el emulador.
+- Las cuotas empiezan 220 días antes del día en que se ejecuta, para que las deudas mantengan su antigüedad. Cargada entre enero y principios de agosto, eso cae en el año anterior, y las páginas fiscales (cuotas, ejercicio cerrado, impuestos) lo mezclan con el año natural.
+- No valida los datos más allá de las rutas: puede insertar datos incoherentes si un grupo tiene errores.

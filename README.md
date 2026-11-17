@@ -53,19 +53,8 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 
 - **Cada push a `main`:** CI despliega las reglas de Firestore, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing`, la landing en GitHub Pages.
 - **Cada pull request:** la webapp y el admin en un canal de vista previa.
-- **A mano:** los índices, las reglas de Storage y las functions ([docs/firebase.md](docs/firebase.md)).
+- **A mano:** los índices, las reglas de Storage y las functions ([docs/setup.md](docs/setup.md)).
 
 ## Documentación
 
-| Doc | Para qué |
-| --- | --- |
-| [v1.md](docs/v1.md) | Qué falta para presentar gobernança a los despachos |
-| [competencia.md](docs/competencia.md) | El mercado y los competidores, con los huecos por cubrir |
-| [fiabilidad.md](docs/fiabilidad.md) | Monitorización, copias y robustez |
-| [firebase.md](docs/firebase.md) | Configuración del proyecto de Firebase, roles y modelo de datos |
-| [desarrollo.md](docs/desarrollo.md) | Arrancar, puertos, convenciones y problemas habituales |
-| [speech.md](docs/speech.md), [demo.md](docs/demo.md) | La visita a un despacho y el guion de la demo |
-| [alta-despacho.md](docs/alta-despacho.md) | Dar de alta un despacho nuevo |
-| [rebranding.md](docs/rebranding.md) | El cambio de nombre y logo |
-
-Un proyecto hecho con 💚 por [Daniel Moya](https://dmoya.dev).
+El índice está en [docs/README.md](docs/README.md), y todo lo abierto en [docs/pendiente.md](docs/pendiente.md).
