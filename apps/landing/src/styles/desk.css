@@ -1,0 +1,639 @@
+/* The office's side: the admin in a browser window, played like the phone. Classes on .ad-desk decide
+   what it shows; the knob for its size is the stage's font-size, and it is never narrower than 30em */
+.app-office {
+	padding-top: 56px;
+}
+
+.ad-stage {
+	font-size: min(11.5px, (100vw - 40px) / 30);
+}
+
+.ad-stage .app-arch {
+	width: min(100%, 44em);
+	height: 25.8em;
+	border-radius: 2.5em 2.5em 1.5em 1.5em;
+}
+
+.ad-desk {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	width: min(100%, 38em);
+	height: 27em;
+	overflow: hidden;
+	border: 1.5px solid var(--ink);
+	border-radius: 1em;
+	background: #fff;
+	box-shadow: 6px 6px 0 var(--accent);
+	color: var(--ink);
+	line-height: 1.3;
+	text-align: left;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.ad-desk b {
+	color: var(--ink);
+	font-family: var(--heading);
+	font-weight: 700;
+}
+
+.ad-desk small {
+	display: block;
+	color: var(--muted);
+	font-size: 0.85em;
+}
+
+.ad-desk em {
+	font-style: normal;
+}
+
+.ad-chrome {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 0.45em;
+	height: 2.4em;
+	padding-inline: 0.9em;
+	border-bottom: 1.5px solid var(--ink);
+	background: var(--sand);
+}
+
+.ad-chrome i {
+	width: 0.75em;
+	height: 0.75em;
+	border: 1.5px solid var(--ink);
+	border-radius: 50%;
+	background: #fff;
+}
+
+.ad-chrome i:first-child {
+	background: var(--accent);
+}
+
+.ad-chrome span {
+	flex: 1;
+	margin: 0 2.4em 0 1em;
+	padding: 0.2em 1em;
+	overflow: hidden;
+	border-radius: 999px;
+	background: #fff;
+	color: var(--muted);
+	font-size: 0.85em;
+	text-align: center;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ad-nav {
+	display: flex;
+	flex: none;
+	align-items: stretch;
+	gap: 1.5em;
+	height: 3.2em;
+	padding-inline: 1.3em;
+	border-bottom: 1px solid var(--line);
+}
+
+.ad-nav img {
+	align-self: center;
+	width: auto;
+	height: 1.2em;
+	margin-right: auto;
+}
+
+.ad-tab {
+	position: relative;
+	display: flex;
+	align-items: center;
+	color: var(--muted);
+	font: 600 0.95em var(--heading);
+	transition: color 0.3s;
+}
+
+.ad-tab::after {
+	content: '';
+	position: absolute;
+	inset: auto 0 -1px;
+	height: 0.2em;
+	border-radius: 0.2em;
+	background: var(--accent);
+	transform: scaleX(0);
+	transition: transform 0.3s;
+}
+
+.ad-bills .ad-tab-bills,
+.ad-issues .ad-tab-issues,
+.ad-meeting .ad-tab-meeting {
+	color: var(--ink);
+}
+
+.ad-bills .ad-tab-bills::after,
+.ad-issues .ad-tab-issues::after,
+.ad-meeting .ad-tab-meeting::after {
+	transform: none;
+}
+
+.ad-screen {
+	position: relative;
+	flex: 1;
+	overflow: hidden;
+	background: var(--paper);
+}
+
+/* Pages fade in where they are, like on a computer */
+.ad-view {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.9em;
+	padding: 1.2em 1.3em;
+	background: var(--paper);
+	opacity: 0;
+	transform: translateY(0.8em);
+	transition: opacity 0.35s, transform 0.45s cubic-bezier(0.3, 0.8, 0.2, 1);
+}
+
+.ad-v-home,
+.ad-bills .ad-v-bills,
+.ad-issues .ad-v-issues,
+.ad-meeting .ad-v-meeting {
+	opacity: 1;
+	transform: none;
+}
+
+.ad-title {
+	font-size: 1.25em;
+}
+
+.ad-title small {
+	margin-top: 0.15em;
+	font: 400 0.68em 'Inter Tight', system-ui, sans-serif;
+}
+
+.ad-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1em;
+}
+
+.ad-button {
+	flex: none;
+	padding: 0.55em 1em;
+	border-radius: 0.6em;
+	background: var(--ink);
+	color: #fff;
+	font: 600 0.9em var(--heading);
+	text-align: center;
+	transition: background 0.3s;
+}
+
+.ad-remit .ad-v-bills .ad-button,
+.ad-sent .ad-drawer .ad-button,
+.ad-close .ad-v-meeting .ad-button {
+	background: var(--teal-ink);
+}
+
+.ad-tiles {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.7em;
+}
+
+.ad-tiles span,
+.ad-rows,
+.ad-votes li {
+	border: 1px solid var(--line);
+	border-radius: 0.7em;
+	background: #fff;
+}
+
+.ad-tiles span {
+	padding: 0.7em 0.8em;
+}
+
+.ad-tiles b {
+	display: block;
+	margin-top: 0.2em;
+	font-size: 1.5em;
+}
+
+.ad-rows {
+	display: grid;
+	overflow: hidden;
+}
+
+.ad-rows > span {
+	display: grid;
+	align-items: center;
+	gap: 0 0.8em;
+	padding: 0.6em 0.9em;
+}
+
+.ad-rows > span + span {
+	border-top: 1px solid var(--line);
+}
+
+.ad-rows em {
+	font-weight: 600;
+	font-size: 0.9em;
+	text-align: right;
+}
+
+.ad-desk .ad-red {
+	color: var(--accent-ink);
+}
+
+.ad-cartera > span {
+	grid-template-columns: 1fr 5.5em 5em;
+}
+
+.ad-receipts > span {
+	grid-template-columns: 1.1em 2.6em 1fr auto;
+}
+
+.ad-receipts > span:first-child small {
+	grid-column: 2 / -1;
+}
+
+/* Ticked one after the other, down the list */
+.ad-check {
+	width: 1.1em;
+	height: 1.1em;
+	border: 1.5px solid var(--ink);
+	border-radius: 0.3em;
+	background: #fff;
+	transition: background 0.2s calc(var(--n, 0) * 0.09s);
+}
+
+.ad-check::after {
+	content: '';
+	display: block;
+	width: 0.32em;
+	height: 0.58em;
+	margin: 0.08em auto 0;
+	border: solid #fff;
+	border-width: 0 0.14em 0.14em 0;
+	transform: rotate(45deg) scale(0);
+	transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--n, 0) * 0.09s);
+}
+
+.ad-checked .ad-check {
+	background: var(--ink);
+}
+
+.ad-checked .ad-check::after {
+	transform: rotate(45deg);
+}
+
+/* The file for the bank pops up at the bottom */
+.ad-toast {
+	position: absolute;
+	inset: auto 1.3em 1.1em;
+	display: flex;
+	align-items: center;
+	gap: 0.8em;
+	padding: 0.75em 0.9em;
+	border: 1.5px solid var(--ink);
+	border-radius: 0.8em;
+	background: #fff;
+	box-shadow: 3px 3px 0 var(--ink);
+	opacity: 0;
+	transform: translateY(150%);
+	transition: transform 0.5s cubic-bezier(0.3, 1.3, 0.5, 1), opacity 0.3s;
+}
+
+.ad-file .ad-toast {
+	opacity: 1;
+	transform: none;
+}
+
+.ad-toast svg,
+.ad-acta svg {
+	flex: none;
+	width: 2em;
+	height: 2em;
+	fill: none;
+	stroke: var(--ink);
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.ad-toast > span {
+	flex: 1;
+	min-width: 0;
+}
+
+.ad-ok,
+.ad-badge,
+.ad-state em {
+	flex: none;
+	padding: 0.25em 0.7em;
+	border-radius: 999px;
+	font: 700 0.8em var(--heading);
+}
+
+.ad-ok {
+	background: #dcefeb;
+	color: var(--teal-ink);
+}
+
+.ad-issue-list > span {
+	grid-template-columns: 2.4em 1fr auto;
+	transition: background 0.3s;
+}
+
+.ad-open .ad-new {
+	background: var(--sand);
+}
+
+.ad-desk .ad-badge {
+	background: #fbe2e1;
+	color: var(--accent-ink);
+	font-size: 0.75em;
+}
+
+/* Photos of the damage, drawn: a wet wall, a light, a door */
+.ad-photo {
+	width: 2.4em;
+	height: 2.4em;
+	border-radius: 0.5em;
+	background: radial-gradient(ellipse 30% 40% at 55% 35%, #4a7aa3, transparent), linear-gradient(160deg, #c9d6e2, #8fa9bf);
+}
+
+.ad-photo-2 {
+	background: radial-gradient(circle at 50% 40%, #ffcf70 0 18%, transparent 40%), linear-gradient(#5d6875, #3b4a5a);
+}
+
+.ad-photo-3 {
+	background: repeating-linear-gradient(90deg, #8cc2ae 0 0.3em, #6aa792 0 0.6em);
+}
+
+/* The issue opens in a panel from the right */
+.ad-drawer {
+	position: absolute;
+	inset: 0 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.55em;
+	width: min(64%, 20em);
+	padding: 1.1em 1.2em;
+	border-left: 1.5px solid var(--ink);
+	background: #fff;
+	box-shadow: -10px 0 24px #0228421f;
+	transform: translateX(105%);
+	transition: transform 0.5s cubic-bezier(0.3, 0.8, 0.2, 1);
+}
+
+.ad-open .ad-drawer {
+	transform: none;
+}
+
+.ad-drawer .ad-photo {
+	width: 100%;
+	height: 4.4em;
+}
+
+.ad-drawer .ad-button {
+	align-self: stretch;
+}
+
+/* The trade, picked: the placeholder gives way to the name */
+.ad-field {
+	display: grid;
+	align-self: stretch;
+	padding: 0.5em 0.8em;
+	border: 1.5px dashed #cbd5e0;
+	border-radius: 0.6em;
+	transition: border-color 0.3s;
+}
+
+.ad-field em {
+	grid-area: 1 / 1;
+	color: var(--muted);
+	transition: opacity 0.25s;
+}
+
+.ad-field em + em {
+	color: var(--ink);
+	font-weight: 600;
+	opacity: 0;
+}
+
+.ad-pick .ad-field {
+	border-style: solid;
+	border-color: var(--ink);
+}
+
+.ad-pick .ad-field em {
+	opacity: 0;
+}
+
+.ad-pick .ad-field em + em {
+	opacity: 1;
+}
+
+/* Where the job is, one news at a time */
+.ad-state {
+	display: grid;
+}
+
+.ad-state em {
+	grid-area: 1 / 1;
+	justify-self: start;
+	background: #e3edf5;
+	color: var(--primary);
+	opacity: 0;
+	transform: translateY(0.4em);
+	transition: opacity 0.3s, transform 0.3s;
+}
+
+.ad-state em:last-child {
+	background: #dcefeb;
+	color: var(--teal-ink);
+}
+
+.ad-sent:not(.ad-planned) .ad-state em:first-child,
+.ad-planned:not(.ad-fixed) .ad-state em:nth-child(2),
+.ad-fixed .ad-state em:last-child {
+	opacity: 1;
+	transform: none;
+}
+
+.ad-live::before {
+	content: '';
+	display: inline-block;
+	width: 0.55em;
+	height: 0.55em;
+	margin-right: 0.4em;
+	border-radius: 50%;
+	background: var(--accent);
+}
+
+.app-run .ad-live::before {
+	animation: app-blink 1.2s steps(1) infinite;
+}
+
+.ad-votes {
+	display: grid;
+	gap: 0.6em;
+	padding: 0;
+	list-style: none;
+}
+
+.ad-votes li {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 0.45em 0.8em;
+	padding: 0.7em 0.9em;
+}
+
+.ad-votes span {
+	grid-column: 1 / -1;
+	height: 0.5em;
+	overflow: hidden;
+	border-radius: 0.5em;
+	background: var(--sand);
+}
+
+/* The votes come in, each point a little after the one above */
+.ad-votes i {
+	display: block;
+	width: var(--yes);
+	height: 100%;
+	border-radius: inherit;
+	background: var(--primary);
+	transform: scaleX(0);
+	transform-origin: left;
+	transition: transform 2.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.ad-votes li + li i {
+	transition-delay: 0.3s;
+}
+
+.ad-votes li + li + li i {
+	transition-delay: 0.6s;
+}
+
+.ad-tally .ad-votes i {
+	transform: none;
+}
+
+/* The minutes rise like a sheet of paper, and the stamp lands on them */
+.ad-acta {
+	position: absolute;
+	inset: 1.2em 50% -1em auto;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-content: start;
+	gap: 0.5em 1em;
+	width: 19em;
+	margin-right: -9.5em;
+	padding: 1.2em 1.3em;
+	border: 1.5px solid var(--ink);
+	border-radius: 0.6em 0.6em 0 0;
+	background: #fff;
+	box-shadow: 0 -6px 30px #02284226;
+	transform: translateY(110%);
+	transition: transform 0.6s cubic-bezier(0.3, 1.1, 0.4, 1);
+}
+
+.ad-minutes .ad-acta {
+	transform: none;
+}
+
+.ad-acta b,
+.ad-acta small,
+.ad-acta i {
+	grid-column: 1;
+}
+
+.ad-acta i {
+	height: 0.45em;
+	border-radius: 0.3em;
+	background: var(--sand);
+}
+
+.ad-acta i:nth-of-type(2n) {
+	width: 80%;
+}
+
+.ad-acta svg {
+	grid-column: 2;
+	grid-row: 3 / span 4;
+	width: 4em;
+	height: 4em;
+	fill: var(--ink);
+	fill-rule: evenodd;
+	stroke: none;
+}
+
+.ad-stamp {
+	grid-column: 1;
+	justify-self: start;
+	margin-top: 0.6em;
+	padding: 0.2em 0.8em;
+	border: 2px solid var(--accent-ink);
+	border-radius: 0.4em;
+	color: var(--accent-ink);
+	font: 800 0.95em var(--heading);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	opacity: 0;
+	transform: rotate(-8deg) scale(1.8);
+	transition: opacity 0.2s 0.5s, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) 0.5s;
+}
+
+.ad-minutes .ad-stamp {
+	opacity: 1;
+	transform: rotate(-8deg);
+}
+
+/* The mouse: its tip lands on the point the script gives it */
+.ad-cursor {
+	width: 1.5em;
+	margin: 0;
+}
+
+.ad-cursor svg {
+	stroke-width: 1.3;
+	filter: drop-shadow(1.5px 1.5px 0 var(--ink));
+	transform-origin: 0 0;
+}
+
+.ad-cursor .app-touch {
+	top: 0;
+	left: 0;
+}
+
+@keyframes app-blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+@keyframes app-refresh {
+	from {
+		opacity: 0;
+		transform: translateY(0.5em);
+	}
+}
+
+@media (min-width: 860px) {
+	/* The office the other way round: the words on the left, the window on the right */
+	.app-office {
+		grid-template-columns: 1fr 1.3fr;
+		grid-template-areas: '. stage' 'head stage' 'flows stage' '. stage';
+		padding-top: 72px;
+	}
+
+	.app-office .app-stage {
+		font-size: clamp(11px, 1.2vw + 1px, 15px);
+	}
+}

@@ -1,0 +1,43 @@
+/* Header: above the hero's night, which reaches up behind it */
+.top {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding-block: 18px;
+}
+
+.top img {
+	width: 132px;
+}
+
+/* The same logo with white letters, laid on top at night */
+.logo {
+	display: grid;
+}
+
+.logo img {
+	grid-area: 1 / 1;
+}
+
+.night-logo {
+	opacity: 0;
+}
+
+.top .button {
+	min-height: 42px;
+	padding-inline: 18px;
+	font-size: 14px;
+}
+
+@media (min-width: 860px) {
+	.top {
+		padding-block: 26px;
+	}
+
+	.top img {
+		width: 150px;
+	}
+}

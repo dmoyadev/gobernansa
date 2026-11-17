@@ -13,7 +13,7 @@ Monorepo con workspaces de npm. Cada carpeta tiene su README.
 | --- | --- |
 | [`apps/webapp`](apps/webapp) | La webapp de los vecinos, en [gobernansa.dmoya.dev](https://gobernansa.dmoya.dev) |
 | [`apps/admin`](apps/admin) | El admin de los despachos, en [admin.gobernansa.dmoya.dev](https://admin.gobernansa.dmoya.dev) |
-| `apps/landing` | La página comercial: HTML sin build, publicado en GitHub Pages |
+| [`apps/landing`](apps/landing) | La página comercial, sin framework, publicada en GitHub Pages |
 | [`apps/functions`](apps/functions) | Cloud Functions del historial y los plazos de conservación. Necesitan el plan de pago y aún no están desplegadas |
 | [`packages/shared`](packages/shared) | Dominio, Firebase, sesión, tema y componentes que usan las dos apps |
 | `firebase/` | Reglas de Firestore y de Storage e índices de Firestore |
@@ -36,11 +36,11 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 | Comando | Qué hace |
 | --- | --- |
 | `npm run dev` | Emuladores, seed desde cero y las dos apps |
-| `npm run dev:webapp`, `npm run dev:admin` | Solo esa app |
+| `npm run dev:webapp`, `dev:admin`, `dev:landing` | Solo esa app, o la landing |
 | `npm run emulators` | Solo los emuladores |
 | `npm run check` | ESLint y tipos de las dos apps, en paralelo |
 | `npm run lint` | ESLint arreglando lo que pueda |
-| `npm run build` | Build de producción de las dos apps |
+| `npm run build` | Build de producción de las dos apps y la landing |
 | `npm run clean` | Borra builds, cachés de Vite y logs |
 | `npm run seed`, `seed:emulators`, `seed:demo` | Carga los datos de prueba ([scripts/seed](scripts/seed/README.md)) |
 | `npm run demo`, `demo:reset` | La demo comercial en el portátil, sin internet ([docs/demo.md](docs/demo.md)) |
@@ -51,7 +51,7 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 
 ## Despliegue
 
-- **Cada push a `main`:** CI despliega las reglas de Firestore, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing`, la landing en GitHub Pages.
+- **Cada push a `main`:** CI despliega las reglas de Firestore, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing` o el tema, construye la landing y la publica en GitHub Pages.
 - **Cada pull request:** la webapp y el admin en un canal de vista previa.
 - **A mano:** los índices, las reglas de Storage y las functions ([docs/setup.md](docs/setup.md)).
 

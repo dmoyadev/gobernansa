@@ -1,0 +1,13 @@
+{
+	"name": "@gobernansa/landing",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"dev": "vite --host --port 5404",
+		"build": "vite build",
+		"preview": "vite preview --host --port 5414"
+	},
+	"dependencies": {
+		"@gobernansa/shared": "*"
+	}
+}

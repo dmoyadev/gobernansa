@@ -1,0 +1,19 @@
+/* One file per section, in the order they show up. Rules for the computer go at the end of each, from 860px */
+@import '@gobernansa/shared/theme/colors.scss';
+@import './base.css';
+@import './header.css';
+@import './hero.css';
+@import './marquee.css';
+@import './timeline.css';
+@import './showcase.css';
+@import './features.css';
+@import './phone.css';
+@import './phone-issue.css';
+@import './phone-vote-booking.css';
+@import './flows.css';
+@import './desk.css';
+@import './pilot.css';
+@import './cta.css';
+@import './faq.css';
+@import './contact.css';
+@import './footer.css';

@@ -30,8 +30,8 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 | --- | --- |
 | 5400 · 5401 | Webapp y admin, `https://` (`npm run dev`, `dev:webapp`, `dev:admin`) |
 | 5402 · 5403 | Demo local: webapp y admin, `http://` (`npm run demo`) |
-| 5404 | Landing: `python3 -m http.server 5404 -d apps/landing` |
-| 5410 · 5411 | Vista del build de la webapp y del admin (`npm run preview -w apps/webapp`) |
+| 5404 | Landing, `http://` (`npm run dev:landing`) |
+| 5410 · 5411 · 5414 | Vista del build de la webapp, del admin y de la landing (`npm run preview -w apps/webapp`) |
 | 5500 | Interfaz de los emuladores: datos, cuentas y logs |
 | 5501 · 5502 · 5504 · 5505 | Emuladores de Auth, Firestore, Storage y Functions |
 | 5503 · 5506 … 5509 | Uso interno de los emuladores: el websocket de Firestore, el hub, los logs, Eventarc y Cloud Tasks |

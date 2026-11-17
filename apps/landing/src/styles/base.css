@@ -1,0 +1,129 @@
+/* Served from here, like in the apps: no visitor's IP reaches Google */
+@font-face {
+	font-family: 'Plus Jakarta Sans';
+	font-weight: 200 800;
+	font-display: swap;
+	src: url('../../fonts/plus-jakarta-sans-normal-latin.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'Inter Tight';
+	font-weight: 100 900;
+	font-display: swap;
+	src: url('../../fonts/inter-tight-normal-latin.woff2') format('woff2');
+}
+
+:root {
+	/* The apps' own blues and neutrals (packages/shared/theme), so the page looks like what the office will use; the coral and the text greys are the page's */
+	--paper: var(--color-gray-1);
+	--sand: var(--color-gray-2);
+	--line: var(--color-gray-3);
+	--primary: var(--color-primary);
+	--primary-dark: var(--color-primary-dark);
+	--accent: #e16162;
+	--accent-ink: #b23a40;
+	--teal-ink: #22625f;
+	--ink: var(--color-primary-dark);
+	--text: #3b4a5a;
+	--muted: #6b7684;
+	/* Three radii, on purpose: controls, cards, devices drawn as devices */
+	--radius-s: 6px;
+	--radius: 12px;
+	--hard: none;
+	--heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+	color-scheme: light;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	background: var(--paper);
+	color: var(--text);
+	font: 17px/1.6 'Inter Tight', system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	overflow-x: clip;
+}
+
+.page {
+	overflow: clip;
+}
+
+h1, h2, h3 {
+	color: var(--ink);
+	font-family: var(--heading);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+	text-wrap: balance;
+}
+
+h2 {
+	margin-top: 10px;
+	font-size: clamp(30px, 7.4vw, 48px);
+	font-weight: 800;
+}
+
+p {
+	text-wrap: pretty;
+}
+
+a {
+	color: var(--primary);
+}
+
+img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.wrap {
+	width: min(1120px, 100% - 40px);
+	margin-inline: auto;
+}
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 52px;
+	padding: 0 26px;
+	border: 0;
+	border-radius: var(--radius-s);
+	background: var(--primary);
+	color: #fff;
+	font: 700 16px var(--heading);
+	text-decoration: none;
+	cursor: pointer;
+	transition: transform 0.15s, background 0.15s;
+}
+
+.button:hover {
+	background: var(--primary-dark);
+}
+
+.button:active {
+	transform: translateY(1px);
+}
+
+:focus-visible {
+	outline: 3px solid #e1616288;
+	outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+
+	*, *::before, *::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}

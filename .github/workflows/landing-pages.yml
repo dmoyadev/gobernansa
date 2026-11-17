@@ -5,6 +5,9 @@ on:
       - main
     paths:
       - apps/landing/**
+      - packages/shared/theme/**
+      - package-lock.json
+      - .github/workflows/landing-pages.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,9 +22,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # The page as it is, no build: only what git tracks in apps/landing goes up
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # Vite joins the section files and takes the colours from packages/shared/theme; only dist goes up
+      - run: npm ci && npm run build -w apps/landing
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/landing
+          path: apps/landing/dist
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -1,0 +1,52 @@
+/* Phones always have the floating button; desktop gets a call at the end of some sections instead */
+.cta {
+	display: none;
+}
+
+@media (min-width: 860px) {
+	.cta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: center;
+		gap: 16px 24px;
+		color: var(--ink);
+		font: 700 19px var(--heading);
+	}
+
+	.fx-features .cta {
+		margin-top: 48px;
+	}
+
+	.app-flows .cta {
+		justify-content: flex-start;
+		margin-top: 36px;
+	}
+}
+
+/* Phones: a floating «Pide una demo», hidden over the hero, the form and the footer */
+.sticky {
+	position: fixed;
+	left: 20px;
+	right: 24px;
+	bottom: calc(18px + env(safe-area-inset-bottom));
+	z-index: 10;
+	transform: translateY(calc(100% + 40px));
+	transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.2, 1.1);
+}
+
+.sticky.shown {
+	transform: none;
+}
+
+.sticky .button {
+	width: 100%;
+	border: 1.5px solid var(--ink);
+	box-shadow: var(--hard);
+}
+
+@media (min-width: 860px) {
+	.sticky {
+		display: none;
+	}
+}

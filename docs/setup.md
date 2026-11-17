@@ -133,7 +133,7 @@ El admin (`apps/admin`) tiene su propio sitio de Hosting, `gobernansa-admin`, ju
 
 Para desplegar a mano: `npm run build && npx firebase deploy --only hosting:admin` (o `hosting:webapp`).
 
-**Landing.** `apps/landing` es una página HTML sin build que sirve GitHub Pages: cada push a `main` que la toca la despliega (`.github/workflows/landing-pages.yml`), una vez puesto **Settings → Pages → Source** en GitHub Actions. Sus rutas son relativas, así que funciona tanto bajo `/gobernansa/` como en su propio dominio ([A2](v1.md#a2)). Su formulario de demo no toca Firebase: manda cada solicitud a un bot de Telegram, cuya dirección, con el token y el id del chat, va en una constante, `BOT`, al revés y en base64. Eso solo aparta a los buscadores de tokens; quien lea el código puede sacarlo: si alguien abusa del bot, revoca el token en @BotFather y pon el nuevo.
+**Landing.** `apps/landing` es una página sin framework que construye Vite y sirve GitHub Pages: cada push a `main` que la toca, o toca el tema compartido, la construye y publica su `dist` (`.github/workflows/landing-pages.yml`), una vez puesto **Settings → Pages → Source** en GitHub Actions. Sus rutas son relativas, así que funciona tanto bajo `/gobernansa/` como en su propio dominio ([A2](v1.md#a2)). Su formulario de demo no toca Firebase: manda cada solicitud a un bot de Telegram, cuya dirección, con el token y el id del chat, va en una constante de `src/sections/contact.js`, `BOT`, al revés y en base64. Eso solo aparta a los buscadores de tokens; quien lea el código puede sacarlo: si alguien abusa del bot, revoca el token en @BotFather y pon el nuevo.
 
 <a id="pwa"></a>
 

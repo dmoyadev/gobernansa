@@ -1,0 +1,308 @@
+/* Pilot: an admission ticket, stamped the first time it comes into view */
+.pl-section {
+	padding-block: 72px 104px;
+}
+
+.pl-head {
+	max-width: 880px;
+	margin-inline: auto;
+}
+
+.pl-head p {
+	max-width: 30em;
+	margin: 14px 0 0;
+	font-size: 18px;
+}
+
+/* The hero's hand-drawn underline, under «sin pagar» */
+
+.pl-ticket {
+	display: grid;
+	max-width: 880px;
+	margin: 48px auto 0;
+	border-radius: var(--radius);
+	background: var(--primary);
+	color: #d6e2ee;
+}
+
+.pl-label {
+	display: block;
+	color: #9fb3c6;
+	font: 700 12px var(--heading);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+}
+
+/* Faint security-print arcs, like on a real ticket */
+.pl-stub {
+	position: relative;
+	padding: 26px 24px 24px;
+	border-radius: var(--radius) var(--radius) 0 0;
+	background: repeating-radial-gradient(circle at 0 100%, #ffffff0d 0 1px, #0000 1.5px 9px);
+}
+
+.pl-price {
+	display: block;
+	margin-top: 10px;
+	color: #fff;
+	font: 800 clamp(68px, 19vw, 100px) / 0.95 var(--heading);
+	letter-spacing: -0.045em;
+}
+
+.pl-term {
+	display: block;
+	margin-top: 10px;
+	color: #ffdca0;
+	font: 700 18px var(--heading);
+}
+
+/* A made-up barcode: three runs of an uneven stripe pattern */
+.pl-code {
+	display: block;
+	width: 183px;
+	height: 32px;
+	margin-top: 24px;
+	background: repeating-linear-gradient(90deg, #d6e2ee99 0 2px, #0000 0 3px, #d6e2ee99 0 4px, #0000 0 6px, #d6e2ee99 0 9px, #0000 0 10px, #d6e2ee99 0 11px, #0000 0 12px, #d6e2ee99 0 14px, #0000 0 17px, #d6e2ee99 0 18px, #0000 0 19px, #d6e2ee99 0 23px, #0000 0 25px, #d6e2ee99 0 26px, #0000 0 27px, #d6e2ee99 0 29px, #0000 0 30px, #d6e2ee99 0 31px, #0000 0 34px, #d6e2ee99 0 37px, #0000 0 38px, #d6e2ee99 0 39px, #0000 0 41px, #d6e2ee99 0 43px, #0000 0 45px, #d6e2ee99 0 46px, #0000 0 47px, #d6e2ee99 0 50px, #0000 0 52px, #d6e2ee99 0 53px, #0000 0 54px, #d6e2ee99 0 56px, #0000 0 59px, #d6e2ee99 0 60px, #0000 0 61px);
+}
+
+.pl-serial {
+	display: block;
+	margin-top: 6px;
+	color: #9fb3c6;
+	font: 600 12px var(--heading);
+	letter-spacing: 0.18em;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The perforation: a row of holes and two notches, all showing the page through.
+   It sits above the stamp, so where they cross the holes cut through the ink */
+.pl-cut {
+	position: relative;
+	z-index: 1;
+	height: 4px;
+	margin-inline: 20px;
+	background: radial-gradient(circle, var(--paper) 1.5px, #0000 2px) 0 50% / 9px 4px repeat-x;
+}
+
+.pl-cut::before, .pl-cut::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	width: 26px;
+	height: 26px;
+	margin-top: -13px;
+	border-radius: 50%;
+	background: var(--paper);
+}
+
+.pl-cut::before {
+	left: -33px;
+}
+
+.pl-cut::after {
+	right: -33px;
+}
+
+.pl-body {
+	padding: 24px 24px 28px;
+}
+
+.pl-terms {
+	display: grid;
+	gap: 18px;
+	margin-top: 16px;
+	padding: 0;
+	list-style: none;
+	counter-reset: pl-n;
+}
+
+.pl-terms li {
+	display: grid;
+	grid-template-columns: 28px 1fr;
+	column-gap: 10px;
+	font-size: 15.5px;
+	line-height: 1.5;
+	text-wrap: pretty;
+	counter-increment: pl-n;
+}
+
+.pl-terms li::before {
+	content: counter(pl-n, decimal-leading-zero);
+	grid-row: span 2;
+	color: #f59d9a;
+	font: 800 14px / 1.7 var(--heading);
+	font-variant-numeric: tabular-nums;
+}
+
+.pl-terms strong {
+	color: #fff;
+	font: 700 17px / 1.35 var(--heading);
+	text-wrap: balance;
+}
+
+.pl-terms span {
+	margin-top: 3px;
+}
+
+/* The stamp, beside the price. A lighter coral than --accent, so its small letters read on the navy */
+.pl-stamp {
+	position: absolute;
+	top: 50px;
+	right: 12px;
+	width: 112px;
+	aspect-ratio: 1;
+	color: #f59d9a;
+}
+
+.pl-stamp svg {
+	position: absolute;
+	overflow: visible;
+}
+
+.pl-ink {
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	font-family: var(--heading);
+	rotate: -14deg;
+}
+
+.pl-hit {
+	top: -25%;
+	left: -25%;
+	width: 150%;
+	height: 150%;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 3;
+	stroke-linecap: round;
+}
+
+/* With the script running, the stamp waits in the air until it comes into view */
+.pl-armed .pl-ink, .pl-armed .pl-hit {
+	opacity: 0;
+}
+
+.pl-stamped .pl-ink {
+	animation: pl-slam 0.45s 0.3s both;
+}
+
+.pl-stamped .pl-hit {
+	animation: pl-pop 0.3s 0.57s both;
+}
+
+.pl-stamped {
+	animation: pl-thud 0.34s 0.57s;
+}
+
+@keyframes pl-slam {
+	0% {
+		opacity: 0;
+		scale: 2.6;
+		animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.4);
+	}
+	60% {
+		opacity: 1;
+		scale: 0.94;
+		animation-timing-function: ease-out;
+	}
+	80% {
+		scale: 1.03;
+	}
+	100% {
+		opacity: 1;
+		scale: 1;
+	}
+}
+
+@keyframes pl-pop {
+	from {
+		opacity: 0;
+		scale: 0.5;
+	}
+	to {
+		opacity: 1;
+		scale: 1;
+	}
+}
+
+/* The ticket gives under the blow, like a pressed button */
+@keyframes pl-thud {
+	35% {
+		translate: 0 3px;
+	}
+}
+
+@media (min-width: 860px) {
+	.pl-section {
+		padding-block: 112px 136px;
+	}
+
+	.pl-ticket {
+		grid-template-columns: 340px 4px 1fr;
+		margin-top: 64px;
+	}
+
+	.pl-stub {
+		display: flex;
+		flex-direction: column;
+		padding: 40px 36px 36px 44px;
+		border-radius: var(--radius) 0 0 var(--radius);
+	}
+
+	.pl-code {
+		margin-top: auto;
+	}
+
+	.pl-term {
+		margin-bottom: 32px;
+	}
+
+	.pl-cut {
+		height: auto;
+		margin: 20px 0;
+		background-position: 50% 0;
+		background-size: 4px 9px;
+		background-repeat: repeat-y;
+	}
+
+	.pl-cut::before, .pl-cut::after {
+		left: 50%;
+		right: auto;
+		margin: 0 0 0 -13px;
+	}
+
+	.pl-cut::before {
+		top: -33px;
+	}
+
+	.pl-cut::after {
+		top: auto;
+		bottom: -33px;
+	}
+
+	.pl-body {
+		padding: 40px 48px 44px 44px;
+	}
+
+	.pl-terms {
+		gap: 22px;
+		margin-top: 20px;
+	}
+
+	.pl-terms li {
+		grid-template-columns: 36px 1fr;
+		font-size: 16px;
+	}
+
+	.pl-terms strong {
+		font-size: 18.5px;
+	}
+
+	/* Here it also crosses the perforation, like a ticket validated at the door */
+	.pl-stamp {
+		top: 62px;
+		right: -24px;
+		width: 148px;
+	}
+}

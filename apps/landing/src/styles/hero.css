@@ -1,0 +1,524 @@
+/* Hero */
+.hero {
+	--street: 56px;
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	gap: 28px;
+	padding-block: 24px var(--street);
+}
+
+/* The street the building stands on, from wall to wall: pavement, kerb and a two-way road down to the marquee.
+   The day one lies under the night and the night one comes in with it; the traffic drives over both */
+.street {
+	--pave: #e2e8f0;
+	--kerb: #cbd5e0;
+	--road: #dbe3eb;
+	--dash: #fff;
+	position: absolute;
+	bottom: 0;
+	height: var(--street);
+	background:
+		repeating-linear-gradient(to right, var(--dash) 0 22px, transparent 0 48px) 0 calc(var(--street) / 2 + 5px) / 100% 2px no-repeat,
+		linear-gradient(var(--pave) 9px, var(--kerb) 0 12px, var(--road) 0);
+}
+
+.hero > .street {
+	left: calc(50% - 50vw);
+	right: calc(50% - 50vw);
+	z-index: -2;
+}
+
+.hero-sky .street {
+	--pave: #1b4a72;
+	--kerb: #0d3150;
+	--road: #0b2a45;
+	--dash: #ffffff38;
+	left: 0;
+	right: 0;
+}
+
+.traffic {
+	position: absolute;
+	left: calc(50% - 50vw);
+	right: calc(50% - 50vw);
+	bottom: 0;
+	height: var(--street);
+}
+
+/* A car seen from the side, facing right. Driving on the right: the near lane goes right, the far one, turned round, left.
+   --x is where each one waits when motion is reduced */
+.car {
+	position: absolute;
+	left: 0;
+	bottom: 4px;
+	width: 46px;
+	height: 18px;
+	translate: var(--x);
+	animation: drive var(--time) linear var(--delay) infinite;
+}
+
+.car.back {
+	bottom: calc(50% - 2px);
+	scale: -1 1;
+	animation-direction: reverse;
+}
+
+/* Its body in its own paint, with dark wheels, a headlight, a tail light and the street through its windows */
+.car::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(circle 1.8px at 43.5px 11px, #fff6d8 95%, transparent),
+		radial-gradient(circle 1.8px at 2.5px 11px, #ff5d5d 95%, transparent),
+		radial-gradient(circle 3px at 11px 15px, #061a2b 95%, transparent),
+		radial-gradient(circle 3px at 36px 15px, #061a2b 95%, transparent),
+		var(--paint);
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 18'%3E%3Cpath fill-rule='evenodd' d='M1 13Q1 9 5 8.5L13 8 18 3.5Q19.5 2 22 2H31Q33.5 2 35 3.5L39 8 42 8.5Q45 9 45 12V14Q45 15 44 15H2Q1 15 1 14ZM19.5 7.5 22 4H26.5V7.5ZM28.5 4H32Q33 4 34 5L36.5 7.5H28.5Z'/%3E%3Ccircle cx='11' cy='15' r='3'/%3E%3Ccircle cx='36' cy='15' r='3'/%3E%3C/svg%3E") 0 0 / 100% 100%;
+}
+
+/* The beam on the road ahead, once it is night */
+.car::after {
+	content: '';
+	position: absolute;
+	left: 43px;
+	top: 4px;
+	width: 72px;
+	height: 14px;
+	background: linear-gradient(to right, #fff1bf59, transparent);
+	clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%);
+	opacity: 0;
+	transition: opacity 0.6s 0.2s;
+}
+
+.night .car::after {
+	opacity: 1;
+}
+
+/* From just off the left edge to just off the right one, whatever the width, headlight beams included */
+@keyframes drive {
+	from {
+		translate: -130px;
+	}
+	to {
+		translate: calc(100vw + 75px);
+	}
+}
+
+/* The night the building brings: a circle that grows from its sun over the whole hero, up behind the header
+   (.page clips what is above it) and down to the street */
+.hero-sky {
+	position: absolute;
+	inset: -200px calc(50% - 50vw) 0;
+	z-index: -1;
+	background: linear-gradient(to top, #12406b, #0c3253 240px, #061a2b 640px);
+	clip-path: circle(0px at var(--sun, 80% 30%));
+	pointer-events: none;
+}
+
+/* Only while night comes or goes, so at rest the circle moves to the sun at once and grows from there.
+   An ease-out the script inverts, to change each text's colour as the edge passes over it */
+.dusking .hero-sky {
+	transition: clip-path 1.2s cubic-bezier(0.5, 1, 0.89, 1);
+}
+
+.hero-sky::before,
+.hero-sky::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	mask: linear-gradient(to top, transparent calc(var(--street) + 16px), #000 50%);
+}
+
+/* Stars in two tiles of different sizes, so they never line up, at any width */
+.hero-sky::before {
+	background:
+		radial-gradient(1.5px 1.5px at 8% 14%, #fff 60%, transparent),
+		radial-gradient(1.5px 1.5px at 31% 62%, #ffffffaa 60%, transparent),
+		radial-gradient(2px 2px at 47% 27%, #ffffffcc 60%, transparent),
+		radial-gradient(1.5px 1.5px at 66% 8%, #fff 60%, transparent),
+		radial-gradient(1.5px 1.5px at 78% 71%, #ffffff99 60%, transparent),
+		radial-gradient(2px 2px at 92% 38%, #ffffffbb 60%, transparent),
+		radial-gradient(1.5px 1.5px at 19% 88%, #ffffff88 60%, transparent);
+	background-size: 340px 280px;
+}
+
+.hero-sky::after {
+	background:
+		radial-gradient(2.5px 2.5px at 24% 30%, #fff 60%, transparent),
+		radial-gradient(2.5px 2.5px at 70% 64%, #fff 60%, transparent);
+	background-size: 520px 430px;
+	animation: twinkle 2.4s ease-in-out infinite alternate paused;
+}
+
+.night .hero-sky {
+	clip-path: circle(var(--reach, 150%) at var(--sun, 80% 30%));
+}
+
+.night .hero-sky::after {
+	animation-play-state: running;
+}
+
+/* While night comes or goes, each of these changes as the edge passes it: the script sets --at */
+.dusking [data-dusk] {
+	transition: color 0.4s var(--at, 0s), background-color 0.4s var(--at, 0s), opacity 0.4s var(--at, 0s);
+}
+
+.night .night-logo {
+	opacity: 1;
+}
+
+.night .top .button,
+.night .actions .button {
+	background: var(--accent);
+	/* The night's darkest navy: --primary-dark falls just short of AA on coral */
+	color: #061a2b;
+}
+
+.night .hero h1 {
+	color: #fff;
+}
+
+.night .hero .lead {
+	color: #c9d6e3;
+}
+
+.night .actions .more {
+	color: #fdf1c7;
+}
+
+.night .hint {
+	color: #9fb3c6;
+}
+
+.hero h1 {
+	margin-top: 14px;
+	font-size: clamp(38px, 10.4vw, 72px);
+	font-weight: 800;
+	letter-spacing: -0.035em;
+	line-height: 1.02;
+}
+
+.hero h1 em {
+	position: relative;
+	z-index: 0;
+	font-style: normal;
+	white-space: nowrap;
+}
+
+/* A hand-drawn underline under «en uno» */
+.hero h1 em::after {
+	content: '';
+	position: absolute;
+	left: -2%;
+	right: -2%;
+	bottom: -0.1em;
+	height: 0.3em;
+	background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 14 C 50 4, 120 2, 197 9' fill='none' stroke='%23e16162' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+	z-index: -1;
+}
+
+.hero .lead {
+	max-width: 34em;
+	margin-top: 20px;
+	font-size: clamp(18px, 4.6vw, 20px);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 14px 22px;
+	margin-top: 28px;
+}
+
+.actions .more {
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.actions .more:hover {
+	text-decoration: underline;
+}
+
+/* The building: each window is a home. Lights come and go, the neighbours write,
+   and hovering it (or tapping it on a phone) brings the night in from the sun */
+.stage {
+	position: relative;
+	width: min(460px, 100%);
+	aspect-ratio: 1 / 1.05;
+	margin-inline: auto;
+	isolation: isolate;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.stage:focus-visible {
+	outline-offset: 8px;
+	border-radius: 28px;
+}
+
+.sun {
+	position: absolute;
+	right: 12%;
+	top: 4%;
+	width: 26%;
+	aspect-ratio: 1;
+	z-index: -1;
+	border-radius: 50%;
+	background: #f8cdbd;
+	transition: background 0.6s, box-shadow 0.6s, transform 0.6s;
+}
+
+/* What stands on the pavement around it: a plane tree, a street lamp, a cypress and two bushes */
+.yard {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.yard * {
+	transition: fill 0.6s 0.2s, opacity 0.6s 0.2s;
+}
+
+.yard .trunk {
+	fill: #a8917f;
+}
+
+.yard .leaf {
+	fill: #8cc2ae;
+}
+
+.yard .lit {
+	fill: #a9d3c2;
+}
+
+.yard .bush {
+	fill: #7fb8a3;
+}
+
+.yard .pole {
+	fill: #8795a3;
+}
+
+.yard .lamp {
+	fill: #e2e8f0;
+}
+
+.yard .glow {
+	opacity: 0;
+}
+
+.building {
+	position: absolute;
+	left: 25%;
+	right: 25%;
+	top: 16%;
+	bottom: 0;
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	grid-template-rows: repeat(5, 1fr) 1.4fr;
+	gap: 5.5% 9%;
+	padding: 11% 10% 0;
+	border-radius: 14px 14px 0 0;
+	background: var(--primary);
+	transition: background 0.6s;
+}
+
+.building::before {
+	content: '';
+	position: absolute;
+	left: 58%;
+	top: -7%;
+	width: 20%;
+	height: 7%;
+	border-radius: 5px 5px 0 0;
+	background: var(--primary-dark);
+}
+
+.building span {
+	border-radius: 4px;
+	background: #0f5a8a;
+	transition: background 0.35s;
+}
+
+.building .on {
+	background: #ffdca0;
+}
+
+.building .help {
+	background: var(--accent);
+	animation: pulse 1.8s ease-out infinite;
+}
+
+.building .door {
+	grid-column: 2 / 4;
+	margin-top: 18%;
+	border-radius: 8px 8px 0 0;
+	background: var(--primary-dark);
+}
+
+.night .stage .sun {
+	background: #fdf1c7;
+	box-shadow: 0 0 0 12px #fdf1c714, 0 0 60px #fdf1c780;
+	transform: scale(0.62);
+}
+
+.night .stage .building {
+	background: #135587;
+}
+
+.night .stage .building span:not(.door, .help) {
+	background: #ffdca0;
+	transition-delay: var(--d, 0s);
+}
+
+.night .yard .trunk {
+	fill: #33475a;
+}
+
+.night .yard .leaf {
+	fill: #2c5f51;
+}
+
+.night .yard .lit {
+	fill: #3d7564;
+}
+
+.night .yard .bush {
+	fill: #2a5a4d;
+}
+
+.night .yard .pole {
+	fill: #3a5c7c;
+}
+
+.night .yard .lamp {
+	fill: #fdf1c7;
+}
+
+.night .yard .glow {
+	opacity: 1;
+}
+
+/* Going back to day, the building is the last thing the night leaves, so it waits for it */
+.dusking:not(.night) .stage :is(.sun, .building, .building span, .yard *) {
+	transition-delay: 0.6s;
+}
+
+.bubble {
+	position: absolute;
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	max-width: 64%;
+	padding: 11px 14px;
+	border-radius: 16px;
+	background: #fff;
+	box-shadow: 0 2px 4px #02284212, 0 14px 30px #0228421f;
+	font-size: clamp(12px, 3.3vw, 14px);
+	line-height: 1.35;
+	transition: opacity 0.45s, transform 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.2);
+}
+
+/* With the script running, the bubbles come in one by one */
+.stage.cycle .bubble:not(.in) {
+	opacity: 0;
+	transform: translateY(12px) scale(0.92);
+}
+
+.bubble strong {
+	display: block;
+	color: var(--ink);
+}
+
+.bubble small {
+	display: block;
+	color: var(--muted);
+	font-size: 0.92em;
+}
+
+.bubble i {
+	flex: none;
+	width: 10px;
+	height: 10px;
+	margin-top: 0.35em;
+	border-radius: 50%;
+	background: var(--accent);
+}
+
+.bubble.b1 {
+	left: 0;
+	top: 27%;
+	border-bottom-left-radius: 4px;
+}
+
+.bubble.b2 {
+	right: 0;
+	top: 49%;
+	border-bottom-right-radius: 4px;
+}
+
+.bubble.b2 i {
+	background: #3a9d96;
+}
+
+.bubble.b3 {
+	left: 3%;
+	bottom: 9%;
+}
+
+.bubble.b3 i {
+	background: var(--primary);
+}
+
+.hint {
+	margin-bottom: 10px;
+	color: var(--muted);
+	font-size: 14px;
+	text-align: center;
+}
+
+.hint .mouse {
+	display: none;
+}
+
+@media (hover: hover) {
+	.hint .mouse {
+		display: inline;
+	}
+
+	.hint .touch {
+		display: none;
+	}
+}
+
+@keyframes pulse {
+	0% {
+		box-shadow: 0 0 0 0 #e16162cc;
+	}
+	100% {
+		box-shadow: 0 0 0 12px #e1616200;
+	}
+}
+
+@media (min-width: 860px) {
+	.hero {
+		--street: 64px;
+		grid-template-columns: 1.1fr 1fr;
+		align-items: center;
+		gap: 48px;
+		padding-block: 32px var(--street);
+	}
+
+	/* The building always stands on the street, and the buttons keep some air above it */
+	.hero > div:last-child {
+		align-self: end;
+	}
+
+	.actions {
+		margin-bottom: 40px;
+	}
+}

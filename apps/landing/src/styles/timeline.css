@@ -1,0 +1,337 @@
+/* One Tuesday told by two people on one thread: Marta from the office, Lucía from her phone */
+.tl {
+	padding-block: 80px 24px;
+}
+
+.tl-head {
+	max-width: 620px;
+}
+
+.tl-head p {
+	margin-top: 14px;
+}
+
+/* Each side keeps its colour and its device, so you can tell who's talking at a glance */
+.tl-office {
+	--tl-tint: #e3edf5;
+	--tl-ink: var(--primary);
+}
+
+.tl-neighbour {
+	--tl-tint: #fbe2e1;
+	--tl-ink: var(--accent-ink);
+}
+
+.tl-face {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 36px;
+	height: 36px;
+	border: 1.5px solid var(--ink);
+	border-radius: 50%;
+	background: var(--tl-tint);
+	color: var(--tl-ink);
+}
+
+.tl-face svg, .tl-done svg {
+	width: 18px;
+	height: 18px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.tl-cast {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px 28px;
+	margin-top: 32px;
+	padding: 0;
+	list-style: none;
+}
+
+/* --text, not --muted: muted grey on the paper falls short of AA at this size */
+.tl-cast li {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--text);
+	font-size: 14px;
+	line-height: 1.3;
+}
+
+.tl-cast strong {
+	display: block;
+	color: var(--ink);
+	font: 700 16px var(--heading);
+}
+
+.tl-list {
+	--tl-gap: 24px;
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	gap: var(--tl-gap);
+	margin-top: 32px;
+	padding: 0 0 64px;
+	list-style: none;
+}
+
+/* The day's thread, dashed like a route still to walk, fading out after the last moment */
+.tl-list::before {
+	content: '';
+	position: absolute;
+	top: 18px;
+	bottom: 0;
+	left: 17px;
+	z-index: -1;
+	border-left: 2px dashed #02284247;
+	mask-image: linear-gradient(#000 calc(100% - 110px), transparent);
+}
+
+.tl-item {
+	position: relative;
+	display: grid;
+	grid-template-columns: 36px 1fr;
+	gap: 14px;
+	align-items: start;
+}
+
+/* Positioned so the dot sits over the thread that runs into it */
+.tl-item .tl-face {
+	position: relative;
+}
+
+/* The squarer corner points at the dot, like the hero's bubbles */
+.tl-card {
+	padding: 14px 18px 16px;
+	border: 1.5px solid var(--ink);
+	border-radius: 4px var(--radius) var(--radius);
+	background: #fff;
+	box-shadow: var(--hard);
+}
+
+.tl-meta {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	font: 700 13.5px var(--heading);
+}
+
+.tl-meta time {
+	color: var(--ink);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Who's speaking, in their own colour, so the two voices tell apart on a phone too */
+.tl-meta span {
+	padding: 1px 9px;
+	border-radius: 999px;
+	background: var(--tl-tint);
+	color: var(--tl-ink);
+}
+
+.tl-card h3 {
+	margin-top: 8px;
+	font-size: 18px;
+	line-height: 1.25;
+}
+
+.tl-card h3 + p {
+	margin-top: 6px;
+	font-size: 15.5px;
+	line-height: 1.5;
+}
+
+/* The plumber has his say in his own colour */
+.tl-done {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 12px;
+	padding: 4px 12px 4px 8px;
+	border-radius: 12px;
+	background: #dcefeb;
+	color: var(--teal-ink);
+	font: 700 13.5px var(--heading);
+}
+
+.tl-done svg {
+	flex: none;
+	width: 16px;
+	height: 16px;
+	stroke-width: 2.4;
+}
+
+/* What lands on Lucía's phone */
+.tl-push {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--paper);
+	color: var(--ink);
+	font-size: 14px;
+	line-height: 1.3;
+}
+
+.tl-push small {
+	display: block;
+	color: var(--text);
+	font-size: 12.5px;
+}
+
+/* A tiny app icon: the logo's coral ring on the brand blue */
+.tl-app {
+	flex: none;
+	width: 30px;
+	height: 30px;
+	border-radius: 8px;
+	background: radial-gradient(circle, transparent 5px, var(--accent) 5.5px 8.5px, transparent 9px), var(--primary);
+}
+
+/* With the script running, the day is told as you scroll: the thread walks down with you, each dot pops in
+   when the thread reaches it and its card follows. Scrolling back up takes them away again.
+   Without it, everything is simply there */
+.tl-play .tl-item {
+	transition: transform 0.35s ease-out;
+}
+
+/* --tl-draw is how far the thread has walked to the next dot, set as you scroll */
+.tl-play .tl-item::before {
+	content: '';
+	position: absolute;
+	top: 18px;
+	left: 17px;
+	height: calc(100% + var(--tl-gap));
+	border-left: 2px solid var(--ink);
+	transform: scaleY(var(--tl-draw, 0));
+	transform-origin: top;
+}
+
+.tl-play .tl-item .tl-face {
+	transition: transform 0.25s ease-in;
+}
+
+.tl-play .tl-card {
+	transition: opacity 0.25s;
+}
+
+/* Coming in takes its time, going out doesn't */
+.tl-play .tl-in {
+	transition: transform 0.6s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.tl-play .tl-in .tl-face {
+	transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.tl-play .tl-in .tl-card {
+	transition: opacity 0.5s 0.15s;
+}
+
+.tl-play .tl-item:not(.tl-in) {
+	transform: translateY(18px);
+}
+
+.tl-play .tl-item:not(.tl-in) .tl-face {
+	transform: scale(0);
+}
+
+.tl-play .tl-item:not(.tl-in) .tl-card {
+	opacity: 0;
+}
+
+@media (min-width: 860px) {
+	.tl {
+		padding-block: 112px 40px;
+	}
+
+	.tl-head {
+		margin-inline: auto;
+		text-align: center;
+	}
+
+	/* Two lanes: the office on the left, the neighbour on the right, the thread between them */
+	.tl-cast {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		column-gap: 100px;
+		margin-top: 48px;
+	}
+
+	.tl-cast .tl-office {
+		flex-direction: row-reverse;
+		justify-self: end;
+		text-align: right;
+	}
+
+	.tl-cast .tl-face, .tl-item .tl-face {
+		width: 44px;
+		height: 44px;
+	}
+
+	.tl-list {
+		--tl-gap: 16px;
+		margin-top: 40px;
+	}
+
+	/* The thread starts between the two of them */
+	.tl-list::before {
+		top: -62px;
+		left: calc(50% - 1px);
+	}
+
+	.tl-item {
+		grid-template-columns: 1fr 44px 1fr;
+		column-gap: 28px;
+	}
+
+	.tl-item .tl-face {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	.tl-card {
+		grid-row: 1;
+		max-width: 420px;
+	}
+
+	.tl-office .tl-card {
+		grid-column: 1;
+		justify-self: end;
+		border-radius: var(--radius) 4px var(--radius) var(--radius);
+	}
+
+	.tl-neighbour .tl-card {
+		grid-column: 3;
+	}
+
+	/* The time leaves the card and sits beside the dot, in the empty lane */
+	.tl-meta time {
+		position: absolute;
+		top: 0;
+		font: 800 26px/44px var(--heading);
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
+	}
+
+	.tl-office time {
+		left: calc(50% + 50px);
+	}
+
+	.tl-neighbour time {
+		right: calc(50% + 50px);
+	}
+
+	.tl-play .tl-item::before {
+		top: 22px;
+		left: calc(50% - 1px);
+	}
+}

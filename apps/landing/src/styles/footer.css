@@ -1,0 +1,339 @@
+/* Footer: dusk falls on the city as it comes into view */
+footer {
+	background: #011a2b;
+	color: #9fb3c6;
+}
+
+.scene {
+	position: relative;
+	height: 560px;
+	overflow: hidden;
+	/* A plum afterglow up top, so at night the coral above fades into the sky instead of stopping */
+	background: linear-gradient(#5c2a4a 0%, #051a2c 34%, #0b2f4f 65%, #12406b 100%);
+}
+
+/* Dusk starts on the contact's own coral, so at sunset there is no seam at all */
+.dusk {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(var(--accent) 0%, #f2a893 18%, #f6d2bf 46%, #f2a893 72%, #e98879 100%);
+	transition: opacity 2s ease;
+}
+
+/* The contact's coral hangs into the sky as two drifting banks of clouds: the front one keeps
+   its color, the back one turns from sunlit to dusky rose, so night steps down to navy */
+.sm-cloud {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: calc(100% + var(--sm-w));
+	height: var(--sm-h);
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 48' preserveAspectRatio='none'%3E%3Cpath d='M0 0V14A29 15 0 0 0 58 16A46 26 0 0 0 150 18A20 10 0 0 0 190 14A36 20 0 0 0 262 20A19 9 0 0 0 300 16A55 28 0 0 0 410 18A26 14 0 0 0 462 14A39 22 0 0 0 540 19A30 15 0 0 0 600 14V0Z'/%3E%3C/svg%3E") 0 0 / var(--sm-w) 100% repeat-x;
+	animation: sm-drift var(--sm-time) linear infinite paused;
+}
+
+/* Kept above 39px on phones so it never covers the moon */
+.sm-back {
+	--sm-w: 500px;
+	--sm-h: 40px;
+	--sm-time: 110s;
+	background: #ef9a8b;
+	transition: background-color 2s;
+}
+
+.sm-front {
+	--sm-w: 400px;
+	--sm-h: 32px;
+	--sm-time: 70s;
+	background: var(--accent);
+}
+
+/* They only drift while the footer is on screen: .on comes from the footer's own observer */
+.scene.on .sm-cloud {
+	animation-play-state: running;
+}
+
+.scene.on .sm-back {
+	background: #a9495e;
+}
+
+/* One tile to the left, and the repeating mask makes the loop seamless */
+@keyframes sm-drift {
+	to {
+		transform: translateX(calc(var(--sm-w) * -1));
+	}
+}
+
+.stars {
+	position: absolute;
+	inset: 0 0 45%;
+	opacity: 0;
+	background:
+		radial-gradient(1.5px 1.5px at 6% 30%, #fff 60%, transparent),
+		radial-gradient(1.5px 1.5px at 18% 12%, #fff 60%, transparent),
+		radial-gradient(2px 2px at 31% 44%, #ffffffcc 60%, transparent),
+		radial-gradient(1.5px 1.5px at 44% 8%, #fff 60%, transparent),
+		radial-gradient(1.5px 1.5px at 57% 36%, #ffffffaa 60%, transparent),
+		radial-gradient(2px 2px at 66% 16%, #fff 60%, transparent),
+		radial-gradient(1.5px 1.5px at 74% 52%, #ffffff99 60%, transparent),
+		radial-gradient(1.5px 1.5px at 86% 26%, #fff 60%, transparent),
+		radial-gradient(2px 2px at 94% 60%, #ffffffbb 60%, transparent),
+		radial-gradient(1.5px 1.5px at 12% 70%, #ffffff88 60%, transparent),
+		radial-gradient(1.5px 1.5px at 50% 64%, #ffffff77 60%, transparent);
+	transition: opacity 2s 1s;
+}
+
+.stars::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(2.5px 2.5px at 24% 26%, #fff 60%, transparent),
+		radial-gradient(2.5px 2.5px at 62% 48%, #fff 60%, transparent),
+		radial-gradient(2.5px 2.5px at 80% 10%, #fff 60%, transparent);
+	animation: twinkle 2.4s ease-in-out infinite alternate;
+}
+
+.setting-sun {
+	position: absolute;
+	left: 50%;
+	top: 46%;
+	width: 120px;
+	height: 120px;
+	margin-left: -60px;
+	border-radius: 50%;
+	background: #ffe0a3;
+	box-shadow: 0 0 80px #ffd08a;
+	transition: transform 2.2s cubic-bezier(0.5, 0, 0.3, 1);
+}
+
+.moon {
+	position: absolute;
+	right: 9%;
+	top: 7%;
+	width: 54px;
+	height: 54px;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle at 34% 40%, #e9dcb0 5px, transparent 5.5px),
+		radial-gradient(circle at 62% 66%, #e9dcb0 3.5px, transparent 4px),
+		#fdf1c7;
+	box-shadow: 0 0 0 10px #fdf1c712, 0 0 50px #fdf1c766;
+	opacity: 0;
+	transform: translateY(140px);
+	transition: transform 2.4s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 1.6s 0.4s;
+}
+
+.scene .copy {
+	position: relative;
+	padding-top: 104px;
+}
+
+.scene h2 {
+	max-width: 13em;
+	color: var(--primary-dark);
+	font-size: clamp(32px, 8.4vw, 60px);
+	transition: color 1.8s;
+}
+
+.scene .copy p {
+	max-width: 30em;
+	margin-top: 14px;
+	color: var(--primary-dark);
+	transition: color 1.8s;
+}
+
+.scene .button {
+	margin-top: 24px;
+	background: var(--primary-dark);
+	transition: background 1.8s, color 1.8s, transform 0.15s;
+}
+
+.skyline {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	height: 170px;
+}
+
+.skyline .bld {
+	fill: #c26a6a;
+	transition: fill 2s;
+}
+
+.skyline .tank {
+	fill: #b55e60;
+	transition: fill 2s;
+}
+
+.skyline .win {
+	fill: #ffdca0;
+	opacity: 0;
+	transition: opacity 0.4s;
+}
+
+.scene.on .dusk {
+	opacity: 0;
+}
+
+.scene.on .stars {
+	opacity: 1;
+}
+
+.scene.on .setting-sun {
+	transform: translateY(360px);
+}
+
+.scene.on .moon {
+	opacity: 1;
+	transform: none;
+}
+
+.scene.on h2 {
+	color: #fff;
+}
+
+.scene.on .copy p {
+	color: #c9d6e3;
+}
+
+.scene.on .button {
+	background: var(--accent);
+	color: var(--primary-dark);
+}
+
+.scene.on .bld {
+	fill: #0b2b47;
+}
+
+.scene.on .tank {
+	fill: #082238;
+}
+
+.scene.on .win {
+	opacity: 1;
+}
+
+.footer-body {
+	display: grid;
+	gap: 32px;
+	padding-block: 44px 0;
+}
+
+.footer-links {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 28px;
+}
+
+.footer-links h3 {
+	color: #fff;
+	font-size: 13px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.footer-links ul {
+	display: grid;
+	gap: 8px;
+	margin-top: 12px;
+	padding: 0;
+	list-style: none;
+}
+
+.footer-links a {
+	color: #c9d6e3;
+	text-decoration: none;
+}
+
+.footer-links a:hover {
+	color: #fff;
+	text-decoration: underline;
+}
+
+.footer-body .fine {
+	font-size: 14px;
+}
+
+.wordmark {
+	display: flex;
+	justify-content: center;
+	overflow: hidden;
+	margin-top: 24px;
+	padding-bottom: 0.06em;
+	color: #0d3657;
+	font: 800 clamp(56px, 16.5vw, 230px) / 0.92 var(--heading);
+	letter-spacing: -0.05em;
+	user-select: none;
+}
+
+.wordmark span {
+	display: inline-block;
+	transform: translateY(105%);
+	transition: transform 0.9s cubic-bezier(0.2, 0.9, 0.2, 1) calc(var(--i) * 70ms), color 0.3s;
+}
+
+.wordmark span:nth-child(9) {
+	color: #6b2b33;
+}
+
+.wordmark.on span {
+	transform: none;
+}
+
+.wordmark span:hover {
+	color: var(--accent);
+	transition-delay: 0s;
+}
+
+@keyframes twinkle {
+	from {
+		opacity: 0.15;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@media (min-width: 860px) {
+	.scene .copy {
+		padding-top: 112px;
+	}
+
+	.moon {
+		width: 72px;
+		height: 72px;
+		right: 14%;
+		top: 12%;
+	}
+
+	.skyline {
+		height: 200px;
+	}
+
+	.footer-body {
+		grid-template-columns: 1fr auto;
+		align-items: end;
+		padding-top: 64px;
+	}
+
+	.footer-links {
+		grid-template-columns: repeat(3, auto);
+		gap: 64px;
+	}
+
+	.scene {
+		height: 620px;
+	}
+
+	.sm-back {
+		--sm-w: 800px;
+		--sm-h: 64px;
+	}
+
+	.sm-front {
+		--sm-w: 600px;
+		--sm-h: 48px;
+	}
+}

@@ -1,0 +1,324 @@
+/* The neighbour's app, playing on a phone drawn in HTML. Classes on .app-phone decide
+   what its screen shows, so the script only adds them in time and the CSS animates */
+.app-section {
+	/* The page's grey is 4.3:1 on this paper; a shade darker passes AA in the phone and the list */
+	--muted: #5d6875;
+	padding-block: 88px 48px;
+}
+
+.app-head p {
+	max-width: 34em;
+	margin-top: 14px;
+}
+
+.app-stage {
+	position: relative;
+	display: grid;
+	justify-items: center;
+	margin-top: 36px;
+	padding-top: 3.8em;
+	/* The one knob for the phone's size: everything in it is in em */
+	font-size: min(12.5px, (100vw - 76px) / 22);
+}
+
+/* An arch behind it, like a doorway of the building */
+.app-arch {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	width: min(100%, 30em);
+	/* Down to 5em above the phone's foot, whatever comes under it */
+	height: 44.3em;
+	border: 1.5px solid var(--ink);
+	border-radius: 15em 15em 2em 2em;
+	background: radial-gradient(circle, #0228421c 1.2px, transparent 1.7px) 0 0 / 14px 14px, var(--sand);
+	transform: translateX(-50%);
+}
+
+/* What a notification sends out when it lands */
+.app-ring {
+	position: absolute;
+	top: 9em;
+	left: 50%;
+	width: 16em;
+	height: 16em;
+	margin: -8em 0 0 -8em;
+	border: 2px solid var(--accent);
+	border-radius: 50%;
+	opacity: 0;
+}
+
+.app-sticker {
+	position: absolute;
+	top: 0.9em;
+	left: 50%;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 6px 14px 6px 12px;
+	border: 1.5px solid var(--ink);
+	border-radius: 999px;
+	background: #fff;
+	color: var(--ink);
+	font: 700 13px var(--heading);
+	white-space: nowrap;
+	transform: translateX(-50%);
+}
+
+.app-sticker svg {
+	width: 18px;
+	height: 18px;
+	fill: none;
+	stroke: var(--accent-ink);
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.app-phone {
+	--app-bg: var(--paper);
+	--app-line: var(--line);
+	position: relative;
+	z-index: 1;
+	width: 22em;
+	height: 45.5em;
+	padding: 0.55em;
+	border: 1.5px solid var(--ink);
+	border-radius: 3.3em;
+	background: var(--ink);
+	box-shadow: inset 0 0 0 0.2em #0d3a5e, 6px 6px 0 var(--accent);
+	color: var(--ink);
+	line-height: 1.3;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+/* Its side buttons */
+.app-phone::before,
+.app-phone::after {
+	content: '';
+	position: absolute;
+	width: 0.3em;
+	border-radius: 2px;
+	background: var(--ink);
+}
+
+.app-phone::before {
+	top: 9em;
+	right: -0.4em;
+	height: 4.5em;
+}
+
+.app-phone::after {
+	top: 7.5em;
+	left: -0.4em;
+	height: 2.6em;
+	box-shadow: 0 3.6em 0 var(--ink);
+}
+
+.app-defs {
+	position: absolute;
+}
+
+.app-screen {
+	position: relative;
+	isolation: isolate;
+	height: 100%;
+	overflow: hidden;
+	border-radius: 2.75em;
+	background: var(--app-bg);
+}
+
+.app-phone b {
+	color: var(--ink);
+	font-family: var(--heading);
+	font-weight: 700;
+}
+
+.app-phone small {
+	display: block;
+	color: var(--muted);
+	font-size: 0.9em;
+}
+
+.app-i {
+	flex: none;
+	width: 1.45em;
+	height: 1.45em;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.9;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.app-status {
+	position: absolute;
+	inset: 0 0 auto;
+	z-index: 3;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 2.9em;
+	padding: 0.25em 1.5em 0 2.1em;
+	background: var(--app-bg);
+}
+
+.app-status b {
+	font-size: 1.05em;
+}
+
+.app-status svg {
+	width: 4.3em;
+	height: 1em;
+	fill: currentColor;
+}
+
+/* The island */
+.app-status::after {
+	content: '';
+	position: absolute;
+	top: 0.6em;
+	left: 50%;
+	width: 6.6em;
+	height: 1.9em;
+	margin-left: -3.3em;
+	border-radius: 1em;
+	background: #000;
+}
+
+/* Screens stack up and slide in from the right, like on a phone */
+.app-view {
+	position: absolute;
+	inset: 2.9em 0 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.7em;
+	padding: 0.6em 1.15em 1.3em;
+	background: var(--app-bg);
+	transform: translateX(100%);
+	transition: transform 0.55s cubic-bezier(0.3, 0.8, 0.2, 1);
+}
+
+.app-v-home,
+.app-form .app-v-form,
+.app-sent .app-v-issue,
+.app-meeting .app-v-meeting,
+.app-book .app-v-book {
+	transform: none;
+}
+
+.app-form .app-v-home,
+.app-meeting .app-v-home,
+.app-book .app-v-home,
+.app-sent .app-v-form {
+	transform: translateX(-30%);
+}
+
+/* Back to the start of a flow in one cut, nothing sliding backwards */
+.app-cut *,
+.app-cut *::after {
+	transition: none !important;
+}
+
+.app-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.app-top img {
+	width: auto;
+	height: 1.4em;
+}
+
+.app-bell {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 2.4em;
+	height: 2.4em;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 0 0 1px var(--app-line);
+}
+
+.app-bell::after {
+	content: '';
+	position: absolute;
+	top: 0.4em;
+	right: 0.45em;
+	width: 0.55em;
+	height: 0.55em;
+	border-radius: 50%;
+	background: var(--accent);
+	transform: scale(0);
+	transition: transform 0.3s 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.app-call .app-bell::after {
+	transform: none;
+}
+
+.app-hello {
+	display: block;
+	font-size: 1.75em;
+	font-weight: 800;
+	letter-spacing: -0.02em;
+}
+
+.app-banner {
+	display: grid;
+	gap: 0.3em;
+	padding: 1em;
+	border-radius: 1.2em;
+	background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+	color: #c9d6e3;
+	font-size: 0.95em;
+}
+
+.app-banner b {
+	color: #fff;
+	font-size: 1.25em;
+}
+
+.app-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.45em;
+	height: 2.9em;
+	border-radius: 0.85em;
+	background: var(--primary);
+	color: #fff;
+	font: 700 1em var(--heading);
+}
+
+@media (min-width: 860px) {
+	/* Phone on the left, the words and the flows centred beside it */
+	.app-section {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		grid-template-rows: 1fr auto auto 1fr;
+		grid-template-areas: 'stage .' 'stage head' 'stage flows' 'stage .';
+		column-gap: 72px;
+		padding-block: 120px 72px;
+	}
+
+	.app-head {
+		grid-area: head;
+	}
+
+	/* Centred, so a taller text column never stretches the arch past the phone */
+	.app-stage {
+		grid-area: stage;
+		align-self: center;
+		margin-top: 0;
+		font-size: 13.5px;
+	}
+
+	.app-sticker {
+		font-size: 14px;
+	}
+}
