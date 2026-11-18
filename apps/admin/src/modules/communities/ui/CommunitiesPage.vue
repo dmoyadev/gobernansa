@@ -228,10 +228,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 }
 
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
 	flex-wrap: wrap;
-	align-items: center;
 	justify-content: space-between;
 	gap: var(--lnx-spacing-3);
 
@@ -262,7 +259,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 }
 
 .error {
-	color: var(--color-secondary-accent);
+	font-size: inherit;
 }
 
 .list {
@@ -380,11 +377,6 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 		background: #fde68a;
 		color: inherit;
 	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .empty {

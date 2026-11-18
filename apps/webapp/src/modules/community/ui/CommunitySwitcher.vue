@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { Community } from '@gobernansa/shared/domain/community.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { ref, watch } from 'vue';
+import { communityName } from '../application/useUserCommunity.ts';
 
 // For neighbours with a home in several communities (a flat in one, a garage in another): which one the app shows
 const { user, communities, switchCommunity } = useAuth();
@@ -10,8 +9,7 @@ const names = ref<Record<string, string>>({});
 
 // Read once, a few at most
 watch(communities, async (ids) => {
-	const db = getFirestore();
-	const loaded = await Promise.all(ids.map(async id => [id, ((await getDoc(doc(db, 'communities', id)).catch(() => undefined))?.data() as Community | undefined)?.name ?? 'Otra comunidad'] as const));
+	const loaded = await Promise.all(ids.map(async id => [id, await communityName(id)] as const));
 	names.value = Object.fromEntries(loaded);
 }, { immediate: true });
 </script>

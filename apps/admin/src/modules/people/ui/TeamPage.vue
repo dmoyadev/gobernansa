@@ -2,9 +2,10 @@
 import type { Invitation, OfficeRole, User } from '@gobernansa/shared/domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { officeRoles } from '@gobernansa/shared/domain/user.ts';
-import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxSelect, useConfirm } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -25,7 +26,7 @@ const sortedPeople = computed(() => [...people.value].sort((a, b) => a.name.loca
 const form = ref({ name: '', email: '', officeRole: 'clerk' as OfficeRole });
 const byEmail = ref(true);
 const formError = ref<string>();
-const formElement = useTemplateRef<HTMLFormElement>('formElement');
+const formElement = useTemplateRef('formElement');
 
 const { open, show, close } = useNewForm(formElement, () => {
 	form.value = { ...form.value, name: '', email: '' };
@@ -63,8 +64,6 @@ function sendInvitation() {
 		},
 	});
 }
-
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar la invitación' });
 
 function changeRole(person: User & { id: string }, officeRole: OfficeRole) {
 	const previous = person.officeRole ?? 'clerk';
@@ -108,8 +107,17 @@ function cancel(invitation: Invitation & { id: string }) {
 		<NewButton v-if="!open" label="Invitar a alguien" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="sendInvitation()">
-		<h2>Invitar al despacho</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		title="Invitar al despacho"
+		:error="formError"
+		submit-label="Invitar"
+		submit-icon="lucide:send"
+		shortcut="Enviar la invitación"
+		@submit="sendInvitation()"
+		@cancel="close()"
+	>
 		<p class="hint">
 			Verá todas las comunidades del despacho. Su cuenta se crea la primera vez que entre en gobernança con este email.
 		</p>
@@ -143,22 +151,7 @@ function cancel(invitation: Invitation & { id: string }) {
 			</LnxCheckbox>
 			<MailModeNote v-if="byEmail" />
 		</div>
-
-		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon icon="lucide:send" />
-				Invitar
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card">
 		<h2>En el despacho</h2>
@@ -237,11 +230,6 @@ function cancel(invitation: Invitation & { id: string }) {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -249,46 +237,6 @@ function cancel(invitation: Invitation & { id: string }) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {

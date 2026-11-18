@@ -21,7 +21,7 @@ function onPointerMove(event: PointerEvent) {
 		@pointercancel="pointer = undefined"
 	>
 		<div
-			class="card"
+			class="tilt-card"
 			:class="{ active: pointer }"
 			:style="pointer && { '--x': pointer.x, '--y': pointer.y }"
 		>
@@ -38,7 +38,7 @@ function onPointerMove(event: PointerEvent) {
 	touch-action: pan-y;
 }
 
-.card {
+.tilt-card {
 	--x: .5;
 	--y: .5;
 	position: relative;
@@ -79,7 +79,7 @@ function onPointerMove(event: PointerEvent) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.card {
+	.tilt-card {
 		transform: none;
 		animation: none;
 	}

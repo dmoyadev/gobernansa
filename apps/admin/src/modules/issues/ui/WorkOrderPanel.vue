@@ -291,9 +291,4 @@ footer {
 		object-fit: cover;
 	}
 }
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
 </style>

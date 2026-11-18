@@ -1,20 +1,18 @@
 <script setup lang="ts">
 import type { Obligation, ObligationType } from '@gobernansa/shared/domain/obligation.ts';
-import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { OBLIGATION_WARNING_DAYS, obligationDone, obligationStatus, obligationStatusLabels, obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
-import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, deleteField, doc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
-import { computed, ref } from 'vue';
-import { useCollection } from 'vuefire';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, LnxTextarea, useConfirm } from 'lnxjs-components';
+import { computed, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
+import { markObligationDone, removeObligation, restoreObligation, saveObligation, unmarkObligationDone, useObligations } from '../application/obligations.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -26,9 +24,8 @@ const NEWLINES = /\n/g;
 const TIME_SEPARATORS = /[-:]/g;
 const MILLISECONDS = /\.\d+/;
 
-const obligationsRef = collection(db, 'communities', props.id, 'obligations');
 // A handful per community, so live and sorted here
-const { data: obligations, pending, error } = useCollection<Obligation>(obligationsRef);
+const { data: obligations, pending, error } = useObligations(props.id);
 const sorted = computed(() => [...obligations.value].sort((a, b) => a.dueAt.toMillis() - b.dueAt.toMillis()));
 // Due dates are local midnights, so they count by day: one due today isn't overdue until tomorrow
 function today() {
@@ -94,7 +91,7 @@ const form = ref(emptyForm());
 const editingId = ref<string>();
 // The next new one's id, made with its form, so sending it twice writes it once
 const newObligationId = ref(newId());
-const formElement = ref<HTMLFormElement>();
+const formElement = useTemplateRef('formElement');
 
 // Choosing a type fills in its usual title and period, still editable
 function onTypeChange() {
@@ -125,7 +122,6 @@ function edit(obligation: Obligation) {
 
 // The list shows it at once, so the form empties straight away, and comes back as it was typed if the server refuses it
 function save() {
-	const uid = auth.currentUser!.uid;
 	const typed = form.value;
 	const id = editingId.value ?? newObligationId.value;
 	const editing = !!editingId.value;
@@ -135,30 +131,17 @@ function save() {
 	const stored = obligations.value.find(item => item.id === editingId.value);
 	// Kept when it's no longer shared with this community, so editing something else doesn't drop it
 	const provider = providers.value.find(item => item.id === providerId) ?? (stored?.provider?.id === providerId ? stored.provider : undefined);
-	// A one-off one done is pending again once it gets another date or stops repeating
-	const stillDone = months > 0 || (stored && !stored.everyMonths && stored.dueAt.toMillis() === due.getTime());
-	const now = serverTimestamp();
-	const batch = writeBatch(db);
-	// Merged, so the optional fields left empty are removed
-	batch.set(doc(obligationsRef, id), {
-		communityId: props.id,
+	const values = {
 		type,
 		title: title.trim(),
-		dueAt: Timestamp.fromDate(due),
-		everyMonths: months > 0 ? months : deleteField(),
-		provider: provider ? { id: provider.id, name: provider.name } : deleteField(),
-		notes: notes.trim() || deleteField(),
-		...(stillDone ? {} : { lastDoneAt: deleteField() }),
-		updatedAt: now,
-		updatedBy: uid,
-		...(editing ? {} : { createdAt: now, createdBy: uid }),
-	}, { merge: true });
-	logActivity(batch, props.id, {
-		area: 'obligation',
-		summary: `${editing ? 'Editó' : 'Añadió'} la obligación «${title.trim()}», vence el ${due.toLocaleDateString('es')}`,
-		link: `/communities/${props.id}/obligations`,
-	});
-	void optimistic(batch.commit(), {
+		dueAt: due,
+		everyMonths: months > 0 ? months : undefined,
+		provider: provider ? { id: provider.id, name: provider.name } : undefined,
+		notes: notes.trim(),
+		// A one-off one done is pending again once it gets another date or stops repeating
+		stillDone: months > 0 || (!!stored && !stored.everyMonths && stored.dueAt.toMillis() === due.getTime()),
+	};
+	void optimistic(saveObligation(props.id, id, values, editing), {
 		done: editing ? 'Guardado' : 'Obligación añadida',
 		failed: 'No se ha podido guardar',
 		onError: () => {
@@ -176,8 +159,6 @@ function save() {
 	close();
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la obligación' });
-
 // The next one counts from when it was due, so doing it late doesn't shift the cycle, unless that's still in the past
 function nextDueAt(obligation: Obligation) {
 	if (!obligation.everyMonths) {
@@ -190,54 +171,17 @@ function nextDueAt(obligation: Obligation) {
 
 // The local write updates the list before a second click could move the due date forward twice
 function markDone(obligation: Obligation) {
-	const next = nextDueAt(obligation);
-	const batch = writeBatch(db);
-	batch.update(doc(obligationsRef, obligation.id), {
-		lastDoneAt: serverTimestamp(),
-		...(next ? { dueAt: Timestamp.fromDate(next) } : {}),
-		updatedAt: serverTimestamp(),
-		updatedBy: auth.currentUser!.uid,
-	});
-	logActivity(batch, props.id, {
-		area: 'obligation',
-		summary: `Marcó como hecha «${obligation.title}»${next ? `, la próxima vence el ${next.toLocaleDateString('es')}` : ''}`,
-		link: `/communities/${props.id}/obligations`,
-	});
-	void optimistic(batch.commit(), { done: 'Marcada como hecha', failed: 'No se ha podido marcar como hecha', revert: async () => unmarkDone(obligation) });
-}
-
-// Undoes markDone with the dates it had before
-async function unmarkDone({ id, title, dueAt, lastDoneAt }: Obligation) {
-	const batch = writeBatch(db);
-	batch.update(doc(obligationsRef, id), {
-		lastDoneAt: lastDoneAt ?? deleteField(),
-		dueAt,
-		updatedAt: serverTimestamp(),
-		updatedBy: auth.currentUser!.uid,
-	});
-	logActivity(batch, props.id, { area: 'obligation', summary: `Desmarcó como hecha «${title}»`, link: `/communities/${props.id}/obligations` });
-	await batch.commit();
+	void optimistic(markObligationDone(props.id, obligation, nextDueAt(obligation)), { done: 'Marcada como hecha', failed: 'No se ha podido marcar como hecha', revert: async () => unmarkObligationDone(props.id, obligation) });
 }
 
 async function remove(obligation: Obligation) {
 	if (!await ask({ title: `¿Borrar «${obligation.title}»?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
-	const batch = writeBatch(db);
-	batch.delete(doc(obligationsRef, obligation.id));
-	logActivity(batch, props.id, { area: 'obligation', summary: `Borró la obligación «${obligation.title}»` });
-	void optimistic(batch.commit(), { done: 'Obligación borrada', failed: 'No se ha podido borrar', revert: async () => restore(obligation) });
+	void optimistic(removeObligation(props.id, obligation), { done: 'Obligación borrada', failed: 'No se ha podido borrar', revert: async () => restoreObligation(props.id, obligation) });
 	if (editingId.value === obligation.id) {
 		close();
 	}
-}
-
-// Undoes remove with the data it had, kept from the list
-async function restore({ id, ...obligation }: Obligation) {
-	const batch = writeBatch(db);
-	batch.set(doc(obligationsRef, id), obligation);
-	logActivity(batch, props.id, { area: 'obligation', summary: `Restauró la obligación «${obligation.title}»`, link: `/communities/${props.id}/obligations` });
-	await batch.commit();
 }
 
 function icsText(text: string) {
@@ -317,8 +261,16 @@ function downloadIcs(obligation: Obligation) {
 		</div>
 	</section>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar obligación' : 'Nueva obligación' }}</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		:title="editingId ? 'Editar obligación' : 'Nueva obligación'"
+		:submit-label="editingId ? 'Guardar cambios' : 'Añadir'"
+		:submit-icon="editingId ? 'lucide:save' : 'lucide:plus'"
+		shortcut="Guardar la obligación"
+		@submit="save()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="form.type"
@@ -361,19 +313,7 @@ function downloadIcs(obligation: Obligation) {
 				Notas
 			</LnxTextarea>
 		</div>
-
-		<footer class="form-actions">
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
-				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card" :aria-busy="pending && !sorted.length">
 		<h2>Calendario</h2>
@@ -439,11 +379,6 @@ function downloadIcs(obligation: Obligation) {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -451,22 +386,6 @@ function downloadIcs(obligation: Obligation) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
 }
 
 // Red for overdue, amber for coming up, like the dashboard. Darkened for text, so it reads on its tint
@@ -611,29 +530,6 @@ function downloadIcs(obligation: Obligation) {
 	}
 }
 
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
-}
-
 .list {
 	position: relative;
 	display: flex;
@@ -733,15 +629,5 @@ function downloadIcs(obligation: Obligation) {
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--lnx-spacing-1);
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

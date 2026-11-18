@@ -1,0 +1,199 @@
+.page-header {
+	flex-wrap: wrap;
+
+	.year {
+		width: 120px;
+	}
+}
+
+.card {
+	margin-bottom: var(--lnx-spacing-5);
+}
+
+.status {
+	gap: var(--lnx-spacing-2);
+}
+
+.status-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2) var(--lnx-spacing-3);
+
+	.hint {
+		flex: 1;
+	}
+}
+
+.tabs {
+	margin-bottom: var(--lnx-spacing-4);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-1);
+
+	button {
+		padding: var(--lnx-spacing-1) var(--lnx-spacing-3);
+		border: 1px solid var(--color-gray-3);
+		border-radius: 999px;
+		background: var(--color-gray-0);
+		font: inherit;
+		font-size: var(--lnx-font-size-small);
+		color: var(--color-gray-7);
+		cursor: pointer;
+
+		&[aria-selected='true'] {
+			border-color: var(--color-primary);
+			color: var(--color-primary);
+			font-weight: var(--lnx-font-weight-bold);
+		}
+	}
+}
+
+.chip {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: 999px;
+	background: var(--color-gray-2);
+	font-size: var(--lnx-font-size-small);
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+
+	&.ok {
+		color: var(--color-primary);
+	}
+}
+
+// An A4 page on screen, the same on paper
+.sheet {
+	max-width: 210mm;
+	margin: 0 auto;
+	padding: 15mm;
+	background: #FFFFFF;
+	color: #000000;
+	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000014;
+	display: flex;
+	flex-direction: column;
+	gap: 5mm;
+	font-size: 9pt;
+	line-height: 1.4;
+
+	h2 {
+		text-align: center;
+		font-size: 14pt;
+		text-transform: uppercase;
+	}
+
+	h3 {
+		font-size: 11pt;
+	}
+
+	.note {
+		font-size: 8pt;
+		color: #555555;
+	}
+
+	.result {
+		font-size: 11pt;
+		text-align: right;
+	}
+}
+
+.sheet-header {
+	display: flex;
+	flex-direction: column;
+}
+
+.add-account {
+	display: grid;
+	grid-template-columns: 140px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	@media (width <= 600px) {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+
+	th,
+	td {
+		padding: 1mm 2mm;
+		border-bottom: 1px solid #DDDDDD;
+		text-align: left;
+		vertical-align: top;
+	}
+
+	small {
+		color: #777777;
+	}
+
+	.amount {
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.indent {
+		padding-left: 8mm;
+	}
+
+	.entry-head td {
+		padding-top: 2.5mm;
+		font-weight: 600;
+		border-bottom: none;
+	}
+
+	tfoot th {
+		border-bottom: none;
+		border-top: 2px solid #000000;
+	}
+}
+
+.entry {
+	break-inside: avoid;
+}
+
+.entry-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
+}
+
+.entry-actions {
+	display: flex;
+	margin: -4px 0;
+}
+
+.warning {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	font-size: var(--lnx-font-size-small);
+	color: var(--color-gray-7);
+}
+
+@page {
+	size: A4;
+	margin: 15mm;
+}
+
+@media print {
+	.page-header,
+	.card,
+	.tabs,
+	.no-print {
+		display: none;
+	}
+
+	.sheet {
+		max-width: none;
+		padding: 0;
+		box-shadow: none;
+	}
+}

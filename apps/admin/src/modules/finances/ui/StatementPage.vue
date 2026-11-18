@@ -264,16 +264,7 @@ function print() {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
 	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
 
 	.year {
 		width: 120px;
@@ -346,11 +337,6 @@ table {
 		border-bottom: none;
 		border-top: 2px solid #000000;
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 @page {

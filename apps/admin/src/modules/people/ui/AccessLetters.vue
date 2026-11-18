@@ -133,11 +133,6 @@ async function send(letter: Letter) {
 </template>
 
 <style lang="scss" scoped>
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
 .list {
 	display: flex;
 	flex-direction: column;

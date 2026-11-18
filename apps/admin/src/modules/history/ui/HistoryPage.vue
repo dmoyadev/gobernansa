@@ -1,28 +1,20 @@
 <script setup lang="ts">
-import type { Query, QueryDocumentSnapshot } from 'firebase/firestore';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import type { Ref } from 'vue';
-import type { Action, Change, ChangeOp } from '../domain/history.ts';
+import type { Change, ChangeOp } from '../domain/history.ts';
 import { errorApps } from '@gobernansa/shared/domain/errors.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, getDocs, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, shallowRef, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
+import { ALL, loadActions, loadChanges } from '../application/history.ts';
 import { hasFunctions } from '../application/restoreVersion.ts';
 import { actionTypes, changeAuthor, changeOps, changeTitle, collections } from '../domain/history.ts';
 import ChangeDetail from './ChangeDetail.vue';
 
-/*
- * Historial, for the team: every change to the data (audit, by the functions) and everything each user did (actions, by
- * the apps), newest first. 25 at a time and once, not live, as both grow with every write
- */
-
-const PAGE_SIZE = 25;
-// 'all' and not '', which the select doesn't show
-const ALL = 'all';
+// Historial, for the team: every change to the data and everything each user did (application/history.ts)
 
 const tab = ref<'changes' | 'actions'>('changes');
 const community = ref(ALL);
@@ -59,31 +51,8 @@ const appOptions = [
 	...Object.entries(errorApps).map(([value, label]) => ({ value, label })),
 ];
 
-// Each filter with the date needs its index (firestore.indexes.json); Firestore merges them when there are several
-function changesQuery() {
-	const filters = versionsOf.value
-		? [where('path', '==', versionsOf.value)]
-		: [
-				...(community.value !== ALL ? [where('communityId', '==', community.value)] : []),
-				...(collectionId.value !== ALL ? [where('collection', '==', collectionId.value)] : []),
-				...(op.value !== ALL ? [where('op', '==', op.value)] : []),
-				...(person.value ? [where('actorId', '==', person.value.id)] : []),
-			];
-	return query(collection(db, 'audit'), ...filters, orderBy('at', 'desc'));
-}
-
-function actionsQuery() {
-	return query(
-		collection(db, 'actions'),
-		...(person.value ? [where('uid', '==', person.value.id)] : []),
-		...(type.value !== ALL ? [where('type', '==', type.value)] : []),
-		...(app.value !== ALL ? [where('app', '==', app.value)] : []),
-		orderBy('at', 'desc'),
-	);
-}
-
 // A list read a page at a time; changing a filter while one loads only keeps the last one asked for
-function pages<T>(base: () => Query) {
+function pages<T>(read: (after?: QueryDocumentSnapshot) => Promise<{ items: T[]; last?: QueryDocumentSnapshot; more: boolean }>) {
 	const items = ref([]) as Ref<T[]>;
 	const last = shallowRef<QueryDocumentSnapshot>();
 	const hasMore = ref(false);
@@ -96,14 +65,13 @@ function pages<T>(base: () => Query) {
 		loading.value = true;
 		error.value = undefined;
 		try {
-			const page = await getDocs(query(base(), ...(more && last.value ? [startAfter(last.value)] : []), limit(PAGE_SIZE)));
+			const page = await read(more ? last.value : undefined);
 			if (current !== latest) {
 				return;
 			}
-			const loaded = page.docs.map(entry => ({ ...entry.data(), id: entry.id }) as T);
-			items.value = more ? [...items.value, ...loaded] : loaded;
-			last.value = page.docs.at(-1) ?? (more ? last.value : undefined);
-			hasMore.value = page.size === PAGE_SIZE;
+			items.value = more ? [...items.value, ...page.items] : page.items;
+			last.value = page.last ?? (more ? last.value : undefined);
+			hasMore.value = page.more;
 		} catch (e) {
 			if (current === latest) {
 				error.value = (e as Error).message;
@@ -118,8 +86,8 @@ function pages<T>(base: () => Query) {
 	return { items, hasMore, loading, error, load };
 }
 
-const changes = pages<Change>(changesQuery);
-const actions = pages<Action>(actionsQuery);
+const changes = pages(async after => loadChanges({ community: community.value, collection: collectionId.value, op: op.value, person: person.value?.id, path: versionsOf.value }, after));
+const actions = pages(async after => loadActions({ person: person.value?.id, type: type.value, app: app.value }, after));
 const current = computed(() => tab.value === 'changes' ? changes : actions);
 
 watch([tab, community, collectionId, op, type, app, person, versionsOf], () => current.value.load(), { immediate: true });
@@ -318,22 +286,8 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
 .hint {
 	margin-bottom: var(--lnx-spacing-4);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .tabs {
@@ -406,14 +360,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
 }
 
 .list {
@@ -517,10 +463,5 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		outline: 2px solid var(--color-primary);
 		outline-offset: 2px;
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

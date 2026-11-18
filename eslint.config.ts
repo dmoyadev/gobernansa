@@ -37,10 +37,10 @@ export default antfu({
 		}],
 	},
 }, {
-	// Reads and writes go in application/ (docs/desarrollo.md, Convenciones). A warning, because some pages still do it
+	// Reads and writes go in application/ (docs/desarrollo.md, Convenciones)
 	files: ['apps/*/src/modules/*/ui/**'],
 	rules: {
-		'ts/no-restricted-imports': ['warn', {
+		'ts/no-restricted-imports': ['error', {
 			paths: [{
 				name: 'firebase/firestore',
 				importNames: ['getFirestore', 'collection', 'collectionGroup', 'doc', 'query', 'getDoc', 'getDocs', 'getCountFromServer', 'onSnapshot', 'addDoc', 'setDoc', 'updateDoc', 'deleteDoc', 'writeBatch', 'runTransaction'],

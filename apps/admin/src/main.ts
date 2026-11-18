@@ -30,6 +30,7 @@ import '@gobernansa/shared/theme/custom-theme.scss';
 import { lnx } from '@gobernansa/shared/ui/lnx.ts';
 import './app/ux/interactions.scss';
 import './app/ux/sortable.scss';
+import './app/ux/page.scss';
 
 const app = createApp(App as Component);
 installMonitoring(app, router, 'admin');

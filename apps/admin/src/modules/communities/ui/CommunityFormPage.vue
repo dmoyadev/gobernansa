@@ -9,6 +9,7 @@ import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -121,7 +122,7 @@ const blankContact = (): CommunityContact => ({ type: 'other', name: '' });
 const blankDocument = (): CommunityForm['documents'][number] => ({ type: 'minutes', title: '', url: '', date: toInputDate(new Date()) });
 const newContact = ref(blankContact());
 const newDocument = ref(blankDocument());
-const newElement = useTemplateRef<HTMLFormElement>('newElement');
+const newElement = useTemplateRef('newElement');
 const { open: adding, show: showNew, close: closeNew } = useNewForm(newElement, () => {
 	newContact.value = blankContact();
 	newDocument.value = blankDocument();
@@ -240,7 +241,11 @@ async function archive(value: boolean) {
 	}
 }
 
-useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.requestSubmit(), { description: props.id ? 'Guardar cambios' : 'Crear comunidad' });
+// While «Nuevo» is open, FormCard sends that one unless the focus is in this one
+useShortcut('mod+enter', () => formElement.value?.requestSubmit(), {
+	description: props.id ? 'Guardar cambios' : 'Crear comunidad',
+	enabled: () => !adding.value || document.activeElement?.closest('form') === formElement.value,
+});
 </script>
 
 <template>
@@ -254,27 +259,26 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 		</template>
 	</header>
 
-	<form v-if="adding" ref="newElement" class="card new lnx-appear" @submit.prevent="add()">
-		<h2>{{ section === 'contacts' ? 'Nuevo contacto' : 'Nuevo documento' }}</h2>
+	<FormCard
+		v-if="adding"
+		ref="newElement"
+		class="new"
+		:title="section === 'contacts' ? 'Nuevo contacto' : 'Nuevo documento'"
+		submit-label="Añadir"
+		submit-icon="lucide:plus"
+		@submit="add()"
+		@cancel="closeNew()"
+	>
 		<CommunityContactFields v-if="section === 'contacts'" v-model="newContact" />
 		<CommunityDocumentFields v-else v-model="newDocument" />
 
-		<footer class="form-actions">
+		<template #status>
 			<LnxButton v-if="section === 'contacts'" mode="clear" class="lnx-size-small add-schedule" @click="addSchedule(newContact)">
 				<LnxIcon icon="lucide:clock" />
 				Añadir horario
 			</LnxButton>
-			<LnxButton mode="clear" @click="closeNew()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon icon="lucide:plus" />
-				Añadir
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+		</template>
+	</FormCard>
 
 	<form ref="formElement" @submit.prevent="save()">
 		<!-- Shaped like the first card: its title and fields -->
@@ -460,18 +464,14 @@ useShortcut('mod+enter', () => (adding.value ? newElement : formElement).value?.
 	align-items: flex-start;
 }
 
-form {
+// The page's own form, not the FormCard of «Nuevo»
+form:not(.card) {
 	display: flex;
 	flex-direction: column;
 	gap: var(--lnx-spacing-5);
 }
 
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		min-width: 0;
 		overflow: hidden;
@@ -481,45 +481,13 @@ form {
 	}
 }
 
-.card {
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
 .hint {
 	margin-top: calc(-1 * var(--lnx-spacing-2));
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 
 	&.duplicate {
 		display: flex;
 		align-items: center;
 		gap: var(--lnx-spacing-2);
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
 	}
 }
 
@@ -556,13 +524,8 @@ form {
 }
 
 .form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
 	// Apart from sending or cancelling the form
+
 	.add-schedule {
 		margin-right: auto;
 	}
@@ -584,10 +547,5 @@ form {
 	.error {
 		flex: 1 1 100%;
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

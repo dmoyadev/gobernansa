@@ -1,29 +1,24 @@
 <script setup lang="ts">
 import type { Draft, NoticeTone } from '@gobernansa/shared/application/writing.ts';
 import type { Event } from '@gobernansa/shared/domain/event.ts';
-import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
-import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
-import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, LnxTextarea, toast, useConfirm, useShortcut } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
+import { Timestamp } from 'firebase/firestore';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxRadioGroup, LnxSelect, LnxTextarea, toast, useConfirm } from 'lnxjs-components';
+import { computed, ref, useTemplateRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate, remember } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
 import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
+import { copyId, loadRecentEvents, recentSince, removeAnnouncement, restoreAnnouncement, sendAnnouncement } from '../application/announcements.ts';
 
 const ask = useConfirm();
-
-const eventsRef = collection(db, 'events');
-
-// Per community, the ones dated from this many days ago on, upcoming included: the latest by date alone would be the furthest future events
-const RECENT_DAYS = 60;
-const RECENT_PER_COMMUNITY = 100;
 
 const typeOptions = Object.entries(eventTypes).map(([value, { label }]) => ({ value: value as Event['type'], label }));
 
@@ -56,10 +51,6 @@ interface Broadcast {
 const recent = ref<Broadcast[]>([]);
 const recentLoading = ref(false);
 const recentError = ref<string>();
-
-function recentSince() {
-	return Date.now() - RECENT_DAYS * 86_400_000;
-}
 
 function sortBroadcasts(broadcasts: Broadcast[]) {
 	return broadcasts.sort((a, b) => b.date.toMillis() - a.date.toMillis());
@@ -98,7 +89,7 @@ async function writeDraft() {
 }
 
 const formError = ref<string>();
-const formElement = ref<HTMLFormElement>();
+const formElement = useTemplateRef('formElement');
 // The copies share it so they can be listed and removed together. Made when the form opens, with each copy's id
 // derived from it, so sending twice writes them once
 const broadcastId = ref(newId());
@@ -129,27 +120,16 @@ function send() {
 		date: Timestamp.fromDate(new Date(`${date}T00:00`)),
 		broadcastId: sent.broadcastId,
 	};
-	const now = serverTimestamp();
-	const batch = writeBatch(db);
-	for (const communityId of sent.communityIds) {
-		batch.set(doc(eventsRef, `${sent.broadcastId}-${communityId}`), { ...data, communityId, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid });
-		logActivity(batch, communityId, {
-			area: 'event',
-			summary: `Envió el comunicado «${data.title}»`,
-			link: `/communities/${communityId}/notifications`,
-		});
-	}
-
 	// Listed at once instead of reading them all again, when it falls in what the list reads
 	const previous = recent.value;
 	if (data.date.toMillis() >= recentSince()) {
 		const at = Timestamp.now();
-		const copies = sent.communityIds.map(communityId => ({ ...data, id: `${sent.broadcastId}-${communityId}`, communityId, createdAt: at, createdBy: uid, updatedAt: at, updatedBy: uid }) as Event);
+		const copies = sent.communityIds.map(communityId => ({ ...data, id: copyId(sent.broadcastId, communityId), communityId, createdAt: at, createdBy: uid, updatedAt: at, updatedBy: uid }) as Event);
 		recent.value = sortBroadcasts([...previous, { id: sent.broadcastId, title: data.title, type: data.type, date: data.date, description: data.description, copies }]);
 	}
 	close();
 	// No undo: neighbours are already told of it
-	void optimistic(batch.commit(), {
+	void optimistic(sendAnnouncement(data, sent.communityIds, uid), {
 		done: 'Comunicado enviado',
 		failed: 'No se ha podido enviar',
 		onError: () => {
@@ -164,7 +144,7 @@ function send() {
 // Ticking several communities quickly starts several reads, only the last one is shown
 let latestLoad = 0;
 
-// Once per change of the selection and not live: it reads up to RECENT_PER_COMMUNITY per community
+// Once per change of the selection and not live: it reads up to 100 per community
 async function loadRecent() {
 	const ids = [...selected.value];
 	if (!ids.length) {
@@ -177,14 +157,7 @@ async function loadRecent() {
 	recentError.value = undefined;
 	try {
 		// Each community's kept a few minutes, so ticking one more only reads that one
-		const lists = await Promise.all(ids.map(async communityId => remember(`announcements:${communityId}`, async () => (await getDocs(query(
-			eventsRef,
-			where('communityId', '==', communityId),
-			// Same index as the timeline's: communityId and date
-			where('date', '>=', Timestamp.fromMillis(recentSince())),
-			orderBy('date', 'desc'),
-			limit(RECENT_PER_COMMUNITY),
-		))).docs.map(snapshot => ({ ...snapshot.data(), id: snapshot.id }) as Event))));
+		const lists = await Promise.all(ids.map(async communityId => remember(`announcements:${communityId}`, async () => loadRecentEvents(communityId))));
 		if (load !== latestLoad) {
 			return;
 		}
@@ -229,41 +202,20 @@ async function remove(broadcast: Broadcast) {
 		return;
 	}
 
-	const batch = writeBatch(db);
-	for (const copy of broadcast.copies) {
-		batch.delete(doc(eventsRef, copy.id));
-		logActivity(batch, copy.communityId, { area: 'event', summary: `Borró el comunicado «${copy.title}»` });
-	}
 	const putBack = () => {
 		recent.value = sortBroadcasts([...recent.value.filter(item => item.id !== broadcast.id), broadcast]);
 	};
 	recent.value = recent.value.filter(item => item.id !== broadcast.id);
-	void optimistic(batch.commit(), {
+	void optimistic(removeAnnouncement(broadcast.copies), {
 		done: 'Comunicado borrado',
 		failed: 'No se ha podido borrar',
 		revert: async () => {
-			await restoreBroadcast(broadcast);
+			await restoreAnnouncement(broadcast.copies);
 			putBack();
 		},
 		onError: putBack,
 	});
 }
-
-// Undoes remove: every copy back with its id and what it had, from the list in memory
-async function restoreBroadcast(broadcast: Broadcast) {
-	const batch = writeBatch(db);
-	for (const { id, ...copy } of broadcast.copies) {
-		batch.set(doc(eventsRef, id), copy);
-		logActivity(batch, copy.communityId, {
-			area: 'event',
-			summary: `Restauró el comunicado «${copy.title}»`,
-			link: `/communities/${copy.communityId}/notifications`,
-		});
-	}
-	await batch.commit();
-}
-
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar el comunicado' });
 </script>
 
 <template>
@@ -300,8 +252,17 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 		</fieldset>
 	</section>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="send()">
-		<h2>Nuevo comunicado</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		shortcut="Enviar el comunicado"
+		title="Nuevo comunicado"
+		:error="formError"
+		submit-icon="lucide:send"
+		:disabled="!selected.length"
+		@submit="send()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
 				Título
@@ -350,21 +311,10 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 			</footer>
 		</details>
 
-		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit" :disabled="!selected.length">
-				<LnxIcon icon="lucide:send" />
-				Enviar a <span class="tabular">{{ selected.length }}</span> comunidad{{ selected.length === 1 ? '' : 'es' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+		<template #submit>
+			Enviar a <span class="tabular">{{ selected.length }}</span> comunidad{{ selected.length === 1 ? '' : 'es' }}
+		</template>
+	</FormCard>
 
 	<section class="card">
 		<h2>Enviados a las comunidades elegidas</h2>
@@ -410,11 +360,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -422,33 +367,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
 }
 
 .communities {
@@ -500,18 +418,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-2);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {
@@ -573,15 +479,5 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 		font-size: var(--lnx-font-size-small);
 		white-space: pre-line;
 	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

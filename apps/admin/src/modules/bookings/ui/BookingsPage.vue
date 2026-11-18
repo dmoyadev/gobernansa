@@ -414,11 +414,6 @@ async function cancel(booking: Booking) {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		min-width: 0;
 		overflow: hidden;
@@ -442,26 +437,10 @@ async function cancel(booking: Booking) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
 	align-items: flex-start;
-	gap: var(--lnx-spacing-4);
 
 	> * {
 		align-self: stretch;
-	}
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
 	}
 }
 
@@ -709,36 +688,13 @@ td .booked {
 }
 
 .fields {
-	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
 }
 
 .form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
 	.error,
 	.hint {
 		flex: 1;
 	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

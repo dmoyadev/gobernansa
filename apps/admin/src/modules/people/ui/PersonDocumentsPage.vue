@@ -1,40 +1,21 @@
 <script setup lang="ts">
-import type { Property } from '@gobernansa/shared/domain/property.ts';
-import type { User } from '@gobernansa/shared/domain/user.ts';
-import type { Timestamp } from 'firebase/firestore';
-import { logActivity } from '@gobernansa/shared/application/activity.ts';
+import type { PersonDocument } from '../application/personDocuments.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS } from '@gobernansa/shared/domain/user.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { Bytes, collection, doc, getDoc, orderBy, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { LnxButton, LnxIcon, LnxKbd, LnxRadioGroup, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxRadioGroup, useConfirm } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
-import { useCollection, useDocument } from 'vuefire';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
+import { loadDocumentFile, removePersonDocument, sendPersonDocument, usePersonDocuments } from '../application/personDocuments.ts';
 
 const props = defineProps<{ id: string; uid: string }>();
 
 const ask = useConfirm();
-
-// The same shape as the webapp's, which lists them to the neighbour along with the ones they upload
-interface PersonDocument {
-	id: string;
-	name: string;
-	type: string;
-	size: number;
-	category: 'deed' | 'permit' | 'receipt' | 'other';
-	propertyId?: string;
-	createdAt: Timestamp;
-	// Who sent it from the administration, none for the ones the neighbour uploaded
-	uploadedBy?: string;
-}
-
-// Files live inside Firestore documents to stay on the free plan, as the webapp does
 
 const categories: { value: PersonDocument['category']; label: string; icon: string }[] = [
 	{ value: 'deed', label: 'Escrituras', icon: 'lucide:landmark' },
@@ -44,11 +25,8 @@ const categories: { value: PersonDocument['category']; label: string; icon: stri
 ];
 
 const { user: me } = useAuth();
-const person = useDocument<User>(doc(db, 'users', props.uid));
-const documentsRef = collection(db, 'users', props.uid, 'documents');
-// Listed without their files, which are only read to download one
-const { data: documents, pending, error } = useCollection<PersonDocument>(query(documentsRef, orderBy('createdAt', 'desc')));
-const properties = useCollection<Property>(query(collection(db, 'properties'), where('communityId', '==', props.id), where('ownerUid', '==', props.uid)));
+const { person, documents: documentList, properties } = usePersonDocuments(props.id, props.uid);
+const { data: documents, pending, error } = documentList;
 const propertyNames = computed(() => Object.fromEntries(properties.value.map(property => [property.id, property.name])));
 
 const file = ref<File>();
@@ -56,7 +34,7 @@ const category = ref<PersonDocument['category']>('other');
 const propertyId = ref('');
 const sending = ref(false);
 const formError = ref<string>();
-const formElement = useTemplateRef<HTMLFormElement>('formElement');
+const formElement = useTemplateRef('formElement');
 // Sending it again after a failure writes the same document instead of a second one
 let documentId = newId();
 
@@ -67,12 +45,6 @@ function reset() {
 }
 
 const { open, show, close } = useNewForm(formElement, reset);
-
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar el documento elegido' });
-
-function fileRef(id: string) {
-	return doc(db, 'users', props.uid, 'documentFiles', id);
-}
 
 async function upload() {
 	if (!file.value || sending.value) {
@@ -90,24 +62,7 @@ async function upload() {
 	sending.value = true;
 	formError.value = undefined;
 	try {
-		const documentRef = doc(documentsRef, documentId);
-		const batch = writeBatch(db);
-		batch.set(fileRef(documentRef.id), { data: Bytes.fromUint8Array(new Uint8Array(await file.value.arrayBuffer())) });
-		batch.set(documentRef, {
-			name: file.value.name,
-			type: file.value.type,
-			size: file.value.size,
-			category: category.value,
-			...(propertyId.value ? { propertyId: propertyId.value } : {}),
-			createdAt: serverTimestamp(),
-			uploadedBy: me.value?.name || 'Administración',
-		});
-		logActivity(batch, props.id, {
-			area: 'people',
-			summary: `Envió «${file.value.name}» a ${person.value?.name ?? 'un vecino'}`,
-			link: `/communities/${props.id}/people/${props.uid}/documents`,
-		});
-		await batch.commit();
+		await sendPersonDocument(props.id, props.uid, documentId, file.value, { category: category.value, propertyId: propertyId.value, uploadedBy: me.value?.name || 'Administración' }, person.value?.name ?? 'un vecino');
 		close();
 	} catch (e) {
 		formError.value = `No se ha podido enviar: ${(e as Error).message}`;
@@ -121,7 +76,7 @@ const actionError = ref<string>();
 async function download(document: PersonDocument) {
 	actionError.value = undefined;
 	try {
-		const bytes = ((await getDoc(fileRef(document.id))).data()?.data as Bytes | undefined)?.toUint8Array();
+		const bytes = await loadDocumentFile(props.uid, document.id);
 		if (!bytes) {
 			throw new Error('El documento no tiene archivo');
 		}
@@ -139,15 +94,7 @@ async function remove(document: PersonDocument) {
 		return;
 	}
 
-	const batch = writeBatch(db);
-	batch.delete(doc(documentsRef, document.id));
-	batch.delete(fileRef(document.id));
-	logActivity(batch, props.id, {
-		area: 'people',
-		summary: `Borró «${document.name}» de los documentos de ${person.value?.name ?? 'un vecino'}`,
-		link: `/communities/${props.id}/people/${props.uid}/documents`,
-	});
-	void optimistic(batch.commit(), { done: 'Documento borrado', failed: 'No se ha podido borrar' });
+	void optimistic(removePersonDocument(props.id, props.uid, document, person.value?.name ?? 'un vecino'), { done: 'Documento borrado', failed: 'No se ha podido borrar' });
 }
 
 function formatSize(bytes: number) {
@@ -166,8 +113,18 @@ function formatSize(bytes: number) {
 		<NewButton v-if="!open" label="Enviar un documento" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="upload()">
-		<h2>Enviar un documento</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		title="Enviar un documento"
+		:error="formError"
+		submit-label="Enviar"
+		submit-icon="lucide:send"
+		:saving="sending"
+		shortcut="Enviar el documento elegido"
+		@submit="upload()"
+		@cancel="close()"
+	>
 		<p class="hint">
 			Lo verá en su perfil, con tu nombre. Hasta 1 MB.
 		</p>
@@ -184,22 +141,7 @@ function formatSize(bytes: number) {
 		<LnxRadioGroup v-if="properties.length" v-model="propertyId" :options="[{ value: '', label: 'Ninguna' }, ...properties.map(property => ({ value: property.id, label: property.name }))]">
 			Propiedad
 		</LnxRadioGroup>
-
-		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit" :is-loading="sending">
-				<LnxIcon icon="lucide:send" />
-				Enviar
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card">
 		<h2>Sus documentos</h2>
@@ -258,11 +200,6 @@ function formatSize(bytes: number) {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -270,39 +207,6 @@ function formatSize(bytes: number) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {
@@ -341,11 +245,6 @@ function formatSize(bytes: number) {
 .actions {
 	display: flex;
 	gap: var(--lnx-spacing-1);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 // Rows coming and going, interruptible as they're transitions

@@ -4,10 +4,11 @@ import type { Issue, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxTextarea, useShortcut } from 'lnxjs-components';
-import { computed, ref } from 'vue';
+import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxTextarea } from 'lnxjs-components';
+import { computed, ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -56,7 +57,7 @@ function emptyForm() {
 }
 
 const form = ref(emptyForm());
-const formElement = ref<HTMLFormElement>();
+const formElement = useTemplateRef('formElement');
 const { open, show, close } = useNewForm(formElement);
 
 // Fresh each time, with the community's categories once they've loaded
@@ -94,8 +95,6 @@ function create() {
 	});
 	void router.push(link);
 }
-
-useShortcut('mod+enter', create, { description: 'Crear la incidencia', enabled: () => open.value });
 </script>
 
 <template>
@@ -109,8 +108,17 @@ useShortcut('mod+enter', create, { description: 'Crear la incidencia', enabled: 
 		<NewButton v-if="!open" label="Nueva incidencia" @click="openForm()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card new lnx-appear" @submit.prevent="create()">
-		<h2>Nueva incidencia</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		class="new"
+		title="Nueva incidencia"
+		submit-label="Crear incidencia"
+		shortcut="Crear la incidencia"
+		submit-icon="lucide:plus"
+		@submit="create()"
+		@cancel="close()"
+	>
 		<fieldset class="categories">
 			<legend>Categoría</legend>
 			<label
@@ -139,18 +147,7 @@ useShortcut('mod+enter', create, { description: 'Crear la incidencia', enabled: 
 				Descripción
 			</LnxTextarea>
 		</div>
-		<footer class="form-actions">
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon icon="lucide:plus" />
-				Crear incidencia
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<LnxRadioGroup
 		class="filters"
@@ -248,36 +245,8 @@ useShortcut('mod+enter', create, { description: 'Crear la incidencia', enabled: 
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
 .card {
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
 	align-items: stretch;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
 }
 
 .new {
@@ -517,31 +486,12 @@ useShortcut('mod+enter', create, { description: 'Crear la incidencia', enabled: 
 	}
 }
 
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
 .form-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
+	align-items: normal;
+	flex-wrap: nowrap;
 }
 
 .hint {
 	padding: var(--lnx-spacing-3) 0;
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

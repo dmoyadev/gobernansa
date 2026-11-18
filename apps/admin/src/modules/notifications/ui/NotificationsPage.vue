@@ -2,10 +2,11 @@
 import type { Event } from '@gobernansa/shared/domain/event.ts';
 import type { NotificationForm } from '../application/useNotifications.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
-import { ref, watch } from 'vue';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, LnxTextarea, useConfirm } from 'lnxjs-components';
+import { ref, useTemplateRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -28,7 +29,7 @@ function emptyForm(): NotificationForm {
 	return { title: '', description: '', type: 'community', date: toInputDate(new Date()) };
 }
 
-const formElement = ref<HTMLFormElement>();
+const formElement = useTemplateRef('formElement');
 const form = ref(emptyForm());
 // The one being edited, none while writing a new one
 const editingId = ref<string>();
@@ -110,8 +111,6 @@ async function remove(notification: Event) {
 		revert: () => restoreNotification(notification),
 	});
 }
-
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Publicar o guardar el aviso' });
 </script>
 
 <template>
@@ -121,8 +120,16 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 		<NewButton v-if="!open" label="Nuevo aviso" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar aviso' : 'Nuevo aviso' }}</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		:title="editingId ? 'Editar aviso' : 'Nuevo aviso'"
+		:submit-label="editingId ? 'Guardar cambios' : 'Publicar'"
+		:submit-icon="editingId ? 'lucide:save' : 'lucide:send'"
+		shortcut="Publicar o guardar el aviso"
+		@submit="save()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxInput v-model="form.title" class="wide" required>
 				Título
@@ -147,19 +154,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 				Descripción
 			</LnxTextarea>
 		</div>
-
-		<footer class="form-actions">
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:send'" />
-				{{ editingId ? 'Guardar cambios' : 'Publicar' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card" :aria-busy="pending">
 		<h2>Publicados</h2>
@@ -211,11 +206,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -223,45 +213,6 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {
@@ -326,15 +277,5 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 .item-actions {
 	display: flex;
 	gap: var(--lnx-spacing-1);
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

@@ -20,6 +20,14 @@ export const THRESHOLD_347 = 300_506;
 // Entities without an economic activity whose income doesn't exceed it needn't file the 184
 export const THRESHOLD_184 = 300_000;
 
+// Why a declarado's NIF keeps them out of a file, if it does
+export function taxIdProblem(nif?: string) {
+	if (!nif) {
+		return 'Sin NIF';
+	}
+	return isValidNif(nif) ? undefined : 'NIF no válido';
+}
+
 const DROPPED_REGEX = /[.,']/g;
 const NOT_ALLOWED_REGEX = /[^A-Z0-9 ÑÇ]/g;
 const NOT_EMAIL_REGEX = /[^A-Z0-9@._-]/g;

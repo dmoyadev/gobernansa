@@ -1,28 +1,29 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
-import type { Remittance, RemittanceItem, ReturnMatch, ReturnReason } from '@gobernansa/shared/domain/sepa.ts';
+import type { Remittance, RemittanceItem, ReturnReason } from '@gobernansa/shared/domain/sepa.ts';
 import type { RemittanceData } from '../application/useRemittances.ts';
-import { decodeText } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { checkSepa } from '@gobernansa/shared/domain/fileChecks.ts';
 import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import { creditorId, matchReturns, parseReturns, remittanceStatuses, remittanceXml, returnReasons, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
+import { creditorId, remittanceStatuses, remittanceXml, returnReasons, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useFileCheck } from '../application/useFileCheck.ts';
 import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
-import { createRemittance, deleteRemittance, loadRemittances, logReturnsReport, MAX_REMITTANCE_ITEMS, returnDebit, setRemittanceStatus } from '../application/useRemittances.ts';
+import { createRemittance, deleteRemittance, loadRemittances, MAX_REMITTANCE_ITEMS, returnDebit, setRemittanceStatus } from '../application/useRemittances.ts';
 import FileCheck from './FileCheck.vue';
+import ReturnsReport from './ReturnsReport.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -216,8 +217,6 @@ async function save(id: string, data: RemittanceData, xml: string) {
 	}
 }
 
-useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), { description: 'Generar la remesa' });
-
 /* Remittances */
 
 const busyId = ref<string>();
@@ -313,85 +312,13 @@ async function confirmReturn(remittance: Remittance, item: RemittanceItem) {
 	});
 }
 
-/* Returns imported from the bank's report (pain.002 or camt.054) */
-
-const reportInput = useTemplateRef('reportInput');
-const report = ref<{ name: string; matches: ReturnMatch[] }>();
-const reportFee = ref('');
-const reportError = ref<string>();
-const applying = ref(false);
-const ready = computed(() => report.value?.matches.filter(match => !match.problem) ?? []);
-const unmatched = computed(() => report.value?.matches.filter(match => match.problem) ?? []);
-
-useShortcut('i', () => reportInput.value?.click(), { description: 'Importar devoluciones', enabled: () => !loading.value });
-
-async function readReport(event: Event) {
-	const input = event.target as HTMLInputElement;
-	const file = input.files?.[0];
-	input.value = '';
-	if (!file) {
-		return;
-	}
-	const lines = parseReturns(decodeText(await file.arrayBuffer()));
-	report.value = lines?.length ? { name: file.name, matches: matchReturns(lines, remittances.value) } : undefined;
-	reportError.value = !lines
-		? 'No es un informe de devoluciones del banco (pain.002 o camt.054).'
-		: !lines.length ? 'El informe no trae ningún adeudo devuelto.' : undefined;
-	reportFee.value = '';
-}
-
-// One by one, as registered by hand: each its charge, fee and activity entry
-async function applyReport() {
-	const fee = reportFee.value.trim() ? toCents(reportFee.value) : 0;
-	if (!report.value || applying.value || !(fee >= 0)) {
-		reportError.value = fee >= 0 ? undefined : 'Escribe unos gastos válidos, p. ej. 3,50, o déjalo vacío.';
-		return;
-	}
-	const today = toDateString(new Date());
-	const undos: (() => Promise<Remittance>)[] = [];
-	const registered: RemittanceItem[] = [];
-	const { name, matches } = report.value;
-	applying.value = true;
-	reportError.value = undefined;
-	try {
-		for (const { line, remittance, item } of ready.value) {
-			const current = remittances.value.find(other => other.id === remittance!.id) ?? remittance!;
-			const result = await returnDebit(props.id, current, item!, {
-				reason: line.code as ReturnReason,
-				date: line.date ?? today,
-				...(fee ? { fee: { cents: fee } } : {}),
-			});
-			replace(result.remittance);
-			// Registered meanwhile elsewhere (another tab, by hand): nothing to undo
-			if (result.undo) {
-				undos.push(result.undo);
-				registered.push(item!);
-			}
-		}
-		report.value = undefined;
-		toast(`${undos.length} ${undos.length === 1 ? 'devolución registrada' : 'devoluciones registradas'}${fee ? ' con sus gastos' : ''}`, {
-			undo: async () => {
-				for (const undo of undos.toReversed()) {
-					replace(await undo());
-				}
-			},
-		});
-	} catch (e) {
-		reportError.value = `Se han registrado ${undos.length} y la siguiente ha fallado: ${(e as Error).message}`;
-		// Those registered now show as such, trying again only registers the rest
-		report.value = { name, matches: matchReturns(matches.map(match => match.line), remittances.value) };
-	} finally {
-		applying.value = false;
-		logReturnsReport(props.id, name, registered, matches.filter(match => match.problem));
-	}
-}
+const returns = useTemplateRef('returns');
 </script>
 
 <template>
 	<header class="page-header">
 		<h1>Remesas</h1>
-		<input ref="reportInput" type="file" accept=".xml,application/xml,text/xml" hidden @change="readReport">
-		<LnxButton class="lnx-size-small" mode="outline" :disabled="loading" @click="reportInput?.click()">
+		<LnxButton class="lnx-size-small" mode="outline" :disabled="loading" @click="returns?.open()">
 			<LnxIcon icon="lucide:file-input" />
 			Importar devoluciones
 			<LnxKbd combo="i" />
@@ -404,68 +331,23 @@ async function applyReport() {
 		La remesa se descarga como fichero SEPA (pain.008) y se sube a la banca online de la comunidad. No hace falta conectar con el banco ni tiene coste.
 	</p>
 
-	<p v-if="reportError && !report" class="error card-gap" role="alert">
-		{{ reportError }}
-	</p>
-	<section v-if="report" class="card lnx-appear">
-		<h2>Devoluciones de {{ report.name }}</h2>
-		<p class="hint">
-			Cada adeudo devuelto se busca en las remesas por su referencia (EndToEndId) y su importe. Al registrarlas, los recibos vuelven a quedar pendientes, como al hacerlo a mano.
-		</p>
-		<ul v-if="ready.length" class="list">
-			<li v-for="match in ready" :key="match.line.endToEndId" class="charge">
-				<div class="what">
-					<span>{{ match.item!.propertyName }} · {{ match.item!.concept }}</span>
-					<small class="tabular">
-						{{ match.remittance!.reference }} · <span class="debt">{{ match.line.code }} {{ returnReasons[match.line.code as ReturnReason].toLowerCase() }}</span><template v-if="match.line.date">
-							· {{ dateFormat.format(new Date(`${match.line.date}T00:00`)) }}
-						</template>
-					</small>
-				</div>
-				<strong class="tabular">{{ formatCents(match.item!.amount) }}</strong>
-			</li>
-		</ul>
-		<p v-else class="hint">
-			Ninguna devolución del fichero se puede registrar.
-		</p>
-		<template v-if="unmatched.length">
-			<h3>Sin registrar</h3>
-			<ul class="list">
-				<li v-for="(match, index) in unmatched" :key="index" class="charge">
-					<div class="what">
-						<span class="tabular">{{ match.item ? `${match.item.propertyName} · ${match.item.concept}` : match.line.endToEndId || 'Sin referencia' }}</span>
-						<small>{{ match.problem }}<template v-if="match.line.code"> · {{ match.line.code }}</template></small>
-					</div>
-					<span v-if="match.line.amount !== undefined" class="tabular">{{ formatCents(match.line.amount) }}</span>
-				</li>
-			</ul>
-		</template>
-		<div v-if="ready.length" class="fields">
-			<LnxInput v-model="reportFee" inputmode="decimal" placeholder="0,00">
-				Gastos por devolución (€)
-				<template #helper>
-					Opcional, se cargan a cada propiedad
-				</template>
-			</LnxInput>
-		</div>
-		<footer class="form-actions">
-			<p v-if="reportError" class="error" role="alert">
-				{{ reportError }}
-			</p>
-			<LnxButton mode="clear" @click="report = undefined">
-				Cancelar
-			</LnxButton>
-			<LnxButton :is-loading="applying" :disabled="!ready.length" @click="applyReport()">
-				Registrar {{ ready.length }} {{ ready.length === 1 ? 'devolución' : 'devoluciones' }}
-			</LnxButton>
-		</footer>
-	</section>
+	<ReturnsReport :id ref="returns" :remittances :disabled="loading" @replace="replace" />
 
 	<p v-if="!remote.remittances" class="card warning" role="note">
 		La generación de remesas está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
 	</p>
-	<form v-else-if="open" ref="generateForm" class="card lnx-appear" @submit.prevent="generate()">
-		<h2>Nueva remesa</h2>
+	<FormCard
+		v-else-if="open"
+		ref="generateForm"
+		shortcut="Generar la remesa"
+		title="Nueva remesa"
+		submit-label="Generar y descargar"
+		submit-icon="lucide:file-down"
+		:saving="generating"
+		:disabled="!selected.length || !community"
+		@submit="generate()"
+		@cancel="close()"
+	>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
 			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
 		</p>
@@ -544,24 +426,15 @@ async function applyReport() {
 			@confirm="confirm()"
 			@dismiss="dismiss()"
 		/>
-		<footer class="form-actions">
+		<template #status>
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'recibo' : 'recibos' }} · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit" :is-loading="generating" :disabled="!selected.length || !community">
-				<LnxIcon icon="lucide:file-down" />
-				Generar y descargar
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+		</template>
+	</FormCard>
 
 	<section class="card">
 		<h2>Remesas</h2>
@@ -702,205 +575,4 @@ async function applyReport() {
 	</section>
 </template>
 
-<style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.intro {
-	margin-bottom: var(--lnx-spacing-4);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-}
-
-.card {
-	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error,
-	.hint {
-		flex: 1;
-	}
-}
-
-.list {
-	display: flex;
-	flex-direction: column;
-}
-
-.item {
-	padding: var(--lnx-spacing-3) 0;
-
-	& + & {
-		border-top: 1px solid var(--color-gray-3);
-	}
-}
-
-.row {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-}
-
-.what {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	text-align: left;
-
-	small {
-		overflow: hidden;
-		color: var(--color-gray-6);
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-}
-
-button.what {
-	// Its hover reaches a bit past the text, without moving it
-	margin: calc(-1 * var(--lnx-spacing-1)) calc(-1 * var(--lnx-spacing-2));
-	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
-	border: none;
-	border-radius: var(--lnx-radius-2);
-	background: none;
-	font: inherit;
-	color: inherit;
-	cursor: pointer;
-}
-
-.charge {
-	padding: var(--lnx-spacing-2) 0;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-
-	:deep(.lnx-checkbox),
-	:deep(.text) {
-		min-width: 0;
-	}
-}
-
-.item-check {
-	margin-top: var(--lnx-spacing-3);
-}
-
-.card-gap {
-	margin-bottom: var(--lnx-spacing-4);
-}
-
-h3 {
-	font-size: var(--lnx-font-size-small);
-	color: var(--color-gray-6);
-}
-
-.debits {
-	margin-top: var(--lnx-spacing-3);
-	padding-left: var(--lnx-spacing-4);
-	border-left: 2px solid var(--color-gray-3);
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
-}
-
-.return {
-	margin-bottom: var(--lnx-spacing-3);
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-3);
-}
-
-.item-actions {
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-1);
-}
-
-.chip {
-	padding: 2px var(--lnx-spacing-2);
-	border-radius: 999px;
-	background: var(--color-gray-2);
-	font-size: var(--lnx-font-size-small);
-	white-space: nowrap;
-
-	&.ok {
-		color: var(--color-primary);
-	}
-}
-
-.struck {
-	color: var(--color-gray-6);
-	text-decoration: line-through;
-}
-
-.debt {
-	color: var(--color-secondary-accent);
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-
-	a {
-		color: var(--color-primary);
-	}
-}
-
-.warning {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-	font-size: var(--lnx-font-size-small);
-	color: var(--color-gray-7);
-
-	a {
-		color: var(--color-primary);
-	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
-}
-</style>
+<style lang="scss" scoped src="./remittances.scss" />

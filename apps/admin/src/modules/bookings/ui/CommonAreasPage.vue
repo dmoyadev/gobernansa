@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/community.ts';
 import { commonAreaIcons, formatSchedule, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
-import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, useConfirm } from 'lnxjs-components';
 import { ref, toRaw, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import IconPicker from '@/app/ux/IconPicker.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
@@ -31,7 +32,7 @@ const draft = ref(newDraft());
 // The one being edited, none while adding a new one
 const editingId = ref<string>();
 const error = ref<string>();
-const formElement = useTemplateRef<HTMLFormElement>('formElement');
+const formElement = useTemplateRef('formElement');
 
 // Read again when the page comes back, the last one shown meanwhile. The draft is its own copy, so the list is
 // always the latest: saving it mustn't write back what the bookings page changed meanwhile
@@ -128,8 +129,6 @@ function persist(next: CommonArea[], summary: string, done: string, revert?: () 
 		},
 	});
 }
-
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la zona' });
 </script>
 
 <template>
@@ -146,8 +145,18 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 		{{ loadError }}
 	</p>
 
-	<form v-if="open" ref="formElement" class="card form lnx-appear" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar zona común' : 'Nueva zona común' }}</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		class="form"
+		:title="editingId ? 'Editar zona común' : 'Nueva zona común'"
+		:error="error"
+		:submit-label="editingId ? 'Guardar cambios' : 'Añadir'"
+		:submit-icon="editingId ? 'lucide:save' : 'lucide:plus'"
+		shortcut="Guardar la zona"
+		@submit="save()"
+		@cancel="close()"
+	>
 		<div class="named">
 			<IconPicker v-model="draft.icon" :options="commonAreaIcons" />
 			<LnxInput v-model="draft.name" autofocus placeholder="Portal, piscina, pista de pádel…" required>
@@ -157,22 +166,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 		<LnxCheckbox v-model="draft.bookable">
 			Reservable
 		</LnxCheckbox>
-
-		<footer class="form-actions">
-			<p v-if="error" class="error" role="alert">
-				{{ error }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
-				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<ul v-if="loading" class="card list" aria-busy="true">
 		<li v-for="width in [30, 45, 25, 38]" :key="width" class="row">
@@ -236,30 +230,15 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description
 <style lang="scss" scoped>
 .page-header {
 	margin-bottom: var(--lnx-spacing-2);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
 }
 
 .hint {
 	margin-bottom: var(--lnx-spacing-5);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .card {
 	padding: var(--lnx-spacing-2) var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
+	gap: normal;
 }
 
 // Above the list, as the other pages' forms
@@ -293,15 +272,6 @@ form.card {
 
 .form-actions {
 	align-self: stretch;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list > li + li {
@@ -370,10 +340,5 @@ form.card {
 .row-leave-to {
 	opacity: 0;
 	translate: 0 -4px;
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

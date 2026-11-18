@@ -179,11 +179,6 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -194,15 +189,7 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 }
 
 .card {
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
 	align-items: stretch;
-	gap: var(--lnx-spacing-4);
 }
 
 .statuses {
@@ -302,15 +289,5 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	font-size: var(--lnx-font-size-legal);
 	font-weight: var(--lnx-font-weight-bold);
 	white-space: nowrap;
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

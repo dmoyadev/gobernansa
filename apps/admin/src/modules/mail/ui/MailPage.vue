@@ -3,21 +3,14 @@ import type { Mail } from '@gobernansa/shared/domain/mail.ts';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { deliveryStates, mailKinds, mailStatus, statusOf } from '@gobernansa/shared/domain/mail.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, getDocs, limit, query, startAfter, where } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
-import { MAIL_MODE } from '../application/mail.ts';
+import { loadMail, MAIL_MODE, MAX_IN } from '../application/mail.ts';
 
-const PAGE_SIZE = 25;
-// The most values Firestore takes in an 'in' filter
-const MAX_IN = 30;
-
-const mailRef = collection(db, 'mail');
 const { user } = useAuth();
 const { communities } = useCommunities();
 
@@ -41,11 +34,8 @@ const error = ref<string>();
 // Changing the community while a page loads only keeps the last one asked for
 let latestLoad = 0;
 
-// A page at a time and once, not live: each page added only reads its own. In id order, which is newest first (mailId)
+// A page at a time and once, not live: each page added only reads its own
 async function load(more = false) {
-	const scope = communityId.value
-		? [where('communityId', '==', communityId.value)]
-		: isSuperadmin ? [] : [where('communityId', 'in', managedIds)];
 	if (!communityId.value && !isSuperadmin && !managedIds.length) {
 		return;
 	}
@@ -54,14 +44,13 @@ async function load(more = false) {
 	loading.value = true;
 	error.value = undefined;
 	try {
-		const snapshot = await getDocs(query(mailRef, ...scope, ...(more && last.value ? [startAfter(last.value)] : []), limit(PAGE_SIZE)));
+		const page = await loadMail(communityId.value || (isSuperadmin ? undefined : managedIds), more ? last.value : undefined);
 		if (current !== latestLoad) {
 			return;
 		}
-		const page = snapshot.docs.map(mail => ({ ...mail.data(), id: mail.id }) as Mail);
-		mails.value = more ? [...mails.value, ...page] : page;
-		last.value = snapshot.docs.at(-1) ?? (more ? last.value : undefined);
-		hasMore.value = snapshot.size === PAGE_SIZE;
+		mails.value = more ? [...mails.value, ...page.mails] : page.mails;
+		last.value = page.last ?? (more ? last.value : undefined);
+		hasMore.value = page.more;
 	} catch (e) {
 		if (current === latestLoad) {
 			error.value = (e as Error).message;
@@ -196,11 +185,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -225,8 +209,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 .hint {
 	margin-bottom: var(--lnx-spacing-4);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .filters {
@@ -240,14 +222,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
 }
 
 .list {
@@ -369,11 +343,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	align-items: center;
 	gap: var(--lnx-spacing-1);
 	color: var(--color-primary);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
 	font-size: var(--lnx-font-size-small);
 }
 

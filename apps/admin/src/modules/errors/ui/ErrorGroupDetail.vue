@@ -3,12 +3,13 @@ import type { ErrorGroup, ErrorSample } from '@gobernansa/shared/domain/errors.t
 import type { Timestamp as FirestoreTimestamp } from 'firebase/firestore';
 import { errorApps, errorKinds, hasReturned } from '@gobernansa/shared/domain/errors.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
-import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, Timestamp, where, writeBatch } from 'firebase/firestore';
+import { serverTimestamp, Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxSelect, toast } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { optimistic } from '@/app/ux/toast.ts';
+import { loadGroupSamples, updateErrorGroups } from '../application/errors.ts';
 
 // One group of the Errores page: its samples, with what the user did before, and what the team does with it
 const props = defineProps<{
@@ -20,7 +21,6 @@ const props = defineProps<{
 	patch: (ids: string[], changes: Partial<ErrorGroup>) => void;
 }>();
 
-const SAMPLES = 10;
 const SOURCES: Record<string, string> = {
 	vue: 'Componente',
 	window: 'Script',
@@ -40,14 +40,8 @@ const error = ref<string>();
 async function load() {
 	loading.value = true;
 	error.value = undefined;
-	const samplesOf = async (id: string) => getDocs(query(collection(db, 'errors', id, 'samples'), orderBy('at', 'desc'), limit(SAMPLES)));
 	try {
-		const [mergedDocs, own] = await Promise.all([getDocs(query(collection(db, 'errors'), where('mergedInto', '==', props.group.id))), samplesOf(props.group.id)]);
-		merged.value = mergedDocs.docs.map(item => ({ ...item.data(), id: item.id }) as ErrorGroup);
-		const pages = [own, ...await Promise.all(merged.value.map(async item => samplesOf(item.id)))];
-		samples.value = pages.flatMap(page => page.docs.map(item => ({ ...item.data(), id: item.id }) as ErrorSample))
-			.sort((a, b) => b.at.toMillis() - a.at.toMillis())
-			.slice(0, SAMPLES);
+		({ merged: merged.value, samples: samples.value } = await loadGroupSamples(props.group.id));
 	} catch (e) {
 		error.value = (e as Error).message;
 	} finally {
@@ -62,21 +56,16 @@ function change(changes: Record<string, unknown>, local: Partial<ErrorGroup>, te
 	// What each had before: the same status, and those merged into it pointed to it
 	const { id: groupId, status, mergedInto = '' } = props.group;
 	const before = (id: string) => 'mergedInto' in changes ? { status, mergedInto: id === groupId ? mergedInto : groupId } : { status };
-	const write = async (values: (id: string) => Record<string, unknown>) => {
-		const batch = writeBatch(db);
-		ids.forEach(id => batch.update(doc(db, 'errors', id), values(id)));
-		await batch.commit();
-	};
 	const restore = () => ids.forEach(id => props.patch([id], before(id)));
 	props.patch(ids, local);
-	void optimistic(write(() => changes), {
+	void optimistic(updateErrorGroups(ids, () => changes), {
 		...texts,
 		// Resolving again one that came back can't be undone: the rules only take the server's time as when it was resolved
 		revert: 'resolvedAt' in changes && status === 'resolved'
 			? undefined
 			: async () => {
 				restore();
-				await write(before);
+				await updateErrorGroups(ids, before);
 			},
 		onError: restore,
 	});
@@ -403,11 +392,11 @@ pre {
 }
 
 .hint {
-	color: var(--color-gray-6);
+	font-size: inherit;
 }
 
 .error {
-	color: var(--color-secondary-accent);
+	font-size: inherit;
 }
 
 @media (max-width: 640px) {

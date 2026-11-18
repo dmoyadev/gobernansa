@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge, ChargeCollection, CollectionMethod } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
@@ -8,14 +7,15 @@ import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
-import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { addCollection, deleteCharge, issueCharges, loadBatch, loadPropertyCharges, removeCollection, restoreCharge, saveOnlinePayments, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { addCollection, deleteCharge, issueCharges, loadBatch, loadPropertyCharges, removeCollection, restoreCharge, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import OnlinePaymentsCard from './OnlinePaymentsCard.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -124,8 +124,6 @@ async function issue() {
 		issuing.value = false;
 	}
 }
-
-useShortcut('mod+enter', () => issueForm.value?.requestSubmit(), { description: 'Emitir los recibos' });
 
 // Arrears, from the live unpaid charges
 const rows = computed(() => {
@@ -273,44 +271,6 @@ async function uncollect(charge: Charge, item: ChargeCollection) {
 	}
 }
 
-// Online payments by the neighbours, read once with the community
-const onlinePayments = ref<Community['onlinePayments'] | null>();
-const paymentsOptions = [
-	{ value: 'off', label: 'Desactivados' },
-	{ value: 'test', label: 'Modo de prueba' },
-];
-
-function loadPaymentsMode() {
-	return loadCommunity(props.id)
-		.then(community => onlinePayments.value = community?.onlinePayments ?? null)
-		.catch((e: Error) => actionError.value = `No se ha podido cargar la comunidad: ${e.message}`);
-}
-
-void loadPaymentsMode();
-onRevalidate(loadPaymentsMode);
-
-const paymentsMode = computed({
-	get: () => onlinePayments.value ? 'test' : 'off',
-	set: value => setPaymentsMode(value === 'test' ? 'test' : null),
-});
-
-function setPaymentsMode(next: 'test' | null) {
-	const previous = onlinePayments.value;
-	if (next === previous) {
-		return;
-	}
-	onlinePayments.value = next;
-	void optimistic(saveOnlinePayments(props.id, next), {
-		done: next ? 'Pagos online en modo de prueba' : 'Pagos online desactivados',
-		failed: 'No se ha podido cambiar',
-		revert: async () => {
-			onlinePayments.value = previous;
-			await saveOnlinePayments(props.id, previous ?? null);
-		},
-		onError: () => onlinePayments.value = previous,
-	});
-}
-
 async function remove(charge: Charge) {
 	if (!await ask({ title: `¿Borrar «${charge.concept}» de ${charge.propertyName}${charge.collections?.length ? ' con sus entregas a cuenta' : ''}?`, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
@@ -336,8 +296,19 @@ async function remove(charge: Charge) {
 		<NewButton v-if="!open" label="Emitir recibos" :disabled="!properties.length" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="issueForm" class="card lnx-appear" @submit.prevent="issue()">
-		<h2>Emitir recibos o derrama</h2>
+	<FormCard
+		v-if="open"
+		ref="issueForm"
+		title="Emitir recibos o derrama"
+		:error="formError"
+		submit-label="Emitir"
+		submit-icon="lucide:receipt-euro"
+		:saving="issuing"
+		:disabled="!properties.length"
+		shortcut="Emitir los recibos"
+		@submit="issue()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="form.type"
@@ -386,51 +357,9 @@ async function remove(charge: Charge) {
 				y {{ withoutCoefficient }} {{ withoutCoefficient === 1 ? 'propiedad no tiene' : 'propiedades no tienen' }} (no pagarán nada)
 			</template>. Revísalo en el censo de propiedades.
 		</p>
+	</FormCard>
 
-		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit" :is-loading="issuing" :disabled="!properties.length">
-				<LnxIcon icon="lucide:receipt-euro" />
-				Emitir
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
-
-	<section class="card">
-		<div class="section-head">
-			<h2>
-				Pagos online de los vecinos
-				<span v-if="onlinePayments" class="chip test">Modo de prueba</span>
-			</h2>
-		</div>
-		<p class="hint">
-			Los vecinos pagan sus recibos y las reservas de pago desde la app. En modo de prueba no se mueve dinero ni tiene coste: solo se aceptan las tarjetas de prueba (4242 4242 4242 4242) y un Bizum simulado. Para cobrar de verdad hará falta contratar una pasarela (Redsys, Stripe…).
-		</p>
-		<div class="fields">
-			<span v-if="onlinePayments === undefined" class="lnx-skeleton" style="height: 40px" />
-			<LnxSelect
-				v-else
-				v-model.convert="paymentsMode"
-				:options="paymentsOptions"
-				:convert-fn="option => option.value"
-			>
-				Pagos online
-				<template #option="{ option }">
-					{{ option.label }}
-				</template>
-				<template #optionInput="{ value }">
-					{{ paymentsOptions.find(option => option.value === value)?.label }}
-				</template>
-			</LnxSelect>
-		</div>
-	</section>
+	<OnlinePaymentsCard :id @error="actionError = $event" />
 
 	<section class="card">
 		<div class="section-head">
@@ -611,245 +540,4 @@ async function remove(charge: Charge) {
 	</section>
 </template>
 
-<style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.card {
-	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.section-head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--lnx-spacing-2);
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
-}
-
-.totals {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-	gap: var(--lnx-spacing-3);
-
-	div {
-		display: flex;
-		flex-direction: column;
-	}
-
-	small {
-		color: var(--color-gray-6);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	strong {
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.list {
-	display: flex;
-	flex-direction: column;
-}
-
-.item {
-	padding: var(--lnx-spacing-3) 0;
-
-	& + & {
-		border-top: 1px solid var(--color-gray-3);
-	}
-}
-
-.row {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-}
-
-.what {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	text-align: left;
-
-	small {
-		overflow: hidden;
-		color: var(--color-gray-6);
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-}
-
-button.what {
-	// Its hover reaches a bit past the text, without moving it
-	margin: calc(-1 * var(--lnx-spacing-1)) calc(-1 * var(--lnx-spacing-2));
-	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
-	border: none;
-	border-radius: var(--lnx-radius-2);
-	background: none;
-	font: inherit;
-	color: inherit;
-	cursor: pointer;
-
-	strong {
-		text-wrap: balance;
-	}
-}
-
-.chip {
-	padding: 2px var(--lnx-spacing-2);
-	border-radius: 999px;
-	background: var(--color-gray-2);
-	font-size: var(--lnx-font-size-small);
-	white-space: nowrap;
-
-	&.ok {
-		color: var(--color-primary);
-	}
-
-	&.test {
-		color: var(--color-gray-7);
-		font-weight: normal;
-		text-transform: none;
-		letter-spacing: normal;
-	}
-
-	&.debt {
-		color: var(--color-gray-0);
-		background: var(--color-secondary-accent);
-	}
-}
-
-.debt {
-	color: var(--color-secondary-accent);
-}
-
-.charges {
-	margin-top: var(--lnx-spacing-3);
-	padding-left: var(--lnx-spacing-4);
-	border-left: 2px solid var(--color-gray-3);
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: var(--lnx-spacing-2);
-
-	ul {
-		position: relative;
-		width: 100%;
-	}
-}
-
-.charge {
-	padding: var(--lnx-spacing-2) 0;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-}
-
-// Paid, pending or deleted: the rest slide into place
-.charge-move,
-.charge-enter-active,
-.charge-leave-active {
-	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out);
-}
-
-.charge-enter-from,
-.charge-leave-to {
-	opacity: 0;
-	translate: 0 -4px;
-}
-
-.charge-leave-active {
-	position: absolute;
-	width: 100%;
-}
-
-.item-actions {
-	display: flex;
-	gap: var(--lnx-spacing-1);
-}
-
-.collections,
-.collect {
-	grid-column: 1 / -1;
-}
-
-.collections li {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-	color: var(--color-gray-6);
-}
-
-.collect {
-	padding: var(--lnx-spacing-3);
-	border-radius: var(--lnx-radius-2);
-	background: var(--color-gray-1);
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-3);
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.warning {
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-	font-size: var(--lnx-font-size-small);
-	color: var(--color-gray-7);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
-}
-</style>
+<style lang="scss" scoped src="./charges.scss" />

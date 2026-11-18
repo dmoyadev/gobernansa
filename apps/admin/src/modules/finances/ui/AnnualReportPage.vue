@@ -546,16 +546,6 @@ useShortcut('p', print, { description: 'Imprimir la liquidación', enabled: () =
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-
 	.year {
 		width: 110px;
 	}
@@ -567,16 +557,6 @@ useShortcut('p', print, { description: 'Imprimir la liquidación', enabled: () =
 	align-items: center;
 	gap: var(--lnx-spacing-2);
 	flex-wrap: wrap;
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 // A4 pages on screen, the same on paper

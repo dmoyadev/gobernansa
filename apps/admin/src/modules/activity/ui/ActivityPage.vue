@@ -2,19 +2,14 @@
 import type { Activity, ActivityArea } from '@gobernansa/shared/domain/activity.ts';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { activityAreas } from '@gobernansa/shared/domain/activity.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, endBefore, getDocs, limit, orderBy, query, startAfter } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxRadioGroup } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
+import { loadActivity, loadNewerActivity } from '../application/activity.ts';
 
 const props = defineProps<{ id: string }>();
-
-const PAGE_SIZE = 30;
-
-const activityRef = collection(db, 'communities', props.id, 'activity');
 
 // Read a page at a time and once, not live: each page added later only reads its own entries
 const entries = ref<Activity[]>([]);
@@ -28,11 +23,11 @@ async function loadMore() {
 	loading.value = true;
 	error.value = undefined;
 	try {
-		const snapshot = await getDocs(query(activityRef, orderBy('at', 'desc'), ...(last.value ? [startAfter(last.value)] : []), limit(PAGE_SIZE)));
-		entries.value.push(...snapshot.docs.map(entry => ({ ...entry.data(), id: entry.id }) as Activity));
-		first.value ??= snapshot.docs[0];
-		last.value = snapshot.docs.at(-1);
-		hasMore.value = snapshot.size === PAGE_SIZE;
+		const page = await loadActivity(props.id, last.value);
+		entries.value.push(...page.entries);
+		first.value ??= page.first;
+		last.value = page.last;
+		hasMore.value = page.full;
 	} catch (e) {
 		error.value = e as Error;
 	} finally {
@@ -51,16 +46,16 @@ async function loadNewer() {
 		return loadMore();
 	}
 	try {
-		const snapshot = await getDocs(query(activityRef, orderBy('at', 'desc'), endBefore(first.value), limit(PAGE_SIZE)));
-		if (snapshot.size === PAGE_SIZE) {
+		const page = await loadNewerActivity(props.id, first.value);
+		if (page.full) {
 			entries.value = [];
 			first.value = undefined;
 			last.value = undefined;
 			return await loadMore();
 		}
-		if (snapshot.size) {
-			entries.value.unshift(...snapshot.docs.map(entry => ({ ...entry.data(), id: entry.id }) as Activity));
-			first.value = snapshot.docs[0];
+		if (page.entries.length) {
+			entries.value.unshift(...page.entries);
+			first.value = page.first;
 		}
 	} catch (e) {
 		error.value = e as Error;
@@ -136,11 +131,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -148,19 +138,6 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .list {
@@ -222,10 +199,5 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	small {
 		color: var(--color-gray-6);
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

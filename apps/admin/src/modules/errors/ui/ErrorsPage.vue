@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import type { ErrorGroup } from '@gobernansa/shared/domain/errors.ts';
-import type { QueryDocumentSnapshot } from 'firebase/firestore';
-import { errorApps, errorStatus, hasReturned, isUrgent, URGENT_CODES } from '@gobernansa/shared/domain/errors.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
+import type { QueryDocumentSnapshot, Timestamp } from 'firebase/firestore';
+import { errorApps, errorStatus, hasReturned, isUrgent } from '@gobernansa/shared/domain/errors.ts';
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { collection, collectionGroup, doc, getDoc, getDocs, limit, orderBy, query, startAfter, Timestamp, where, writeBatch } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
+import { ALL, cleanErrors, loadBackup, loadErrorGroups, loadUrgentErrors, STALE_DAYS } from '../application/errors.ts';
 import { countErrorAlerts } from '../application/useErrorAlerts.ts';
 import ErrorGroupDetail from './ErrorGroupDetail.vue';
 import PerformancePanel from './PerformancePanel.vue';
@@ -21,12 +20,6 @@ const ask = useConfirm();
  * live, as each report changes its group. Those that need doing something now go first (MON-2)
  */
 
-const PAGE_SIZE = 25;
-// What a clean-up removes at most, so it doesn't take the day's quota of deletes
-const CLEAN_ROUNDS = 10;
-const CLEAN_BATCH = 500;
-const STALE_DAYS = 180;
-const DAY_MS = 24 * 60 * 60 * 1000;
 // The backup runs every day: past this, a day was missed (ROB-2)
 const BACKUP_DUE_MS = 26 * 60 * 60 * 1000;
 
@@ -37,7 +30,7 @@ const backup = ref<{ at?: Timestamp; documents: number }>();
 const backupChecked = ref(false);
 async function checkBackup() {
 	try {
-		backup.value = (await getDoc(doc(db, 'ops', 'backup'))).data() as typeof backup.value;
+		backup.value = await loadBackup();
 		backupChecked.value = true;
 	} catch (e) {
 		reportError(e, { source: 'action', action: 'No se ha podido comprobar la copia de seguridad' });
@@ -46,10 +39,6 @@ async function checkBackup() {
 void checkBackup();
 const backupLate = computed(() => backupChecked.value && Date.now() - (backup.value?.at?.toMillis() ?? 0) > BACKUP_DUE_MS);
 
-const errorsRef = collection(db, 'errors');
-
-// 'all' and not '', which the select doesn't show
-const ALL = 'all';
 const status = ref('new');
 const app = ref(ALL);
 const code = ref(ALL);
@@ -90,43 +79,31 @@ const error = ref<string>();
 // Changing a filter while a page loads only keeps the last one asked for
 let latestLoad = 0;
 
-// Each filter with the date needs its index (docs/setup.md#indices); Firestore merges them when there are several
-function filters() {
-	return [
-		...(app.value !== ALL ? [where('app', '==', app.value)] : []),
-		...(code.value !== ALL ? [where('code', '==', code.value)] : []),
-		...(release.value !== ALL ? [where('firstRelease', '==', release.value)] : []),
-	];
-}
-
-function toGroup(snapshot: QueryDocumentSnapshot) {
-	return { ...snapshot.data(), id: snapshot.id } as ErrorGroup;
-}
-
 async function load(more = false) {
 	const current = ++latestLoad;
 	loading.value = true;
 	error.value = undefined;
 	try {
+		const filter = { status: status.value, app: app.value, code: code.value, release: release.value };
 		const pending = !more && status.value === 'new';
 		const [page, resolvedPage, urgentPage] = await Promise.all([
-			getDocs(query(errorsRef, ...(status.value !== ALL ? [where('status', '==', status.value)] : []), ...filters(), orderBy('lastSeen', 'desc'), ...(more && last.value ? [startAfter(last.value)] : []), limit(PAGE_SIZE))),
+			loadErrorGroups(filter, more ? last.value : undefined),
 			// Those that came back are among the resolved seen last
-			pending ? getDocs(query(errorsRef, where('status', '==', 'resolved'), ...filters(), orderBy('lastSeen', 'desc'), limit(PAGE_SIZE))) : undefined,
-			pending && code.value === ALL ? getDocs(query(errorsRef, where('status', '==', 'new'), where('code', 'in', URGENT_CODES), ...filters(), orderBy('lastSeen', 'desc'), limit(PAGE_SIZE))) : undefined,
+			pending ? loadErrorGroups({ ...filter, status: 'resolved' }) : undefined,
+			pending && code.value === ALL ? loadUrgentErrors(filter) : undefined,
 		]);
 		if (current !== latestLoad) {
 			return;
 		}
-		groups.value = more ? [...groups.value, ...page.docs.map(toGroup)] : page.docs.map(toGroup);
+		groups.value = more ? [...groups.value, ...page.groups] : page.groups;
 		if (!more) {
 			// The header's count, up to date with what's shown
 			void countErrorAlerts();
-			resolved.value = resolvedPage?.docs.map(toGroup) ?? [];
-			urgent.value = urgentPage?.docs.map(toGroup) ?? [];
+			resolved.value = resolvedPage?.groups ?? [];
+			urgent.value = urgentPage ?? [];
 		}
-		last.value = page.docs.at(-1) ?? (more ? last.value : undefined);
-		hasMore.value = page.size === PAGE_SIZE;
+		last.value = page.last ?? (more ? last.value : undefined);
+		hasMore.value = page.more;
 	} catch (e) {
 		if (current === latestLoad) {
 			error.value = (e as Error).message;
@@ -188,10 +165,7 @@ function patch(ids: string[], changes: Partial<ErrorGroup>) {
 const open = ref<string>();
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
 
-/*
- * Samples are kept 30 days and groups resolved or ignored are kept until they've gone 180 days without coming back, to
- * know when they do. Removed from here, as Firestore's TTL needs setting up in the console (docs/setup.md#plazos)
- */
+// Expired samples and old groups (docs/setup.md#plazos)
 const cleaning = ref(false);
 async function clean() {
 	if (!await ask({ title: '¿Limpiar el registro de errores?', message: `Se borran las muestras de más de 30 días y los errores resueltos o ignorados que llevan ${STALE_DAYS} días sin repetirse. No se puede deshacer.`, confirmText: 'Borrar', variant: 'danger' })) {
@@ -200,31 +174,9 @@ async function clean() {
 
 	cleaning.value = true;
 	try {
-		let samples = 0;
-		for (let round = 0; round < CLEAN_ROUNDS; round++) {
-			const expired = await getDocs(query(collectionGroup(db, 'samples'), where('expiresAt', '<', Timestamp.now()), limit(CLEAN_BATCH)));
-			if (expired.size) {
-				const batch = writeBatch(db);
-				expired.docs.forEach(sample => batch.delete(sample.ref));
-				await batch.commit();
-				samples += expired.size;
-			}
-			if (expired.size < CLEAN_BATCH) {
-				break;
-			}
-		}
-
-		// Their samples expired long before
-		const stale = await getDocs(query(errorsRef, where('lastSeen', '<', Timestamp.fromMillis(Date.now() - STALE_DAYS * DAY_MS)), limit(CLEAN_BATCH)));
-		const old = stale.docs.filter(group => (group.data() as ErrorGroup).status !== 'new');
-		if (old.length) {
-			const batch = writeBatch(db);
-			old.forEach(group => batch.delete(group.ref));
-			await batch.commit();
-		}
-
-		toast(samples || old.length ? `Borradas ${samples} ${samples === 1 ? 'muestra' : 'muestras'} y ${old.length} ${old.length === 1 ? 'error antiguo' : 'errores antiguos'}` : 'No había nada caducado');
-		if (old.length) {
+		const { samples, old } = await cleanErrors();
+		toast(samples || old ? `Borradas ${samples} ${samples === 1 ? 'muestra' : 'muestras'} y ${old} ${old === 1 ? 'error antiguo' : 'errores antiguos'}` : 'No había nada caducado');
+		if (old) {
 			void load();
 		}
 	} catch (e) {
@@ -377,22 +329,8 @@ async function clean() {
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
 .hint {
 	margin-bottom: var(--lnx-spacing-4);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .backup-late {
@@ -445,14 +383,6 @@ async function clean() {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
 }
 
 .list {
@@ -553,11 +483,6 @@ async function clean() {
 .urgent {
 	background: #fee2e2;
 	color: #991b1b;
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 @media (max-width: 640px) {

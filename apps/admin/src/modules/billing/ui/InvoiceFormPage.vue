@@ -241,36 +241,6 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.card {
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-}
-
 .lines {
 	display: flex;
 	flex-direction: column;
@@ -313,12 +283,6 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 }
 
 .form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
 	.error,
 	.hint {
 		flex: 1;
@@ -329,13 +293,6 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 	display: flex;
 	align-items: center;
 	gap: var(--lnx-spacing-2);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 @media (max-width: 640px) {

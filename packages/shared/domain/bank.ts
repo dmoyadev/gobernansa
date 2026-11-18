@@ -92,6 +92,11 @@ export function ibanAccount(iban: string) {
 	return value.startsWith('ES') && value.length === 24 ? value.slice(4, 12) + value.slice(14) : '';
 }
 
+// An account as people read it: bank and branch, then its last four digits
+export function accountLabel(key: string) {
+	return key.length === 18 ? `${key.slice(0, 4)} ${key.slice(4, 8)} ···· ${key.slice(-4)}` : key;
+}
+
 // Uppercase, without accents nor repeated spaces: the same concept from a file or another reads the same
 // Upper case, without accents nor repeated spaces, to compare names as people type them
 export function canonical(text: string) {

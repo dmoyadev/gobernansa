@@ -306,18 +306,6 @@ async function record() {
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
 .panel {
 	max-width: 210mm;
 	margin: 0 auto var(--lnx-spacing-5);
@@ -360,9 +348,8 @@ async function record() {
 }
 
 .form-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
+	align-items: normal;
+	flex-wrap: nowrap;
 }
 
 .entry {
@@ -529,17 +516,9 @@ table {
 }
 
 .hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-
 	a {
 		color: var(--color-primary);
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 @page {

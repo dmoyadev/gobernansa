@@ -7,9 +7,10 @@ import { averageRating, providerCategories } from '@gobernansa/shared/domain/pro
 import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, useTemplateRef, watch } from 'vue';
 import { contains, needle, searchable, searchWords } from '@/app/useSearchHighlight.ts';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -58,7 +59,7 @@ const editingId = ref<string>();
 // The new one's id, so sending it twice creates it once
 const draftId = ref(newId());
 const formError = ref<string>();
-const formElement = ref<HTMLFormElement>();
+const formElement = useTemplateRef('formElement');
 const filtersElement = ref<HTMLElement>();
 
 // Communities load after the form is built
@@ -226,7 +227,11 @@ function focusFirst(element: HTMLElement | undefined, selector: string) {
 
 useShortcut('/', () => focusFirst(filtersElement.value, 'input[type="search"]'), { description: 'Buscar proveedores' });
 // The rating's form when writing in it, the provider's otherwise
-useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formElement.value)?.requestSubmit(), { description: 'Guardar' });
+// The other forms of the page, FormCard sends its own
+useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), {
+	description: 'Guardar',
+	enabled: () => ![null, undefined, formElement.value?.$el].includes(document.activeElement?.closest('form')),
+});
 </script>
 
 <template>
@@ -236,8 +241,16 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 		<NewButton v-if="!open" label="Nuevo proveedor" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar proveedor' : 'Nuevo proveedor' }}</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		:title="editingId ? 'Editar proveedor' : 'Nuevo proveedor'"
+		:error="formError"
+		:submit-label="editingId ? 'Guardar cambios' : 'Añadir'"
+		:submit-icon="editingId ? 'lucide:save' : 'lucide:plus'"
+		@submit="save()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxInput v-model="form.name" required>
 				Nombre
@@ -281,22 +294,7 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 		<LnxRadioGroup v-model="form.communityIds" :options="communities.map(community => ({ value: community.id, label: community.name || 'Sin nombre' }))" multiple>
 			Compartido con
 		</LnxRadioGroup>
-
-		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
-				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card">
 		<h2>Directorio</h2>
@@ -430,11 +428,6 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -442,50 +435,6 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {
@@ -619,11 +568,6 @@ useShortcut('mod+enter', () => (document.activeElement?.closest('form') ?? formE
 	.wide {
 		width: 100%;
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 @media (max-width: 640px) {

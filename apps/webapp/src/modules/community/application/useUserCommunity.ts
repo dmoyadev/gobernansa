@@ -1,6 +1,6 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
-import { doc, getFirestore } from 'firebase/firestore';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { computed, effectScope } from 'vue';
 import { useDocument } from 'vuefire';
 
@@ -10,6 +10,11 @@ let shared: ReturnType<typeof createUserCommunity> | undefined;
 export function useUserCommunity() {
 	shared ??= effectScope(true).run(createUserCommunity)!;
 	return shared;
+}
+
+// The name of another community the neighbour has a home in, read once. 'Otra comunidad' when it can't be read
+export async function communityName(id: string) {
+	return ((await getDoc(doc(getFirestore(), 'communities', id)).catch(() => undefined))?.data() as Community | undefined)?.name ?? 'Otra comunidad';
 }
 
 function createUserCommunity() {

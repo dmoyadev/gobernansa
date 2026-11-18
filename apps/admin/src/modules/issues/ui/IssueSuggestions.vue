@@ -83,13 +83,6 @@ async function runSummary() {
 
 <style lang="scss" scoped>
 .card {
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
 	gap: var(--lnx-spacing-3);
 
 	header {
@@ -155,6 +148,5 @@ async function runSummary() {
 
 .hint {
 	color: var(--color-gray-7);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

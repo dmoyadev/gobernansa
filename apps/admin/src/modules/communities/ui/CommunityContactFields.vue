@@ -61,17 +61,6 @@ const typeOptions = Object.entries(contactTypes).map(([value, { label }]) => ({ 
 </template>
 
 <style lang="scss" scoped>
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
 // Days on their own row, then from, to and the button to remove it
 .schedule {
 	display: grid;

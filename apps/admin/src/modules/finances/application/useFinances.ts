@@ -24,6 +24,11 @@ export function budgetRef(communityId: string, year: number) {
 	return doc(db, 'communities', communityId, 'budgets', String(year));
 }
 
+// Whether that year's budget is made yet: 1 read
+export async function hasBudget(communityId: string, year: number) {
+	return (await getDoc(budgetRef(communityId, year))).exists();
+}
+
 function expensesRef(communityId: string) {
 	return collection(db, 'communities', communityId, 'expenses');
 }

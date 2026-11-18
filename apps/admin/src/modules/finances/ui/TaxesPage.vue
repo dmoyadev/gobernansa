@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { IncomeKind, ManualEntry } from '@gobernansa/shared/domain/accounting.ts';
-import type { Declarant, Withholding } from '@gobernansa/shared/domain/aeat.ts';
+import type { Declarant } from '@gobernansa/shared/domain/aeat.ts';
 import { incomeAmounts, incomeKinds } from '@gobernansa/shared/domain/accounting.ts';
-import { attributeIncome, incomeTotals, model184File, model190File, model347File, operations347, provinceCode, quarterReturn, taxDeadlines, THRESHOLD_184, THRESHOLD_347, withholdings } from '@gobernansa/shared/domain/aeat.ts';
+import { attributeIncome, incomeTotals, model184File, model190File, model347File, operations347, provinceCode, taxDeadlines, taxIdProblem, THRESHOLD_184, THRESHOLD_347, withholdings } from '@gobernansa/shared/domain/aeat.ts';
 import { checkAeat } from '@gobernansa/shared/domain/fileChecks.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
@@ -11,6 +11,7 @@ import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSe
 import { computed, onMounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { downloadFile } from '@/app/ux/download.ts';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -19,6 +20,8 @@ import { deleteManualEntry, restoreManualEntry } from '../application/useAccount
 import { useFileCheck } from '../application/useFileCheck.ts';
 import { addIncome, addTaxDeadlines, loadTaxData } from '../application/useTaxes.ts';
 import FileCheck from './FileCheck.vue';
+import TaxIdCell from './TaxIdCell.vue';
+import Withholdings190 from './Withholdings190.vue';
 
 const props = defineProps<{ id: string }>();
 
@@ -128,13 +131,6 @@ function download(model: Model, content: Uint8Array<ArrayBuffer>) {
 	guard(model, `el modelo ${model} de ${year.value} (${name})`, checkAeat(content), () => downloadFile(name, content, 'text/plain;charset=iso-8859-1'));
 }
 
-function taxIdProblem(nif?: string) {
-	if (!nif) {
-		return 'Sin NIF';
-	}
-	return isValidNif(nif) ? undefined : 'NIF no válido';
-}
-
 /* 347 */
 
 const operations = computed(() => data.value ? operations347(year.value, data.value.expenses, data.value.incomes, providers.value) : []);
@@ -155,15 +151,7 @@ function download347() {
 /* 111, 115, 190 and 180 */
 
 const withheld = computed(() => data.value ? withholdings(year.value, data.value.expenses, providers.value) : []);
-const professionals = computed(() => withheld.value.filter(item => item.type === 'professional'));
-const landlords = computed(() => withheld.value.filter(item => item.type === 'rental'));
-const returns111 = computed(() => quarters.map((_, quarter) => quarterReturn(withheld.value, 'professional', quarter)));
-const returns115 = computed(() => quarters.map((_, quarter) => quarterReturn(withheld.value, 'rental', quarter)));
-const ready190 = computed(() => professionals.value.filter(item => !taxIdProblem(item.nif)));
-
-function sum(list: Withholding[], field: 'base' | 'withholding') {
-	return list.reduce((total, item) => total + item[field], 0);
-}
+const ready190 = computed(() => withheld.value.filter(item => item.type === 'professional' && !taxIdProblem(item.nif)));
 
 function download190() {
 	download('190', model190File(declarant(), ready190.value));
@@ -270,7 +258,7 @@ async function removeIncome(entry: ManualEntry) {
 
 /* Plazos */
 
-const deadlines = computed(() => taxDeadlines(year.value, landlords.value.length > 0, grossIncome.value > 0));
+const deadlines = computed(() => taxDeadlines(year.value, withheld.value.some(item => item.type === 'rental'), grossIncome.value > 0));
 const addingDeadlines = ref(false);
 
 async function addDeadlines() {
@@ -289,7 +277,6 @@ async function addDeadlines() {
 const canDownload = computed(() => !loading.value && !error.value && !cifProblem.value && remote.aeatFiles);
 const downloads: Record<Model, () => void> = { 347: download347, 190: download190, 184: download184 };
 useShortcut('d', () => downloads[model.value](), { description: 'Descargar el fichero', enabled: () => canDownload.value });
-useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { description: 'Guardar el ingreso', enabled: () => model.value === '184' && open.value });
 </script>
 
 <template>
@@ -380,9 +367,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 							<td>
 								<LnxCheckbox :model-value="!isExempt(operation)" :aria-label="`Declarar ${operation.name}`" @update:model-value="exemptChoices.set(operation.key, !$event)" />
 							</td>
-							<td :class="{ debt: taxIdProblem(operation.nif) }">
-								{{ operation.nif ?? taxIdProblem(operation.nif) }}<small v-if="operation.nif && taxIdProblem(operation.nif)"> · {{ taxIdProblem(operation.nif) }}</small>
-							</td>
+							<TaxIdCell :nif="operation.nif" />
 							<td>
 								{{ operation.name }}
 								<small v-if="!operation.province" class="hint">· sin código postal, provincia 00</small>
@@ -416,155 +401,9 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 		</section>
 
 		<!-- 111, 115, 190 and 180 -->
-		<template v-else-if="model === '190'">
-			<section class="card lnx-appear">
-				<h2>Modelo 111 · Retenciones trimestrales {{ year }}</h2>
-				<p class="hint">
-					Rendimientos de actividades profesionales: las facturas con retención, por la fecha en que se pagaron.
-					Las pendientes de pago entran en el trimestre en que se paguen.
-				</p>
-				<table>
-					<thead>
-						<tr>
-							<th>Trimestre</th>
-							<th class="amount">
-								Perceptores [07]
-							</th>
-							<th class="amount">
-								Importe de las percepciones [08]
-							</th>
-							<th class="amount">
-								Retenciones [09] y a ingresar [30]
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="(row, index) in returns111" :key="index">
-							<td>{{ quarters[index] }}</td>
-							<td class="amount">
-								{{ row.recipients }}
-							</td>
-							<td class="amount">
-								{{ formatCents(row.base) }}
-							</td>
-							<td class="amount">
-								<strong>{{ formatCents(row.withholding) }}</strong>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-				<p class="hint">
-					El 111 se presenta cada trimestre aunque no haya retenciones, con resultado cero, mientras la comunidad siga dada de alta como retenedora.
-				</p>
-			</section>
-
-			<section v-if="landlords.length" class="card lnx-appear">
-				<h2>Modelo 115 · Retenciones de alquileres {{ year }}</h2>
-				<table>
-					<thead>
-						<tr>
-							<th>Trimestre</th>
-							<th class="amount">
-								Perceptores [01]
-							</th>
-							<th class="amount">
-								Base [02]
-							</th>
-							<th class="amount">
-								Retenciones [03]
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="(row, index) in returns115" :key="index">
-							<td>{{ quarters[index] }}</td>
-							<td class="amount">
-								{{ row.recipients }}
-							</td>
-							<td class="amount">
-								{{ formatCents(row.base) }}
-							</td>
-							<td class="amount">
-								<strong>{{ formatCents(row.withholding) }}</strong>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-				<p class="hint">
-					El resumen anual de alquileres (modelo 180) son estos arrendadores: {{ landlords.map(item => `${item.name} (${formatCents(item.base)}, retenido ${formatCents(item.withholding)})`).join('; ') }}.
-					Se presenta con el formulario de la Sede.
-				</p>
-			</section>
-
-			<section class="card lnx-appear">
-				<h2>Modelo 190 · Resumen anual {{ year }}</h2>
-				<p v-if="!professionals.length" class="empty">
-					En {{ year }} no se pagaron facturas con retención a profesionales.
-				</p>
-				<div v-else class="table">
-					<table>
-						<thead>
-							<tr>
-								<th>NIF</th>
-								<th>Perceptor</th>
-								<th>Clave</th>
-								<th class="amount">
-									Percepción íntegra
-								</th>
-								<th class="amount">
-									Retenciones
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr v-for="item in professionals" :key="`${item.providerId}-${item.subkey}`">
-								<td :class="{ debt: taxIdProblem(item.nif) }">
-									{{ item.nif ?? taxIdProblem(item.nif) }}<small v-if="item.nif && taxIdProblem(item.nif)"> · {{ taxIdProblem(item.nif) }}</small>
-								</td>
-								<td>
-									{{ item.name }}
-									<small v-if="!item.province" class="hint">· sin código postal, provincia 00</small>
-								</td>
-								<td :title="item.subkey === '03' ? 'Inicio de actividad' : 'Tipo general'">
-									G.{{ item.subkey }}
-								</td>
-								<td class="amount">
-									{{ formatCents(item.base) }}
-								</td>
-								<td class="amount">
-									{{ formatCents(item.withholding) }}
-								</td>
-							</tr>
-						</tbody>
-						<tfoot>
-							<tr>
-								<td colspan="3">
-									Total
-								</td>
-								<td class="amount">
-									{{ formatCents(sum(professionals, 'base')) }}
-								</td>
-								<td class="amount">
-									{{ formatCents(sum(professionals, 'withholding')) }}
-								</td>
-							</tr>
-						</tfoot>
-					</table>
-				</div>
-				<p v-if="professionals.length !== ready190.length" class="warning" role="status">
-					{{ professionals.length - ready190.length }} sin NIF válido no van en el fichero: complétalo en la ficha del proveedor.
-				</p>
-				<FileCheck v-if="check?.key === '190'" :issues="check.issues" kind="aeat" :held="!!check.held" @confirm="confirm()" @dismiss="dismiss()" />
-				<footer class="actions">
-					<span class="summary">La suma de los cuatro 111 debe coincidir con el total de retenciones.</span>
-					<LnxButton :disabled="!canDownload || !ready190.length" @click="download190()">
-						<LnxIcon icon="lucide:download" />
-						Descargar fichero 190
-						<LnxKbd combo="d" />
-					</LnxButton>
-				</footer>
-			</section>
-		</template>
+		<Withholdings190 v-else-if="model === '190'" :year :withheld :can-download @download="download190()">
+			<FileCheck v-if="check?.key === '190'" :issues="check.issues" kind="aeat" :held="!!check.held" @confirm="confirm()" @dismiss="dismiss()" />
+		</Withholdings190>
 
 		<!-- 184 -->
 		<template v-else>
@@ -596,8 +435,17 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 				</p>
 			</section>
 
-			<form v-if="open" ref="incomeElement" class="card lnx-appear" @submit.prevent="saveIncome()">
-				<h2>Nuevo ingreso</h2>
+			<FormCard
+				v-if="open"
+				ref="incomeElement"
+				shortcut="Guardar el ingreso"
+				title="Nuevo ingreso"
+				submit-label="Añadir ingreso"
+				submit-icon="lucide:plus"
+				:saving="savingIncome"
+				@submit="saveIncome()"
+				@cancel="close()"
+			>
 				<div class="fields">
 					<LnxDatePicker v-model="incomeForm.date" value-format="iso-date" required>
 						Fecha de cobro
@@ -631,24 +479,15 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 						Concepto
 					</LnxInput>
 				</div>
-				<footer class="actions">
+				<template #status>
 					<p v-if="incomeError" class="error" role="alert">
 						{{ incomeError }}
 					</p>
 					<span v-else-if="incomeGross > 0" class="summary">
 						Cobrado en el banco {{ formatCents(incomeGross - incomeWithholding) }}<template v-if="incomeWithholding">, retenido {{ formatCents(incomeWithholding) }}</template>
 					</span>
-					<LnxButton mode="clear" @click="close()">
-						Cancelar
-						<LnxKbd combo="escape" />
-					</LnxButton>
-					<LnxButton type="submit" :is-loading="savingIncome">
-						<LnxIcon icon="lucide:plus" />
-						Añadir ingreso
-						<LnxKbd combo="mod+enter" />
-					</LnxButton>
-				</footer>
-			</form>
+				</template>
+			</FormCard>
 
 			<section class="card lnx-appear">
 				<h2>Modelo 184 · Atribución de rentas {{ year }}</h2>
@@ -692,9 +531,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 							<tbody>
 								<tr v-for="member in members" :key="member.key">
 									<td>{{ member.name }}</td>
-									<td :class="{ debt: taxIdProblem(member.nif) }">
-										{{ member.nif ?? taxIdProblem(member.nif) }}<small v-if="member.nif && taxIdProblem(member.nif)"> · {{ taxIdProblem(member.nif) }}</small>
-									</td>
+									<TaxIdCell :nif="member.nif" />
 									<td>{{ member.properties.join(', ') }}</td>
 									<td class="amount">
 										{{ member.share.toLocaleString('es', { maximumFractionDigits: 4 }) }} %
@@ -773,18 +610,10 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 	</template>
 </template>
 
+<style lang="scss" scoped src="./taxes.scss" />
+
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-
 	.year {
 		width: 110px;
 	}
@@ -808,26 +637,6 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 	strong {
 		display: block;
 		color: var(--color-secondary-accent);
-	}
-}
-
-.card {
-	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
 	}
 }
 
@@ -856,66 +665,7 @@ useShortcut('mod+enter', () => incomeElement.value?.requestSubmit(), { descripti
 }
 
 .fields {
-	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
-.actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-3);
-
-	.summary,
-	.error {
-		flex: 1;
-	}
-}
-
-.table {
-	max-height: 480px;
-	overflow: auto;
-}
-
-table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: var(--lnx-font-size-small);
-
-	th,
-	td {
-		padding: var(--lnx-spacing-2);
-		border-bottom: 1px solid var(--color-gray-3);
-		text-align: left;
-	}
-
-	thead th {
-		position: sticky;
-		top: 0;
-		background: var(--color-gray-0);
-		white-space: nowrap;
-	}
-
-	tfoot td {
-		font-weight: var(--lnx-font-weight-bold);
-	}
-
-	.amount {
-		text-align: right;
-		white-space: nowrap;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.excluded td {
-		color: var(--color-gray-6);
-	}
 }
 
 .incomes {
@@ -965,55 +715,5 @@ table {
 
 details.presenter[open] summary {
 	margin-bottom: var(--lnx-spacing-3);
-}
-
-.chip {
-	margin-left: var(--lnx-spacing-2);
-	padding: 2px var(--lnx-spacing-2);
-	border-radius: 999px;
-	background: var(--color-gray-2);
-	font-size: var(--lnx-font-size-small);
-	white-space: nowrap;
-}
-
-.tabular {
-	font-variant-numeric: tabular-nums;
-}
-
-.summary {
-	font-size: var(--lnx-font-size-small);
-}
-
-.debt {
-	color: var(--color-secondary-accent);
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.empty {
-	color: var(--color-gray-6);
-}
-
-.warning {
-	margin-bottom: var(--lnx-spacing-4);
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
-
-	a {
-		margin-left: var(--lnx-spacing-1);
-		color: var(--color-primary);
-	}
-
-	.card & {
-		margin-bottom: 0;
-	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

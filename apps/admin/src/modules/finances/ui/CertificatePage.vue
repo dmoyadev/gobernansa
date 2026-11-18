@@ -148,18 +148,6 @@ function print() {
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
 // An A4 page on screen, the same on paper
 .sheet {
 	max-width: 210mm;
@@ -216,11 +204,6 @@ table {
 	.amount {
 		text-align: right;
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 @page {

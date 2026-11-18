@@ -2,18 +2,15 @@
 import type { VitalMetric, VitalsDay } from '@gobernansa/shared/domain/vitals.ts';
 import { errorApps } from '@gobernansa/shared/domain/errors.ts';
 import { vitalMetrics } from '@gobernansa/shared/domain/vitals.ts';
-import { db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
 import { LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import { loadVitals } from '../application/vitals.ts';
 
 /*
  * Rendimiento real (MON-6, docs/fiabilidad.md): of the sampled sessions, the share of good loads, layout shifts and
  * interactions per screen, worst first. One read per app and day
  */
 
-// The most an 'in' takes
-const IN_LIMIT = 30;
 // Google's: a screen is good when 75 % of its loads are
 const GOOD_SHARE = 0.75;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -35,9 +32,7 @@ async function load() {
 		// The days in Spain, as the apps write them
 		const ids = Array.from({ length: days.value }, (_, back) => new Date(Date.now() - back * DAY_MS).toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' }))
 			.flatMap(day => Object.keys(errorApps).map(app => `${app}_${day}`));
-		const chunks = Array.from({ length: Math.ceil(ids.length / IN_LIMIT) }, (_, index) => ids.slice(index * IN_LIMIT, (index + 1) * IN_LIMIT));
-		const pages = await Promise.all(chunks.map(async chunk => getDocs(query(collection(db, 'vitals'), where(documentId(), 'in', chunk)))));
-		loaded.value = pages.flatMap(page => page.docs.map(snapshot => ({ app: snapshot.id.split('_')[0], day: snapshot.data() as VitalsDay })));
+		loaded.value = await loadVitals(ids);
 	} catch (e) {
 		error.value = (e as Error).message;
 	} finally {
@@ -138,8 +133,6 @@ const percent = new Intl.NumberFormat('es', { style: 'percent' });
 <style lang="scss" scoped>
 .hint {
 	margin-bottom: var(--lnx-spacing-4);
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
 }
 
 .filters {
@@ -153,14 +146,6 @@ const percent = new Intl.NumberFormat('es', { style: 'percent' });
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
 
 	h2 {
 		font-size: var(--lnx-font-size-subtitle);
@@ -212,10 +197,5 @@ table {
 .is-poor {
 	color: #991b1b;
 	font-weight: var(--lnx-font-weight-bold);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

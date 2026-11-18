@@ -11,9 +11,10 @@ import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { paymentOrderStatuses, paymentOrderXml, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxKbd, toast, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, toast, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -198,8 +199,6 @@ async function save(id: string, data: PaymentOrderData, xml: string) {
 	}
 }
 
-useShortcut('mod+enter', () => generateForm.value?.requestSubmit(), { description: 'Generar la orden de pago' });
-
 /* Orders */
 
 const busyId = ref<string>();
@@ -265,8 +264,18 @@ async function remove(order: PaymentOrder) {
 	<p v-if="!remote.remittances" class="card warning" role="note">
 		La generación de órdenes de pago está desactivada temporalmente mientras se revisa. Vuelve a estar disponible en cuanto se reactive, sin actualizar la app.
 	</p>
-	<form v-else-if="open" ref="generateForm" class="card lnx-appear" @submit.prevent="generate()">
-		<h2>Nueva orden de pago</h2>
+	<FormCard
+		v-else-if="open"
+		ref="generateForm"
+		shortcut="Generar la orden de pago"
+		title="Nueva orden de pago"
+		submit-label="Generar y descargar"
+		submit-icon="lucide:file-down"
+		:saving="generating"
+		:disabled="!selected.length || !community"
+		@submit="generate()"
+		@cancel="close()"
+	>
 		<p v-if="invoicesError || providersError" class="error" role="alert">
 			No se han podido cargar: {{ (invoicesError ?? providersError)?.message }}
 		</p>
@@ -327,24 +336,15 @@ async function remove(order: PaymentOrder) {
 			@confirm="confirm()"
 			@dismiss="dismiss()"
 		/>
-		<footer class="form-actions">
+		<template #status>
 			<p v-if="formError" class="error" role="alert">
 				{{ formError }}
 			</p>
 			<span v-else-if="selected.length" class="hint tabular">
 				{{ selected.length }} {{ selected.length === 1 ? 'factura' : 'facturas' }} · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit" :is-loading="generating" :disabled="!selected.length || !community">
-				<LnxIcon icon="lucide:file-down" />
-				Generar y descargar
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+		</template>
+	</FormCard>
 
 	<section class="card">
 		<h2>Órdenes de pago</h2>
@@ -435,18 +435,6 @@ async function remove(order: PaymentOrder) {
 </template>
 
 <style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
 .intro {
 	margin-bottom: var(--lnx-spacing-4);
 	display: flex;
@@ -456,38 +444,13 @@ async function remove(order: PaymentOrder) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
 }
 
 .fields {
-	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
 }
 
 .form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
 	.error,
 	.hint {
 		flex: 1;
@@ -585,9 +548,6 @@ button.what {
 }
 
 .hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-
 	a {
 		color: var(--color-primary);
 	}
@@ -604,10 +564,5 @@ button.what {
 	a {
 		color: var(--color-primary);
 	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

@@ -74,7 +74,8 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 
 - **Mensajes de commit:** una línea, `<emoji> [ámbito] Descripción`, en inglés.
 - **Idioma:** el código y sus comentarios en inglés; los textos de las apps y los docs, en español.
-- **Dónde va cada cosa:** el dominio común en `packages/shared/domain`; en cada app, `src/modules/<módulo>/` con `application/` (lo que lee y escribe en Firebase), `ui/` (páginas y componentes) y `domain/` (lo que solo usa esa app); lo de toda la app, en `src/app/`. La UI no debería llamar a Firestore directamente: aún hay componentes que lo hacen, ESLint los avisa, y se pasan a `application/` cuando se tocan. Una app tampoco importa de la otra: lo común va en `packages/shared`.
+- **Dónde va cada cosa:** el dominio común en `packages/shared/domain`; en cada app, `src/modules/<módulo>/` con `application/` (lo que lee y escribe en Firebase), `ui/` (páginas y componentes) y `domain/` (lo que solo usa esa app); lo de toda la app, en `src/app/`. La UI no llama a Firestore directamente: ESLint lo marca como error. Una app tampoco importa de la otra: lo común va en `packages/shared`.
+- **Páginas y formularios:** una página no pasa de unas 800 líneas; una tarjeta grande va a su propio componente al lado, con los estilos de la página en un parcial compartido (`<style lang="scss" scoped src="./bank.scss" />`). En el panel, todo formulario de crear o editar es `FormCard` (`src/app/ux/`), y la cabecera, las tarjetas, los campos y los botones del pie salen de `page.scss`, igual en todas las pantallas.
 - **Identificadores:** las tareas de los docs ([B5](v1.md#b5), [ROB-2](fiabilidad.md#rob-2)…) llevan un ancla `<a id="…">` y siempre se enlazan.
 - **Las reglas son producción:** cada push a `main` despliega `firebase/firestore.rules`. Los índices, las reglas de Storage y las functions van a mano ([setup.md](setup.md)).
 

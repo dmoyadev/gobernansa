@@ -4,6 +4,7 @@ import { formatCoefficient, propertyTypeIcons, propertyTypeLabels, totalCoeffici
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -52,7 +53,7 @@ const form = ref(toPropertyForm());
 const editingId = ref<string>();
 // The new one's id, made with the form so sending it twice writes the same property
 let createId = newId();
-const formElement = useTemplateRef<HTMLFormElement>('formElement');
+const formElement = useTemplateRef('formElement');
 const searchInput = useTemplateRef<HTMLElement>('searchInput');
 
 function reset() {
@@ -90,7 +91,6 @@ function save() {
 	});
 }
 
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Guardar la propiedad' });
 useShortcut('/', () => searchInput.value?.querySelector('input')?.focus(), { description: 'Buscar en el censo' });
 
 async function remove(property: Property) {
@@ -122,8 +122,16 @@ function ownerLabel(property: Property) {
 		<NewButton v-if="!open" label="Nueva propiedad" @click="show()" />
 	</header>
 
-	<form v-if="open" ref="formElement" class="card lnx-appear" @submit.prevent="save()">
-		<h2>{{ editingId ? 'Editar propiedad' : 'Nueva propiedad' }}</h2>
+	<FormCard
+		v-if="open"
+		ref="formElement"
+		:title="editingId ? 'Editar propiedad' : 'Nueva propiedad'"
+		:submit-label="editingId ? 'Guardar cambios' : 'Añadir'"
+		:submit-icon="editingId ? 'lucide:save' : 'lucide:plus'"
+		shortcut="Guardar la propiedad"
+		@submit="save()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxInput v-model="form.name" placeholder="2A, Plaza 14…" required>
 				Nombre
@@ -180,19 +188,7 @@ function ownerLabel(property: Property) {
 				Email del inquilino
 			</LnxInput>
 		</div>
-
-		<footer class="form-actions">
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon :icon="editingId ? 'lucide:save' : 'lucide:plus'" />
-				{{ editingId ? 'Guardar cambios' : 'Añadir' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card">
 		<h2>Censo</h2>
@@ -262,11 +258,6 @@ function ownerLabel(property: Property) {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -274,45 +265,6 @@ function ownerLabel(property: Property) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {
@@ -358,11 +310,6 @@ function ownerLabel(property: Property) {
 	gap: var(--lnx-spacing-1);
 }
 
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
 h3 {
 	margin-top: var(--lnx-spacing-2);
 	font-size: var(--lnx-font-size-small);
@@ -392,11 +339,6 @@ h3 {
 // A sentence with a link, which a flex row would split around it
 .hint.empty {
 	display: block;
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 .groups {

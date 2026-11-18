@@ -7,6 +7,7 @@ import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
@@ -217,8 +218,11 @@ function submitExpense() {
 	});
 }
 
-// The form being filled in
-useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), { description: 'Guardar el formulario' });
+// The form being filled in, FormCard sends its own
+useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestSubmit(), {
+	description: 'Guardar el formulario',
+	enabled: () => ![null, undefined, expenseFormElement.value?.$el].includes(document.activeElement?.closest('form')),
+});
 
 const sortedExpenses = computed(() => [...expenses.value].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
 
@@ -372,8 +376,17 @@ async function remove(expense: Expense) {
 		</p>
 	</section>
 
-	<form v-if="open" ref="expenseFormElement" class="card lnx-appear" @submit.prevent="submitExpense()">
-		<h2>Nuevo gasto o factura</h2>
+	<FormCard
+		v-if="open"
+		ref="expenseFormElement"
+		title="Nuevo gasto o factura"
+		:error="expenseError"
+		submit-label="Añadir gasto"
+		submit-icon="lucide:plus"
+		:disabled="!itemOptions.length"
+		@submit="submitExpense()"
+		@cancel="close()"
+	>
 		<div class="fields">
 			<LnxSelect
 				v-model.convert="expenseForm.itemId"
@@ -474,21 +487,7 @@ async function remove(expense: Expense) {
 			<LnxIcon icon="lucide:triangle-alert" />
 			{{ formProvider.name }} no tiene NIF en el directorio de proveedores. Hace falta para los modelos 347, 111 y 190.
 		</p>
-		<footer class="form-actions">
-			<p v-if="expenseError" class="error" role="alert">
-				{{ expenseError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit" :disabled="!itemOptions.length">
-				<LnxIcon icon="lucide:plus" />
-				Añadir gasto
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card">
 		<h2>Gastos de {{ year }}</h2>
@@ -573,16 +572,6 @@ async function remove(expense: Expense) {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-
 	.year {
 		width: 120px;
 	}
@@ -590,30 +579,11 @@ async function remove(expense: Expense) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
 	overflow-x: auto;
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
 }
 
 .fields {
-	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
 }
 
 .items {
@@ -627,18 +597,6 @@ async function remove(expense: Expense) {
 	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
 	align-items: end;
 	gap: var(--lnx-spacing-3);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 table {
@@ -746,15 +704,5 @@ table {
 		white-space: nowrap;
 		text-overflow: ellipsis;
 	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

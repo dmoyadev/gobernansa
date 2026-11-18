@@ -127,7 +127,7 @@ const fiscalData = computed(() => [
 .compact {
 	height: 100%;
 
-	:deep(.card) {
+	:deep(.tilt-card) {
 		height: 100%;
 	}
 

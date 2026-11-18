@@ -93,8 +93,10 @@ export async function closeForm(form: HTMLElement | null | undefined, close: () 
 
 // The form a page's «Nuevo» (NewButton.vue) opens below its header, hidden until then, and the one editing an item of the
 // list opens filled. It opens on its first field and closes with Escape or Cancelar, emptied by `reset`. A link to the
-// page with ?new opens it once `ready`: what loads above it, or it pushes the form out of view
-export function useNewForm(form: Readonly<Ref<HTMLElement | null | undefined>>, reset?: () => void, ready = () => true) {
+// page with ?new opens it once `ready`: what loads above it, or it pushes the form out of view. `form` is the form or the
+// FormCard.vue that holds it
+export function useNewForm(form: Readonly<Ref<HTMLElement | { $el: HTMLElement } | null | undefined>>, reset?: () => void, ready = () => true) {
+	const element = () => form.value instanceof HTMLElement ? form.value : form.value?.$el;
 	const open = ref(false);
 	const route = useRoute();
 	const router = useRouter();
@@ -104,14 +106,14 @@ export function useNewForm(form: Readonly<Ref<HTMLElement | null | undefined>>, 
 		return openForm(async () => {
 			open.value = true;
 			await nextTick();
-			return form.value;
+			return element();
 		});
 	}
 
 	// Emptied at once, so what's set after it is kept, and taken out as its button flies back
 	function close() {
 		reset?.();
-		void closeForm(form.value, () => open.value = false);
+		void closeForm(element(), () => open.value = false);
 	}
 
 	function openFromLink() {

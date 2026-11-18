@@ -1,33 +1,28 @@
 <script setup lang="ts">
-import type { BankMovement, CsvColumns, GatewayPayment, MatchCandidate, MovementData, ParsedStatement } from '@gobernansa/shared/domain/bank.ts';
+import type { BankMovement, GatewayPayment, MatchCandidate } from '@gobernansa/shared/domain/bank.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { PaymentOrder, Remittance } from '@gobernansa/shared/domain/sepa.ts';
-import { commonConcepts, csvMovements, decodeText, demoMovements, guessColumns, ibanAccount, matchCandidates, movementSources, norma43, parseCsv, parseNorma43, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
+import { accountLabel, commonConcepts, ibanAccount, matchCandidates, movementSources, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidIban } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
-import { downloadFile } from '@/app/ux/download.ts';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
-import { ignoreMovement, importMovements, loadBankMovements, loadGatewayPayments, matchMovement, removeMovements, saveBankFeed, unignoreMovement, unmatchMovement } from '../application/useBank.ts';
+import { ignoreMovement, loadBankMovements, loadGatewayPayments, matchMovement, unignoreMovement, unmatchMovement } from '../application/useBank.ts';
 import { useBudget, useUnpaidCharges, useUnpaidInvoices } from '../application/useFinances.ts';
 import { loadPaymentOrders } from '../application/usePaymentOrders.ts';
 import { loadRemittances } from '../application/useRemittances.ts';
+import BankFeedCard from './BankFeedCard.vue';
+import BankImport from './BankImport.vue';
 
 const props = defineProps<{ id: string }>();
 
 // Reconciled movements are shown for this long, those still pending however old
 const RECENT_DAYS = 90;
-// Made up for the test bank's first statement
-const DEMO_OPENING = 1_234_567;
-// PSD2 lets an aggregator read the account for 180 days before the owner consents again
-const CONSENT_DAYS = 180;
 const DAY_MS = 86_400_000;
-// A Norma 43 account header: 11, then bank, branch and account number. A CSV row starting with a date like 11/03 isn't
-const NORMA43_HEADER_REGEX = /^11\d{18}/;
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
 const kindLabels: Record<MatchCandidate['kind'], string> = { charges: 'Recibo', expenses: 'Factura', remittance: 'Remesa', paymentOrder: 'Orden de pago', payout: 'Pasarela de pago' };
@@ -98,14 +93,6 @@ const balances = computed(() => Array.from(Map.groupBy(movements.value, movement
 		reconciled: last?.balance === undefined ? undefined : last.balance - unreconciled,
 	};
 }));
-
-function lastBalance(key: string) {
-	return balances.value.find(balance => balance.account === key)?.statement;
-}
-
-function accountLabel(key: string) {
-	return key.length === 18 ? `${key.slice(0, 4)} ${key.slice(4, 8)} ···· ${key.slice(-4)}` : key;
-}
 
 /* Suggestions */
 
@@ -256,138 +243,24 @@ async function ignore(movement: BankMovement) {
 
 /* Import */
 
-const fileInput = useTemplateRef('fileInput');
-const draft = ref<{ name: string; statement?: ParsedStatement; rows?: string[][]; columns?: CsvColumns }>();
-const importing = ref(false);
-const importError = ref<string>();
+const importer = useTemplateRef('importer');
 
-useShortcut('i', () => fileInput.value?.click(), { description: 'Importar un extracto' });
+useShortcut('i', () => importer.value?.open(), { description: 'Importar un extracto' });
 
-async function readFile(event: Event) {
-	const input = event.target as HTMLInputElement;
-	const file = input.files?.[0];
-	input.value = '';
-	if (!file) {
-		return;
-	}
-	importError.value = undefined;
-	const content = decodeText(await file.arrayBuffer());
-	const firstLine = content.trimStart().split('\n', 1)[0].trimEnd();
-	if (NORMA43_HEADER_REGEX.test(firstLine) && firstLine.length <= 80) {
-		draft.value = { name: file.name, statement: parseNorma43(content) };
-	} else {
-		const rows = parseCsv(content);
-		draft.value = rows.length ? { name: file.name, rows, columns: guessColumns(rows[0]) } : undefined;
-		importError.value = rows.length ? undefined : 'El fichero está vacío o no se entiende.';
-	}
+function addMovements(added: BankMovement[]) {
+	movements.value = sortMovements([...movements.value, ...added]);
 }
 
-const columnOptions = computed(() => (draft.value?.rows?.[0] ?? []).map((cell, index) => ({ value: index, label: `Columna ${index + 1}${cell ? ` · ${cell}` : ''}` })));
-const balanceOptions = computed(() => [{ value: -1, label: 'No tiene' }, ...columnOptions.value]);
-const csvResult = computed(() => draft.value?.rows && draft.value.columns ? csvMovements(draft.value.rows, draft.value.columns, account.value || 'CSV') : undefined);
-
-const draftMovements = computed<MovementData[]>(() => draft.value?.statement
-	? draft.value.statement.accounts.flatMap(statementAccount => statementAccount.movements)
-	: csvResult.value?.movements ?? []);
-
-async function importDraft() {
-	if (!draft.value || importing.value || !draftMovements.value.length || draft.value.statement?.errors.length) {
-		return;
-	}
-	const { name, statement } = draft.value;
-	importing.value = true;
-	importError.value = undefined;
-	try {
-		const added = await importMovements(props.id, statement ? 'norma43' : 'csv', draftMovements.value, `el extracto ${name}`);
-		movements.value = sortMovements([...movements.value, ...added]);
-		const repeated = draftMovements.value.length - added.length;
-		draft.value = undefined;
-		toast(`${added.length} ${added.length === 1 ? 'movimiento importado' : 'movimientos importados'}${repeated ? `, ${repeated} ya estaban` : ''}`, added.length
-			? {
-					undo: async () => {
-						await removeMovements(props.id, added, `el extracto ${name}`);
-						const ids = new Set(added.map(movement => movement.id));
-						movements.value = movements.value.filter(movement => !ids.has(movement.id));
-					},
-				}
-			: {});
-	} catch (e) {
-		importError.value = `No se ha podido importar: ${(e as Error).message}`;
-	} finally {
-		importing.value = false;
-	}
-}
-
-/* Bank connection in test mode */
-
-const feed = computed(() => community.value?.bankFeed);
-const consenting = ref(false);
-const syncing = ref(false);
-const feedError = ref<string>();
-
-function demoData() {
-	const today = toDateString(new Date());
-	const opening = lastBalance(account.value) ?? DEMO_OPENING;
-	return { today, opening, data: demoMovements({ account: account.value, today, opening, candidates: candidates.value, waiting: pending.value.map(movement => movement.amount) }) };
-}
-
-async function sync(connect = false) {
-	if (syncing.value || !account.value || !community.value) {
-		return;
-	}
-	syncing.value = true;
-	feedError.value = undefined;
-	try {
-		const now = Timestamp.now();
-		const next = { mode: 'demo' as const, connectedAt: feed.value?.connectedAt ?? now, syncedAt: now };
-		const added = await importMovements(props.id, 'demo', demoData().data, 'el banco de pruebas');
-		await saveBankFeed(props.id, next, connect ? 'Conectó la cuenta de la comunidad con el banco de pruebas' : 'Sincronizó los movimientos del banco de pruebas');
-		community.value = { ...community.value, bankFeed: next };
-		movements.value = sortMovements([...movements.value, ...added]);
-		consenting.value = false;
-		toast(added.length ? `${added.length} movimientos simulados nuevos` : 'No hay movimientos nuevos');
-	} catch (e) {
-		feedError.value = `No se ha podido sincronizar: ${(e as Error).message}`;
-	} finally {
-		syncing.value = false;
-	}
-}
-
-async function disconnect() {
-	if (!community.value) {
-		return;
-	}
-	const previous = feed.value;
-	try {
-		await saveBankFeed(props.id, null, 'Desconectó la cuenta de la comunidad del banco de pruebas');
-		community.value = { ...community.value, bankFeed: undefined };
-		toast('Banco desconectado, los movimientos ya importados se quedan', {
-			undo: async () => {
-				await saveBankFeed(props.id, previous, 'Volvió a conectar la cuenta con el banco de pruebas');
-				community.value = { ...community.value!, bankFeed: previous };
-			},
-		});
-	} catch (e) {
-		feedError.value = `No se ha podido desconectar: ${(e as Error).message}`;
-	}
-}
-
-// The same movements the test bank would bring now, as the Norma 43 file a bank would send, to try the importer
-function downloadSample() {
-	if (!account.value || !community.value) {
-		return;
-	}
-	const { today, opening, data } = demoData();
-	const file = norma43({ account: account.value, holder: community.value.name, from: data[0].date, to: today, opening }, data);
-	downloadFile(`extracto-ejemplo-${today}.n43`, file, 'text/plain');
+function dropMovements(removed: BankMovement[]) {
+	const ids = new Set(removed.map(movement => movement.id));
+	movements.value = movements.value.filter(movement => !ids.has(movement.id));
 }
 </script>
 
 <template>
 	<header class="page-header">
 		<h1>Conciliación bancaria</h1>
-		<input ref="fileInput" type="file" accept=".n43,.aeb,.q43,.txt,.csv,text/plain,text/csv" hidden @change="readFile">
-		<LnxButton class="lnx-size-small" @click="fileInput?.click()">
+		<LnxButton class="lnx-size-small" @click="importer?.open()">
 			<LnxIcon icon="lucide:upload" />
 			Importar extracto
 			<LnxKbd combo="i" />
@@ -406,100 +279,7 @@ function downloadSample() {
 		No se han podido cargar los recibos o las facturas pendientes: {{ (chargesError ?? invoicesError)?.message }}
 	</p>
 
-	<section v-if="draft" class="card">
-		<h2>Importar {{ draft.name }}</h2>
-		<template v-if="draft.statement">
-			<ul v-if="draft.statement.errors.length" class="problems">
-				<li v-for="problem in draft.statement.errors" :key="problem" class="error">
-					{{ problem }}
-				</li>
-			</ul>
-			<ul class="list">
-				<li v-for="statementAccount in draft.statement.accounts" :key="statementAccount.account + statementAccount.from" class="line">
-					<div class="what">
-						<span class="tabular">Norma 43 · cuenta {{ accountLabel(statementAccount.account) }}<template v-if="statementAccount.holder"> · {{ statementAccount.holder }}</template></span>
-						<small class="tabular">
-							Del {{ formatDay(statementAccount.from) }} al {{ formatDay(statementAccount.to) }} · {{ statementAccount.movements.length }} movimientos · saldo {{ formatCents(statementAccount.opening) }} → {{ formatCents(statementAccount.closing) }}
-						</small>
-					</div>
-					<span v-if="account && statementAccount.account !== account" class="chip">No es la cuenta de la comunidad</span>
-					<span v-else-if="!draft.statement.errors.length" class="chip ok">Totales cuadrados</span>
-				</li>
-			</ul>
-		</template>
-		<template v-else-if="draft.columns && csvResult">
-			<div class="fields">
-				<LnxSelect v-model.convert="draft.columns.date" :options="columnOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
-					Fecha
-					<template #option="{ option }">
-						{{ option.label }}
-					</template>
-					<template #optionInput="{ value }">
-						{{ columnOptions.find(option => option.value === value)?.label }}
-					</template>
-				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.concept" :options="columnOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
-					Concepto
-					<template #option="{ option }">
-						{{ option.label }}
-					</template>
-					<template #optionInput="{ value }">
-						{{ columnOptions.find(option => option.value === value)?.label }}
-					</template>
-				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.amount" :options="columnOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
-					Importe
-					<template #option="{ option }">
-						{{ option.label }}
-					</template>
-					<template #optionInput="{ value }">
-						{{ columnOptions.find(option => option.value === value)?.label }}
-					</template>
-				</LnxSelect>
-				<LnxSelect v-model.convert="draft.columns.balance" :options="balanceOptions" :convert-fn="option => option.value" :placeholder="columnOptions[0]?.label">
-					Saldo
-					<template #option="{ option }">
-						{{ option.label }}
-					</template>
-					<template #optionInput="{ value }">
-						{{ balanceOptions.find(option => option.value === value)?.label }}
-					</template>
-				</LnxSelect>
-			</div>
-			<p class="hint">
-				Importes con signo, en negativo los cargos. Se admiten «1.234,56» y fechas como 31/10/2026.
-				<template v-if="csvResult.skipped">
-					{{ csvResult.skipped }} {{ csvResult.skipped === 1 ? 'fila sin fecha o importe se salta' : 'filas sin fecha o importe se saltan' }} (cabeceras, totales…).
-				</template>
-			</p>
-			<ul v-if="csvResult.movements.length" class="list">
-				<li v-for="movement in csvResult.movements.slice(0, 3)" :key="movement.position" class="line">
-					<div class="what">
-						<span>{{ movement.concept }}</span>
-						<small class="tabular">{{ formatDay(movement.date) }}<template v-if="movement.balance !== undefined"> · saldo {{ formatCents(movement.balance) }}</template></small>
-					</div>
-					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
-				</li>
-			</ul>
-		</template>
-
-		<footer class="form-actions">
-			<p v-if="importError" class="error" role="alert">
-				{{ importError }}
-			</p>
-			<span v-else class="hint">Los movimientos que ya estaban importados no se duplican.</span>
-			<LnxButton mode="clear" @click="draft = undefined">
-				Cancelar
-			</LnxButton>
-			<LnxButton :is-loading="importing" :disabled="!draftMovements.length || !!draft.statement?.errors.length" @click="importDraft()">
-				Importar {{ draftMovements.length }} {{ draftMovements.length === 1 ? 'movimiento' : 'movimientos' }}
-			</LnxButton>
-		</footer>
-	</section>
-	<p v-else-if="importError" class="error" role="alert">
-		{{ importError }}
-	</p>
-
+	<BankImport :id ref="importer" :account @imported="addMovements" @removed="dropMovements" />
 	<section class="card">
 		<h2>Saldos</h2>
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
@@ -543,72 +323,7 @@ function downloadSample() {
 		</p>
 	</section>
 
-	<section class="card">
-		<h2>
-			Conexión bancaria
-			<span class="chip test">Modo de prueba — datos simulados</span>
-		</h2>
-		<p class="hint">
-			Con un agregador bancario (PSD2, de pago) los movimientos llegarían solos cada día. Hasta contratarlo, el banco de pruebas simula movimientos con tus recibos y facturas pendientes, los abonos de la pasarela de pago de prueba (los pagos online de cada día, dos días después y sin comisión), comisiones y alguno que no casa con nada. No se conecta con ningún banco real ni tiene coste.
-		</p>
-		<p v-if="community && !account" class="warning">
-			<LnxIcon icon="lucide:triangle-alert" />
-			Falta el IBAN de la comunidad, o no es válido.
-			<RouterLink :to="`/communities/${id}/info`">
-				Complétalo en sus datos
-			</RouterLink>
-		</p>
-		<p v-if="feedError" class="error" role="alert">
-			{{ feedError }}
-		</p>
-
-		<div v-if="feed" class="connected">
-			<LnxIcon icon="lucide:plug-zap" />
-			<span class="what">
-				<span>Conectada al banco de pruebas</span>
-				<small>
-					Desde el {{ dateFormat.format(feed.connectedAt.toDate()) }}, consentimiento hasta el {{ dateFormat.format(new Date(feed.connectedAt.toMillis() + CONSENT_DAYS * DAY_MS)) }}<template v-if="feed.syncedAt"> · última sincronización el {{ dateFormat.format(feed.syncedAt.toDate()) }}</template>
-				</small>
-			</span>
-		</div>
-		<div v-else-if="consenting" class="consent">
-			<p>
-				El banco pedirá permiso para que la comunidad comparta, solo en lectura, los movimientos y el saldo de la cuenta <strong class="tabular">{{ community?.iban }}</strong> durante {{ CONSENT_DAYS }} días.
-			</p>
-			<p class="hint">
-				En modo de prueba no se abre la web de ningún banco: el permiso se da aquí y los movimientos son simulados.
-			</p>
-		</div>
-
-		<footer class="form-actions">
-			<LnxButton mode="clear" class="lnx-size-small" :disabled="!account" @click="downloadSample()">
-				<LnxIcon icon="lucide:file-down" />
-				Descargar extracto de ejemplo (Norma 43)
-			</LnxButton>
-			<template v-if="feed">
-				<LnxButton mode="clear" class="lnx-size-small" @click="disconnect()">
-					Desconectar
-				</LnxButton>
-				<LnxButton class="lnx-size-small" :is-loading="syncing" :disabled="!account" @click="sync()">
-					<LnxIcon icon="lucide:refresh-cw" />
-					Sincronizar
-				</LnxButton>
-			</template>
-			<template v-else-if="consenting">
-				<LnxButton mode="clear" class="lnx-size-small" @click="consenting = false">
-					Cancelar
-				</LnxButton>
-				<LnxButton class="lnx-size-small" :is-loading="syncing" :disabled="!account" @click="sync(true)">
-					Autorizar en el banco de pruebas
-				</LnxButton>
-			</template>
-			<LnxButton v-else class="lnx-size-small" :disabled="!account || loading" @click="consenting = true">
-				<LnxIcon icon="lucide:plug" />
-				Conectar banco
-			</LnxButton>
-		</footer>
-	</section>
-
+	<BankFeedCard :id v-model:community="community" :account :loading :candidates :waiting="pending.map(movement => movement.amount)" :opening="balances.find(balance => balance.account === account)?.statement" @imported="addMovements" />
 	<section class="card">
 		<h2>Por conciliar</h2>
 		<p v-if="actionError" class="error" role="alert">
@@ -756,255 +471,4 @@ function downloadSample() {
 	</section>
 </template>
 
-<style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.intro {
-	margin-bottom: var(--lnx-spacing-4);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-}
-
-.card {
-	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--lnx-spacing-2);
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error,
-	.hint {
-		flex: 1;
-	}
-}
-
-.list,
-.options,
-.problems {
-	display: flex;
-	flex-direction: column;
-}
-
-.item {
-	padding: var(--lnx-spacing-3) 0;
-
-	& + & {
-		border-top: 1px solid var(--color-gray-3);
-	}
-}
-
-.row {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-}
-
-.line {
-	padding: var(--lnx-spacing-2) 0;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-
-	:deep(.lnx-checkbox),
-	:deep(.text) {
-		min-width: 0;
-	}
-}
-
-.what {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	text-align: left;
-
-	small {
-		overflow: hidden;
-		color: var(--color-gray-6);
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-}
-
-.amount {
-	white-space: nowrap;
-
-	&.in {
-		color: var(--color-primary);
-	}
-}
-
-.suggestion,
-.connected {
-	margin-top: var(--lnx-spacing-2);
-	padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
-	border-radius: var(--lnx-radius-2);
-	background: var(--color-gray-1);
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-	font-size: var(--lnx-font-size-small);
-}
-
-.connected {
-	grid-template-columns: auto minmax(0, 1fr);
-}
-
-.panel {
-	margin-top: var(--lnx-spacing-3);
-	padding-left: var(--lnx-spacing-4);
-	border-left: 2px solid var(--color-gray-3);
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-3);
-}
-
-.options {
-	max-height: 320px;
-	overflow-y: auto;
-}
-
-.consent {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
-}
-
-.balances {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
-
-	dl {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-		gap: var(--lnx-spacing-4);
-	}
-
-	dt {
-		color: var(--color-gray-6);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	dd {
-		font-size: var(--lnx-font-size-title);
-		font-weight: var(--lnx-font-weight-bold);
-
-		&.ok {
-			color: var(--color-primary);
-		}
-	}
-
-	small {
-		color: var(--color-gray-6);
-		font-size: var(--lnx-font-size-small);
-	}
-}
-
-.item-actions {
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-1);
-}
-
-.chip {
-	padding: 2px var(--lnx-spacing-2);
-	border-radius: 999px;
-	background: var(--color-gray-2);
-	font-size: var(--lnx-font-size-small);
-	font-weight: normal;
-	text-transform: none;
-	letter-spacing: normal;
-	white-space: nowrap;
-
-	&.ok {
-		color: var(--color-primary);
-	}
-
-	&.test {
-		color: var(--color-gray-7);
-	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-
-	a {
-		color: var(--color-primary);
-	}
-}
-
-.warning {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-	font-size: var(--lnx-font-size-small);
-	color: var(--color-gray-7);
-
-	a {
-		color: var(--color-primary);
-	}
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
-}
-
-@media (max-width: 640px) {
-	.row {
-		grid-template-columns: minmax(0, 1fr) auto;
-
-		.item-actions,
-		> :deep(.lnx-button) {
-			grid-column: 1 / -1;
-		}
-	}
-}
-</style>
+<style lang="scss" scoped src="./bank.scss" />

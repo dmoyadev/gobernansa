@@ -1,0 +1,105 @@
+// The tax returns' cards, tables and their footers, shared by TaxesPage.vue and its tabs
+
+.card {
+	margin-bottom: var(--lnx-spacing-5);
+
+	h2 {
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		color: var(--color-gray-6);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--lnx-spacing-3);
+
+	.summary,
+	.error {
+		flex: 1;
+	}
+}
+
+.table {
+	max-height: 480px;
+	overflow: auto;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--lnx-font-size-small);
+
+	th,
+	td {
+		padding: var(--lnx-spacing-2);
+		border-bottom: 1px solid var(--color-gray-3);
+		text-align: left;
+	}
+
+	thead th {
+		position: sticky;
+		top: 0;
+		background: var(--color-gray-0);
+		white-space: nowrap;
+	}
+
+	tfoot td {
+		font-weight: var(--lnx-font-weight-bold);
+	}
+
+	.amount {
+		text-align: right;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.excluded td {
+		color: var(--color-gray-6);
+	}
+}
+
+.chip {
+	margin-left: var(--lnx-spacing-2);
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: 999px;
+	background: var(--color-gray-2);
+	font-size: var(--lnx-font-size-small);
+	white-space: nowrap;
+}
+
+.tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+.summary {
+	font-size: var(--lnx-font-size-small);
+}
+
+.debt {
+	color: var(--color-secondary-accent);
+}
+
+.empty {
+	color: var(--color-gray-6);
+}
+
+.warning {
+	margin-bottom: var(--lnx-spacing-4);
+	color: var(--color-secondary-accent);
+	font-size: var(--lnx-font-size-small);
+
+	a {
+		margin-left: var(--lnx-spacing-1);
+		color: var(--color-primary);
+	}
+
+	.card & {
+		margin-bottom: 0;
+	}
+}

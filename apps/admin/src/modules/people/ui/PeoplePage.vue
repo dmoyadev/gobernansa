@@ -4,9 +4,10 @@ import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
 import type { PrintedLetter } from './AccessLetterPrint.vue';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { assignableRoles, formatInviteCode, newInviteCode, roles } from '@gobernansa/shared/domain/user.ts';
-import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxRadioGroup, LnxSelect, useConfirm } from 'lnxjs-components';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
+import FormCard from '@/app/ux/FormCard.vue';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
@@ -56,7 +57,7 @@ const byEmail = ref(true);
 // Neighbours get an access letter (B2.4) instead of an email
 const withCode = computed(() => !!communityId && form.value.role === 'user');
 const formError = ref<string>();
-const formElement = useTemplateRef<HTMLFormElement>('formElement');
+const formElement = useTemplateRef('formElement');
 
 function reset() {
 	form.value = { ...form.value, name: '', email: '', communityIds: [] };
@@ -124,8 +125,6 @@ async function printLetters(letters: PrintedLetter[]) {
 function printCode(invitation: Invitation & { id: string }) {
 	return printLetters([{ name: invitation.name, code: invitation.id, places: '' }]);
 }
-
-useShortcut('mod+enter', () => formElement.value?.requestSubmit(), { description: 'Enviar la invitación' });
 
 async function remove(person: User & { id: string }) {
 	const question = communityId ? `¿Quitar a ${person.name} de la comunidad?` : `¿Quitar el acceso de ${person.name}?`;
@@ -206,8 +205,17 @@ function cancel(invitation: Invitation & { id: string }) {
 		<NewButton v-if="!open && roleOptions.length" label="Invitar a alguien" @click="show()" />
 	</header>
 
-	<form v-if="open && roleOptions.length" ref="formElement" class="card lnx-appear" @submit.prevent="sendInvitation()">
-		<h2>Invitar a alguien</h2>
+	<FormCard
+		v-if="open && roleOptions.length"
+		ref="formElement"
+		title="Invitar a alguien"
+		:error="formError"
+		:submit-label="withCode ? 'Imprimir su carta' : 'Invitar'"
+		:submit-icon="withCode ? 'lucide:printer' : 'lucide:send'"
+		shortcut="Enviar la invitación"
+		@submit="sendInvitation()"
+		@cancel="close()"
+	>
 		<p class="hint">
 			{{ withCode
 				? 'Se imprime una carta con su código para entrar en la app. Para un propietario o inquilino del censo, usa mejor su carta de acceso, más abajo: así su cuenta queda unida a su casa.'
@@ -249,22 +257,7 @@ function cancel(invitation: Invitation & { id: string }) {
 			</LnxCheckbox>
 			<MailModeNote v-if="byEmail" />
 		</div>
-
-		<footer class="form-actions">
-			<p v-if="formError" class="error" role="alert">
-				{{ formError }}
-			</p>
-			<LnxButton mode="clear" @click="close()">
-				Cancelar
-				<LnxKbd combo="escape" />
-			</LnxButton>
-			<LnxButton type="submit">
-				<LnxIcon :icon="withCode ? 'lucide:printer' : 'lucide:send'" />
-				{{ withCode ? 'Imprimir su carta' : 'Invitar' }}
-				<LnxKbd combo="mod+enter" />
-			</LnxButton>
-		</footer>
-	</form>
+	</FormCard>
 
 	<section class="card">
 		<h2>{{ communityId ? 'Cuentas' : 'Con acceso' }}</h2>
@@ -398,11 +391,6 @@ function cancel(invitation: Invitation & { id: string }) {
 }
 
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
 	h1 {
 		font-size: var(--lnx-font-size-title);
 	}
@@ -410,46 +398,6 @@ function cancel(invitation: Invitation & { id: string }) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-	align-items: start;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: var(--lnx-spacing-2);
-
-	.error {
-		flex: 1;
-	}
 }
 
 .list {
@@ -516,11 +464,6 @@ function cancel(invitation: Invitation & { id: string }) {
 	flex-wrap: wrap;
 	justify-content: flex-end;
 	gap: var(--lnx-spacing-1);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 
 // Rows coming and going, interruptible as they're transitions

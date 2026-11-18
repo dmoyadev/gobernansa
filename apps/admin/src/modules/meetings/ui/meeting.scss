@@ -1,0 +1,177 @@
+.status {
+	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
+	border-radius: var(--lnx-radius-2);
+	background: var(--color-gray-2);
+	color: var(--color-gray-7);
+	font-size: var(--lnx-font-size-small);
+
+	&--convened {
+		background: var(--color-primary);
+		color: var(--color-gray-0);
+	}
+}
+
+.card {
+	margin-bottom: var(--lnx-spacing-5);
+}
+
+.fields {
+	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+	align-items: end;
+}
+
+.agenda {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
+}
+
+.agenda-item {
+	padding: var(--lnx-spacing-3);
+	border: 1px solid var(--color-gray-3);
+	border-radius: var(--lnx-radius-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-2);
+}
+
+.check {
+	margin-right: auto;
+}
+
+.form-actions,
+.actions,
+.minutes-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+}
+
+.minutes-header h2 {
+	flex: 1;
+}
+
+.summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-2) var(--lnx-spacing-5);
+	font-size: var(--lnx-font-size-small);
+}
+
+.list {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+// Rows coming, going and moving. Transitions, so a change midway turns back from where it is
+.row-move,
+.row-enter-active,
+.row-leave-active {
+	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+}
+
+.row-enter-from,
+.row-leave-to {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+// Out of the flow, so the rest move up into its place
+.row-leave-active {
+	position: absolute;
+	inset-inline: 0;
+}
+
+.item,
+.ballot {
+	padding: var(--lnx-spacing-2) 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	& + & {
+		border-top: 1px solid var(--color-gray-3);
+	}
+}
+
+.what {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-width: 180px;
+
+	small {
+		color: var(--color-gray-6);
+	}
+}
+
+.item-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-1);
+}
+
+.vote-item {
+	border-top: 1px solid var(--color-gray-3);
+
+	summary {
+		padding: var(--lnx-spacing-3) 0;
+		cursor: pointer;
+
+		strong {
+			text-wrap: balance;
+			transition: color var(--duration) var(--ease-out);
+		}
+
+		&:hover strong {
+			color: var(--color-primary);
+		}
+
+		small {
+			display: block;
+			color: var(--color-gray-6);
+		}
+	}
+}
+
+.minutes {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-2);
+	line-height: 1.5;
+
+	h3 {
+		font-size: var(--lnx-font-size-subtitle, 1.25rem);
+	}
+
+	h4 {
+		margin-top: var(--lnx-spacing-2);
+		font-weight: var(--lnx-font-weight-bold);
+	}
+
+	ol {
+		padding-left: var(--lnx-spacing-5);
+		list-style: decimal;
+		display: flex;
+		flex-direction: column;
+		gap: var(--lnx-spacing-2);
+	}
+}
+
+// Only the minutes, as a plain document
+@media print {
+	.screen-only {
+		display: none !important;
+	}
+
+	.card {
+		border: 0;
+		padding: 0;
+		box-shadow: none;
+	}
+}

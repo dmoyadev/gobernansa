@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, MeetingVote, Tally, VoteChoice } from '@gobernansa/shared/domain/meeting.ts';
+import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, Tally } from '@gobernansa/shared/domain/meeting.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
-import { attendanceStatus, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
+import { attendanceStatus, meetingStatus, meetingTypes, tallyVotes } from '@gobernansa/shared/domain/meeting.ts';
 import { totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, toast, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -17,10 +17,7 @@ import {
 	formatPercent,
 	loadProperties,
 	recordAttendance,
-	recordBallot,
 	removeAttendance,
-	removeBallot,
-	restoreBallot,
 	restoreMeeting,
 	saveMeeting,
 	saveResults,
@@ -31,6 +28,7 @@ import {
 } from '../application/useMeetings.ts';
 import MeetingMinutes from './MeetingMinutes.vue';
 import MeetingNotices from './MeetingNotices.vue';
+import MeetingVotes from './MeetingVotes.vue';
 
 const props = defineProps<{ id: string; meetingId: string }>();
 
@@ -46,7 +44,6 @@ const { people } = usePeople(props.id);
 
 const typeOptions = Object.entries(meetingTypes).map(([value, label]) => ({ value: value as Meeting['type'], label }));
 const attendanceOptions = Object.entries(attendanceStatus).map(([value, label]) => ({ value: value as MeetingAttendance['status'], label }));
-const choices = Object.keys(voteChoices) as VoteChoice[];
 const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeStyle: 'short' });
 
 // The census and the community's name, once, and again when coming back while showing the last
@@ -205,27 +202,6 @@ function unrecordAttendance(entry: MeetingAttendance) {
 }
 
 // Votes
-
-const votableItems = computed(() => meeting.value?.agenda.filter(item => item.votable) ?? []);
-const ownerNames = computed(() => Object.fromEntries(people.value.map(person => [person.id, person.name])));
-const ballotsById = computed(() => Object.fromEntries(ballots.value.map(ballot => [ballot.id, ballot])));
-
-function ballotOf(item: AgendaItem, property: Property): MeetingVote | undefined {
-	return ballotsById.value[`${item.id}_${property.id}`];
-}
-
-function vote(item: AgendaItem, property: Property, choice: VoteChoice) {
-	void optimistic(recordBallot(meeting.value!, item, property, choice), { failed: 'No se ha podido anotar el voto' });
-}
-
-function annulBallot(item: AgendaItem, ballot: MeetingVote) {
-	const current = meeting.value!;
-	void optimistic(removeBallot(current, item, ballot), {
-		done: 'Voto anulado',
-		failed: 'No se ha podido anular',
-		revert: async () => restoreBallot(current, item, ballot),
-	});
-}
 
 function result(item: AgendaItem) {
 	return describeResult(tallyVotes(ballots.value, item.id), total.value);
@@ -518,52 +494,7 @@ function print() {
 				</form>
 			</section>
 
-			<section v-if="votableItems.length" class="card screen-only">
-				<h2>Votaciones</h2>
-				<p class="hint">
-					Anota el voto de cada propiedad presente o representada. Los que se emiten desde la app aparecen aquí al momento.
-				</p>
-				<details v-for="item in votableItems" :key="item.id" class="vote-item">
-					<summary>
-						<strong>{{ item.title }}</strong>
-						<small class="tabular">{{ result(item) }}</small>
-					</summary>
-					<ul class="list">
-						<li v-for="property in properties" :key="property.id" class="ballot">
-							<div class="what">
-								<strong class="tabular">{{ property.name }} · {{ formatPercent(property.coefficient ?? 0) }}</strong>
-								<small>
-									{{ property.ownerName || ownerNames[property.ownerUid] || 'Sin propietario' }}
-									<template v-if="ballotOf(item, property)"> · votó {{ ballotOf(item, property)!.voterName }}</template>
-								</small>
-							</div>
-							<div class="item-actions">
-								<LnxButton
-									v-for="choice in choices"
-									:key="choice"
-									class="lnx-size-small"
-									:mode="ballotOf(item, property)?.choice === choice ? undefined : 'outline'"
-									@click="vote(item, property, choice)"
-								>
-									{{ voteChoices[choice] }}
-								</LnxButton>
-								<LnxButton
-									v-if="ballotOf(item, property)"
-									mode="clear"
-									class="lnx-size-small"
-									shape="circle"
-									variant="danger"
-									aria-label="Anular voto"
-									title="Anular voto"
-									@click="annulBallot(item, ballotOf(item, property)!)"
-								>
-									<LnxIcon icon="lucide:x" />
-								</LnxButton>
-							</div>
-						</li>
-					</ul>
-				</details>
-			</section>
+			<MeetingVotes :meeting :properties :ballots :people :total />
 
 			<section v-if="meeting.status !== 'held' || minutes === null" class="card">
 				<header class="minutes-header screen-only">
@@ -637,230 +568,4 @@ function print() {
 	</template>
 </template>
 
-<style lang="scss" scoped>
-.page-header {
-	margin-bottom: var(--lnx-spacing-5);
-	display: flex;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-
-	h1 {
-		flex: 1;
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.status {
-	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
-	border-radius: var(--lnx-radius-2);
-	background: var(--color-gray-2);
-	color: var(--color-gray-7);
-	font-size: var(--lnx-font-size-small);
-
-	&--convened {
-		background: var(--color-primary);
-		color: var(--color-gray-0);
-	}
-}
-
-.card {
-	margin-bottom: var(--lnx-spacing-5);
-	padding: var(--lnx-spacing-5);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-3);
-	background: var(--color-gray-0);
-	box-shadow: 0 1px 2px #0000000A, 0 2px 8px #00000008;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-4);
-
-	h2 {
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		color: var(--color-gray-6);
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-}
-
-.fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-	align-items: end;
-	gap: var(--lnx-spacing-3) var(--lnx-spacing-4);
-
-	.wide {
-		grid-column: 1 / -1;
-	}
-}
-
-.agenda {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-3);
-}
-
-.agenda-item {
-	padding: var(--lnx-spacing-3);
-	border: 1px solid var(--color-gray-3);
-	border-radius: var(--lnx-radius-2);
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
-}
-
-.check {
-	margin-right: auto;
-}
-
-.form-actions,
-.actions,
-.minutes-header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-2);
-}
-
-.form-actions {
-	justify-content: flex-end;
-}
-
-.minutes-header h2 {
-	flex: 1;
-}
-
-.summary {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--lnx-spacing-2) var(--lnx-spacing-5);
-	font-size: var(--lnx-font-size-small);
-}
-
-.list {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-}
-
-// Rows coming, going and moving. Transitions, so a change midway turns back from where it is
-.row-move,
-.row-enter-active,
-.row-leave-active {
-	transition: opacity var(--duration) var(--ease-out), translate var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
-}
-
-.row-enter-from,
-.row-leave-to {
-	opacity: 0;
-	translate: 0 -4px;
-}
-
-// Out of the flow, so the rest move up into its place
-.row-leave-active {
-	position: absolute;
-	inset-inline: 0;
-}
-
-.item,
-.ballot {
-	padding: var(--lnx-spacing-2) 0;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-
-	& + & {
-		border-top: 1px solid var(--color-gray-3);
-	}
-}
-
-.what {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	min-width: 180px;
-
-	small {
-		color: var(--color-gray-6);
-	}
-}
-
-.item-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--lnx-spacing-1);
-}
-
-.vote-item {
-	border-top: 1px solid var(--color-gray-3);
-
-	summary {
-		padding: var(--lnx-spacing-3) 0;
-		cursor: pointer;
-
-		strong {
-			text-wrap: balance;
-			transition: color var(--duration) var(--ease-out);
-		}
-
-		&:hover strong {
-			color: var(--color-primary);
-		}
-
-		small {
-			display: block;
-			color: var(--color-gray-6);
-		}
-	}
-}
-
-.minutes {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-2);
-	line-height: 1.5;
-
-	h3 {
-		font-size: var(--lnx-font-size-subtitle, 1.25rem);
-	}
-
-	h4 {
-		margin-top: var(--lnx-spacing-2);
-		font-weight: var(--lnx-font-weight-bold);
-	}
-
-	ol {
-		padding-left: var(--lnx-spacing-5);
-		list-style: decimal;
-		display: flex;
-		flex-direction: column;
-		gap: var(--lnx-spacing-2);
-	}
-}
-
-.hint {
-	color: var(--color-gray-6);
-	font-size: var(--lnx-font-size-small);
-}
-
-.error {
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
-}
-
-// Only the minutes, as a plain document
-@media print {
-	.screen-only {
-		display: none !important;
-	}
-
-	.card {
-		border: 0;
-		padding: 0;
-		box-shadow: none;
-	}
-}
-</style>
+<style lang="scss" scoped src="./meeting.scss" />

@@ -113,7 +113,9 @@ const figures = computed(() => {
 
 <style lang="scss" scoped>
 .page-header {
-	margin-bottom: var(--lnx-spacing-5);
+	align-items: normal;
+	display: block;
+	gap: normal;
 
 	h1 {
 		font-size: var(--lnx-font-size-title);
@@ -193,7 +195,5 @@ small {
 
 .error {
 	margin-bottom: var(--lnx-spacing-4);
-	color: var(--color-secondary-accent);
-	font-size: var(--lnx-font-size-small);
 }
 </style>

@@ -13,6 +13,7 @@ import { useUserCommunity } from '@/modules/community/application/useUserCommuni
 import PayWizard from '@/modules/finances/ui/PayWizard.vue';
 import ReceiptSheet from '@/modules/finances/ui/ReceiptSheet.vue';
 import { useBookings } from '../application/useBookings.ts';
+import { formatDay } from '../domain/days.ts';
 
 // The id of the slot: a booking of the user still owed, or a free slot to book and pay at once
 const props = defineProps<{ id: string }>();
@@ -79,10 +80,6 @@ const unavailable = computed(() => {
 	}
 	return undefined;
 });
-
-function formatDay(day: string) {
-	return new Date(`${day}T00:00`).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
-}
 
 const concept = computed(() => area.value && slot.value ? `${area.value.name}, ${formatDay(date.value)} de ${slot.value.from} a ${slot.value.to}` : '');
 

@@ -3,11 +3,10 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { isValidIban, isValidNif } from '@gobernansa/shared/domain/fiscal.ts';
 import { readsOnly } from '@gobernansa/shared/domain/user.ts';
-import { getDoc } from 'firebase/firestore';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { useRevalidated } from '@/app/ux/navigation.ts';
-import { budgetRef } from '@/modules/finances/application/useFinances.ts';
+import { hasBudget } from '@/modules/finances/application/useFinances.ts';
 
 // C1: what a new community needs before it's of use, ticking itself off. The page's figures, plus the year's budget
 const props = defineProps<{
@@ -40,7 +39,7 @@ function close() {
 
 const year = new Date().getFullYear();
 // 1 read, while the list is still there
-const { data: budget } = useRevalidated(async () => ({ exists: closed.value || (await getDoc(budgetRef(props.communityId, year))).exists() }));
+const { data: budget } = useRevalidated(async () => ({ exists: closed.value || (await hasBudget(props.communityId, year)) }));
 
 const steps = computed(() => {
 	const { cif, iban } = props.community ?? {};

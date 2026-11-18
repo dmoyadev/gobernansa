@@ -1,14 +1,14 @@
-import type { MailContent, MailKind, MailMode } from '@gobernansa/shared/domain/mail.ts';
+import type { Mail, MailContent, MailKind, MailMode } from '@gobernansa/shared/domain/mail.ts';
 import type { Meeting } from '@gobernansa/shared/domain/meeting.ts';
 import type { NoticeKind, NoticeOwner } from '@gobernansa/shared/domain/minutes.ts';
 import type { Role } from '@gobernansa/shared/domain/user.ts';
 import type { WorkOrder } from '@gobernansa/shared/domain/workOrder.ts';
-import type { DocumentData, DocumentReference } from 'firebase/firestore';
+import type { DocumentData, DocumentReference, QueryDocumentSnapshot } from 'firebase/firestore';
 import { mailId, renderMail } from '@gobernansa/shared/domain/mail.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatInviteCode } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, query, serverTimestamp, startAfter, where } from 'firebase/firestore';
 
 // 'extension' once Firebase's Trigger Email extension is installed (docs/datos.md#correo). Until then they're kept, nothing is sent
 export const MAIL_MODE: MailMode = import.meta.env.VITE_MAIL_MODE === 'extension' ? 'extension' : 'demo';
@@ -160,4 +160,16 @@ export function workOrderMail({ community, issue, expectedAt, contact, provider 
 		action: { label: 'Ver el parte de trabajo', url },
 		footer: [communityLine(community), [contact.name, contact.phone].filter(Boolean).join(' · ')],
 	};
+}
+
+const OUTBOX_PAGE_SIZE = 25;
+// The most values Firestore takes in an 'in' filter
+export const MAX_IN = 30;
+
+// A page of the outbox after the last one loaded: of one community (its id), of several (up to MAX_IN) or of all (none,
+// only the team). In id order, which is newest first (mailId). 1 read per email
+export async function loadMail(communities: string | string[] | undefined, after?: QueryDocumentSnapshot) {
+	const scope = typeof communities === 'string' ? [where('communityId', '==', communities)] : communities ? [where('communityId', 'in', communities)] : [];
+	const snapshot = await getDocs(query(collection(db, 'mail'), ...scope, ...(after ? [startAfter(after)] : []), limit(OUTBOX_PAGE_SIZE)));
+	return { mails: snapshot.docs.map(mail => ({ ...mail.data(), id: mail.id }) as Mail), last: snapshot.docs.at(-1), more: snapshot.size === OUTBOX_PAGE_SIZE };
 }
