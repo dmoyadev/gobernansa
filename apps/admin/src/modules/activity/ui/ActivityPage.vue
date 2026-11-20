@@ -4,7 +4,7 @@ import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { activityAreas } from '@gobernansa/shared/domain/activity.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxRadioGroup } from 'lnxjs-components';
-import { computed, ref } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { loadActivity, loadNewerActivity } from '../application/activity.ts';
@@ -13,8 +13,8 @@ const props = defineProps<{ id: string }>();
 
 // Read a page at a time and once, not live: each page added later only reads its own entries
 const entries = ref<Activity[]>([]);
-const first = ref<QueryDocumentSnapshot>();
-const last = ref<QueryDocumentSnapshot>();
+const first = shallowRef<QueryDocumentSnapshot>();
+const last = shallowRef<QueryDocumentSnapshot>();
 const hasMore = ref(false);
 const loading = ref(false);
 const error = ref<Error>();

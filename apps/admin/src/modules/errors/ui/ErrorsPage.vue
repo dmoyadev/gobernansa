@@ -5,7 +5,7 @@ import { errorApps, errorStatus, hasReturned, isUrgent } from '@gobernansa/share
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxSelect, toast, useConfirm } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { ALL, cleanErrors, loadBackup, loadErrorGroups, loadUrgentErrors, STALE_DAYS } from '../application/errors.ts';
@@ -72,7 +72,7 @@ const groups = ref<ErrorGroup[]>([]);
 // even when they're not on the first page
 const resolved = ref<ErrorGroup[]>([]);
 const urgent = ref<ErrorGroup[]>([]);
-const last = ref<QueryDocumentSnapshot>();
+const last = shallowRef<QueryDocumentSnapshot>();
 const hasMore = ref(false);
 const loading = ref(false);
 const error = ref<string>();

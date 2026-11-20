@@ -13,7 +13,7 @@ import {
 	verifyBeforeUpdateEmail,
 } from 'firebase/auth';
 import { arrayUnion, clearIndexedDbPersistence, collection, doc, getDoc, getDocs, query, terminate, updateDoc, where, writeBatch } from 'firebase/firestore';
-import { computed, effectScope, ref, watch, watchEffect } from 'vue';
+import { computed, effectScope, ref, shallowRef, watch, watchEffect } from 'vue';
 import { useCurrentUser, useDocument } from 'vuefire';
 import { codeEmail, homeCommunities, isCodeEmail, managesCommunity, parseInviteCode } from '../domain/user.ts';
 import { logAction, logActionBeforeLeaving } from '../infrastructure/actions.ts';
@@ -35,7 +35,8 @@ export default function useAuth() {
 
 function createAuth() {
 	const authUser = useCurrentUser();
-	const userRef = ref<DocumentReference>();
+	// Shallow: a deep ref hands the SDK a Vue proxy of the reference, and the offline cache can't store proxies in IndexedDB
+	const userRef = shallowRef<DocumentReference>();
 	const userData = useDocument<User>(userRef);
 
 	/*

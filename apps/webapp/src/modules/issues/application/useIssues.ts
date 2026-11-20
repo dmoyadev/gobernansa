@@ -2,7 +2,7 @@ import type { Issue, IssuesFilters, IssueSortingField } from '@gobernansa/shared
 import type { CollectionReference, DocumentData, QueryConstraint } from 'firebase/firestore';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { doc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where, writeBatch } from 'firebase/firestore';
-import { computed, effectScope, ref, watch } from 'vue';
+import { computed, effectScope, ref, shallowRef, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
 import { communityCollection, mapFirestoreDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
@@ -98,7 +98,7 @@ function createIssues() {
 	const issues = ref<Issue[]>([]);
 	const sortingField = ref<IssueSortingField>('createdAt');
 	const loading = ref(false);
-	const lastDoc = ref<DocumentData>();
+	const lastDoc = shallowRef<DocumentData>();
 	const hasMore = ref(true);
 	const error = ref<unknown>();
 

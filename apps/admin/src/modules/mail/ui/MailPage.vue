@@ -5,7 +5,7 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { deliveryStates, mailKinds, mailStatus, statusOf } from '@gobernansa/shared/domain/mail.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -27,7 +27,7 @@ const communityOptions = computed(() => [
 const communityNames = computed(() => new Map(communities.value.map(community => [community.id, community.name || 'Sin nombre'])));
 
 const mails = ref<Mail[]>([]);
-const last = ref<QueryDocumentSnapshot>();
+const last = shallowRef<QueryDocumentSnapshot>();
 const hasMore = ref(false);
 const loading = ref(false);
 const error = ref<string>();
