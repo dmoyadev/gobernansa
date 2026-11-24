@@ -104,14 +104,15 @@ const SECTIONS = [
 	{ to: '/errors', label: 'Errores', icon: 'lucide:bug', combo: 'g r', superadmin: true },
 	{ to: '/history', label: 'Historial', icon: 'lucide:history', combo: 'g h', superadmin: true },
 	{ to: '/admins', label: 'Administradores', icon: 'lucide:shield-user', combo: 'g a', superadmin: true },
+	{ to: '/accounts', label: 'Cuentas', icon: 'lucide:users', combo: 'g u', superadmin: true },
 ];
 const sections = computed(() => SECTIONS.filter(allowed));
 for (const section of SECTIONS) {
-	useShortcut(section.combo, () => {
-		if (sections.value.includes(section) && access.value !== 'loading' && access.value !== 'denied') {
-			void router.push(section.to);
-		}
-	}, { description: `Ir a ${section.label.toLowerCase()}` });
+	// Only the sections this account has, so the shortcuts sheet doesn't list the others
+	useShortcut(section.combo, () => void router.push(section.to), {
+		description: `Ir a ${section.label.toLowerCase()}`,
+		enabled: () => sections.value.includes(section) && access.value !== 'loading' && access.value !== 'denied',
+	});
 }
 
 // MON-9: the team sees on Errores how many urgent or come-back errors wait

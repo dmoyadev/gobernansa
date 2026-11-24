@@ -131,8 +131,11 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 		batch.update(meetingRef, { minutesSigned: arrayUnion(me.id) });
 		await batch.commit();
 		const seal = async () => {
-			const current = (await getDocFromServer(ref)).data() as Omit<Minutes, 'id'> | undefined;
-			if (current && !current.closedAt && isFullySigned(current)) {
+			const snapshot = await getDocFromServer(ref);
+			const current = snapshot.data() as Omit<Minutes, 'id'> | undefined;
+			// A signing time still pending reads null and can't be hashed: the admin seals it when it sees it
+			const timed = !!current && Object.values(current.signatures).every(signature => signature?.signedAt);
+			if (current && timed && !snapshot.metadata.hasPendingWrites && !current.closedAt && isFullySigned(current)) {
 				await updateDoc(ref, { hash: await minutesHash(current), closedAt: serverTimestamp() });
 			}
 		};

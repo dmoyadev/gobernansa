@@ -21,7 +21,8 @@ interface QueryFilters {
 	year?: string;
 }
 
-export function useCommunityEvents(pageSize = 15) {
+// pastOnly for what already happened: by date alone, the furthest future events would come first
+export function useCommunityEvents(pageSize = 15, pastOnly = false) {
 	const { user } = useAuth();
 	const communityId = computed(() => user.value?.communityId);
 	const db = getFirestore();
@@ -41,6 +42,10 @@ export function useCommunityEvents(pageSize = 15) {
 			orderBy('date', 'desc'),
 			limit(currentPageSize.value),
 		);
+
+		if (pastOnly) {
+			q = query(q, where('date', '<=', Timestamp.now()));
+		}
 
 		if (filters.value?.type) {
 			q = query(q, where('type', '==', filters.value.type));

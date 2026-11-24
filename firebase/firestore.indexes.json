@@ -17,11 +17,127 @@
 			]
 		},
 		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "deletedAt", "order": "ASCENDING" },
+				{ "fieldPath": "updatedAt", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "deletedAt", "order": "ASCENDING" },
+				{ "fieldPath": "createdAt", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "createdBy", "order": "ASCENDING" },
+				{ "fieldPath": "createdAt", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "category", "order": "ASCENDING" },
+				{ "fieldPath": "deletedAt", "order": "ASCENDING" },
+				{ "fieldPath": "createdAt", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "deletedAt", "order": "ASCENDING" },
+				{ "fieldPath": "status", "order": "ASCENDING" },
+				{ "fieldPath": "createdAt", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "issues",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "deletedAt", "order": "ASCENDING" },
+				{ "fieldPath": "votesCount", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "events",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "communityId", "order": "ASCENDING" },
+				{ "fieldPath": "date", "order": "DESCENDING" }
+			]
+		},
+		{
 			"collectionGroup": "charges",
 			"queryScope": "COLLECTION",
 			"fields": [
 				{ "fieldPath": "paidAt", "order": "ASCENDING" },
 				{ "fieldPath": "dueDate", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "charges",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "dueDate", "order": "ASCENDING" },
+				{ "fieldPath": "paidAt", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "charges",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "paidAt", "order": "ASCENDING" },
+				{ "fieldPath": "amount", "order": "ASCENDING" },
+				{ "fieldPath": "collected", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "charges",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "paidAt", "order": "ASCENDING" },
+				{ "fieldPath": "amount", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "charges",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "batchId", "order": "ASCENDING" },
+				{ "fieldPath": "reserve", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "charges",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "batchId", "order": "ASCENDING" },
+				{ "fieldPath": "paidAt", "order": "ASCENDING" },
+				{ "fieldPath": "reserve", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "expenses",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "year", "order": "ASCENDING" },
+				{ "fieldPath": "amount", "order": "ASCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "expenses",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "date", "order": "ASCENDING" },
+				{ "fieldPath": "amount", "order": "ASCENDING" }
 			]
 		},
 		{
@@ -53,6 +169,15 @@
 			"queryScope": "COLLECTION",
 			"fields": [
 				{ "fieldPath": "firstRelease", "order": "ASCENDING" },
+				{ "fieldPath": "lastSeen", "order": "DESCENDING" }
+			]
+		},
+		{
+			"collectionGroup": "errors",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "status", "order": "ASCENDING" },
+				{ "fieldPath": "code", "order": "ASCENDING" },
 				{ "fieldPath": "lastSeen", "order": "DESCENDING" }
 			]
 		},

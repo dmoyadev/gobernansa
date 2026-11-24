@@ -174,7 +174,6 @@ function record() {
 					v-model.convert="recording.noticeId"
 					:options="ownerOptions"
 					:convert-fn="option => option.value"
-					required
 				>
 					Propietario ausente
 					<template #option="{ option }">
@@ -188,7 +187,6 @@ function record() {
 					v-model.convert="recording.itemId"
 					:options="itemOptions"
 					:convert-fn="option => option.value"
-					required
 				>
 					Acuerdo
 					<template #option="{ option }">

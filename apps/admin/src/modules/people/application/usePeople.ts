@@ -5,7 +5,7 @@ import { logActivity } from '@gobernansa/shared/application/activity.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { newInviteCode, officeRoles, roles } from '@gobernansa/shared/domain/user.ts';
 import { auth, db } from '@gobernansa/shared/infrastructure/firebase.ts';
-import { arrayRemove, arrayUnion, collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, doc, getDocs, limit, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection } from 'vuefire';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
@@ -30,6 +30,25 @@ export function usePeople(communityId: string) {
 		loading: home.pending,
 		error: computed(() => home.error.value ?? others.error.value ?? invitations.error.value),
 	};
+}
+
+// Every account of a role, in one community or in all, for the team. Live.
+// ponytail: up to 300 per filter, a search by email or name when one role outgrows it
+export function useAccounts(filter: MaybeRefOrGetter<{ role: Role; communityId: string }>) {
+	const accounts = useCollection<User>(computed(() => {
+		const { role, communityId } = toValue(filter);
+		return communityId
+			? query(usersRef, where('role', '==', role), where('communityId', '==', communityId), limit(300))
+			: query(usersRef, where('role', '==', role), limit(300));
+	}));
+	return { accounts, loading: accounts.pending, error: accounts.error };
+}
+
+export type AccountChanges = Pick<User, 'name' | 'role' | 'communityId' | 'communityIds' | 'blocked'>;
+
+// Anything of someone else's profile, by the team. Their sign-in email stays: only the Admin SDK changes it
+export async function updateAccount(uid: string, changes: AccountChanges) {
+	await updateDoc(doc(usersRef, uid), changes);
 }
 
 // The staff of an office (B3) and its pending invitations, its owner aside. Live

@@ -82,6 +82,10 @@ function findError() {
 	if (!office.value) {
 		return 'Completa antes los datos fiscales del despacho.';
 	}
+	// Not a native required: the select's inner input stays empty when it shows the option with a template
+	if (!original.value && !community.value) {
+		return 'Elige la comunidad.';
+	}
 	if (!original.value && (!community.value?.cif || !isValidNif(community.value.cif))) {
 		return 'La comunidad necesita un CIF válido para facturarle: complétalo en sus datos.';
 	}
@@ -162,7 +166,6 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 				:options="communityOptions"
 				:convert-fn="option => option.value"
 				:disabled="!!original"
-				required
 			>
 				Comunidad
 				<template #option="{ option }">

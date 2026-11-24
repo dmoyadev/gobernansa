@@ -75,6 +75,11 @@ function pages<T>(read: (after?: QueryDocumentSnapshot) => Promise<{ items: T[];
 		} catch (e) {
 			if (current === latest) {
 				error.value = (e as Error).message;
+				// A failed filter shows no rows, not the ones of the previous filter as if they were its results
+				if (!more) {
+					items.value = [];
+					hasMore.value = false;
+				}
 			}
 		} finally {
 			if (current === latest) {
@@ -276,7 +281,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		</ul>
 
 		<p v-else-if="!current.error.value" class="hint">
-			{{ tab === 'changes' ? 'No hay cambios con estos filtros.' : 'No hay acciones con estos filtros.' }}
+			{{ tab === 'changes' ? 'No hay cambios con estos filtros. Los cambios los apuntan las functions: hasta desplegarlas, esta pestaña queda vacía.' : 'No hay acciones con estos filtros.' }}
 		</p>
 
 		<LnxButton v-if="current.hasMore.value" mode="clear" :is-loading="current.loading.value" @click="current.load(true)">

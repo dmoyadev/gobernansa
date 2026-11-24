@@ -2,7 +2,7 @@
 
 Todo lo abierto de [v1.md](v1.md), [competencia.md](competencia.md) y [fiabilidad.md](fiabilidad.md), agrupado por lo que lo desbloquea. Cada ID enlaza a su ficha, que tiene el detalle; aquí solo va qué falta. Al cerrar uno, quítalo también de aquí.
 
-*Revisado el 17/11/2026.*
+*Revisado el 23/11/2026, tras probar en producción todos los flujos.*
 
 <a id="ya"></a>
 
@@ -13,7 +13,10 @@ A mano, en la consola, en GitHub, en tu equipo o con un móvil:
 | ID | Qué falta |
 | --- | --- |
 | [ROB-2](fiabilidad.md#rob-2) · [B5](v1.md#b5) | Activar la copia diaria en tu equipo (`npm run backup -- --schedule`). Hasta entonces, `npm run purge -- --delete` una vez al mes |
-| [GAR-1](competencia.md#gar-1) · [B12](v1.md#b12) | Desplegar a mano los índices del Historial ([índices](setup.md#indices)): sin ellos fallan sus filtros en producción |
+| [GAR-1](competencia.md#gar-1) · [B12](v1.md#b12) · [C3](v1.md#c3) | Desplegar a mano los índices ([índices](setup.md#indices)): sin ellos fallan en producción los filtros del Historial y las sumas de recibos y gastos (cifras de la comunidad, resumen de Finanzas y Liquidación) |
+| — | Cambiar el token del bot de Telegram del formulario de la landing: va en su JS público, cualquiera puede usarlo. Con [INF-1](competencia.md#inf-1), mandarlo desde una function |
+| — | Lo que falta probar cambiando de cuenta: despacho (sus comunidades en Honorarios, su Equipo, aceptar una invitación), presidente (firmar el acta, ver honorarios sin editarlos), vecino con código y vecino bloqueado |
+| — | Navegación colgada al salir de **Exportar e importar** con la vista previa abierta (`insertBefore` en consola), visto dos veces en producción con la pestaña en segundo plano; no se ha reproducido en local |
 | [ROB-5](fiabilidad.md#rob-5) | Probar un interruptor desde la consola de Remote Config |
 | [ROB-4](fiabilidad.md#rob-4) | Ensayar una vez la vuelta atrás de la app y de las reglas |
 | [MON-5](fiabilidad.md#mon-5) | Ver pasar la comprobación de las dos webs en un despliegue |

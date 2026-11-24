@@ -312,7 +312,14 @@ service cloud.firestore {
       // Role and community, by whoever can give both the current and the new ones. Never one's own, so nobody promotes themselves.
       // Only the team assigns communities to an office, in each of its members' profiles
       allow update: if signedIn() && request.auth.uid != uid && (
-        ((changedOnly(['role', 'communityId']) || (isSuperadmin() && changedOnly(['role', 'communityId', 'communityIds'])))
+        // Anything of anyone else's profile, by the team (Cuentas). Their sign-in email is Auth's, not this
+        (isSuperadmin()
+          && changedOnly(['name', 'role', 'communityId', 'communityIds', 'blocked'])
+          && request.resource.data.role in ['superadmin', 'admin', 'manager', 'user']
+          && request.resource.data.name is string && request.resource.data.name.size() > 0
+          && request.resource.data.communityId is string
+          && request.resource.data.get('blocked', false) is bool)
+        || ((changedOnly(['role', 'communityId']) || (isSuperadmin() && changedOnly(['role', 'communityId', 'communityIds'])))
           && canAssign(resource.data.role, resource.data.communityId)
           && canAssign(request.resource.data.role, request.resource.data.communityId))
         // Blocking a neighbour, by whoever manages their community

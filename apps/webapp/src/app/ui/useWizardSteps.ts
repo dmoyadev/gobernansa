@@ -24,6 +24,8 @@ export function useWizardSteps($heading: { readonly value: HTMLElement | null })
 
 		document.documentElement.dataset.transition = index < step.value ? 'back' : 'forward';
 		const transition = document.startViewTransition(async () => show(index));
+		// It's skipped, and ready rejects, when the tab is hidden: the step still changes
+		transition.ready.catch(() => undefined);
 		void transition.finished.finally(() => delete document.documentElement.dataset.transition);
 	}
 

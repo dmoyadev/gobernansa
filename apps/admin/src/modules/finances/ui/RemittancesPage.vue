@@ -94,6 +94,8 @@ const shown = computed(() => candidates.value
 const selected = computed(() => shown.value.filter(charge => !excluded.value.has(charge.id)));
 const selectedTotal = computed(() => selected.value.reduce((sum, charge) => sum + outstanding(charge), 0));
 const tomorrow = toDateString(new Date(Date.now() + 864e5));
+// Its charges are paid the day the bank charges them, so not before
+const today = toDateString(new Date());
 
 function toggleCharge(charge: Charge, include: boolean) {
 	const next = new Set(excluded.value);
@@ -471,7 +473,15 @@ const returns = useTemplateRef('returns');
 						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
-						<LnxButton v-if="remittance.status !== 'collected'" mode="clear" class="lnx-size-small" :is-loading="busyId === remittance.id" @click="advance(remittance)">
+						<LnxButton
+							v-if="remittance.status !== 'collected'"
+							mode="clear"
+							class="lnx-size-small"
+							:is-loading="busyId === remittance.id"
+							:disabled="remittance.status === 'sent' && remittance.collectionDate > today"
+							:title="remittance.status === 'sent' && remittance.collectionDate > today ? `Se puede marcar cobrada desde el día del cargo, el ${remittance.collectionDate.split('-').reverse().join('/')}` : undefined"
+							@click="advance(remittance)"
+						>
 							{{ remittance.status === 'generated' ? 'Marcar enviada' : 'Marcar cobrada' }}
 						</LnxButton>
 						<LnxButton

@@ -43,7 +43,7 @@ function readStorage(key: string) {
 		return null;
 	}
 }
-const { events } = useCommunityEvents(3);
+const { events } = useCommunityEvents(3, true);
 const { issues, votingProperty, canVoteAsOwner, votesLeft, monthlyVotes } = useUserActivity();
 const votesRenewOn = getVotingMonth().renewsOn.toLocaleDateString('es', { day: 'numeric', month: 'long' });
 

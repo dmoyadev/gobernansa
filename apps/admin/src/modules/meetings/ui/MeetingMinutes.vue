@@ -195,7 +195,6 @@ function print() {
 				v-model.convert="form[role]"
 				:options="signerOptions"
 				:convert-fn="option => option.value"
-				required
 			>
 				{{ signerRoles[role] }}
 				<template #option="{ option }">

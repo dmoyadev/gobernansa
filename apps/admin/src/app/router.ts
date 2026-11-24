@@ -388,6 +388,12 @@ const router = createRouter({
 					meta: { title: 'Equipo del despacho', owner: true },
 				},
 				{
+					path: 'accounts',
+					name: 'Cuentas',
+					component: async () => import('@/modules/people/ui/AccountsPage.vue'),
+					meta: { title: 'Cuentas', superadmin: true },
+				},
+				{
 					path: 'admins',
 					name: 'Administradores',
 					component: async () => import('@/modules/people/ui/PeoplePage.vue'),

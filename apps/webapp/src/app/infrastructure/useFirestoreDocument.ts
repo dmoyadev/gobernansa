@@ -10,9 +10,9 @@ import type { Ref } from 'vue';
 import {
 	collection,
 	doc,
-	getDoc,
+	onSnapshot,
 } from 'firebase/firestore';
-import { ref, watch } from 'vue';
+import { onScopeDispose, ref, watch } from 'vue';
 
 /* -------------------------------------------------------------------------- */
 /*                              Mapping utilities                             */
@@ -63,54 +63,39 @@ export function communityDoc<T = DocumentData>(
 
 export interface UseFirestoreDocumentOptions<T> {
 	path: Ref<DocumentReference | undefined>;
-	immediate?: boolean;
 	filter?: (data: T) => boolean;
 }
-export function useFirestoreDocument<T>({
-	path,
-	immediate = true,
-	filter,
-}: UseFirestoreDocumentOptions<T>) {
+
+// Live: whoever has it open sees each change as it's made. fetch listens again, e.g. after an error
+export function useFirestoreDocument<T>({ path, filter }: UseFirestoreDocumentOptions<T>) {
 	const data = ref<T>();
 	const loading = ref(false);
 	const error = ref<Error>();
+	let stop: (() => void) | undefined;
 
-	async function fetch() {
+	function fetch() {
+		stop?.();
+		stop = undefined;
+		error.value = undefined;
 		if (!path.value) {
 			data.value = undefined;
 			return;
 		}
 
 		loading.value = true;
-		error.value = undefined;
-
-		try {
-			const snap = await getDoc(path.value);
-
-			if (!snap.exists()) {
-				data.value = undefined;
-				return;
-			}
-
-			const mapped = mapFirestoreDoc<T>(snap);
-
-			if (filter && !filter(mapped)) {
-				data.value = undefined;
-				return;
-			}
-
-			data.value = mapped;
-		} catch (err) {
-			error.value = err as Error;
-		} finally {
+		stop = onSnapshot(path.value, (snap) => {
+			const mapped = snap.exists() ? mapFirestoreDoc<T>(snap) : undefined;
+			data.value = mapped && (!filter || filter(mapped)) ? mapped : undefined;
 			loading.value = false;
-		}
+		}, (err) => {
+			error.value = err;
+			loading.value = false;
+		});
 	}
 
-	if (immediate) {
-		// Only the path: watchEffect would also track the SDK internals getDoc touches, and its own fetch changes them
-		watch(() => path.value?.path, () => void fetch(), { immediate: true });
-	}
+	// Only the path, so a new reference to the same document doesn't listen again
+	watch(() => path.value?.path, fetch, { immediate: true });
+	onScopeDispose(() => stop?.());
 
 	return {
 		data,

@@ -128,7 +128,10 @@ function printCode(invitation: Invitation & { id: string }) {
 
 async function remove(person: User & { id: string }) {
 	const question = communityId ? `¿Quitar a ${person.name} de la comunidad?` : `¿Quitar el acceso de ${person.name}?`;
-	if (!await ask({ title: question, confirmText: 'Quitar', variant: 'danger' })) {
+	const message = isSecondary(person)
+		? 'Deja de ver esta comunidad; su perfil y su comunidad principal siguen.'
+		: 'Se borra su perfil y no se puede deshacer: pierde el acceso. Una invitación nueva se lo devuelve.';
+	if (!await ask({ title: question, message, confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 
