@@ -1,7 +1,7 @@
 {
 	"name": "@gobernansa/functions",
 	"type": "module",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"private": true,
 	"description": "Cloud Functions: the change history of every document (audit) and restoring a version. Need Firebase's paid plan",
 	"main": "index.js",
