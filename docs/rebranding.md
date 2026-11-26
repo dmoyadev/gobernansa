@@ -57,6 +57,7 @@ Todos en SVG vectorial: texto convertido a trazos (sin `<text>`), sin imágenes 
 |---|---|---|
 | `apps/landing/img/cartera.png` | 800×500 | Admin, Panel de cartera, con el despacho de 40 comunidades |
 | `apps/landing/img/vecino.jpg` | 390×800 | Webapp, inicio del Piso 1A |
+| `apps/landing/public/og-image.png` | 1200×630 | Landing, el hero (titular y edificio) a 1440×756 sin botones ni pista, reducido |
 
 ✅ **Capturas rotas del README** (17/11/2026): el README nuevo ya no enlaza `screenshot.png` ni `screenshot.gif`.
 
@@ -137,8 +138,8 @@ Unas 300 menciones del nombre en unos 65 ficheros (la mitad, en `docs/`), más u
 | `apps/landing/img/logo-night.svg` | A2 |
 | `packages/shared/ui/IsotypeSVG.vue` | A3 |
 | `apps/webapp/public/` y `apps/admin/public/` | Los cinco iconos y `og-image.jpg` de cada una |
-| `apps/landing/index.html` | El favicon pasa del logo entero (ilegible a 16 px) al isotipo. `og:image` pasa a URL absoluta con el dominio nuevo (las tarjetas no aceptan rutas relativas) y se añade `og:url` |
-| `apps/landing/img/cartera.png`, `vecino.jpg` | Las capturas de T14 |
+| `apps/landing/index.html` | El favicon pasa del logo entero (ilegible a 16 px) al isotipo. `og:url` y `og:image` pasan al dominio nuevo (son absolutas: las tarjetas no aceptan rutas relativas) y `og:site_name` al nombre nuevo |
+| `apps/landing/img/cartera.png`, `vecino.jpg`, `public/og-image.png` | Las capturas de T14 |
 | Tamaños en `AdminLayout.vue`, `TheToolbar.vue`, `LoginPage.vue` (las dos), `WorkOrderPage.vue` | Solo si el logo nuevo cambia de proporción |
 
 ### 3.3 Direcciones

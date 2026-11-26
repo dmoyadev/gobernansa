@@ -17,6 +17,7 @@ npm run preview -w apps/landing      # el build en http://localhost:5414
 | `src/sections/` | El JS de cada sección: la noche del hero, las fichas de funciones, los móviles que se usan solos, el formulario… |
 | `src/page.js` | Lo que comparten: si el sistema pide menos movimiento y el botón flotante «Pide una demo» del móvil |
 | `img/`, `fonts/` | Imágenes y las dos fuentes, servidas desde la propia página |
+| `public/og-image.png` | La vista previa al compartir el enlace (1200×630): el hero a 1440×756 sin botones ni pista, reducido. Va tal cual, sin hash, porque `og:image` la pide por su dirección completa |
 
 ## A tener en cuenta
 

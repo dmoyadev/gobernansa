@@ -6,9 +6,18 @@
 	<meta name="theme-color" content="#f7fafc">
 	<title>gobernança · El programa del despacho y la app del vecino, en uno</title>
 	<meta name="description" content="Recibos y remesas SEPA, contabilidad, modelos de la AEAT y juntas con acta firmada para despachos de administración de fincas, con una app que los vecinos sí usan.">
+	<!-- The link's preview when shared. Its addresses must be absolute, so they change with the domain -->
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="gobernança">
+	<meta property="og:locale" content="es_ES">
+	<meta property="og:url" content="https://dmoyadev.github.io/gobernansa/">
 	<meta property="og:title" content="gobernança para despachos de administración de fincas">
 	<meta property="og:description" content="El programa del despacho y la app del vecino, en uno. Todo en el navegador, sin instalar nada.">
-	<meta property="og:image" content="img/cartera.png">
+	<meta property="og:image" content="https://dmoyadev.github.io/gobernansa/og-image.png">
+	<meta property="og:image:width" content="1200">
+	<meta property="og:image:height" content="630">
+	<meta property="og:image:alt" content="El programa del despacho y la app del vecino, en uno: el titular de gobernança junto a un edificio con las ventanas encendidas.">
+	<meta name="twitter:card" content="summary_large_image">
 	<link rel="icon" href="img/logo.svg">
 	<link rel="stylesheet" href="./src/styles/main.css">
 </head>
@@ -699,7 +708,8 @@
 				</div>
 			</section>
 
-			<section class="wrap pl-section" id="piloto">
+			<!-- Hidden while the price isn't settled, like the pricing answers in the FAQ and the footer link: remove `hidden` to bring them back -->
+			<section class="wrap pl-section" id="piloto" hidden>
 				<header class="pl-head">
 					<h2>Pruébalo con tus comunidades, sin pagar.</h2>
 					<p>Sin cambiar de golpe: empiezas con unas pocas y el resto lo pasas cuando quieras.</p>
@@ -795,7 +805,7 @@
 							<summary class="fx-face">¿De quién son los datos?<span class="fx-plus" aria-hidden="true"></span></summary>
 							<p>Tuyos y de tus comunidades. Exportas cualquier comunidad entera en un ZIP cuando quieras, y si lo dejas, te lo llevas todo. Antes de cargar nada firmamos el contrato de encargado del tratamiento que pide el RGPD.</p>
 						</details>
-						<details class="fx-tile">
+						<details class="fx-tile" hidden>
 							<summary class="fx-face">¿Cuánto cuesta?<span class="fx-plus" aria-hidden="true"></span></summary>
 							<p>El piloto, nada: tres meses con 3 a 5 comunidades. Después, precio de fundador congelado dos años para los primeros despachos, que te doy en la demo. Los vecinos no pagan nada.</p>
 						</details>
@@ -825,7 +835,7 @@
 						</details>
 						<details class="fx-tile">
 							<summary class="fx-face">¿Qué gana mi administrador?<span class="fx-plus" aria-hidden="true"></span></summary>
-							<p>Menos llamadas y menos WhatsApp: los avisos le llegan ordenados y con fotos. Y no es solo una app, es el programa entero del despacho, con recibos, contabilidad, Hacienda y juntas. Además, puede probarlo tres meses sin pagar.</p>
+							<p>Menos llamadas y menos WhatsApp: los avisos le llegan ordenados y con fotos. Y no es solo una app, es el programa entero del despacho, con recibos, contabilidad, Hacienda y juntas.<!-- Además, puede probarlo tres meses sin pagar. --></p>
 						</details>
 						<details class="fx-tile">
 							<summary class="fx-face">¿Cómo se lo propongo?<span class="fx-plus" aria-hidden="true"></span></summary>
@@ -899,7 +909,7 @@
 						<ul>
 							<li><a href="#dia">Un día cualquiera</a></li>
 							<li><a href="#funciones">Todo lo que hace</a></li>
-							<li><a href="#piloto">El piloto</a></li>
+							<li hidden><a href="#piloto">El piloto</a></li>
 							<li><a href="#preguntas">Preguntas frecuentes</a></li>
 						</ul>
 					</div>

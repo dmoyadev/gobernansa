@@ -37,9 +37,13 @@ function setNight(night) {
 	page.classList.toggle('night', night);
 	stage.setAttribute('aria-pressed', String(night));
 }
+// A mouse brings the night while over it; a finger or a pen switches it on each tap. Told apart by the press, since an
+// iPhone's tap reaches click as a mouse
+let tapped = false;
 stage.addEventListener('pointerenter', event => event.pointerType === 'mouse' && setNight(true));
 stage.addEventListener('pointerleave', event => event.pointerType === 'mouse' && setNight(false));
-stage.addEventListener('click', event => event.pointerType !== 'mouse' && setNight(!page.classList.contains('night')));
+stage.addEventListener('pointerdown', event => tapped = event.pointerType !== 'mouse');
+stage.addEventListener('click', () => tapped && setNight(!page.classList.contains('night')));
 stage.addEventListener('keydown', (event) => {
 	if (event.key === 'Enter' || event.key === ' ') {
 		event.preventDefault();
