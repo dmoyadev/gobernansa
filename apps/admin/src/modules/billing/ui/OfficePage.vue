@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { VatRate } from '@gobernansa/shared/domain/finance.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { officeVatRates, officeWithholdings } from '@gobernansa/shared/domain/billing.ts';
 import { isValidIban, isValidNif, normalizeIban, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useShortcut } from 'lnxjs-components';
@@ -100,7 +101,7 @@ useShortcut('mod+enter', () => officeForm.value?.requestSubmit(), { description:
 	</header>
 
 	<p v-if="error" class="error" role="alert">
-		No se han podido cargar: {{ error.message }}
+		No se han podido cargar: {{ errorMessage(error) }}
 	</p>
 	<div v-else-if="pending && !office" class="card" aria-busy="true" aria-label="Cargando">
 		<span v-for="width in [60, 80, 50]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />

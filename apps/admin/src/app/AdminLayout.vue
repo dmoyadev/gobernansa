@@ -7,8 +7,12 @@ import { LnxButton, LnxIcon, LnxShortcutsSheet, shortcutTitle, useShortcut } fro
 import { computed, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCurrentUser } from 'vuefire';
-import { errorAlerts, watchErrorAlerts } from '@/modules/errors/application/useErrorAlerts.ts';
+import { watchErrorAlerts } from '@/modules/errors/application/useErrorAlerts.ts';
 import { useCommunityManagers } from '@/modules/people/application/usePeople.ts';
+import CommandPalette from './CommandPalette.vue';
+import { paletteMode } from './palette.ts';
+import { communityName } from './router.ts';
+import TopNav from './TopNav.vue';
 import { useSearchHighlight } from './useSearchHighlight.ts';
 import WorkspaceNav from './workspace/WorkspaceNav.vue';
 import { workspaceMove, workspacePage } from './workspace/workspaces.ts';
@@ -115,6 +119,19 @@ for (const section of SECTIONS) {
 	});
 }
 
+// ⌘K opens the palette from any page, and closes it. Mounted the first time, so who never opens it reads nothing
+const signedIn = computed(() => access.value === 'granted' || access.value === 'forbidden');
+const paletteUsed = ref(false);
+watch(paletteMode, mode => paletteUsed.value ||= !!mode);
+function openPalette(mode?: 'search' | 'switch') {
+	paletteMode.value = mode;
+}
+useShortcut('mod+k', () => openPalette(paletteMode.value ? undefined : 'search'), { description: 'Buscar o ir a una comunidad', enabled: () => signedIn.value });
+
+// Which community the page is in, above it: on its pages outside a workspace (whose nav has the name) but its own,
+// whose title is already its name
+const inCommunity = computed(() => access.value === 'granted' && !current.value && typeof route.params.id === 'string' && route.name !== 'Comunidad');
+
 // MON-9: the team sees on Errores how many urgent or come-back errors wait
 watch(() => user.value?.role === 'superadmin', watchErrorAlerts, { immediate: true });
 
@@ -129,13 +146,10 @@ const KEPT_PAGES = 6;
 			<img src="@gobernansa/shared/assets/logo.svg" alt="gobernança" width="120" height="40">
 		</RouterLink>
 
-		<nav v-if="access === 'granted' || access === 'forbidden'" aria-label="Principal" :class="{ crowded: sections.length > 8 }">
-			<RouterLink v-for="section in sections" :key="section.to" :to="section.to" :title="shortcutTitle(section.label, section.combo)">
-				<LnxIcon :icon="section.icon" :size="18" />
-				{{ section.label }}
-				<span v-if="section.to === '/errors' && errorAlerts" class="alerts">{{ errorAlerts }}<span class="sr-only"> por revisar</span></span>
-			</RouterLink>
-		</nav>
+		<TopNav v-if="signedIn" :sections="sections" />
+		<LnxButton v-if="signedIn" mode="clear" shape="circle" aria-label="Buscar" :title="shortcutTitle('Buscar', 'mod+k')" @click="openPalette('search')">
+			<LnxIcon icon="lucide:search" />
+		</LnxButton>
 
 		<!-- With the version, so the user can tell support which one they have -->
 		<span v-if="user" class="user">
@@ -153,9 +167,19 @@ const KEPT_PAGES = 6;
 	</header>
 
 	<!-- The workspace's nav beside main, not in it: main holds only the page -->
-	<div class="frame" :class="{ workspace: current }">
+	<!-- Wide pages (meta.wide) are tables that use the room -->
+	<div class="frame" :class="{ workspace: current, wide: route.meta.wide }">
 		<WorkspaceNav v-if="current" :key="current.workspace.title" :workspace="current.workspace" :page="current.page" />
 		<main ref="content">
+			<div v-if="inCommunity" class="eyebrow">
+				<RouterLink :to="`/communities/${route.params.id}`">
+					<LnxIcon icon="lucide:building-2" :size="16" aria-hidden="true" />
+					<span>{{ communityName || 'Comunidad' }}</span>
+				</RouterLink>
+				<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Cambiar de comunidad" title="Cambiar de comunidad" @click="openPalette('switch')">
+					<LnxIcon icon="lucide:chevrons-up-down" :size="16" />
+				</LnxButton>
+			</div>
 			<WorkspaceTabs v-if="current" :workspace="current.workspace" :page="current.page" />
 			<!-- The rules refuse their changes; this tells them before they try -->
 			<p v-if="access === 'granted' && readsOnly(user)" class="read-only" role="status">
@@ -226,6 +250,7 @@ const KEPT_PAGES = 6;
 		</main>
 	</div>
 
+	<CommandPalette v-if="paletteUsed && signedIn" :sections="sections" />
 	<LnxShortcutsSheet :rows="[{ description: 'Deshacer lo último', combos: ['mod+z'] }]" />
 </template>
 
@@ -241,50 +266,6 @@ const KEPT_PAGES = 6;
 	gap: var(--lnx-spacing-5);
 	background: var(--color-gray-0);
 	box-shadow: 0 1px 0 var(--color-gray-3);
-}
-
-.topbar nav {
-	flex: 1;
-	display: flex;
-	gap: var(--lnx-spacing-2);
-
-	a {
-		display: flex;
-		align-items: center;
-		gap: var(--lnx-spacing-2);
-		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
-		border-radius: var(--lnx-radius-3);
-		color: var(--color-gray-7);
-		font-size: var(--lnx-font-size-small);
-		font-weight: var(--lnx-font-weight-bold);
-		text-decoration: none;
-
-		&:hover {
-			background: var(--color-gray-1);
-			color: var(--color-gray-9);
-		}
-
-		&:active {
-			scale: var(--press-scale);
-		}
-
-		.alerts {
-			min-width: 18px;
-			padding: 0 var(--lnx-spacing-1);
-			border-radius: 9px;
-			background: #b91c1c;
-			color: #fff;
-			font-size: var(--lnx-font-size-legal);
-			line-height: 18px;
-			text-align: center;
-		}
-
-		&.router-link-exact-active,
-		&.router-link-active:not([href="/"]) {
-			background: var(--color-gray-2);
-			color: var(--color-primary);
-		}
-	}
 }
 
 .user {
@@ -315,17 +296,53 @@ const KEPT_PAGES = 6;
 }
 
 .frame {
-	max-width: 960px;
+	--page-width: 960px;
+	max-width: var(--page-width);
 	margin: 0 auto;
 	padding: var(--lnx-spacing-6) var(--lnx-spacing-5) var(--lnx-spacing-8);
 
+	// Room for the columns of a wide table, still within reading distance on a large screen
+	&.wide {
+		--page-width: 1440px;
+	}
+
 	// The nav on the left, the page as wide as the others
 	&.workspace {
-		max-width: calc(960px + 220px + var(--lnx-spacing-6));
+		max-width: calc(var(--page-width) + 220px + var(--lnx-spacing-6));
 		display: grid;
 		grid-template-columns: 220px minmax(0, 1fr);
 		align-items: start;
 		gap: var(--lnx-spacing-6);
+	}
+}
+
+// The community's name over the page, a link back to it, and the switch to another one
+.eyebrow {
+	margin-bottom: var(--lnx-spacing-3);
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-1);
+	view-transition-name: community-eyebrow;
+
+	a {
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+		font-weight: var(--lnx-font-weight-bold);
+		text-decoration: none;
+
+		&:hover {
+			color: var(--color-primary);
+		}
+
+		span {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
 	}
 }
 
@@ -357,21 +374,8 @@ const KEPT_PAGES = 6;
 	}
 }
 
-// The team's nine or more sections need a wider screen to keep their names, the user's name and the version beside them
-@media (max-width: 1600px) {
-	.topbar nav.crowded a {
-		padding: var(--lnx-spacing-2);
-		font-size: 0;
-	}
-}
-
-// Eight sections don't fit with their names below desktop widths: icons only, the name stays for screen readers
+// A narrower nav beside the page on laptops
 @media (max-width: 1240px) {
-	.topbar nav a {
-		padding: var(--lnx-spacing-2);
-		font-size: 0;
-	}
-
 	.frame.workspace {
 		grid-template-columns: 180px minmax(0, 1fr);
 		gap: var(--lnx-spacing-5);
@@ -388,7 +392,8 @@ const KEPT_PAGES = 6;
 
 // Certificates and minutes are printed (or saved as PDF) from their page, without the admin's frame
 @media print {
-	.topbar {
+	.topbar,
+	.eyebrow {
 		display: none;
 	}
 
@@ -408,20 +413,6 @@ const KEPT_PAGES = 6;
 
 	.brand img {
 		width: 96px;
-	}
-
-	// The team's ten icons don't fit beside the logo on a phone: they scroll, not the page (relative, so the alerts'
-	// hidden text scrolls with them)
-	.topbar nav {
-		position: relative;
-		min-width: 0;
-		overflow-x: auto;
-		scrollbar-width: none;
-	}
-
-	.topbar nav a {
-		padding: var(--lnx-spacing-2);
-		font-size: 0; // Icon only, the label stays for screen readers through the link's text
 	}
 
 	.user {

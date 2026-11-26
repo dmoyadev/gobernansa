@@ -6,6 +6,7 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { collection, doc, getFirestore, increment, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { computed, watch } from 'vue';
 import { useCollection } from 'vuefire';
+import { sendWrite } from '@/app/infrastructure/offline.ts';
 import { communityDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { updateListedIssue } from './useIssues.ts';
@@ -59,8 +60,9 @@ export function useIssueComments(issue: Ref<Issue | undefined>) {
 			deletedAt: null,
 		});
 		batch.update(issueRef.value, { commentsCount: increment(1) });
-		await batch.commit();
+		const queued = await sendWrite(batch.commit(), 'Enviar el comentario');
 		setCommentsCount(1);
+		return queued;
 	}
 
 	// Only their own, kept but hidden like everything else removed

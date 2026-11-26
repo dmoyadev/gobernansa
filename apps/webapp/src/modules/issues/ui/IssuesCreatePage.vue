@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import type { IssueSuggestion } from '@gobernansa/shared/application/writing.ts';
 import type { Issue, IssueCategory } from '@gobernansa/shared/domain/issue.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
+import { online } from '@gobernansa/shared/application/pwa.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { getIssueCategories, issueCategoryStyle } from '@gobernansa/shared/domain/issue.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
-import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput, LnxTextarea } from 'lnxjs-components';
+import { BUTTON_VARIANTS, LnxButton, LnxIcon, LnxInput, LnxTextarea, toast } from 'lnxjs-components';
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCurrentUser } from 'vuefire';
+import { QUEUED_MESSAGE } from '@/app/infrastructure/offline.ts';
 import { canUploadMedia, MAX_VIDEO_SIZE, uploadMedia, VIDEO_TYPE_REGEX } from '@/app/infrastructure/storage.ts';
 import MainLayout from '@/app/ui/MainLayout.vue';
 import TheToolbar from '@/app/ui/TheToolbar.vue';
@@ -45,6 +48,31 @@ const otherPlace = ref<string>();
 const $otherPlace = useTemplateRef('$otherPlace');
 const description = ref('');
 const title = ref('');
+
+// What's chosen and written survives a reload or the phone closing the app (not the photos), until it's sent
+const DRAFT_KEY = 'issue-draft';
+interface Draft { categoryId?: string; place?: Place; otherPlace?: string; description: string; title: string }
+const draft = readDraft();
+if (draft) {
+	({ place: place.value, otherPlace: otherPlace.value, description: description.value, title: title.value } = draft);
+}
+// The categories come with the community
+watch(categories, (options) => {
+	category.value ??= options.find(option => option.id === draft?.categoryId);
+}, { immediate: true });
+watch([category, place, otherPlace, description, title], () => {
+	try {
+		sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ categoryId: category.value?.id, place: place.value, otherPlace: otherPlace.value, description: description.value, title: title.value } satisfies Draft));
+	} catch {}
+});
+
+function readDraft() {
+	try {
+		return JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null') as Draft | null;
+	} catch {
+		return null;
+	}
+}
 
 // From what's written, a category to switch to (never switched by itself) and what to do in an emergency
 const SUGGEST_DELAY_MS = 700;
@@ -114,7 +142,8 @@ const defaultTitle = computed(() => {
 });
 
 // Photos and videos picked, previewed from the device until they're uploaded on sending
-const media = ref<{ file: File; preview: string; isVideo: boolean }[]>([]);
+// Each one's address once uploaded, so trying again after a failure doesn't upload it twice
+const media = ref<{ file: File; preview: string; isVideo: boolean; url?: string }[]>([]);
 const mediaError = ref<string>();
 
 function addMedia(event: Event) {
@@ -151,7 +180,7 @@ function removeMedia(index: number) {
 onUnmounted(() => media.value.forEach(item => URL.revokeObjectURL(item.preview)));
 
 const saving = ref(false);
-const error = ref(false);
+const error = ref<unknown>();
 // From 0 to 1 while the photos and videos upload
 const uploadProgress = ref<number>();
 
@@ -160,32 +189,47 @@ async function submit() {
 		return;
 	}
 
+	// Storage doesn't keep uploads for later as Firestore does with the issue
+	if (!online.value && media.value.some(item => !item.url)) {
+		mediaError.value = 'Sin conexión no se pueden subir las fotos ni los vídeos. Quítalos para enviar el aviso ya, o espera a tener conexión.';
+		return;
+	}
+
 	saving.value = true;
-	error.value = false;
+	error.value = undefined;
 
 	try {
 		const assets: string[] = [];
 		// In the folder of the author's secret key, which the issue shows anyway: their uid would tell neighbours whose it is
 		const folder = media.value.length ? `issues/${userCommunity.value!.id}/${await getAuthorKey(authUser.value!.uid)}` : '';
 		for (const [index, item] of media.value.entries()) {
-			assets.push(await uploadMedia(item.file, folder, (fraction) => {
+			item.url ??= await uploadMedia(item.file, folder, (fraction) => {
 				uploadProgress.value = (index + fraction) / media.value.length;
-			}));
+			});
+			assets.push(item.url);
 		}
 		uploadProgress.value = undefined;
 
-		const id = await createIssue({
+		const { id, queued } = await createIssue({
 			title: title.value.trim() || defaultTitle.value,
 			description: description.value.trim(),
 			category: category.value.id,
 			location: place.value,
 			assets,
 		});
+		try {
+			sessionStorage.removeItem(DRAFT_KEY);
+		} catch {}
 		// Replaced so going back from the new issue doesn't land on the form again
 		await router.replace(`/issues/${id}`);
+		if (queued) {
+			toast(`Aviso guardado. ${QUEUED_MESSAGE}`);
+		} else {
+			toast('Aviso enviado. Toda la comunidad ya puede verlo.', { variant: 'success' });
+		}
 	} catch (e) {
 		reportError(e, { action: 'Crear la incidencia' });
-		error.value = true;
+		error.value = e;
 	} finally {
 		saving.value = false;
 		uploadProgress.value = undefined;
@@ -442,7 +486,7 @@ async function submit() {
 
 			<p v-if="error" class="error" role="alert">
 				<LnxIcon icon="lucide:circle-alert" :size="20" class="error-icon" />
-				No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.
+				No se ha podido enviar. {{ errorMessage(error) }}
 			</p>
 
 			<div class="send">

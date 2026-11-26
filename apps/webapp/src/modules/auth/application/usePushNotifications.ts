@@ -22,6 +22,14 @@ export function usePushNotifications() {
 	const token = useStorage<string | null>('push-token', null);
 
 	const enabled = computed(() => wanted.value && permission.value === 'granted');
+	// Unblocked from the settings while the app is open, so the switch comes back without reloading
+	if (supported) {
+		navigator.permissions?.query({ name: 'notifications' }).then((status) => {
+			status.onchange = () => {
+				permission.value = Notification.permission;
+			};
+		}, () => {});
+	}
 
 	async function enable() {
 		permission.value = await Notification.requestPermission();

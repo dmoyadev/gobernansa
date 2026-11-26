@@ -27,6 +27,7 @@ import './app/view-transitions.scss';
 /* Components Library */
 import 'lnxjs-components/dist/base.css';
 import '@gobernansa/shared/theme/custom-theme.scss';
+import './app/touch.scss';
 import { lnx } from '@gobernansa/shared/ui/lnx.ts';
 
 const app = createApp(App as Component);

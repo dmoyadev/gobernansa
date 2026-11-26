@@ -3,6 +3,7 @@ import type { DebtCase, NotificationMethod } from '@gobernansa/shared/domain/arr
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { debtCaseStatus, formatRate, interestOwed, notificationMethods } from '@gobernansa/shared/domain/arrears.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
@@ -54,9 +55,9 @@ async function load() {
 		error.value = !loadedCommunity || account.property?.communityId !== props.id ? 'No existe esta comunidad o propiedad.' : undefined;
 	} catch (e) {
 		if (community.value) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
+			toast(failure('No se ha podido actualizar', e), { variant: 'danger' });
 		} else {
-			error.value = `No se ha podido cargar: ${(e as Error).message}`;
+			error.value = failure('No se ha podido cargar', e);
 		}
 	} finally {
 		loading.value = false;
@@ -132,7 +133,7 @@ async function save() {
 		debtCase.value = { ...(debtCase.value ?? { claims: [] }), id: property.value.id, propertyId: property.value.id, propertyName: property.value.name, status: 'monitorio', monitorio } as DebtCase;
 		toast('Monitorio preparado');
 	} catch (e) {
-		formError.value = `No se ha podido guardar: ${(e as Error).message}`;
+		formError.value = failure('No se ha podido guardar', e);
 	} finally {
 		saving.value = false;
 	}
@@ -218,6 +219,9 @@ function print() {
 
 	<p v-if="error" class="error" role="alert">
 		{{ error }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+			Reintentar
+		</LnxButton>
 	</p>
 	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
 		<header>

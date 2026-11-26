@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { chargeTypes, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
@@ -27,6 +28,8 @@ const pendingTotal = computed(() => pending.value.reduce((sum, charge) => sum + 
 const overdueTotal = computed(() => pending.value.filter(charge => isOverdue(charge)).reduce((sum, charge) => sum + outstanding(charge), 0));
 const loading = computed(() => unpaid.pending.value && !unpaid.value.length);
 const loadError = computed(() => unpaid.error.value);
+// The listener stops on an error, so trying again is loading the page again
+const reload = () => location.reload();
 
 // Blocked neighbours (and admins viewing as one) can look, not pay
 // Online payments can be turned off from the console (ROB-5)
@@ -93,7 +96,10 @@ function transferConcept(charge: Charge) {
 		</section>
 
 		<p v-if="loadError" class="error" role="alert">
-			No se han podido cargar tus recibos. Recarga la página.
+			No se han podido cargar tus recibos. {{ errorMessage(loadError) }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="reload()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<section>

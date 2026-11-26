@@ -86,7 +86,16 @@ globalThis.addEventListener('push', (event) => {
 	}));
 });
 
+// Into the app if it's already open, so a tap doesn't leave a second copy behind
 globalThis.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	event.waitUntil(globalThis.clients.openWindow(event.notification.data.link));
+	const { link } = event.notification.data;
+	event.waitUntil(globalThis.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windows) => {
+		const open = windows.find(client => new URL(client.url).origin === globalThis.location.origin);
+		if (!open) {
+			return globalThis.clients.openWindow(link);
+		}
+		await open.focus();
+		return open.navigate(link).catch(() => globalThis.clients.openWindow(link));
+	}));
 });

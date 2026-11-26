@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Invitation, OfficeRole, User } from '@gobernansa/shared/domain/user.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { officeRoles } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxSelect, useConfirm } from 'lnxjs-components';
@@ -156,7 +157,7 @@ function cancel(invitation: Invitation & { id: string }) {
 	<section class="card">
 		<h2>En el despacho</h2>
 		<p v-if="error" class="error" role="alert">
-			No se ha podido cargar: {{ error.message }}
+			No se ha podido cargar: {{ errorMessage(error) }}
 		</p>
 		<ul class="list">
 			<li class="person">

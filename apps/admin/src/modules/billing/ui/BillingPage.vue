@@ -2,6 +2,7 @@
 import type { FeeInvoice } from '@gobernansa/shared/domain/billing.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { IssueDraft } from '../application/useBilling.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { invoiceTypes, monthLabel, monthlyInvoiceId } from '@gobernansa/shared/domain/billing.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
@@ -43,7 +44,7 @@ async function load() {
 			loadError.value = undefined;
 		}
 	} catch (e) {
-		loadError.value = `No se han podido cargar las facturas: ${(e as Error).message}`;
+		loadError.value = `No se han podido cargar las facturas: ${errorMessage(e)}`;
 	} finally {
 		loading.value = false;
 	}
@@ -176,7 +177,7 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), { description: 'E
 	</p>
 
 	<p v-if="officeError || communitiesError" class="error" role="alert">
-		No se han podido cargar: {{ (officeError ?? communitiesError)?.message }}
+		No se han podido cargar: {{ errorMessage(officeError ?? communitiesError) }}
 	</p>
 
 	<section v-if="!office && !officePending" class="card empty lnx-appear">
@@ -268,6 +269,9 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), { description: 'E
 		</div>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="load()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import type { Ref } from 'vue';
+import type { LocationQuery, LocationQueryRaw } from 'vue-router';
 import type { Change, ChangeOp } from '../domain/history.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { errorApps } from '@gobernansa/shared/domain/errors.ts';
-import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
-import { computed, ref, shallowRef, watch } from 'vue';
+import { normalize, timeAgo } from '@gobernansa/shared/utils/helpers.ts';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxSelect, useShortcut } from 'lnxjs-components';
+import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -16,16 +19,43 @@ import ChangeDetail from './ChangeDetail.vue';
 
 // Historial, for the team: every change to the data and everything each user did (application/history.ts)
 
-const tab = ref<'changes' | 'actions'>('changes');
-const community = ref(ALL);
-const collectionId = ref(ALL);
-const op = ref(ALL);
-const type = ref(ALL);
-const app = ref(ALL);
-// Picked by clicking someone: both tabs show only theirs
-const person = ref<{ id: string; name: string }>();
+const route = useRoute();
+const router = useRouter();
+// The view is in the URL, so a reload or a shared link shows the same. Kept alive, the page only follows its own
+const path = route.path;
+const query = computed<LocationQuery>(previous => route.path === path ? route.query : previous ?? {});
+
+// Defaults are left out of the URL. One replace for every change, as two in a row keep only the last
+function setView(changes: LocationQueryRaw) {
+	void router.replace({ query: { ...route.query, ...changes } });
+}
+
+function text(key: string) {
+	const value = query.value[key];
+	return typeof value === 'string' ? value : undefined;
+}
+
+// One filter, ALL when it's not in the URL
+function param(key: string) {
+	return computed({
+		get: () => text(key) ?? ALL,
+		set: value => setView({ [key]: value === ALL ? undefined : value }),
+	});
+}
+
+const tab = computed({
+	get: () => text('tab') === 'actions' ? 'actions' : 'changes',
+	set: value => setView({ tab: value === 'actions' ? value : undefined }),
+});
+const community = param('community');
+const collectionId = param('collection');
+const op = param('op');
+const type = param('type');
+const app = param('app');
+// Picked by clicking someone: both tabs show only theirs. Only their id goes in the URL
+const personId = computed(() => text('person'));
 // Every change to one document, whatever the other filters say
-const versionsOf = ref<string>();
+const versionsOf = computed(() => text('versions'));
 
 const { communities, archived } = useCommunities();
 const communityNames = computed(() => new Map([...communities.value, ...archived.value].map(item => [item.id, item.name])));
@@ -74,7 +104,7 @@ function pages<T>(read: (after?: QueryDocumentSnapshot) => Promise<{ items: T[];
 			hasMore.value = page.more;
 		} catch (e) {
 			if (current === latest) {
-				error.value = (e as Error).message;
+				error.value = errorMessage(e);
 				// A failed filter shows no rows, not the ones of the previous filter as if they were its results
 				if (!more) {
 					items.value = [];
@@ -91,27 +121,53 @@ function pages<T>(read: (after?: QueryDocumentSnapshot) => Promise<{ items: T[];
 	return { items, hasMore, loading, error, load };
 }
 
-const changes = pages(async after => loadChanges({ community: community.value, collection: collectionId.value, op: op.value, person: person.value?.id, path: versionsOf.value }, after));
-const actions = pages(async after => loadActions({ person: person.value?.id, type: type.value, app: app.value }, after));
+const changes = pages(async after => loadChanges({ community: community.value, collection: collectionId.value, op: op.value, person: personId.value, path: versionsOf.value }, after));
+const actions = pages(async after => loadActions({ person: personId.value, type: type.value, app: app.value }, after));
 const current = computed(() => tab.value === 'changes' ? changes : actions);
 
-watch([tab, community, collectionId, op, type, app, person, versionsOf], () => current.value.load(), { immediate: true });
+watch([tab, community, collectionId, op, type, app, personId, versionsOf], () => current.value.load(), { immediate: true });
 // Coming back reads the first page again
 onRevalidate(() => current.value.load());
 
 const open = ref<string>();
 
+// Their name as clicked, or else from what's listed when the id comes in the URL
+const clicked = ref<{ id: string; name: string }>();
+const personName = computed(() => {
+	if (clicked.value && clicked.value.id === personId.value) {
+		return clicked.value.name;
+	}
+	const change = changes.items.value.find(item => item.actorId === personId.value);
+	const action = actions.items.value.find(item => item.uid === personId.value);
+	return (change ? changeAuthor(change) : action?.name || action?.email) || 'esta persona';
+});
+
 function filterBy(id: string | null | undefined, name: string) {
 	if (id) {
-		person.value = { id, name };
+		clicked.value = { id, name };
+		setView({ person: id });
 	}
 }
 
 function showVersions(path: string) {
-	versionsOf.value = path;
-	tab.value = 'changes';
+	setView({ versions: path, tab: undefined });
 	open.value = undefined;
 }
+
+// Within the pages read: accents and case ignored, every word somewhere in the entry
+const search = ref('');
+const searchElement = useTemplateRef<HTMLElement>('searchElement');
+useShortcut('/', () => searchElement.value?.querySelector('input')?.focus(), { description: 'Buscar en el historial' });
+
+const words = computed(() => normalize(search.value).split(' ').filter(Boolean));
+
+function matches(texts: (string | false | undefined)[]) {
+	const text = normalize(texts.filter(Boolean).join(' '));
+	return words.value.every(word => text.includes(word));
+}
+
+const shownChanges = computed(() => changes.items.value.filter(change => matches([collections[change.collection], change.collection, changeTitle(change), change.changed.join(' '), changeAuthor(change), place(change)])));
+const shownActions = computed(() => actions.items.value.filter(action => matches([actionTypes[action.type]?.label, action.type, action.detail, action.path, action.name, action.email, errorApps[action.app], action.communityId && communityNames.value.get(action.communityId), action.device])));
 
 function place(change: Change) {
 	const name = change.communityId && communityNames.value.get(change.communityId);
@@ -152,17 +208,17 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		</button>
 	</div>
 
-	<div v-if="person || (versionsOf && tab === 'changes')" class="chips">
+	<div v-if="personId || (versionsOf && tab === 'changes')" class="chips">
 		<!-- A document's versions are all of them, whoever made them -->
-		<span v-if="person && !(versionsOf && tab === 'changes')" class="chip">
-			Solo de {{ person.name }}
-			<button type="button" :aria-label="`Quitar el filtro de ${person.name}`" title="Quitar el filtro" @click="person = undefined">
+		<span v-if="personId && !(versionsOf && tab === 'changes')" class="chip">
+			Solo de {{ personName }}
+			<button type="button" :aria-label="`Quitar el filtro de ${personName}`" title="Quitar el filtro" @click="setView({ person: undefined })">
 				<LnxIcon icon="lucide:x" :size="14" />
 			</button>
 		</span>
 		<span v-if="versionsOf && tab === 'changes'" class="chip">
 			Versiones de {{ versionsOf }}
-			<button type="button" aria-label="Volver a todos los cambios" title="Volver a todos los cambios" @click="versionsOf = undefined">
+			<button type="button" aria-label="Volver a todos los cambios" title="Volver a todos los cambios" @click="setView({ versions: undefined })">
 				<LnxIcon icon="lucide:x" :size="14" />
 			</button>
 		</span>
@@ -218,9 +274,18 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		</LnxSelect>
 	</div>
 
+	<div ref="searchElement" class="search">
+		<LnxInput v-model="search" type="search" placeholder="Qué, quién o dónde, en lo ya cargado">
+			Buscar <LnxKbd combo="/" />
+		</LnxInput>
+	</div>
+
 	<section class="card" :aria-busy="current.loading.value && !current.items.value.length">
 		<p v-if="current.error.value" class="error" role="alert">
 			No se ha podido cargar: {{ current.error.value }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="current.load()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<ul v-if="current.loading.value && !current.items.value.length" class="list">
@@ -233,8 +298,8 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 			</li>
 		</ul>
 
-		<ul v-else-if="tab === 'changes' && changes.items.value.length" class="list lnx-appear">
-			<li v-for="change in changes.items.value" :key="change.id" class="entry">
+		<ul v-else-if="tab === 'changes' && shownChanges.length" class="list lnx-appear">
+			<li v-for="change in shownChanges" :key="change.id" class="entry">
 				<span class="op" :class="`is-${change.op}`" :title="changeOps[change.op as ChangeOp].label">
 					<LnxIcon :icon="changeOps[change.op as ChangeOp].icon" :size="16" />
 					<span class="sr-only">{{ changeOps[change.op as ChangeOp].label }}</span>
@@ -255,8 +320,8 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 			</li>
 		</ul>
 
-		<ul v-else-if="tab === 'actions' && actions.items.value.length" class="list lnx-appear">
-			<li v-for="action in actions.items.value" :key="action.id" class="entry">
+		<ul v-else-if="tab === 'actions' && shownActions.length" class="list lnx-appear">
+			<li v-for="action in shownActions" :key="action.id" class="entry">
 				<span class="op">
 					<LnxIcon :icon="actionTypes[action.type]?.icon ?? 'lucide:mouse-pointer-click'" :size="16" />
 				</span>
@@ -280,6 +345,12 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 			</li>
 		</ul>
 
+		<p v-else-if="search && current.items.value.length" class="hint">
+			Nada de lo cargado coincide con la búsqueda.
+			<template v-if="current.hasMore.value">
+				Carga más para buscar también en lo anterior.
+			</template>
+		</p>
 		<p v-else-if="!current.error.value" class="hint">
 			{{ tab === 'changes' ? 'No hay cambios con estos filtros. Los cambios los apuntan las functions: hasta desplegarlas, esta pestaña queda vacía.' : 'No hay acciones con estos filtros.' }}
 		</p>
@@ -361,6 +432,12 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		width: 200px;
 		max-width: 100%;
 	}
+}
+
+.search {
+	width: 420px;
+	max-width: 100%;
+	margin-bottom: var(--lnx-spacing-4);
 }
 
 .card {

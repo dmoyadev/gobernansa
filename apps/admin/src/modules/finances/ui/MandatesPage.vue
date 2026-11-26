@@ -2,17 +2,19 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { SepaMandate } from '@gobernansa/shared/domain/sepa.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { isValidIban, normalizeIban } from '@gobernansa/shared/domain/fiscal.ts';
 import { creditorId, isValidBic, mandateStatuses, newMandateReference, sepaId } from '@gobernansa/shared/domain/sepa.ts';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, useConfirm } from 'lnxjs-components';
-import { computed, onMounted, ref } from 'vue';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, useConfirm } from 'lnxjs-components';
+import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { useCommunityProperties } from '../application/useFinances.ts';
 import { saveMandate } from '../application/useRemittances.ts';
+import { useListSearch } from './listSearch.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -29,8 +31,9 @@ const communityError = ref<string>();
 async function load() {
 	try {
 		community.value = await loadCommunity(props.id);
+		communityError.value = undefined;
 	} catch (e) {
-		communityError.value = `No se han podido cargar los datos de la comunidad: ${(e as Error).message}`;
+		communityError.value = failure('No se han podido cargar los datos de la comunidad', e);
 	}
 }
 
@@ -40,7 +43,10 @@ onRevalidate(load);
 const creditor = computed(() => community.value?.cif ? creditorId(community.value.cif, community.value.sepaSuffix) : undefined);
 
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
-const sorted = computed(() => [...properties.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true })));
+const { search, matches } = useListSearch('Buscar en los mandatos', useTemplateRef<HTMLElement>('searchBox'));
+const sorted = computed(() => properties.value
+	.filter(property => matches(property.name, property.ownerName, property.mandate?.debtorName, property.mandate?.reference))
+	.sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true })));
 const active = computed(() => properties.value.filter(property => property.mandate?.status === 'active').length);
 const loading = computed(() => pending.value && !properties.value.length);
 
@@ -135,6 +141,9 @@ async function remove(property: Property) {
 		<h2>Acreedor</h2>
 		<p v-if="communityError" class="error" role="alert">
 			{{ communityError }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="communityError = undefined; load()">
+				Reintentar
+			</LnxButton>
 		</p>
 		<dl v-if="community" class="creditor tabular">
 			<div>
@@ -169,11 +178,16 @@ async function remove(property: Property) {
 	<section class="card">
 		<h2>Mandatos por propiedad</h2>
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			{{ failure('No se han podido cargar', error) }}
 		</p>
 		<p v-if="!loading && properties.length" class="hint">
 			{{ active }} de {{ properties.length }} propiedades con mandato activo. Domiciliación SEPA Core, recurrente: la orden firmada la guarda la administración.
 		</p>
+		<div ref="searchBox" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Propiedad, titular o referencia">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
 
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
@@ -262,6 +276,9 @@ async function remove(property: Property) {
 				</p>
 			</li>
 		</ul>
+		<p v-else-if="properties.length" class="hint">
+			Ninguna propiedad coincide con «{{ search }}».
+		</p>
 		<p v-else class="hint">
 			Aún no hay propiedades. Añádelas en el censo para domiciliar sus recibos.
 		</p>
@@ -291,6 +308,10 @@ async function remove(property: Property) {
 
 .fields {
 	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.search {
+	margin-top: var(--lnx-spacing-3);
 }
 
 .list {

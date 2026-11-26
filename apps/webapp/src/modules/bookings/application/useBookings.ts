@@ -7,6 +7,7 @@ import { bookingId, bookingTotal } from '@gobernansa/shared/domain/booking.ts';
 import { collection, deleteDoc, doc, getDoc, getFirestore, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useCollection } from 'vuefire';
+import { requireOnline } from '@/app/infrastructure/offline.ts';
 import { preparePayment } from '@/modules/finances/application/useMyCharges.ts';
 
 // Equality filters only, so no composite index is needed
@@ -46,6 +47,8 @@ export function useBookings(date: Ref<string>) {
 			...(total ? { paidAt: null } : {}),
 		};
 		// Its id is the slot, so the rules turn down a second booking of it (a create on an existing document is an update)
+		// The server says whether the slot is still free, so it can't wait for the connection
+		requireOnline();
 		const ref = doc(db, 'communities', communityId.value, 'bookings', id);
 		if (!total || !checkout) {
 			await setDoc(ref, booking);
@@ -66,6 +69,7 @@ export function useBookings(date: Ref<string>) {
 			throw new Error('The user must be signed in to pay');
 		}
 
+		requireOnline();
 		const payment = preparePayment(db, communityId.value, user.value.id, bookingTotal(booking), { bookingId: booking.id }, checkout);
 		const batch = writeBatch(db);
 		batch.update(doc(db, 'communities', communityId.value, 'bookings', booking.id), { paidAt: serverTimestamp(), payment: payment.payment });
@@ -79,6 +83,7 @@ export function useBookings(date: Ref<string>) {
 			throw new Error('The user must be signed in to cancel a booking');
 		}
 
+		requireOnline();
 		await deleteDoc(doc(db, 'communities', communityId.value, 'bookings', booking.id));
 	}
 

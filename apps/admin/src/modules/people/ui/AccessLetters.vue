@@ -2,6 +2,7 @@
 import type { Invitation } from '@gobernansa/shared/domain/user.ts';
 import type { LetterTarget } from '../application/usePeople.ts';
 import type { PrintedLetter } from './AccessLetterPrint.vue';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { normalize, plural } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, toast } from 'lnxjs-components';
 import { computed, ref } from 'vue';
@@ -68,7 +69,7 @@ async function print(chosen: Letter[]) {
 		const ready = await withCodes(chosen);
 		emit('print', ready.map(({ name, code, places }) => ({ name, code: code!, places })));
 	} catch (error) {
-		toast(`No se han podido preparar las cartas: ${(error as Error).message}`, { variant: 'danger' });
+		toast(failure('No se han podido preparar las cartas', error), { variant: 'danger' });
 	} finally {
 		busy.value = false;
 	}
@@ -80,7 +81,7 @@ async function send(letter: Letter) {
 		const [ready] = await withCodes([letter]);
 		window.location.href = letterMailto(letter.email!, letter.name, ready.code!, props.community);
 	} catch (error) {
-		toast(`No se ha podido preparar la carta: ${(error as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido preparar la carta', error), { variant: 'danger' });
 	} finally {
 		busy.value = false;
 	}

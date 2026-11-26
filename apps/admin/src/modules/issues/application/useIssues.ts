@@ -23,14 +23,15 @@ export function workOrderUrl(token: string) {
 	return `${WEBAPP_URL}/gremio/${token}`;
 }
 
-// Newest first, the same queries as the webapp's so they use its indexes. Live, so neighbours' new ones show up
-export function useIssues(communityId: string, status: MaybeRefOrGetter<IssueStatus | undefined>, max: MaybeRefOrGetter<number>) {
+// Newest first, on the (deletedAt, status, createdAt) index the webapp's use, 'in' too. Live, so neighbours' new ones
+// show up. No statuses is all of them
+export function useIssues(communityId: string, statuses: MaybeRefOrGetter<IssueStatus[] | undefined>, max: MaybeRefOrGetter<number>) {
 	return useCollection<Issue>(computed(() => {
-		const statusValue = toValue(status);
+		const statusValues = toValue(statuses);
 		return query(
 			issuesRef(communityId),
 			where('deletedAt', '==', null),
-			...(statusValue ? [where('status', '==', statusValue)] : []),
+			...(statusValues ? [where('status', 'in', statusValues)] : []),
 			orderBy('createdAt', 'desc'),
 			limit(toValue(max)),
 		);
@@ -72,6 +73,67 @@ export async function saveIssueCategories(communityId: string, categories: Issue
 	await batch.commit();
 }
 
+function newComment(author: User & { id: string }, fields: Pick<IssueComment, 'message'> & Partial<IssueComment>) {
+	return {
+		type: 'message',
+		...fields,
+		authorId: author.id,
+		authorName: author.name || '',
+		authorRole: author.role,
+		createdAt: serverTimestamp(),
+		updatedAt: serverTimestamp(),
+		createdBy: author.id,
+		updatedBy: author.id,
+		deletedAt: null,
+	};
+}
+
+export type StatusChange = Pick<Issue, 'id' | 'communityId' | 'title' | 'status' | 'resolvedAt'> & { commentId: string };
+
+// Two writes per issue and one per community, under the 500 a batch takes
+const BULK_CHUNK = 150;
+
+// Several issues at once from the Bandeja, in batches; one activity entry per community and batch
+async function inChunks(changes: StatusChange[], write: (batch: ReturnType<typeof writeBatch>, change: StatusChange) => void, summary: (count: number) => string) {
+	for (let start = 0; start < changes.length; start += BULK_CHUNK) {
+		const chunk = changes.slice(start, start + BULK_CHUNK);
+		const batch = writeBatch(db);
+		chunk.forEach(change => write(batch, change));
+		for (const communityId of new Set(chunk.map(change => change.communityId))) {
+			const count = chunk.filter(change => change.communityId === communityId).length;
+			logActivity(batch, communityId, { area: 'issue', summary: summary(count), link: `/communities/${communityId}/issues` });
+		}
+		await batch.commit();
+	}
+}
+
+// What changeStatus does to one, for each that isn't in that status yet, each with its status comment. Returns what
+// changed, with what it was, for revertStatuses
+export async function changeStatuses(author: User & { id: string }, issues: Omit<StatusChange, 'commentId'>[], status: IssueStatus) {
+	const changes = issues.filter(issue => issue.status !== status).map(issue => ({ ...issue, commentId: doc(collection(issuesRef(issue.communityId), issue.id, 'comments')).id }));
+	const label = issueStatus.find(option => option.value === status)?.label;
+	await inChunks(changes, (batch, change) => {
+		const issueRef = doc(issuesRef(change.communityId), change.id);
+		batch.update(issueRef, {
+			status,
+			updatedAt: serverTimestamp(),
+			updatedBy: author.id,
+			...(status === 'resolved' ? { resolvedAt: serverTimestamp() } : {}),
+		});
+		batch.set(doc(issueRef, 'comments', change.commentId), newComment(author, { type: 'status', status, message: '' }));
+	}, count => count === 1 ? `Cambió el estado de una incidencia a ${label}` : `Cambió el estado de ${count} incidencias a ${label}`);
+	return changes;
+}
+
+// Undoes changeStatuses as revertStatus does one
+export async function revertStatuses(author: User & { id: string }, changes: StatusChange[]) {
+	await inChunks(changes, (batch, change) => {
+		const issueRef = doc(issuesRef(change.communityId), change.id);
+		batch.update(issueRef, { status: change.status, resolvedAt: change.resolvedAt ?? deleteField(), updatedAt: serverTimestamp(), updatedBy: author.id });
+		batch.update(doc(issueRef, 'comments', change.commentId), { deletedAt: serverTimestamp(), deletedBy: author.id });
+	}, count => count === 1 ? 'Deshizo el cambio de estado de una incidencia' : `Deshizo el cambio de estado de ${count} incidencias`);
+}
+
 export function useIssue(communityId: string, issueId: string) {
 	const issueRef = doc(issuesRef(communityId), issueId);
 	const privateRef = doc(issueRef, 'private', 'admin');
@@ -105,21 +167,6 @@ export function useIssue(communityId: string, issueId: string) {
 		if (adminData.value?.workOrder) {
 			batch.update(doc(db, 'workOrders', adminData.value.workOrder), { revokedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 		}
-	}
-
-	function newComment(author: User & { id: string }, fields: Pick<IssueComment, 'message'> & Partial<IssueComment>) {
-		return {
-			type: 'message',
-			...fields,
-			authorId: author.id,
-			authorName: author.name || '',
-			authorRole: author.role,
-			createdAt: serverTimestamp(),
-			updatedAt: serverTimestamp(),
-			createdBy: author.id,
-			updatedBy: author.id,
-			deletedAt: null,
-		};
 	}
 
 	// Listed with the comments, so neighbours see when and who changed it. resolvedAt is kept when it's reopened.

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CommunityStats } from '../application/usePortfolio.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
@@ -48,6 +49,47 @@ function registeredPercent(registered: number, homes: number) {
 	return homes ? `${Math.min(100, Math.round(registered / homes * 100))} %` : '—';
 }
 
+// Sorted by any column, by name at first. Figures start from the highest, what needs attention; those without one (no
+// resolved issues, no homes) go last either way
+type SortKey = 'name' | 'openIssues' | 'resolution' | 'registered' | 'obligations' | 'arrears';
+const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
+	{ key: 'name', label: 'Comunidad' },
+	{ key: 'openIssues', label: 'Abiertas', numeric: true },
+	{ key: 'resolution', label: 'Resolución media', numeric: true },
+	{ key: 'registered', label: 'Registrados', numeric: true },
+	{ key: 'obligations', label: 'Obligaciones' },
+	{ key: 'arrears', label: 'Morosidad', numeric: true },
+];
+const SORT_VALUES: Record<SortKey, (row: CommunityStats) => number | string | undefined> = {
+	name: row => row.community.name ?? '',
+	openIssues: row => row.openIssues,
+	resolution: row => row.resolvedCount ? row.resolutionDaysSum / row.resolvedCount : undefined,
+	registered: row => row.homes ? Math.min(1, row.registered / row.homes) : undefined,
+	// Overdue ones first, then those due soon
+	obligations: row => row.overdueObligations * 1000 + row.soonObligations,
+	arrears: row => row.overdueAmount,
+};
+const sort = ref<{ key: SortKey; descending: boolean }>({ key: 'name', descending: false });
+const sorted = computed(() => {
+	const value = SORT_VALUES[sort.value.key];
+	const direction = sort.value.descending ? -1 : 1;
+	return [...stats.value].sort((a, b) => {
+		const [x, y] = [value(a), value(b)];
+		if (x === undefined || y === undefined) {
+			return x === y ? 0 : x === undefined ? 1 : -1;
+		}
+		return direction * (typeof x === 'string' ? x.localeCompare(String(y), 'es') : x - Number(y));
+	});
+});
+
+function sortBy(key: SortKey) {
+	sort.value = { key, descending: sort.value.key === key ? !sort.value.descending : key !== 'name' };
+}
+
+function sortState(key: SortKey) {
+	return sort.value.key === key ? (sort.value.descending ? 'descending' : 'ascending') : undefined;
+}
+
 const totals = computed(() => stats.value.reduce((total, row) => ({
 	openIssues: total.openIssues + row.openIssues,
 	resolutionDaysSum: total.resolutionDaysSum + row.resolutionDaysSum,
@@ -72,7 +114,7 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 	</header>
 
 	<p v-if="error || communitiesError" class="error" role="alert">
-		No se ha podido cargar: {{ (error ?? communitiesError)?.message }}
+		No se ha podido cargar: {{ errorMessage(error ?? communitiesError) }}
 	</p>
 
 	<dl v-if="pending" class="totals" aria-busy="true">
@@ -121,53 +163,54 @@ const totals = computed(() => stats.value.reduce((total, row) => ({
 			<table>
 				<thead>
 					<tr>
-						<th scope="col">
-							Comunidad
-						</th>
-						<th scope="col">
-							Abiertas
-						</th>
-						<th scope="col">
-							Resolución media
-						</th>
-						<th scope="col">
-							Registrados
-						</th>
-						<th scope="col">
-							Obligaciones
-						</th>
-						<th scope="col">
-							Morosidad
+						<th v-for="column in COLUMNS" :key="column.key" scope="col" :class="{ numeric: column.numeric }" :aria-sort="sortState(column.key)">
+							<button type="button" class="sort" :class="{ active: sortState(column.key) }" @click="sortBy(column.key)">
+								{{ column.label }}
+								<LnxIcon
+									class="arrow"
+									:icon="sortState(column.key) === 'ascending' ? 'lucide:arrow-up' : sortState(column.key) ? 'lucide:arrow-down' : 'lucide:arrow-up-down'"
+									:size="14"
+									aria-hidden="true"
+								/>
+							</button>
 						</th>
 					</tr>
 				</thead>
 				<tbody>
-					<tr v-for="row in stats" :key="row.community.id">
+					<tr v-for="row in sorted" :key="row.community.id">
 						<th scope="row">
 							<RouterLink :to="`/communities/${row.community.id}`" :style="{ viewTransitionName: `community-${row.community.id}` }">
 								{{ row.community.name }}
 							</RouterLink>
 						</th>
-						<td>
+						<td class="numeric">
 							<RouterLink :to="`/communities/${row.community.id}/issues`">
 								{{ row.openIssues }}
 							</RouterLink>
 						</td>
-						<td>{{ averageDays(row.resolutionDaysSum, row.resolvedCount) }}</td>
-						<td>{{ registeredPercent(row.registered, row.homes) }}</td>
-						<td>
-							<span v-if="row.overdueObligations" class="warn">{{ row.overdueObligations }} vencidas</span>
-							<template v-if="row.overdueObligations && row.soonObligations">
-								·
-							</template>
-							<span v-if="row.soonObligations">{{ row.soonObligations }} pronto</span>
-							<template v-if="!row.overdueObligations && !row.soonObligations">
-								Al día
-							</template>
+						<td class="numeric">
+							{{ averageDays(row.resolutionDaysSum, row.resolvedCount) }}
 						</td>
-						<td :class="{ warn: row.overdueAmount }">
-							{{ formatCents(row.overdueAmount) }}
-							<small v-if="row.overdueCharges">({{ row.overdueCharges }})</small>
+						<td class="numeric">
+							{{ registeredPercent(row.registered, row.homes) }}
+						</td>
+						<td>
+							<RouterLink :to="`/communities/${row.community.id}/obligations`">
+								<span v-if="row.overdueObligations" class="warn">{{ row.overdueObligations }} vencidas</span>
+								<template v-if="row.overdueObligations && row.soonObligations">
+									·
+								</template>
+								<span v-if="row.soonObligations">{{ row.soonObligations }} pronto</span>
+								<template v-if="!row.overdueObligations && !row.soonObligations">
+									Al día
+								</template>
+							</RouterLink>
+						</td>
+						<td class="numeric">
+							<RouterLink :to="`/communities/${row.community.id}/arrears`" :class="{ warn: row.overdueAmount }">
+								{{ formatCents(row.overdueAmount) }}
+								<small v-if="row.overdueCharges">({{ row.overdueCharges }})</small>
+							</RouterLink>
 						</td>
 					</tr>
 				</tbody>
@@ -264,6 +307,36 @@ table {
 	thead th {
 		color: var(--color-gray-6);
 		font-weight: normal;
+	}
+
+	.numeric {
+		text-align: right;
+	}
+
+	// The whole header is the button, its arrow brighter on the column sorted by
+	.sort {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--lnx-spacing-1);
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		cursor: pointer;
+
+		.arrow {
+			color: var(--color-gray-4);
+		}
+
+		&:hover,
+		&.active {
+			color: var(--color-gray-9);
+
+			.arrow {
+				color: var(--color-primary);
+			}
+		}
 	}
 
 	tbody tr {

@@ -19,7 +19,7 @@ export interface Widget {
 	key: string;
 	title: string;
 	icon: string;
-	// The page of the community it opens
+	// The page of the community it opens, with the list's filters in its query
 	to: string;
 	// 2 takes two cells, for a chart or a list
 	size: 1 | 2;
@@ -33,15 +33,15 @@ export const allWidgets: Widget[] = [
 	{ key: 'registration', title: 'Vecinos en la app', icon: 'lucide:smartphone', to: 'people', size: 1, sources: ['registration'] },
 	{ key: 'obligations', title: 'Obligaciones', icon: 'lucide:calendar-check', to: 'obligations', size: 2, sources: ['obligations'] },
 	{ key: 'resolution', title: 'Resolución media', icon: 'lucide:timer', to: 'issues', size: 1, sources: ['resolvedIssues'] },
-	{ key: 'delinquency', title: 'Morosidad', icon: 'lucide:receipt-text', to: 'charges', size: 1, sources: ['unpaidCharges'] },
+	{ key: 'delinquency', title: 'Morosidad', icon: 'lucide:receipt-text', to: 'arrears', size: 1, sources: ['unpaidCharges'] },
 	{ key: 'flow', title: 'Incidencias nuevas y resueltas', icon: 'lucide:chart-column', to: 'issues', size: 2, sources: ['newIssues', 'resolvedIssues'] },
 	{ key: 'budget', title: 'Ejecución del presupuesto', icon: 'lucide:chart-pie', to: 'budget', size: 2, sources: ['budget'] },
 	{ key: 'categories', title: 'Incidencias por categoría', icon: 'lucide:tags', to: 'issues', size: 1, sources: ['openIssues'] },
 	{ key: 'oldest', title: 'Las que más esperan', icon: 'lucide:hourglass', to: 'issues', size: 2, sources: ['openIssues'] },
-	{ key: 'voted', title: 'Lo que más preocupa', icon: 'lucide:flame', to: 'issues', size: 1, sources: ['openIssues'] },
-	{ key: 'unassigned', title: 'Sin proveedor asignado', icon: 'lucide:hard-hat', to: 'issues', size: 1, sources: ['openIssues'] },
-	{ key: 'claims', title: 'Siniestros abiertos', icon: 'lucide:shield-alert', to: 'issues', size: 1, sources: ['openIssues'] },
-	{ key: 'debtors', title: 'Mayores deudas', icon: 'lucide:user-round-x', to: 'charges', size: 1, sources: ['unpaidCharges'] },
+	{ key: 'voted', title: 'Lo que más preocupa', icon: 'lucide:flame', to: 'issues?sort=votes', size: 1, sources: ['openIssues'] },
+	{ key: 'unassigned', title: 'Sin proveedor asignado', icon: 'lucide:hard-hat', to: 'issues?only=unassigned', size: 1, sources: ['openIssues'] },
+	{ key: 'claims', title: 'Siniestros abiertos', icon: 'lucide:shield-alert', to: 'issues?only=claims', size: 1, sources: ['openIssues'] },
+	{ key: 'debtors', title: 'Mayores deudas', icon: 'lucide:user-round-x', to: 'arrears', size: 1, sources: ['unpaidCharges'] },
 	{ key: 'meeting', title: 'Próxima junta', icon: 'lucide:gavel', to: 'meetings', size: 1, sources: ['meetings'] },
 	{ key: 'bookings', title: 'Reservas esta semana', icon: 'lucide:calendar-clock', to: 'locations', size: 1, sources: ['bookings'] },
 	{ key: 'census', title: 'Censo', icon: 'lucide:house', to: 'properties', size: 1, sources: ['properties'] },
@@ -207,9 +207,9 @@ export function useDashboardFigures(data: DashboardData, issueCategories: () => 
 	}));
 
 	const debtors = computed(() => {
-		const byProperty = new Map<string, { name: string; amount: number; charges: number }>();
+		const byProperty = new Map<string, { propertyId: string; name: string; amount: number; charges: number }>();
 		for (const charge of overdueCharges.value) {
-			const debtor = byProperty.get(charge.propertyId) ?? { name: charge.propertyName, amount: 0, charges: 0 };
+			const debtor = byProperty.get(charge.propertyId) ?? { propertyId: charge.propertyId, name: charge.propertyName, amount: 0, charges: 0 };
 			debtor.amount += outstanding(charge);
 			debtor.charges++;
 			byProperty.set(charge.propertyId, debtor);

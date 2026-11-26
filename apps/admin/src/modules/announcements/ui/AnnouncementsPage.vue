@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Draft, NoticeTone } from '@gobernansa/shared/application/writing.ts';
 import type { Event } from '@gobernansa/shared/domain/event.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
 import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
 import WritingSource from '@gobernansa/shared/ui/WritingSource.vue';
@@ -176,7 +177,7 @@ async function loadRecent() {
 		if (load !== latestLoad) {
 			return;
 		}
-		recentError.value = `No se han podido cargar: ${(e as Error).message}`;
+		recentError.value = `No se han podido cargar: ${errorMessage(e)}`;
 	} finally {
 		if (load === latestLoad) {
 			recentLoading.value = false;
@@ -230,7 +231,7 @@ async function remove(broadcast: Broadcast) {
 		<fieldset class="communities" :aria-busy="loading && !communities.length">
 			<legend>Comunidades</legend>
 			<p v-if="error" class="error" role="alert">
-				No se han podido cargar: {{ error.message }}
+				No se han podido cargar: {{ errorMessage(error) }}
 			</p>
 			<template v-if="loading && !communities.length">
 				<span v-for="width in [20, 60, 45, 70, 50]" :key="width" class="skeleton-row" :class="{ all: width === 20 }" aria-hidden="true">
@@ -320,6 +321,9 @@ async function remove(broadcast: Broadcast) {
 		<h2>Enviados a las comunidades elegidas</h2>
 		<p v-if="recentError" class="error" role="alert">
 			{{ recentError }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="loadRecent()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<ul v-if="recentLoading && !recent.length" class="list" aria-busy="true" aria-label="Cargando comunicados">

@@ -2,7 +2,8 @@
 import type { BankMovement, GatewayPayment, MatchCandidate } from '@gobernansa/shared/domain/bank.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { PaymentOrder, Remittance } from '@gobernansa/shared/domain/sepa.ts';
-import { accountLabel, commonConcepts, ibanAccount, matchCandidates, movementSources, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
+import { accountLabel, commonConcepts, ibanAccount, matchCandidates, movementSources, similarity, suggestMatches } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidIban } from '@gobernansa/shared/domain/fiscal.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
@@ -51,7 +52,7 @@ async function load() {
 		]);
 		loadError.value = undefined;
 	} catch (e) {
-		loadError.value = `No se han podido cargar los movimientos: ${(e as Error).message}`;
+		loadError.value = failure('No se han podido cargar los movimientos', e);
 	} finally {
 		loading.value = false;
 	}
@@ -99,8 +100,70 @@ const balances = computed(() => Array.from(Map.groupBy(movements.value, movement
 const candidates = computed(() => matchCandidates({ charges: unpaidCharges.value, invoices: unpaidInvoices.value, remittances: remittances.value, orders: orders.value, payments: payments.value }));
 const suggestions = computed(() => suggestMatches(pending.value, candidates.value));
 
+// Who the document is or its reference, without its concept: «cuota noviembre» is in many, a name or reference isn't
+function identity(candidate: MatchCandidate) {
+	if (candidate.kind === 'charges') {
+		return unpaidCharges.value.filter(charge => candidate.ids.includes(charge.id)).map(charge => charge.ownerName ?? '').join(' ');
+	}
+	if (candidate.kind === 'expenses') {
+		const invoice = unpaidInvoices.value.find(other => other.id === candidate.ids[0]);
+		return `${invoice?.provider?.name ?? ''} ${invoice?.invoiceNumber ?? ''}`;
+	}
+	if (candidate.kind === 'remittance') {
+		return remittances.value.find(other => other.id === candidate.ids[0])?.reference ?? '';
+	}
+	if (candidate.kind === 'paymentOrder') {
+		return orders.value.find(other => other.id === candidate.ids[0])?.reference ?? '';
+	}
+	return candidate.reference ?? '';
+}
+
 const busyId = ref<string>();
 const actionError = ref<string>();
+
+// Safe to accept all at once: the amount matches and the movement names who it is or the reference
+const safe = computed(() => pending.value.flatMap((movement) => {
+	const suggestion = suggestions.value.get(movement.id);
+	return suggestion && similarity(movement, { text: identity(suggestion.candidate) }) ? [{ movement, candidate: suggestion.candidate }] : [];
+}));
+const safeIds = computed(() => new Set(safe.value.map(({ movement }) => movement.id)));
+const acceptingSafe = ref(false);
+
+// One after another, each as accepting it alone; undone together
+async function acceptSafe() {
+	const pairs = safe.value;
+	const matched: BankMovement[] = [];
+	const kinds = new Set(pairs.map(({ candidate }) => candidate.kind));
+	const reload = async () => {
+		for (const kind of kinds) {
+			await reloadDocuments({ kind });
+		}
+	};
+	acceptingSafe.value = true;
+	actionError.value = undefined;
+	try {
+		for (const { movement, candidate } of pairs) {
+			const result = await matchMovement(props.id, movement, candidate, { remittances: remittances.value, orders: orders.value });
+			replace(result);
+			matched.push(result);
+		}
+	} catch (e) {
+		actionError.value = failure(`Se han conciliado ${matched.length} y el siguiente no`, e);
+	}
+	// Stale, they'd only offer what's done already: coming back reads them again
+	await reload().catch(() => undefined);
+	acceptingSafe.value = false;
+	if (matched.length) {
+		toast(matched.length === 1 ? 'Movimiento conciliado' : `${matched.length} movimientos conciliados`, {
+			undo: async () => {
+				for (const movement of matched) {
+					replace(await unmatchMovement(props.id, movement));
+				}
+				await reload();
+			},
+		});
+	}
+}
 
 async function run(id: string, action: () => Promise<void>) {
 	busyId.value = id;
@@ -108,7 +171,7 @@ async function run(id: string, action: () => Promise<void>) {
 	try {
 		await action();
 	} catch (e) {
-		actionError.value = `No se ha podido hacer: ${(e as Error).message}`;
+		actionError.value = failure('No se ha podido hacer', e);
 	} finally {
 		busyId.value = undefined;
 	}
@@ -274,9 +337,12 @@ function dropMovements(removed: BankMovement[]) {
 
 	<p v-if="loadError" class="error" role="alert">
 		{{ loadError }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+			Reintentar
+		</LnxButton>
 	</p>
 	<p v-if="chargesError || invoicesError" class="error" role="alert">
-		No se han podido cargar los recibos o las facturas pendientes: {{ (chargesError ?? invoicesError)?.message }}
+		{{ failure('No se han podido cargar los recibos o las facturas pendientes', chargesError ?? invoicesError) }}
 	</p>
 
 	<BankImport :id ref="importer" :account @imported="addMovements" @removed="dropMovements" />
@@ -325,7 +391,13 @@ function dropMovements(removed: BankMovement[]) {
 
 	<BankFeedCard :id v-model:community="community" :account :loading :candidates :waiting="pending.map(movement => movement.amount)" :opening="balances.find(balance => balance.account === account)?.statement" @imported="addMovements" />
 	<section class="card">
-		<h2>Por conciliar</h2>
+		<div class="section-head">
+			<h2>Por conciliar</h2>
+			<LnxButton v-if="safe.length > 1" class="lnx-size-small" :is-loading="acceptingSafe" :disabled="!!busyId" @click="acceptSafe()">
+				<LnxIcon icon="lucide:check-check" />
+				Aceptar las {{ safe.length }} sugerencias seguras
+			</LnxButton>
+		</div>
 		<p v-if="actionError" class="error" role="alert">
 			{{ actionError }}
 		</p>
@@ -364,9 +436,9 @@ function dropMovements(removed: BankMovement[]) {
 					<LnxIcon icon="lucide:sparkles" />
 					<span class="what">
 						<span>{{ suggestions.get(movement.id)!.candidate.label }}</span>
-						<small>{{ suggestions.get(movement.id)!.score ? 'Coinciden el importe y el nombre o la referencia' : 'Coincide el importe' }}</small>
+						<small>{{ safeIds.has(movement.id) ? 'Coinciden el importe y el nombre o la referencia' : suggestions.get(movement.id)!.score ? 'Coinciden el importe y alguna palabra del concepto' : 'Coincide el importe' }}</small>
 					</span>
-					<LnxButton class="lnx-size-small" :is-loading="busyId === movement.id" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
+					<LnxButton class="lnx-size-small" :is-loading="busyId === movement.id" :disabled="acceptingSafe" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
 						Aceptar
 					</LnxButton>
 				</div>

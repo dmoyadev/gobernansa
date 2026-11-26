@@ -1,0 +1,15 @@
+// Fingers, not a mouse: half the neighbours are older people on a modest phone, so buttons and fields are at least 44 px
+// tall (40 px the small ones, with text that doesn't drop to 12 px). The admin keeps the denser 32 px of custom-theme.scss
+:root {
+	--lnx-control-height: 44px;
+	--lnx-control-height-small: 40px;
+}
+
+.lnx-size-small {
+	--lnx-control-font-size: var(--lnx-font-size-small);
+}
+
+// Toasts above the tab bar, which sits above the home indicator when installed
+.lnx-toaster {
+	bottom: calc(var(--tab-height, var(--lnx-spacing-5)) + var(--lnx-spacing-2));
+}

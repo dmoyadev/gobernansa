@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ReportRow } from '@gobernansa/shared/domain/accounting.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { balances, beforeClosing, buildLedger, incomeStatement } from '@gobernansa/shared/domain/accounting.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { outstanding } from '@gobernansa/shared/domain/finance.ts';
@@ -53,9 +54,9 @@ async function load(refresh = false) {
 		error.value = loaded.community ? undefined : 'No existe esta comunidad.';
 	} catch (e) {
 		if (cache.has(wanted)) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
+			toast(failure('No se ha podido actualizar', e), { variant: 'danger' });
 		} else {
-			error.value = `No se ha podido cargar la liquidación: ${(e as Error).message}`;
+			error.value = failure('No se ha podido cargar la liquidación', e);
 		}
 	} finally {
 		if (wanted === year.value) {
@@ -215,6 +216,9 @@ useShortcut('p', print, { description: 'Imprimir la liquidación', enabled: () =
 
 	<p v-if="error" class="error" role="alert">
 		{{ error }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+			Reintentar
+		</LnxButton>
 	</p>
 	<article v-else-if="loading" class="sheet" aria-busy="true" aria-label="Cargando">
 		<header>

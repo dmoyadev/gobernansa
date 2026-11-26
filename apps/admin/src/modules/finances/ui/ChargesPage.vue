@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import type { Charge, ChargeCollection, CollectionMethod } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
+import { toCsv } from '@gobernansa/shared/domain/accounting.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { chargeTypes, collectionMethods, isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { describePayment } from '@gobernansa/shared/domain/payment.ts';
 import { formatCoefficient, splitByCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, toast, useConfirm } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import FormCard from '@/app/ux/FormCard.vue';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
 import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
-import { addCollection, deleteCharge, issueCharges, loadBatch, loadPropertyCharges, removeCollection, restoreCharge, setChargePaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { closedYearWarning } from '../application/useAccounting.ts';
+import { addCollection, deleteCharge, issueCharges, loadBatch, loadPropertyCharges, removeCollection, restoreCharge, setChargePaid, setChargesPaid, toDueDate, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { useListSearch } from './listSearch.ts';
 import OnlinePaymentsCard from './OnlinePaymentsCard.vue';
 
 const props = defineProps<{ id: string }>();
@@ -119,7 +124,7 @@ async function issue() {
 		close();
 		confirmed = undefined;
 	} catch (e) {
-		formError.value = `No se han podido emitir: ${(e as Error).message}`;
+		formError.value = failure('No se han podido emitir', e);
 	} finally {
 		issuing.value = false;
 	}
@@ -137,6 +142,8 @@ const rows = computed(() => {
 			overdueCount: overdue.length,
 			overdueAmount: overdue.reduce((sum, charge) => sum + outstanding(charge), 0),
 			pendingAmount: charges.reduce((sum, charge) => sum + outstanding(charge), 0),
+			// Those that can be marked paid together
+			selectable: charges.filter(charge => !charge.remittanceId),
 		};
 	}).sort((a, b) => b.overdueAmount - a.overdueAmount || b.pendingAmount - a.pendingAmount
 		|| a.property.name.localeCompare(b.property.name, 'es', { numeric: true }));
@@ -145,6 +152,51 @@ const totalOverdue = computed(() => rows.value.reduce((sum, row) => sum + row.ov
 const totalPending = computed(() => rows.value.reduce((sum, row) => sum + row.pendingAmount, 0));
 const debtors = computed(() => rows.value.filter(row => row.overdueCount).length);
 const loading = computed(() => (propertiesPending.value || chargesPending.value) && !rows.value.length);
+
+const { search, matches } = useListSearch('Buscar en la morosidad', useTemplateRef<HTMLElement>('searchBox'));
+const shownRows = computed(() => rows.value.filter(row => matches(row.property.name, row.property.ownerName)));
+
+// What's shown, as a spreadsheet opens it
+function exportCsv() {
+	const lines = shownRows.value.map(row => [
+		row.property.name,
+		row.property.ownerName ?? '',
+		String(row.overdueCount),
+		row.overdueAmount,
+		row.pendingAmount,
+		row.overdueCount ? 'Con deuda' : row.pendingAmount ? 'Pendiente' : 'Al corriente',
+	]);
+	const content = toCsv([['Propiedad', 'Propietario', 'Recibos vencidos', 'Deuda vencida', 'Pendiente de cobro', 'Estado'], ...lines]);
+	downloadFile(`recibos-pendientes-${toDateString(new Date())}.csv`, content, 'text/csv;charset=utf-8');
+}
+
+/* Several marked paid at once, e.g. paid in cash at the office. Those in a remittance are left out: the bank collects
+them. Kept as ids and read from the live list, so one paid meanwhile drops out */
+const selected = ref(new Set<string>());
+const selectedCharges = computed(() => unpaid.value.filter(charge => selected.value.has(charge.id) && !charge.remittanceId));
+const selectedTotal = computed(() => selectedCharges.value.reduce((sum, charge) => sum + outstanding(charge), 0));
+
+function select(charges: Charge[], on: boolean) {
+	const next = new Set(selected.value);
+	for (const charge of charges) {
+		if (on) {
+			next.add(charge.id);
+		} else {
+			next.delete(charge.id);
+		}
+	}
+	selected.value = next;
+}
+
+function markSelectedPaid() {
+	const charges = selectedCharges.value;
+	selected.value = new Set();
+	void optimistic(setChargesPaid(props.id, charges, Timestamp.now()), {
+		done: charges.length === 1 ? 'Recibo marcado como pagado' : `${charges.length} recibos marcados como pagados`,
+		failed: 'No se han podido marcar',
+		revert: async () => setChargesPaid(props.id, charges, null),
+	});
+}
 
 // The property opened to see its charges, and its whole history once asked for
 const openId = ref<string>();
@@ -163,7 +215,7 @@ async function loadHistory(propertyId: string) {
 	try {
 		history.value = await loadPropertyCharges(props.id, propertyId);
 	} catch (e) {
-		actionError.value = `No se ha podido cargar el historial: ${(e as Error).message}`;
+		actionError.value = failure('No se ha podido cargar el historial', e);
 	} finally {
 		historyLoading.value = false;
 	}
@@ -253,7 +305,7 @@ async function collect(charge: Charge) {
 			undo: async () => patchHistory(charge.id, await removeCollection(props.id, charge.id, item)),
 		});
 	} catch (e) {
-		collectError.value = `No se ha podido registrar: ${(e as Error).message}`;
+		collectError.value = failure('No se ha podido registrar', e);
 	} finally {
 		savingCollection.value = false;
 	}
@@ -267,12 +319,27 @@ async function uncollect(charge: Charge, item: ChargeCollection) {
 		patchHistory(charge.id, await removeCollection(props.id, charge.id, item));
 		toast('Entrega deshecha', { undo: async () => patchHistory(charge.id, await addCollection(props.id, charge.id, item)) });
 	} catch (e) {
-		toast(`No se ha podido deshacer: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido deshacer', e), { variant: 'danger' });
 	}
 }
 
+// Why deleting it reaches past this list, so it's asked first. Otherwise undoing it puts it back as it was
+async function deleteWarning(charge: Charge) {
+	if (charge.remittanceId) {
+		return 'Está en una remesa: el banco lo cobrará igualmente.';
+	}
+	if (charge.bankMovementId) {
+		return 'Está conciliado con un movimiento del banco.';
+	}
+	if (charge.payment) {
+		return 'Tiene un pago hecho desde la app.';
+	}
+	return closedYearWarning(props.id, [charge.dueDate, charge.paidAt]);
+}
+
 async function remove(charge: Charge) {
-	if (!await ask({ title: `¿Borrar «${charge.concept}» de ${charge.propertyName}${charge.collections?.length ? ' con sus entregas a cuenta' : ''}?`, confirmText: 'Borrar', variant: 'danger' })) {
+	const warning = await deleteWarning(charge);
+	if (warning && !await ask({ title: `¿Borrar «${charge.concept}» de ${charge.propertyName}${charge.collections?.length ? ' con sus entregas a cuenta' : ''}?`, message: warning, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	// What it had, to put it back as it was
@@ -364,13 +431,19 @@ async function remove(charge: Charge) {
 	<section class="card">
 		<div class="section-head">
 			<h2>Morosidad</h2>
-			<LnxButton :to="`/communities/${id}/arrears`" mode="clear" class="lnx-size-small">
-				<LnxIcon icon="lucide:mail-warning" />
-				Antigüedad y reclamaciones
-			</LnxButton>
+			<div class="item-actions">
+				<LnxButton mode="clear" class="lnx-size-small" :disabled="!shownRows.length" @click="exportCsv()">
+					<LnxIcon icon="lucide:download" />
+					Exportar CSV
+				</LnxButton>
+				<LnxButton :to="`/communities/${id}/arrears`" mode="clear" class="lnx-size-small">
+					<LnxIcon icon="lucide:mail-warning" />
+					Antigüedad y reclamaciones
+				</LnxButton>
+			</div>
 		</div>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
-			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
+			{{ failure('No se han podido cargar', propertiesError ?? chargesError) }}
 		</p>
 		<p v-if="actionError" class="error" role="alert">
 			{{ actionError }}
@@ -394,9 +467,16 @@ async function remove(charge: Charge) {
 			</div>
 		</div>
 
+		<div ref="searchBox" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Propiedad o propietario">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
+
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65, 48]" :key="width" class="item">
 				<div class="row">
+					<span class="check unused"><LnxCheckbox disabled /></span>
 					<div class="what">
 						<span class="lnx-skeleton" :style="{ width: `${width}%` }" />
 						<span class="lnx-skeleton lnx-skeleton--small" :style="{ width: `${width - 15}%` }" />
@@ -406,9 +486,19 @@ async function remove(charge: Charge) {
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="rows.length" class="list lnx-appear">
-			<li v-for="row in rows" :key="row.property.id" class="item">
+		<ul v-else-if="shownRows.length" class="list lnx-appear">
+			<li v-for="row in shownRows" :key="row.property.id" class="item">
 				<div class="row">
+					<!-- Hidden when there's nothing to tick, keeping its room so the names line up -->
+					<span class="check" :class="{ unused: !row.selectable.length }">
+						<LnxCheckbox
+							:model-value="!!row.selectable.length && row.selectable.every(charge => selected.has(charge.id))"
+							:indeterminate="row.selectable.some(charge => selected.has(charge.id)) && !row.selectable.every(charge => selected.has(charge.id))"
+							@update:model-value="value => select(row.selectable, !!value)"
+						>
+							<span class="sr-only">Seleccionar los recibos de {{ row.property.name }}</span>
+						</LnxCheckbox>
+					</span>
 					<button type="button" class="what ux-row" :aria-expanded="openId === row.property.id" @click="toggle(row.property)">
 						<strong>{{ row.property.name }}</strong>
 						<small>{{ row.property.ownerName || 'Sin propietario' }}<template v-if="row.property.coefficient"> · {{ formatCoefficient(row.property.coefficient) }}</template></small>
@@ -445,6 +535,11 @@ async function remove(charge: Charge) {
 				<div v-if="openId === row.property.id" class="charges">
 					<TransitionGroup v-if="(history ?? row.charges).length" tag="ul" name="charge">
 						<li v-for="charge in history ?? row.charges" :key="charge.id" class="charge">
+							<span class="check" :class="{ unused: charge.paidAt || charge.remittanceId }">
+								<LnxCheckbox :model-value="selected.has(charge.id)" @update:model-value="value => select([charge], !!value)">
+									<span class="sr-only">Seleccionar «{{ charge.concept }}»</span>
+								</LnxCheckbox>
+							</span>
 							<div class="what">
 								<span>{{ charge.concept }}</span>
 								<small class="tabular">
@@ -534,9 +629,25 @@ async function remove(charge: Charge) {
 				</div>
 			</li>
 		</ul>
+		<p v-else-if="rows.length" class="hint">
+			Ninguna propiedad coincide con «{{ search }}».
+		</p>
 		<p v-else class="hint">
 			Aún no hay propiedades. Añádelas en el censo para emitir recibos.
 		</p>
+
+		<div v-if="selectedCharges.length" class="bulk lnx-appear">
+			<span class="tabular">
+				<strong>{{ selectedCharges.length }} {{ selectedCharges.length === 1 ? 'seleccionado' : 'seleccionados' }}</strong> · {{ formatCents(selectedTotal) }}
+			</span>
+			<LnxButton mode="clear" class="lnx-size-small" @click="selected = new Set()">
+				Quitar selección
+			</LnxButton>
+			<LnxButton class="lnx-size-small" @click="markSelectedPaid()">
+				<LnxIcon icon="lucide:check-check" />
+				Marcar pagados
+			</LnxButton>
+		</div>
 	</section>
 </template>
 

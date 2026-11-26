@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { Obligation, ObligationType } from '@gobernansa/shared/domain/obligation.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { OBLIGATION_WARNING_DAYS, obligationDone, obligationStatus, obligationStatusLabels, obligationTypes } from '@gobernansa/shared/domain/obligation.ts';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, LnxTextarea, useConfirm } from 'lnxjs-components';
+import { normalize } from '@gobernansa/shared/utils/helpers.ts';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
@@ -16,8 +18,6 @@ import { markObligationDone, removeObligation, restoreObligation, saveObligation
 
 const props = defineProps<{ id: string }>();
 
-const ask = useConfirm();
-
 const DAY = 86_400_000;
 const ICS_SPECIAL = /[\\;,]/g;
 const NEWLINES = /\n/g;
@@ -27,6 +27,18 @@ const MILLISECONDS = /\.\d+/;
 // A handful per community, so live and sorted here
 const { data: obligations, pending, error } = useObligations(props.id);
 const sorted = computed(() => [...obligations.value].sort((a, b) => a.dueAt.toMillis() - b.dueAt.toMillis()));
+
+// Accents and case ignored, every word in its title, type, provider or notes
+const search = ref('');
+const searchElement = useTemplateRef<HTMLElement>('searchElement');
+useShortcut('/', () => searchElement.value?.querySelector('input')?.focus(), { description: 'Buscar obligaciones' });
+const shown = computed(() => {
+	const words = normalize(search.value).split(' ').filter(Boolean);
+	return sorted.value.filter((obligation) => {
+		const text = normalize([obligation.title, obligationTypes[obligation.type]?.label, obligation.provider?.name, obligation.notes].filter(Boolean).join(' '));
+		return words.every(word => text.includes(word));
+	});
+});
 // Due dates are local midnights, so they count by day: one due today isn't overdue until tomorrow
 function today() {
 	const now = new Date();
@@ -174,10 +186,8 @@ function markDone(obligation: Obligation) {
 	void optimistic(markObligationDone(props.id, obligation, nextDueAt(obligation)), { done: 'Marcada como hecha', failed: 'No se ha podido marcar como hecha', revert: async () => unmarkObligationDone(props.id, obligation) });
 }
 
-async function remove(obligation: Obligation) {
-	if (!await ask({ title: `¿Borrar «${obligation.title}»?`, confirmText: 'Borrar', variant: 'danger' })) {
-		return;
-	}
+// No confirmation: the toast's undo puts it back as it was
+function remove(obligation: Obligation) {
 	void optimistic(removeObligation(props.id, obligation), { done: 'Obligación borrada', failed: 'No se ha podido borrar', revert: async () => restoreObligation(props.id, obligation) });
 	if (editingId.value === obligation.id) {
 		close();
@@ -318,8 +328,13 @@ function downloadIcs(obligation: Obligation) {
 	<section class="card" :aria-busy="pending && !sorted.length">
 		<h2>Calendario</h2>
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
+		<div v-if="sorted.length" ref="searchElement" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Título, tipo, proveedor o notas">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
 
 		<ul v-if="pending && !sorted.length" class="list">
 			<li v-for="width in ['50%', '35%', '60%']" :key="width" class="item">
@@ -333,8 +348,8 @@ function downloadIcs(obligation: Obligation) {
 				</div>
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="sorted.length" tag="ul" name="row" class="list lnx-appear">
-			<li v-for="obligation in sorted" :key="obligation.id" class="item">
+		<TransitionGroup v-else-if="shown.length" tag="ul" name="row" class="list lnx-appear">
+			<li v-for="obligation in shown" :key="obligation.id" class="item">
 				<LnxIcon class="type" :icon="obligationTypes[obligation.type]?.icon ?? 'lucide:calendar-check'" :size="20" :title="obligationTypes[obligation.type]?.label" />
 				<div class="what">
 					<strong>
@@ -371,6 +386,9 @@ function downloadIcs(obligation: Obligation) {
 				</div>
 			</li>
 		</TransitionGroup>
+		<p v-else-if="sorted.length" class="hint">
+			Ninguna coincide con la búsqueda.
+		</p>
 		<p v-else class="hint">
 			Aún no hay obligaciones. Añade las inspecciones y revisiones de la comunidad para que avisemos antes de que venzan.
 		</p>
@@ -386,6 +404,11 @@ function downloadIcs(obligation: Obligation) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
+}
+
+.search {
+	width: 320px;
+	max-width: 100%;
 }
 
 // Red for overdue, amber for coming up, like the dashboard. Darkened for text, so it reads on its tint

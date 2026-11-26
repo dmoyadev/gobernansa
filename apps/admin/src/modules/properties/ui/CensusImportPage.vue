@@ -13,9 +13,9 @@ import { readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { plural } from '@gobernansa/shared/utils/helpers.ts';
 import { columnIndex, columnLetter, readXlsx } from '@gobernansa/shared/utils/xlsx.ts';
-import { LnxButton, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, toast, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, toast, useConfirm, useEventListener, useShortcut } from 'lnxjs-components';
 import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import { newId, onRevalidate } from '@/app/ux/navigation.ts';
@@ -238,13 +238,31 @@ function difference(total: number) {
 }
 
 const importing = ref(false);
+// Communities written so far, for the button while a portfolio is imported
+const done = ref(0);
+
+// Leaving the page doesn't stop it, closing or reloading the tab does: what was written stays, the rest doesn't
+const ask = useConfirm();
+onBeforeRouteLeave(async () => !importing.value || ask({
+	title: '¿Salir mientras se importa?',
+	message: 'La importación seguirá hasta terminar y te avisaremos, pero no cierres ni recargues la pestaña hasta entonces.',
+	confirmText: 'Salir',
+	cancelText: 'Seguir aquí',
+}));
+useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
+	if (importing.value) {
+		event.preventDefault();
+	}
+});
 
 async function apply() {
 	if (!remote.censusImport || !source.value || importing.value || comparing.value || (!toWrite.value && !newCommunities.value)) {
 		return;
 	}
 	const file = source.value.name;
+	const page = router.currentRoute.value.fullPath;
 	importing.value = true;
+	done.value = 0;
 	const summary = [
 		newCommunities.value && plural(newCommunities.value, 'comunidad nueva', 'comunidades nuevas'),
 		counts.value.new?.length && plural(counts.value.new.length, 'propiedad nueva', 'propiedades nuevas'),
@@ -257,11 +275,16 @@ async function apply() {
 			await importCensus(communityId, group.rows, file, group.communityId
 				? undefined
 				: { name: group.name, address: group.address, ...(group.cif ? { cif: group.cif } : {}), ...(group.iban ? { iban: group.iban } : {}) });
+			done.value++;
 		}
+		importing.value = false;
 		toast(`Censo importado${summary ? `: ${summary}` : ''}`);
 		source.value = undefined;
 		pasted.value = '';
-		await router.push(props.id ? `/communities/${props.id}/properties` : '/');
+		// Unless they went elsewhere meanwhile
+		if (router.currentRoute.value.fullPath === page) {
+			await router.push(props.id ? `/communities/${props.id}/properties` : '/');
+		}
 	} catch (e) {
 		// What was written stays: compared again, what's left is what to import again
 		toast(`No se ha podido terminar de importar: ${(e as Error).message}`, { variant: 'danger' });
@@ -469,7 +492,7 @@ async function apply() {
 			<div class="actions">
 				<LnxButton :disabled="!remote.censusImport || importing || comparing || (!toWrite && !newCommunities)" @click="apply()">
 					<LnxIcon :icon="importing ? 'lucide:loader-circle' : 'lucide:check'" :class="{ spin: importing }" />
-					{{ importing ? 'Importando…' : toWrite ? `Importar ${plural(toWrite, 'propiedad', 'propiedades')}` : 'Importar' }}
+					{{ importing ? (imported.length > 1 ? `Importando ${done + 1} de ${imported.length}…` : 'Importando…') : toWrite ? `Importar ${plural(toWrite, 'propiedad', 'propiedades')}` : 'Importar' }}
 				</LnxButton>
 				<LnxButton mode="clear" :disabled="importing" @click="source = undefined; pasted = ''">
 					Descartar

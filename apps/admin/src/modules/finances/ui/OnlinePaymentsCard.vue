@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { LnxSelect } from 'lnxjs-components';
 import { computed, ref } from 'vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
@@ -20,7 +21,7 @@ const paymentsOptions = [
 function loadPaymentsMode() {
 	return loadCommunity(props.id)
 		.then(community => onlinePayments.value = community?.onlinePayments ?? null)
-		.catch((e: Error) => emit('error', `No se ha podido cargar la comunidad: ${e.message}`));
+		.catch((e: Error) => emit('error', failure('No se ha podido cargar la comunidad', e)));
 }
 
 void loadPaymentsMode();

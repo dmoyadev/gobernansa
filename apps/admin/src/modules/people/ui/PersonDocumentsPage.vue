@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PersonDocument } from '../application/personDocuments.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { MAX_DOCUMENT_SIZE, MAX_DOCUMENTS } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxIcon, LnxRadioGroup, useConfirm } from 'lnxjs-components';
@@ -146,7 +147,7 @@ function formatSize(bytes: number) {
 	<section class="card">
 		<h2>Sus documentos</h2>
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 		<p v-if="actionError" class="error" role="alert">
 			{{ actionError }}

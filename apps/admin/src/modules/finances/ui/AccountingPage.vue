@@ -3,6 +3,7 @@ import type { Account, CustomAccount, FiscalYearClosing, JournalEntry, JournalLi
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Timestamp } from 'firebase/firestore';
 import type { View } from '../application/accountingReports.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { buildLedger, closeYear, closingMatches, entryKinds, toCsv } from '@gobernansa/shared/domain/accounting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
@@ -64,9 +65,9 @@ async function load(refresh = false) {
 		error.value = undefined;
 	} catch (e) {
 		if (cache.has(wanted)) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
+			toast(failure('No se ha podido actualizar', e), { variant: 'danger' });
 		} else {
-			error.value = `No se ha podido cargar la contabilidad: ${(e as Error).message}`;
+			error.value = failure('No se ha podido cargar la contabilidad', e);
 		}
 	} finally {
 		if (wanted === year.value) {
@@ -159,7 +160,7 @@ async function removeEntry(entry: JournalEntry) {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido borrar: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido borrar', e), { variant: 'danger' });
 	}
 }
 
@@ -195,7 +196,7 @@ async function close() {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido cerrar: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido cerrar', e), { variant: 'danger' });
 	} finally {
 		closingBusy.value = false;
 	}
@@ -224,7 +225,7 @@ async function reopen() {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido reabrir: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido reabrir', e), { variant: 'danger' });
 	} finally {
 		closingBusy.value = false;
 	}
@@ -281,6 +282,9 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 
 	<p v-if="error" class="error" role="alert">
 		{{ error }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+			Reintentar
+		</LnxButton>
 	</p>
 
 	<template v-else>

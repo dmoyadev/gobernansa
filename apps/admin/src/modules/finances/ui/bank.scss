@@ -21,6 +21,14 @@
 	}
 }
 
+.section-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
+}
+
 .fields {
 	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
 }

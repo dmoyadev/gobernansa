@@ -52,11 +52,23 @@
 	}
 }
 
+.search {
+	margin-top: var(--lnx-spacing-4);
+}
+
 .row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto auto;
+	grid-template-columns: auto minmax(0, 1fr) auto auto auto;
 	align-items: center;
 	gap: var(--lnx-spacing-3);
+}
+
+.check {
+	display: flex;
+
+	&.unused {
+		visibility: hidden;
+	}
 }
 
 .what {
@@ -135,7 +147,7 @@ button.what {
 .charge {
 	padding: var(--lnx-spacing-2) 0;
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
 	align-items: center;
 	gap: var(--lnx-spacing-3);
 }
@@ -191,4 +203,24 @@ button.what {
 	gap: var(--lnx-spacing-2);
 	font-size: var(--lnx-font-size-small);
 	color: var(--color-gray-7);
+}
+
+// What's ticked and what to do with it, in sight while scrolling the list
+.bulk {
+	position: sticky;
+	bottom: 0;
+	margin-top: var(--lnx-spacing-3);
+	padding: var(--lnx-spacing-3) 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--lnx-spacing-2);
+	background: color-mix(in srgb, var(--color-gray-0) 90%, transparent);
+	backdrop-filter: blur(8px);
+	box-shadow: 0 -1px 0 var(--color-gray-3);
+
+	> span {
+		margin-right: auto;
+	}
 }

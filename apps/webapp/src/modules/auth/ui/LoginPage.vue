@@ -139,9 +139,9 @@ async function resetPassword() {
 					</template>
 				</LnxInput>
 
-				<LnxButton type="submit" :loading="loading" :disabled="loading">
+				<LnxButton type="submit" :is-loading="loading" :disabled="loading">
 					<LnxIcon icon="lucide:arrow-right" />
-					Entrar
+					{{ loading ? 'Entrando…' : 'Entrar' }}
 				</LnxButton>
 				<LnxButton mode="clear" @click="withCode = false">
 					Entrar con email y contraseña
@@ -181,9 +181,9 @@ async function resetPassword() {
 					</template>
 				</LnxInput>
 
-				<LnxButton type="submit" :loading="loading" :disabled="loading">
+				<LnxButton type="submit" :is-loading="loading" :disabled="loading">
 					<LnxIcon icon="lucide:arrow-right" />
-					Entrar
+					{{ loading ? 'Entrando…' : 'Entrar' }}
 				</LnxButton>
 				<LnxButton mode="clear" :disabled="loading" @click="resetPassword()">
 					No tengo contraseña o la he olvidado

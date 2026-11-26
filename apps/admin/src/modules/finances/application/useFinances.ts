@@ -173,6 +173,25 @@ export async function setChargePaid(communityId: string, charge: Charge, paidAt:
 	});
 }
 
+// Several marked paid at once (or pending again, to undo it), e.g. what was paid in cash at the office. Only those the
+// live list shows unpaid and out of any remittance, so none of setChargePaid's checks apply: batches, shown at once
+export async function setChargesPaid(communityId: string, charges: Charge[], paidAt: Timestamp | null) {
+	const uid = signedUid();
+	const total = charges.reduce((sum, charge) => sum + outstanding(charge), 0);
+	for (let start = 0; start < charges.length; start += CHARGES_PER_BATCH) {
+		const batch = writeBatch(db);
+		for (const charge of charges.slice(start, start + CHARGES_PER_BATCH)) {
+			batch.update(doc(chargesRef(communityId), charge.id), { paidAt, updatedAt: serverTimestamp(), updatedBy: uid });
+		}
+		logActivity(batch, communityId, {
+			area: 'finance',
+			summary: `Marcó ${charges.length} recibos como ${paidAt ? 'pagados' : 'pendientes'} (${formatCents(total)})`,
+			link: `/communities/${communityId}/charges`,
+		});
+		await batch.commit();
+	}
+}
+
 // The fields entregas a cuenta keep. Paid on the day of the latest one when they reach the amount
 function withCollections(amount: number, collections: ChargeCollection[]) {
 	const collected = collections.reduce((sum, item) => sum + item.amount, 0);

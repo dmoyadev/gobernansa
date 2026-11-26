@@ -3,6 +3,7 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
 import type { PaymentOrder, PaymentOrderItem } from '@gobernansa/shared/domain/sepa.ts';
 import type { PaymentOrderData } from '../application/usePaymentOrders.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { checkSepa } from '@gobernansa/shared/domain/fileChecks.ts';
 import { payableAmount } from '@gobernansa/shared/domain/finance.ts';
@@ -45,7 +46,7 @@ async function load() {
 		[community.value, orders.value] = await Promise.all([loadCommunity(props.id), loadPaymentOrders(props.id)]);
 		loadError.value = undefined;
 	} catch (e) {
-		loadError.value = `No se han podido cargar las órdenes de pago: ${(e as Error).message}`;
+		loadError.value = failure('No se han podido cargar las órdenes de pago', e);
 	} finally {
 		loading.value = false;
 	}
@@ -192,7 +193,7 @@ async function save(id: string, data: PaymentOrderData, xml: string) {
 		toast(`Orden ${data.reference} generada, súbela a la banca online`);
 		return true;
 	} catch (e) {
-		formError.value = `No se ha podido generar: ${(e as Error).message}`;
+		formError.value = failure('No se ha podido generar', e);
 		return false;
 	} finally {
 		generating.value = false;
@@ -214,7 +215,7 @@ async function run(id: string, action: () => Promise<void>) {
 	try {
 		await action();
 	} catch (e) {
-		actionError.value = `No se ha podido hacer: ${(e as Error).message}`;
+		actionError.value = failure('No se ha podido hacer', e);
 	} finally {
 		busyId.value = undefined;
 	}
@@ -232,8 +233,10 @@ async function execute(order: PaymentOrder) {
 	});
 }
 
+// Asked even with undo: an order has no sent step, so its file may be at the bank already, and its invoices could go
+// in another and be paid twice
 async function remove(order: PaymentOrder) {
-	if (!await ask({ title: `¿Borrar la orden de pago ${order.reference}?`, message: 'Sus facturas podrán ir en otra.', confirmText: 'Borrar', variant: 'danger' })) {
+	if (!await ask({ title: `¿Borrar la orden de pago ${order.reference}?`, message: 'Sus facturas podrán ir en otra. Si ya subiste el fichero al banco, anula allí las transferencias o se pagarán dos veces.', confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	await run(order.id, async () => {
@@ -277,7 +280,7 @@ async function remove(order: PaymentOrder) {
 		@cancel="close()"
 	>
 		<p v-if="invoicesError || providersError" class="error" role="alert">
-			No se han podido cargar: {{ (invoicesError ?? providersError)?.message }}
+			{{ failure('No se han podido cargar', invoicesError ?? providersError) }}
 		</p>
 		<p v-if="debtorProblem" class="warning">
 			<LnxIcon icon="lucide:triangle-alert" />
@@ -350,6 +353,9 @@ async function remove(order: PaymentOrder) {
 		<h2>Órdenes de pago</h2>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+				Reintentar
+			</LnxButton>
 		</p>
 		<p v-if="actionError" class="error" role="alert">
 			{{ actionError }}

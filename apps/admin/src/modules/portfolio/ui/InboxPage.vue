@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import type { IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import type { LocationQuery, LocationQueryRaw } from 'vue-router';
 import type { InboxIssue } from '../application/usePortfolio.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
+import useAuth from '@gobernansa/shared/application/useAuth.ts';
+import { toCsv } from '@gobernansa/shared/domain/accounting.ts';
+import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { findIssueCategory, getIssueCategories, issueStatus } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxRadioGroup, LnxSelect } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxRadioGroup, LnxSelect } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { onRevalidate } from '@/app/ux/navigation.ts';
+import { optimistic } from '@/app/ux/toast.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
+import { changeStatuses, revertStatuses } from '@/modules/issues/application/useIssues.ts';
 import { ageInDays, loadInbox } from '../application/usePortfolio.ts';
 
 const AGES = [
@@ -15,13 +24,48 @@ const AGES = [
 	{ value: 'old', label: 'Más de 30 días', min: 31, max: Infinity },
 ];
 const PROPERTY_ZONE = 'property';
+const DEFAULT_STATUSES: IssueStatus[] = ['open', 'in_progress'];
 
 const { communities, loading: communitiesLoading, error: communitiesError } = useCommunities();
+const { user: me } = useAuth();
 
-const statuses = ref<IssueStatus[]>(['open', 'in_progress']);
-const communityId = ref('');
-const age = ref('');
-const zone = ref('');
+// The filters are in the URL, so a reload or a shared link opens the same list. Kept alive, it only follows its own
+const route = useRoute();
+const router = useRouter();
+const path = route.path;
+const query = computed<LocationQuery>(previous => route.path === path ? route.query : previous ?? {});
+
+// Defaults are '' and left out of the URL. One replace for every change, as two in a row keep only the last
+function setView(changes: Record<string, string>) {
+	const next: LocationQueryRaw = { ...route.query };
+	for (const [key, value] of Object.entries(changes)) {
+		next[key] = value || undefined;
+	}
+	void router.replace({ query: next });
+}
+
+function param(key: string, values?: string[]) {
+	return computed({
+		get: () => {
+			const value = query.value[key];
+			return typeof value === 'string' && (!values || values.includes(value)) ? value : '';
+		},
+		set: value => setView({ [key]: value }),
+	});
+}
+
+const communityId = param('community');
+const age = param('age', AGES.map(({ value }) => value));
+const zone = param('zone');
+// Comma-separated, 'none' when none is ticked
+const statuses = computed<IssueStatus[]>({
+	get: () => {
+		const value = query.value.status;
+		return typeof value === 'string' ? issueStatus.map(({ value: status }) => status).filter(status => value.split(',').includes(status)) : DEFAULT_STATUSES;
+	},
+	set: value => setView({ status: !value.length ? 'none' : value.length === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every(status => value.includes(status)) ? '' : value.join(',') }),
+});
+const isFiltered = computed(() => !!(query.value.status || communityId.value || age.value || zone.value));
 
 const issues = ref<InboxIssue[]>([]);
 const loading = ref(false);
@@ -44,7 +88,7 @@ async function load() {
 		loading.value = false;
 	}
 }
-watch([communitiesLoading, statuses], load, { immediate: true });
+watch([communitiesLoading, () => statuses.value.join(',')], load, { immediate: true });
 // Coming back shows the last list while it's read again
 onRevalidate(load);
 const ROW_WIDTHS = [65, 45, 75, 55];
@@ -61,9 +105,11 @@ const ageOptions = [{ value: '', label: 'Cualquiera' }, ...AGES];
 const zones = computed(() => [...new Set(issues.value.map(zoneOf).filter(value => value && value !== PROPERTY_ZONE))].sort((a, b) => a.localeCompare(b, 'es')));
 const zoneOptions = computed(() => [{ value: '', label: 'Todas' }, { value: PROPERTY_ZONE, label: 'Propiedades' }, ...zones.value.map(name => ({ value: name, label: name }))]);
 
+// Status too, so what's moved to another status leaves the list without reading it again
 const filtered = computed(() => {
 	const range = AGES.find(option => option.value === age.value);
-	return issues.value.filter(issue => (!communityId.value || issue.communityId === communityId.value)
+	return issues.value.filter(issue => statuses.value.includes(issue.status)
+		&& (!communityId.value || issue.communityId === communityId.value)
 		&& (!zone.value || zoneOf(issue) === zone.value)
 		&& (!range || (ageInDays(issue) >= range.min && ageInDays(issue) < range.max)));
 });
@@ -73,6 +119,67 @@ function categoryOf(issue: { communityId: string; category: string }) {
 	return findIssueCategory(getIssueCategories(communities.value.find(community => community.id === issue.communityId)), issue.category);
 }
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
+
+const keyOf = (issue: InboxIssue) => `${issue.communityId}/${issue.id}`;
+const selected = ref(new Set<string>());
+const selectedIssues = computed(() => filtered.value.filter(issue => selected.value.has(keyOf(issue))));
+
+function select(list: InboxIssue[], on: boolean) {
+	const next = new Set(selected.value);
+	for (const issue of list) {
+		if (on) {
+			next.add(keyOf(issue));
+		} else {
+			next.delete(keyOf(issue));
+		}
+	}
+	selected.value = next;
+}
+
+// The list isn't live, so it's changed here as well, and put back if the server says no or it's undone
+function setLocal(changes: { communityId: string; id: string; status: IssueStatus }[]) {
+	const byKey = new Map(changes.map(change => [`${change.communityId}/${change.id}`, change.status]));
+	issues.value = issues.value.map(issue => byKey.has(keyOf(issue)) ? { ...issue, status: byKey.get(keyOf(issue))! } : issue);
+}
+
+function changeSelected(status: IssueStatus) {
+	const list = selectedIssues.value.filter(issue => issue.status !== status);
+	selected.value = new Set();
+	if (!me.value || !list.length) {
+		return;
+	}
+	const author = me.value;
+	const action = changeStatuses(author, list, status);
+	setLocal(list.map(issue => ({ ...issue, status })));
+	const label = statusLabels[status];
+	void optimistic(action, {
+		done: list.length === 1 ? `Incidencia pasada a ${label}` : `${list.length} incidencias pasadas a ${label}`,
+		failed: 'No se ha podido cambiar el estado',
+		revert: async () => {
+			const changes = await action;
+			setLocal(changes);
+			return revertStatuses(author, changes);
+		},
+		onError: () => setLocal(list),
+	});
+}
+
+function exportCsv() {
+	const content = toCsv([
+		['Comunidad', 'Título', 'Categoría', 'Estado', 'Zona', 'Días', 'Proveedor', 'Prevista'],
+		...filtered.value.map(issue => [
+			issue.communityName,
+			issue.title,
+			categoryOf(issue).name,
+			statusLabels[issue.status],
+			zoneOf(issue) === PROPERTY_ZONE ? 'Propiedad' : zoneOf(issue),
+			String(ageInDays(issue, now.value)),
+			issue.provider?.name ?? '',
+			issue.expectedAt ? toDateString(issue.expectedAt.toDate()) : '',
+		]),
+	]);
+	downloadFile(`incidencias-${toDateString(new Date())}.csv`, content, 'text/csv;charset=utf-8');
+}
 </script>
 
 <template>
@@ -135,9 +242,26 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 	</div>
 
 	<section class="card" :aria-busy="(loading || communitiesLoading) && !issues.length">
-		<p v-if="error || communitiesError" class="error" role="alert">
-			No se han podido cargar: {{ (error ?? communitiesError)?.message }}
-		</p>
+		<div v-if="error || communitiesError" class="error" role="alert">
+			<p>No se han podido cargar. {{ errorMessage(error ?? communitiesError) }}</p>
+			<LnxButton mode="outline" class="lnx-size-small" @click="load">
+				Reintentar
+			</LnxButton>
+		</div>
+
+		<div v-if="filtered.length" class="toolbar">
+			<LnxCheckbox
+				:model-value="filtered.every(issue => selected.has(keyOf(issue)))"
+				:indeterminate="!!selectedIssues.length && selectedIssues.length < filtered.length"
+				@update:model-value="value => select(filtered, !!value)"
+			>
+				<span class="tabular">{{ filtered.length }} {{ filtered.length === 1 ? 'incidencia' : 'incidencias' }}</span>
+			</LnxCheckbox>
+			<LnxButton mode="clear" class="lnx-size-small" @click="exportCsv">
+				<LnxIcon icon="lucide:download" />
+				Exportar CSV
+			</LnxButton>
+		</div>
 
 		<ul v-if="(loading || communitiesLoading) && !issues.length" class="list">
 			<li v-for="width in ROW_WIDTHS" :key="width" class="issue">
@@ -150,7 +274,10 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 			</li>
 		</ul>
 		<TransitionGroup v-else-if="filtered.length" tag="ul" name="row" class="list lnx-appear">
-			<li v-for="issue in filtered" :key="`${issue.communityId}/${issue.id}`">
+			<li v-for="issue in filtered" :key="keyOf(issue)" class="row">
+				<LnxCheckbox :model-value="selected.has(keyOf(issue))" @update:model-value="value => select([issue], !!value)">
+					<span class="sr-only">Seleccionar «{{ issue.title }}»</span>
+				</LnxCheckbox>
 				<RouterLink class="issue ux-row" :to="`/communities/${issue.communityId}/issues/${issue.id}`">
 					<LnxIcon class="category" :icon="categoryOf(issue).icon" :size="20" />
 					<div class="what">
@@ -171,9 +298,32 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 				</RouterLink>
 			</li>
 		</TransitionGroup>
-		<p v-else class="hint">
-			No hay incidencias con estos filtros.
-		</p>
+		<div v-else-if="!error && !communitiesError" class="empty">
+			<p class="hint">
+				No hay incidencias con estos filtros.
+			</p>
+			<LnxButton v-if="isFiltered" mode="clear" class="lnx-size-small" @click="setView({ status: '', community: '', age: '', zone: '' })">
+				Limpiar filtros
+			</LnxButton>
+		</div>
+
+		<div v-if="selectedIssues.length" class="bulk lnx-appear">
+			<strong class="tabular">{{ selectedIssues.length }} {{ selectedIssues.length === 1 ? 'seleccionada' : 'seleccionadas' }}</strong>
+			<LnxButton mode="clear" class="lnx-size-small" @click="selected = new Set()">
+				Quitar selección
+			</LnxButton>
+			<span>Pasar a</span>
+			<LnxButton
+				v-for="option in issueStatus"
+				:key="option.value"
+				mode="outline"
+				class="lnx-size-small"
+				:disabled="selectedIssues.every(issue => issue.status === option.value)"
+				@click="changeSelected(option.value)"
+			>
+				{{ option.label }}
+			</LnxButton>
+		</div>
 	</section>
 </template>
 
@@ -190,6 +340,42 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 
 .card {
 	align-items: stretch;
+}
+
+.error {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+}
+
+.toolbar,
+.empty {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
+}
+
+.bulk {
+	position: sticky;
+	bottom: 0;
+	margin-top: var(--lnx-spacing-3);
+	padding: var(--lnx-spacing-3) 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--lnx-spacing-2);
+	background: color-mix(in srgb, var(--color-gray-0) 90%, transparent);
+	backdrop-filter: blur(8px);
+	box-shadow: 0 -1px 0 var(--color-gray-3);
+
+	> span {
+		margin-left: auto;
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+	}
 }
 
 .statuses {
@@ -233,6 +419,17 @@ const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [v
 .row-leave-active {
 	position: absolute;
 	width: 100%;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	.issue {
+		flex: 1;
+		min-width: 0;
+	}
 }
 
 .issue {

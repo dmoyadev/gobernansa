@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Expense } from '@gobernansa/shared/domain/finance.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { isOverdue, payableAmount, paymentMethods } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { Timestamp } from 'firebase/firestore';
@@ -44,7 +45,7 @@ function markPaid(invoice: Expense) {
 
 	<section class="card">
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			{{ failure('No se han podido cargar', error) }}
 		</p>
 
 		<div class="totals tabular" :aria-busy="loading">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { BankMovement, CsvColumns, MovementData, ParsedStatement } from '@gobernansa/shared/domain/bank.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { accountLabel, csvMovements, decodeText, guessColumns, parseCsv, parseNorma43 } from '@gobernansa/shared/domain/bank.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { LnxButton, LnxSelect, toast, useShortcut } from 'lnxjs-components';
@@ -73,7 +74,7 @@ async function importDraft() {
 				}
 			: {});
 	} catch (e) {
-		importError.value = `No se ha podido importar: ${(e as Error).message}`;
+		importError.value = failure('No se ha podido importar', e);
 	} finally {
 		importing.value = false;
 	}

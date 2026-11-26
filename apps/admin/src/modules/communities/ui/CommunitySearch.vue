@@ -68,7 +68,7 @@ function focus() {
 	input.value?.focus();
 	input.value?.select();
 }
-useShortcut('mod+k', focus, { description: 'Buscar en la comunidad' });
+// ⌘K is the layout's palette, which also finds this community's sections; this one searches everything in it
 useShortcut('/', focus, { description: 'Buscar en la comunidad' });
 
 // Closes when the focus leaves it, e.g. with Tab
@@ -119,7 +119,7 @@ useEventListener(document, 'pointerdown', onPointerdown);
 				@input="show()"
 				@keydown="onKeydown"
 			>
-			<LnxKbd combo="mod+k" />
+			<LnxKbd combo="/" />
 		</label>
 
 		<!-- The focus stays in the input, or leaving it would close the list before the click -->

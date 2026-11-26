@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { AgendaItem, Meeting, MeetingAttendance, MeetingStatus, Tally } from '@gobernansa/shared/domain/meeting.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { attendanceStatus, meetingStatus, meetingTypes, tallyVotes } from '@gobernansa/shared/domain/meeting.ts';
 import { totalCoefficient } from '@gobernansa/shared/domain/property.ts';
-import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, toast, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, LnxTextarea, toast, useShortcut } from 'lnxjs-components';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -32,12 +33,10 @@ import MeetingVotes from './MeetingVotes.vue';
 
 const props = defineProps<{ id: string; meetingId: string }>();
 
-const ask = useConfirm();
-
 const router = useRouter();
 const isNew = computed(() => props.meetingId === 'new');
 const { meeting, attendance, ballots, minutes, notices } = useMeeting(props.id, () => props.meetingId);
-const listenError = computed(() => (meeting.error.value ?? attendance.error.value ?? ballots.error.value ?? minutes.error.value ?? notices.error.value)?.message);
+const listenError = computed(() => meeting.error.value ?? attendance.error.value ?? ballots.error.value ?? minutes.error.value ?? notices.error.value);
 // Undefined until it's read, null when it doesn't exist
 const loading = computed(() => !isNew.value && meeting.value === undefined && !listenError.value);
 const { people } = usePeople(props.id);
@@ -57,7 +56,7 @@ async function load() {
 		communityName.value = community?.name ?? '';
 		loadError.value = undefined;
 	} catch (e) {
-		loadError.value = `No se ha podido cargar el censo: ${(e as Error).message}`;
+		loadError.value = `No se ha podido cargar el censo: ${errorMessage(e)}`;
 	}
 }
 onMounted(load);
@@ -146,13 +145,12 @@ function toggleVoting() {
 	});
 }
 
-async function remove() {
-	if (await ask({ title: '¿Borrar este borrador de junta?', confirmText: 'Borrar', variant: 'danger' })) {
-		// Kept to bring it back as it was
-		const deleted = meeting.value!;
-		void optimistic(deleteMeeting(deleted), { done: 'Borrador borrado', failed: 'No se ha podido borrar', revert: async () => restoreMeeting(deleted) });
-		void router.push(`/communities/${props.id}/meetings`);
-	}
+// No confirmation: the toast's undo puts the draft back as it was
+function remove() {
+	// Kept to bring it back as it was
+	const deleted = meeting.value!;
+	void optimistic(deleteMeeting(deleted), { done: 'Borrador borrado', failed: 'No se ha podido borrar', revert: async () => restoreMeeting(deleted) });
+	void router.push(`/communities/${props.id}/meetings`);
 }
 
 const formElement = ref<HTMLFormElement>();
@@ -267,7 +265,7 @@ function print() {
 	</header>
 
 	<p v-if="listenError" class="error screen-only" role="alert">
-		No se ha podido cargar la junta: {{ listenError }}
+		No se ha podido cargar la junta: {{ errorMessage(listenError) }}
 	</p>
 	<p v-if="loadError" class="error screen-only" role="alert">
 		{{ loadError }}

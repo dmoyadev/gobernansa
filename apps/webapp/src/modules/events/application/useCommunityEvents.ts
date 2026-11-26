@@ -112,6 +112,10 @@ export function useCommunityEvents(pageSize = 15, pastOnly = false) {
 
 	return {
 		events,
+		// Skeletons only the first time: loading more keeps the ones already there
+		loading: computed(() => !eventsRef.value || (events.pending.value && !events.value.length)),
+		loadingMore: computed(() => events.pending.value && !!events.value.length),
+		error: events.error,
 		page,
 		allLoaded,
 		setFilters,

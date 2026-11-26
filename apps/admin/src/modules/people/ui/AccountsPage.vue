@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Role, User } from '@gobernansa/shared/domain/user.ts';
 import type { AccountChanges } from '../application/usePeople.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
 import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxRadioGroup, LnxSelect, useConfirm } from 'lnxjs-components';
@@ -186,7 +187,7 @@ async function remove(account: User & { id: string }) {
 		</div>
 
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 		<p v-else-if="loading && !accounts.length" class="hint" aria-busy="true">
 			Cargando…

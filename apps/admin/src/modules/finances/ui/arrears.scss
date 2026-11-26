@@ -1,0 +1,225 @@
+.page-header {
+	h1 {
+		font-size: var(--lnx-font-size-title);
+	}
+}
+
+.card {
+	margin-bottom: var(--lnx-spacing-5);
+}
+
+.totals {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: var(--lnx-spacing-3);
+
+	div {
+		display: flex;
+		flex-direction: column;
+	}
+
+	small {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+	}
+
+	strong {
+		font-size: var(--lnx-font-size-title);
+	}
+}
+
+// Each bucket with a bar as long as its share of the debt, older ones redder
+.aging {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: var(--lnx-spacing-3);
+
+	li {
+		position: relative;
+		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
+		border-radius: var(--lnx-radius-2);
+		background: var(--color-gray-1);
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.bar {
+		position: absolute;
+		inset: auto auto 0 0;
+		height: 3px;
+		background: var(--color-gray-5);
+	}
+
+	.age-2 .bar,
+	.age-3 .bar {
+		background: var(--color-secondary-accent);
+	}
+
+	small {
+		color: var(--color-gray-6);
+		font-size: var(--lnx-font-size-small);
+	}
+}
+
+.table {
+	overflow-x: auto;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--lnx-font-size-small);
+
+	th,
+	td {
+		padding: var(--lnx-spacing-2);
+		border-bottom: 1px solid var(--color-gray-3);
+		text-align: left;
+		vertical-align: middle;
+	}
+
+	thead th {
+		color: var(--color-gray-6);
+		font-weight: normal;
+		white-space: nowrap;
+	}
+
+	.amount {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.muted {
+		color: var(--color-gray-5);
+	}
+
+	.detail td {
+		background: var(--color-gray-1);
+	}
+}
+
+.what {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	text-align: left;
+
+	small {
+		color: var(--color-gray-6);
+	}
+}
+
+button.what {
+	margin: calc(-1 * var(--lnx-spacing-1)) calc(-1 * var(--lnx-spacing-2));
+	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
+	border: none;
+	border-radius: var(--lnx-radius-2);
+	background: none;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+
+.last {
+	display: block;
+	margin-top: 2px;
+	color: var(--color-gray-6);
+	white-space: nowrap;
+}
+
+.actions {
+	white-space: nowrap;
+}
+
+.chip {
+	padding: 2px var(--lnx-spacing-2);
+	border-radius: 999px;
+	background: var(--color-gray-2);
+	font-size: var(--lnx-font-size-small);
+	white-space: nowrap;
+
+	&.paid {
+		color: var(--color-primary);
+	}
+
+	&.monitorio {
+		color: var(--color-gray-0);
+		background: var(--color-secondary-accent);
+	}
+
+	&.uncollectible {
+		color: var(--color-gray-6);
+		text-decoration: line-through;
+	}
+
+	&.test {
+		color: var(--color-gray-7);
+		background: var(--color-gray-3);
+	}
+}
+
+.debt {
+	color: var(--color-secondary-accent);
+}
+
+.section-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--lnx-spacing-2);
+
+	.until {
+		width: 200px;
+	}
+}
+
+.fields {
+	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+	align-items: end;
+}
+
+.interest {
+	margin-bottom: var(--lnx-spacing-4);
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--lnx-spacing-2);
+}
+
+.case {
+	display: flex;
+	flex-direction: column;
+	gap: var(--lnx-spacing-3);
+
+	.status {
+		max-width: 260px;
+	}
+}
+
+.claims {
+	display: flex;
+	flex-direction: column;
+}
+
+.claim {
+	padding: var(--lnx-spacing-2) 0;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--lnx-spacing-3);
+
+	& + & {
+		border-top: 1px solid var(--color-gray-3);
+	}
+}
+
+.error {
+	margin-bottom: var(--lnx-spacing-3);
+}
+
+.search {
+	margin: var(--lnx-spacing-3) 0;
+}

@@ -1,3 +1,4 @@
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { addToTrail, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { dismiss, toast } from 'lnxjs-components';
 
@@ -23,7 +24,7 @@ export async function optimistic(action: Promise<unknown>, { done, failed, rever
 		if (id) {
 			dismiss(id);
 		}
-		toast(`${failed}: ${(error as Error).message}`, { variant: 'danger' });
+		toast(failure(failed, error), { variant: 'danger' });
 		reportError(error, { source: 'action', action: failed });
 		onError?.(error as Error);
 		return false;

@@ -1,6 +1,9 @@
 import type { RouteLocationNormalized } from 'vue-router';
+import { ref, watch, watchEffect } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { getCurrentUser } from 'vuefire';
+import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { remember } from './ux/navigation.ts';
 import { workspaceTitle } from './workspace/workspaces.ts';
 
 const router = createRouter({
@@ -139,7 +142,7 @@ const router = createRouter({
 					path: 'communities/:id/charges',
 					name: 'Recibos',
 					component: async () => import('@/modules/finances/ui/ChargesPage.vue'),
-					meta: { title: 'Recibos', workspace: 'finances', page: 'charges' },
+					meta: { title: 'Recibos', workspace: 'finances', page: 'charges', wide: true },
 					props: true,
 				},
 				{
@@ -153,7 +156,7 @@ const router = createRouter({
 					path: 'communities/:id/arrears',
 					name: 'Morosidad',
 					component: async () => import('@/modules/finances/ui/ArrearsPage.vue'),
-					meta: { title: 'Morosidad', workspace: 'finances', page: 'arrears' },
+					meta: { title: 'Morosidad', workspace: 'finances', page: 'arrears', wide: true },
 					props: true,
 				},
 				{
@@ -216,14 +219,14 @@ const router = createRouter({
 					path: 'communities/:id/bank',
 					name: 'Conciliación bancaria',
 					component: async () => import('@/modules/finances/ui/BankPage.vue'),
-					meta: { title: 'Conciliación bancaria', workspace: 'finances', page: 'bank' },
+					meta: { title: 'Conciliación bancaria', workspace: 'finances', page: 'bank', wide: true },
 					props: true,
 				},
 				{
 					path: 'communities/:id/accounting',
 					name: 'Contabilidad',
 					component: async () => import('@/modules/finances/ui/AccountingPage.vue'),
-					meta: { title: 'Contabilidad', workspace: 'finances', page: 'accounting' },
+					meta: { title: 'Contabilidad', workspace: 'finances', page: 'accounting', wide: true },
 					props: true,
 				},
 				{
@@ -258,7 +261,7 @@ const router = createRouter({
 					path: 'communities/:id/remittances',
 					name: 'Remesas',
 					component: async () => import('@/modules/finances/ui/RemittancesPage.vue'),
-					meta: { title: 'Remesas', workspace: 'finances', page: 'remittances' },
+					meta: { title: 'Remesas', workspace: 'finances', page: 'remittances', wide: true },
 					props: true,
 				},
 				{
@@ -302,7 +305,7 @@ const router = createRouter({
 					path: 'dashboard',
 					name: 'Panel',
 					component: async () => import('@/modules/portfolio/ui/DashboardPage.vue'),
-					meta: { title: 'Panel de cartera' },
+					meta: { title: 'Panel de cartera', wide: true },
 				},
 				{
 					path: 'issues',
@@ -378,7 +381,7 @@ const router = createRouter({
 					path: 'history',
 					name: 'Historial',
 					component: async () => import('@/modules/history/ui/HistoryPage.vue'),
-					meta: { title: 'Historial', superadmin: true },
+					meta: { title: 'Historial', superadmin: true, wide: true },
 				},
 				// The office's own staff (B3), for its owner
 				{
@@ -410,17 +413,33 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-	setDocumentTitle(to);
 	const redirection = await checkAuth(to);
 	return redirection || true;
 });
 
-function setDocumentTitle(to: RouteLocationNormalized) {
+// The name of the community the route is in, for the title, the layout and the workspace's nav. Kept like other shared
+// reads (remember), so it's read once per visit, and again after a change from here, which shows a rename on the next page
+export const communityName = ref<string>();
+watch(router.currentRoute, async (to, from) => {
+	const id = to.params.id as string | undefined;
+	if (id !== from.params.id) {
+		communityName.value = undefined;
+	}
+	const community = id ? await remember(`community:${id}`, async () => loadCommunity(id)).catch(() => undefined) : undefined;
+	if (id && id === router.currentRoute.value.params.id) {
+		communityName.value = community?.name;
+	}
+});
+
+// Updated again once the community's name is read
+watchEffect(() => setDocumentTitle(router.currentRoute.value, communityName.value));
+
+function setDocumentTitle(to: RouteLocationNormalized, community?: string) {
 	const titleSuffix = import.meta.env.MODE !== 'production'
 		? (` ${((import.meta.env.VITE_ENV_NAME as string | undefined) || import.meta.env.MODE).toUpperCase()}`)
 		: '';
-	const title = workspaceTitle(to) ?? to.meta?.title;
-	document.title = `${title ? (`${String(title)} | `) : ''}gobernança admin${titleSuffix}`;
+	const title = [workspaceTitle(to) ?? to.meta?.title, community].filter(Boolean).map(String).join(' · ');
+	document.title = `${title ? (`${title} | `) : ''}gobernança admin${titleSuffix}`;
 }
 
 // Only checks there's a session: what its profile may open (`superadmin` pages, each community's) is checked by the layout, and enforced by the security rules

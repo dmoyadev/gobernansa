@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Account, CustomAccount } from '@gobernansa/shared/domain/accounting.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { isValidAccountCode, sortedAccounts } from '@gobernansa/shared/domain/accounting.ts';
 import { LnxButton, LnxIcon, LnxInput, toast } from 'lnxjs-components';
 import { reactive, ref } from 'vue';
@@ -26,7 +27,7 @@ async function writeCustom(next: CustomAccount[], summary: string, previous: Cus
 		});
 		return true;
 	} catch (e) {
-		accountError.value = `No se ha podido guardar: ${(e as Error).message}`;
+		accountError.value = failure('No se ha podido guardar', e);
 		return false;
 	} finally {
 		accountSaving.value = false;

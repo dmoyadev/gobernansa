@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { VerifactuRecord } from '@gobernansa/shared/domain/verifactu.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { brokenLink, recordKinds, suministroXml } from '@gobernansa/shared/domain/verifactu.ts';
 import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
@@ -33,7 +34,7 @@ async function load() {
 			loadError.value = undefined;
 		}
 	} catch (e) {
-		loadError.value = `No se ha podido cargar el registro: ${(e as Error).message}`;
+		loadError.value = `No se ha podido cargar el registro: ${errorMessage(e)}`;
 	} finally {
 		loading.value = false;
 	}
@@ -97,6 +98,9 @@ function downloadYear() {
 		</div>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="load()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">

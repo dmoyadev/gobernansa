@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Property } from '@gobernansa/shared/domain/property.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { formatCoefficient, propertyTypeIcons, propertyTypeLabels, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
 import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
@@ -13,8 +14,6 @@ import { usePeople } from '@/modules/people/application/usePeople.ts';
 import { deleteProperty, restoreProperty, saveProperty, toPropertyForm, useProperties } from '../application/useProperties.ts';
 
 const props = defineProps<{ id: string }>();
-
-const ask = useConfirm();
 
 const typeOptions = Object.entries(propertyTypeLabels).map(([value, label]) => ({ value: value as Property['type'], label }));
 const types = Object.keys(propertyTypeLabels) as Property['type'][];
@@ -93,11 +92,8 @@ function save() {
 
 useShortcut('/', () => searchInput.value?.querySelector('input')?.focus(), { description: 'Buscar en el censo' });
 
-async function remove(property: Property) {
-	if (!await ask({ title: `¿Borrar «${property.name}»?`, confirmText: 'Borrar', variant: 'danger' })) {
-		return;
-	}
-
+// No confirmation: the toast's undo puts it back as it was
+function remove(property: Property) {
 	if (editingId.value === property.id) {
 		close();
 	}
@@ -193,7 +189,7 @@ function ownerLabel(property: Property) {
 	<section class="card">
 		<h2>Censo</h2>
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 		<p v-if="properties.length" class="tabular" :class="total === 100 ? 'hint' : 'warning'" :role="total === 100 ? undefined : 'status'">
 			<LnxIcon :icon="total === 100 ? 'lucide:circle-check' : 'lucide:triangle-alert'" :size="16" />

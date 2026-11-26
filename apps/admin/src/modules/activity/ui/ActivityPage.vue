@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Activity, ActivityArea } from '@gobernansa/shared/domain/activity.ts';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { activityAreas } from '@gobernansa/shared/domain/activity.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxRadioGroup } from 'lnxjs-components';
@@ -89,7 +90,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 		</LnxRadioGroup>
 
 		<p v-if="error" class="error" role="alert">
-			No se ha podido cargar: {{ error.message }}
+			No se ha podido cargar: {{ errorMessage(error) }}
 		</p>
 
 		<ul v-if="loading && !entries.length" class="list">

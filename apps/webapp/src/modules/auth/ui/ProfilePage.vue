@@ -183,7 +183,7 @@ const pushStatus = computed(() => {
 		return 'Tu navegador no las admite. En iPhone, añade la app a la pantalla de inicio.';
 	}
 	if (push.permission.value === 'denied') {
-		return 'Bloqueadas en los ajustes del navegador';
+		return 'Bloqueadas en los ajustes del móvil o del navegador';
 	}
 	return push.enabled.value ? 'Activadas en este dispositivo' : 'Avisos de tus incidencias y de la comunidad';
 });
@@ -405,6 +405,15 @@ async function savePassword() {
 							</span>
 						</span>
 					</LnxSwitch>
+				</li>
+				<!-- The app can't ask again once refused: only the person can, from the settings -->
+				<li v-if="push.supported && push.permission.value === 'denied'" class="unblock">
+					<p>Para activarlas, permítelas en los ajustes y vuelve aquí:</p>
+					<ul>
+						<li><strong>Android:</strong> mantén pulsado el icono de gobernança, toca Información de la app y luego Notificaciones. En Chrome, el icono junto a la dirección, Permisos y Notificaciones.</li>
+						<li><strong>iPhone:</strong> Ajustes, Notificaciones, gobernança y Permitir notificaciones.</li>
+						<li><strong>Ordenador:</strong> el icono junto a la dirección, Notificaciones y Permitir.</li>
+					</ul>
 				</li>
 				<!-- Without email the code is their password: changing it would leave them with no way in -->
 				<li v-if="user?.email">
@@ -689,6 +698,21 @@ li.row {
 }
 
 .error,
+.unblock {
+	padding: var(--lnx-spacing-3) var(--lnx-spacing-4);
+	color: var(--color-gray-7);
+	font-size: var(--lnx-font-size-small);
+
+	ul {
+		display: flex;
+		flex-direction: column;
+		gap: var(--lnx-spacing-1);
+		margin-top: var(--lnx-spacing-2);
+		padding-left: var(--lnx-spacing-4);
+		list-style: disc;
+	}
+}
+
 .error-text {
 	color: var(--color-secondary-accent) !important;
 }

@@ -4,6 +4,7 @@ import type { FileIssue, FileKind } from '@gobernansa/shared/domain/fileChecks.t
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { Timestamp } from 'firebase/firestore';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { buildLedger, entryKinds, sortedAccounts, toCsv } from '@gobernansa/shared/domain/accounting.ts';
 import { decodeText, parseCsv } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
@@ -92,7 +93,7 @@ async function runExport(item: typeof exports[number]) {
 			download(file);
 		}
 	} catch (e) {
-		toast(`No se ha podido exportar: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido exportar', e), { variant: 'danger' });
 	} finally {
 		busy.value = undefined;
 	}
@@ -242,7 +243,7 @@ async function readFile(event: Event) {
 		const [properties, existing] = await Promise.all([loadProperties(props.id), loadImportedIds(props.id)]);
 		draft.value = { name: file.name, rows, columns, properties, existing };
 	} catch (e) {
-		importError.value = `No se ha podido leer: ${(e as Error).message}`;
+		importError.value = failure('No se ha podido leer', e);
 	} finally {
 		reading.value = false;
 	}
@@ -278,7 +279,7 @@ async function importDraft() {
 			? { undo: async () => deleteCharges(props.id, written, label) }
 			: {});
 	} catch (e) {
-		importError.value = `No se ha podido importar: ${(e as Error).message}`;
+		importError.value = failure('No se ha podido importar', e);
 	} finally {
 		importing.value = false;
 	}

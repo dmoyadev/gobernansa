@@ -2,6 +2,7 @@
 import type { FeeInvoice } from '@gobernansa/shared/domain/billing.ts';
 import type { BudgetItem } from '@gobernansa/shared/domain/finance.ts';
 import type { VerifactuRecord } from '@gobernansa/shared/domain/verifactu.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { qrUrl, recordKinds, suministroXml } from '@gobernansa/shared/domain/verifactu.ts';
@@ -36,7 +37,7 @@ async function load() {
 		if (invoice.value) {
 			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
 		} else {
-			error.value = `No se ha podido cargar: ${(e as Error).message}`;
+			error.value = `No se ha podido cargar: ${errorMessage(e)}`;
 		}
 	} finally {
 		loading.value = false;

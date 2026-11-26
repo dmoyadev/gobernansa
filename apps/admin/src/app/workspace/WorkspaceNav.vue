@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { Workspace, WorkspaceSection } from './workspaces.ts';
-import { LnxIcon, useEventListener } from 'lnxjs-components';
+import { LnxButton, LnxIcon, useEventListener } from 'lnxjs-components';
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
+import { paletteMode } from '../palette.ts';
+import { communityName as name } from '../router.ts';
 
 // Beside every page of a workspace, kept mounted by the layout while moving between them
 const props = defineProps<{ workspace: Workspace; page: string }>();
@@ -15,15 +16,10 @@ const nav = useTemplateRef('nav');
 const communityId = computed(() => route.params.id as string);
 const base = computed(() => `/communities/${communityId.value}`);
 
-// A read when entering a workspace of a community, the generic name until then or if it fails
-const name = ref<string>();
-watch(communityId, async (id) => {
-	name.value = undefined;
-	const community = await loadCommunity(id).catch(() => undefined);
-	if (id === communityId.value) {
-		name.value = community?.name;
-	}
-}, { immediate: true });
+// Another community on this same page, from the palette
+function switchCommunity() {
+	paletteMode.value = 'switch';
+}
 
 // The page itself, or its section when on another tab or a detail page of it
 function ariaCurrent(to: string, section?: WorkspaceSection) {
@@ -71,10 +67,16 @@ watch(name, async () => {
 			:style="{ translate: `${marker.left}px ${marker.top}px`, width: `${marker.width}px`, height: `${marker.height}px` }"
 			aria-hidden="true"
 		/>
-		<RouterLink class="community" :to="base">
-			<LnxIcon icon="lucide:arrow-left" :size="16" aria-hidden="true" />
-			<span>{{ name || 'Comunidad' }}</span>
-		</RouterLink>
+		<!-- The generic name until it's read, or if it can't be -->
+		<div class="community">
+			<RouterLink :to="base">
+				<LnxIcon icon="lucide:arrow-left" :size="16" aria-hidden="true" />
+				<span>{{ name || 'Comunidad' }}</span>
+			</RouterLink>
+			<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Cambiar de comunidad" title="Cambiar de comunidad" @click="switchCommunity()">
+				<LnxIcon icon="lucide:chevrons-up-down" :size="16" />
+			</LnxButton>
+		</div>
 		<RouterLink v-if="workspace.summary" :to="`${base}/${workspace.summary.key}`" :aria-current="ariaCurrent(`${base}/${workspace.summary.key}`)">
 			<LnxIcon icon="lucide:layout-dashboard" :size="16" aria-hidden="true" />
 			Resumen
@@ -149,8 +151,16 @@ a {
 
 .community {
 	margin-bottom: var(--lnx-spacing-2);
-	color: var(--color-gray-9);
-	font-weight: var(--lnx-font-weight-bold);
+	display: flex;
+	align-items: center;
+	gap: var(--lnx-spacing-1);
+
+	a {
+		flex: 1;
+		min-width: 0;
+		color: var(--color-gray-9);
+		font-weight: var(--lnx-font-weight-bold);
+	}
 
 	span {
 		overflow: hidden;
@@ -214,8 +224,12 @@ a {
 	}
 
 	.community {
+		flex-shrink: 0;
 		margin-bottom: 0;
-		max-width: 160px;
+
+		a {
+			max-width: 160px;
+		}
 	}
 
 	.group,

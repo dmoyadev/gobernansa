@@ -9,6 +9,7 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { arrayUnion, collection, doc, getDocFromServer, getFirestore, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { computed, toValue } from 'vue';
 import { useCollection, useDocument } from 'vuefire';
+import { requireOnline, sendWrite } from '@/app/infrastructure/offline.ts';
 import { communityCollection, communityDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 
@@ -42,6 +43,19 @@ export function useMeetings() {
 		loading: computed(() => !meetingsRef.value || allMeetings.pending.value),
 		error: allMeetings.error,
 	};
+}
+
+/**
+ * The user's answer to one meeting, for Inicio. One read
+ */
+export function useMyAttendance(meetingId: MaybeRefOrGetter<string | undefined>) {
+	const db = getFirestore();
+	const { user } = useAuth();
+	const { userCommunity } = useUserCommunity();
+	return useDocument<MeetingAttendance>(computed(() => {
+		const id = toValue(meetingId);
+		return id && userCommunity.value && user.value ? doc(communityDoc(db, userCommunity.value.id, 'meetings', id), 'attendance', user.value.id) : null;
+	}));
 }
 
 /**
@@ -93,19 +107,21 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 		return { meetingRef: meetingRef.value, me: user.value };
 	}
 
+	// The answer can wait for the connection, true if it's waiting
 	async function answerAttendance(status: MeetingAttendance['status'], delegateName?: string) {
 		const { meetingRef, me } = getMe();
-		await setDoc(doc(meetingRef, 'attendance', me.id), {
+		return sendWrite(setDoc(doc(meetingRef, 'attendance', me.id), {
 			uid: me.id,
 			name: me.name || '',
 			status,
 			...(status === 'delegated' && delegateName ? { delegateName } : {}),
 			updatedAt: serverTimestamp(),
-		});
+		}), 'Responder a la junta');
 	}
 
 	// Once per item and property, voting again changes it. The rules check the property is theirs and its coefficient
 	async function vote(item: AgendaItem, property: Property, choice: VoteChoice) {
+		requireOnline();
 		const { meetingRef, me } = getMe();
 		await setDoc(doc(meetingRef, 'ballots', `${item.id}_${property.id}`), {
 			itemId: item.id,
@@ -122,6 +138,7 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 	// Their own slot, signed with their account, and marked on the meeting for the list. Sealed if it's the second, from the
 	// server's copy so the signing times are the stored ones. The admin also seals it when it sees it, so if this fails it's left to it
 	async function signMinutes(role: SignerRole, path: string) {
+		requireOnline();
 		const { meetingRef, me } = getMe();
 		const ref = minutesRef.value!;
 		const batch = writeBatch(db);
@@ -150,12 +167,14 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 
 	// readAt or receivedAt, once, by the server's clock
 	async function markNotice(notice: MeetingNotice, field: 'readAt' | 'receivedAt') {
+		requireOnline();
 		const { meetingRef } = getMe();
 		await updateDoc(doc(meetingRef, 'notices', notice.id), { [field]: serverTimestamp() });
 	}
 
 	// Art. 17.8 LPH, one agreement at a time
 	async function dissent(notice: MeetingNotice, itemId: string) {
+		requireOnline();
 		const { meetingRef } = getMe();
 		await updateDoc(doc(meetingRef, 'notices', notice.id), { [`dissent.${itemId}`]: serverTimestamp() });
 	}
@@ -163,6 +182,8 @@ export function useMeeting(meetingId: MaybeRefOrGetter<string>) {
 	return {
 		meeting,
 		loading: computed(() => !meetingRef.value || meeting.pending.value),
+		// Offline or refused: not the same as a meeting that doesn't exist
+		loadError: computed(() => meeting.error.value),
 		attendance,
 		ballots,
 		minutes,

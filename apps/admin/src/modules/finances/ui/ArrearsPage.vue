@@ -2,17 +2,21 @@
 import type { Claim, DebtCase, DebtCaseStatus } from '@gobernansa/shared/domain/arrears.ts';
 import type { LateInterest } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
+import { toCsv } from '@gobernansa/shared/domain/accounting.ts';
 import { agingBuckets, agingOf, claimChannels, claimLevels, debtCaseStatus, formatRate, interestOwed, SUGGESTED_INTEREST_RATE } from '@gobernansa/shared/domain/arrears.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
-import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, toast, useConfirm } from 'lnxjs-components';
-import { computed, onMounted, ref } from 'vue';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm } from 'lnxjs-components';
+import { computed, onMounted, ref, useTemplateRef } from 'vue';
+import { downloadFile } from '@/app/ux/download.ts';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadCommunity } from '@/modules/communities/application/useCommunities.ts';
 import { issueInterestCharge, loadDebtCases, loadInterestCharges, removeClaim, restoreClaims, saveLateInterest, setDebtCaseStatus } from '../application/useArrears.ts';
 import { deleteCharge, useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { useListSearch } from './listSearch.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -34,7 +38,7 @@ async function loadCases() {
 		cases.value = Object.fromEntries((await loadDebtCases(props.id)).map(debtCase => [debtCase.id, debtCase]));
 		casesError.value = undefined;
 	} catch (e) {
-		casesError.value = `No se han podido cargar las reclamaciones: ${(e as Error).message}`;
+		casesError.value = failure('No se han podido cargar las reclamaciones', e);
 	} finally {
 		casesLoading.value = false;
 	}
@@ -46,6 +50,8 @@ onRevalidate(loadCases);
 const settings = ref<LateInterest | null>();
 const interestCharges = ref<Charge[]>([]);
 const interestError = ref<string>();
+// Apart from interestError, which also tells what to fix in the form: this one can be tried again
+const interestLoadError = ref<string>();
 const interestForm = ref({ enabled: false, rate: '', graceDays: '' });
 
 function resetInterestForm() {
@@ -62,9 +68,9 @@ async function loadInterest() {
 		settings.value = community?.lateInterest ?? null;
 		interestCharges.value = settings.value ? await loadInterestCharges(props.id) : [];
 		resetInterestForm();
-		interestError.value = undefined;
+		interestLoadError.value = undefined;
 	} catch (e) {
-		interestError.value = `No se han podido cargar los intereses de demora: ${(e as Error).message}`;
+		interestLoadError.value = failure('No se han podido cargar los intereses de demora', e);
 	}
 }
 onMounted(loadInterest);
@@ -91,7 +97,7 @@ function saveInterest() {
 	if (next && !previous) {
 		loadInterestCharges(props.id)
 			.then(charges => interestCharges.value = charges)
-			.catch((e: Error) => interestError.value = `No se han podido cargar los recibos de intereses: ${e.message}`);
+			.catch((e: unknown) => interestLoadError.value = failure('No se han podido cargar los recibos de intereses', e));
 	}
 	const undo = () => {
 		settings.value = previous;
@@ -132,6 +138,25 @@ const rows = computed(() => {
 			|| a.property.name.localeCompare(b.property.name, 'es', { numeric: true }));
 });
 const totals = computed(() => agingOf(unpaid.value, now));
+
+const { search, matches } = useListSearch('Buscar en los deudores', useTemplateRef<HTMLElement>('searchBox'));
+const shownRows = computed(() => rows.value.filter(row => matches(row.property.name, row.property.ownerName)));
+
+// What's shown, as a spreadsheet opens it
+function exportCsv() {
+	const header = ['Propiedad', 'Propietario', 'Recibos vencidos', ...agingBuckets.map(bucket => bucket.label), 'Total', ...settings.value ? ['Intereses'] : [], 'Reclamación', 'Última reclamación'];
+	const lines = shownRows.value.map(row => [
+		row.property.name,
+		row.property.ownerName ?? '',
+		String(row.aging.count),
+		...row.aging.buckets,
+		row.aging.total,
+		...settings.value ? [row.interest?.total ?? 0] : [],
+		row.debtCase ? debtCaseStatus[row.debtCase.status] : 'Sin reclamar',
+		lastClaim(row.debtCase) ?? '',
+	]);
+	downloadFile(`morosidad-${today}.csv`, toCsv([header, ...lines]), 'text/csv;charset=utf-8');
+}
 const interestTotal = computed(() => rows.value.reduce((sum, row) => sum + (row.interest?.total ?? 0), 0));
 
 // A charge for the interest a property owes until the day picked. Money: it waits for the server
@@ -157,7 +182,7 @@ async function invoiceInterest(row: typeof rows.value[number]) {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido emitir: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido emitir', e), { variant: 'danger' });
 	} finally {
 		invoicing.value = undefined;
 	}
@@ -188,8 +213,9 @@ function changeStatus(debtCase: DebtCase, status: DebtCaseStatus) {
 	});
 }
 
+// Asked even with undo: the letter was sent, so the register stops showing a claim the owner did get
 async function removeOne(debtCase: DebtCase, claim: Claim) {
-	if (!await ask({ title: `¿Quitar la reclamación del ${claim.date.split('-').reverse().join('/')} del registro?`, confirmText: 'Quitar', variant: 'danger' })) {
+	if (!await ask({ title: `¿Quitar la reclamación del ${claim.date.split('-').reverse().join('/')} del registro?`, message: 'Ya se le envió: solo deja de constar en el registro, que es la prueba de que se le reclamó.', confirmText: 'Quitar', variant: 'danger' })) {
 		return;
 	}
 	const before = { ...debtCase, id: debtCase.id };
@@ -217,10 +243,19 @@ function lastClaim(debtCase?: DebtCase) {
 	</header>
 
 	<p v-if="propertiesError || chargesError" class="error" role="alert">
-		No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
+		{{ failure('No se han podido cargar', propertiesError ?? chargesError) }}
 	</p>
 	<p v-if="casesError" class="error" role="alert">
 		{{ casesError }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="casesError = undefined; loadCases()">
+			Reintentar
+		</LnxButton>
+	</p>
+	<p v-if="interestLoadError" class="error" role="alert">
+		{{ interestLoadError }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="interestLoadError = undefined; loadInterest()">
+			Reintentar
+		</LnxButton>
 	</p>
 	<p v-if="interestError" class="error" role="alert">
 		{{ interestError }}
@@ -291,6 +326,15 @@ function lastClaim(debtCase?: DebtCase) {
 			<LnxDatePicker v-if="settings" v-model="interestTo" value-format="iso-date" class="until" :max="today">
 				Intereses hasta
 			</LnxDatePicker>
+			<LnxButton mode="clear" class="lnx-size-small" :disabled="!shownRows.length" @click="exportCsv()">
+				<LnxIcon icon="lucide:download" />
+				Exportar CSV
+			</LnxButton>
+		</div>
+		<div ref="searchBox" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Propiedad o propietario">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
 		</div>
 		<ul v-if="loading" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [55, 40, 65]" :key="width" class="item">
@@ -303,7 +347,7 @@ function lastClaim(debtCase?: DebtCase) {
 				</div>
 			</li>
 		</ul>
-		<div v-else-if="rows.length" class="table lnx-appear">
+		<div v-else-if="shownRows.length" class="table lnx-appear">
 			<table>
 				<thead>
 					<tr>
@@ -328,7 +372,7 @@ function lastClaim(debtCase?: DebtCase) {
 					</tr>
 				</thead>
 				<tbody>
-					<template v-for="row in rows" :key="row.property.id">
+					<template v-for="row in shownRows" :key="row.property.id">
 						<tr>
 							<th scope="row">
 								<button type="button" class="what ux-row" :aria-expanded="openId === row.property.id" @click="openId = openId === row.property.id ? undefined : row.property.id">
@@ -466,231 +510,13 @@ function lastClaim(debtCase?: DebtCase) {
 				</tbody>
 			</table>
 		</div>
+		<p v-else-if="rows.length" class="hint">
+			Ningún deudor coincide con «{{ search }}».
+		</p>
 		<p v-else class="hint">
 			Nadie debe recibos vencidos.
 		</p>
 	</section>
 </template>
 
-<style lang="scss" scoped>
-.page-header {
-	h1 {
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-.card {
-	margin-bottom: var(--lnx-spacing-5);
-}
-
-.totals {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-	gap: var(--lnx-spacing-3);
-
-	div {
-		display: flex;
-		flex-direction: column;
-	}
-
-	small {
-		color: var(--color-gray-6);
-		font-size: var(--lnx-font-size-small);
-	}
-
-	strong {
-		font-size: var(--lnx-font-size-title);
-	}
-}
-
-// Each bucket with a bar as long as its share of the debt, older ones redder
-.aging {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: var(--lnx-spacing-3);
-
-	li {
-		position: relative;
-		padding: var(--lnx-spacing-2) var(--lnx-spacing-3);
-		border-radius: var(--lnx-radius-2);
-		background: var(--color-gray-1);
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
-
-	.bar {
-		position: absolute;
-		inset: auto auto 0 0;
-		height: 3px;
-		background: var(--color-gray-5);
-	}
-
-	.age-2 .bar,
-	.age-3 .bar {
-		background: var(--color-secondary-accent);
-	}
-
-	small {
-		color: var(--color-gray-6);
-		font-size: var(--lnx-font-size-small);
-	}
-}
-
-.table {
-	overflow-x: auto;
-}
-
-table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: var(--lnx-font-size-small);
-
-	th,
-	td {
-		padding: var(--lnx-spacing-2);
-		border-bottom: 1px solid var(--color-gray-3);
-		text-align: left;
-		vertical-align: middle;
-	}
-
-	thead th {
-		color: var(--color-gray-6);
-		font-weight: normal;
-		white-space: nowrap;
-	}
-
-	.amount {
-		text-align: right;
-		white-space: nowrap;
-	}
-
-	.muted {
-		color: var(--color-gray-5);
-	}
-
-	.detail td {
-		background: var(--color-gray-1);
-	}
-}
-
-.what {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	text-align: left;
-
-	small {
-		color: var(--color-gray-6);
-	}
-}
-
-button.what {
-	margin: calc(-1 * var(--lnx-spacing-1)) calc(-1 * var(--lnx-spacing-2));
-	padding: var(--lnx-spacing-1) var(--lnx-spacing-2);
-	border: none;
-	border-radius: var(--lnx-radius-2);
-	background: none;
-	font: inherit;
-	color: inherit;
-	cursor: pointer;
-}
-
-.last {
-	display: block;
-	margin-top: 2px;
-	color: var(--color-gray-6);
-	white-space: nowrap;
-}
-
-.actions {
-	white-space: nowrap;
-}
-
-.chip {
-	padding: 2px var(--lnx-spacing-2);
-	border-radius: 999px;
-	background: var(--color-gray-2);
-	font-size: var(--lnx-font-size-small);
-	white-space: nowrap;
-
-	&.paid {
-		color: var(--color-primary);
-	}
-
-	&.monitorio {
-		color: var(--color-gray-0);
-		background: var(--color-secondary-accent);
-	}
-
-	&.uncollectible {
-		color: var(--color-gray-6);
-		text-decoration: line-through;
-	}
-
-	&.test {
-		color: var(--color-gray-7);
-		background: var(--color-gray-3);
-	}
-}
-
-.debt {
-	color: var(--color-secondary-accent);
-}
-
-.section-head {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--lnx-spacing-2);
-
-	.until {
-		width: 200px;
-	}
-}
-
-.fields {
-	grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-	align-items: end;
-}
-
-.interest {
-	margin-bottom: var(--lnx-spacing-4);
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: var(--lnx-spacing-2);
-}
-
-.case {
-	display: flex;
-	flex-direction: column;
-	gap: var(--lnx-spacing-3);
-
-	.status {
-		max-width: 260px;
-	}
-}
-
-.claims {
-	display: flex;
-	flex-direction: column;
-}
-
-.claim {
-	padding: var(--lnx-spacing-2) 0;
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: center;
-	gap: var(--lnx-spacing-3);
-
-	& + & {
-		border-top: 1px solid var(--color-gray-3);
-	}
-}
-
-.error {
-	margin-bottom: var(--lnx-spacing-3);
-}
-</style>
+<style lang="scss" scoped src="./arrears.scss" />

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/community.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { commonAreaIcons, formatSchedule, getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, useConfirm } from 'lnxjs-components';
 import { ref, toRaw, useTemplateRef } from 'vue';
@@ -42,7 +43,7 @@ function load() {
 			areas.value = getCommonAreas(community);
 			loadError.value = undefined;
 		})
-		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
+		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${errorMessage(e)}`)
 		.finally(() => loading.value = false);
 }
 

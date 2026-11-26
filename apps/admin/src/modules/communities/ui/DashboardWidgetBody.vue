@@ -4,12 +4,16 @@ import type { useDashboardFigures, Widget } from '../application/dashboardWidget
 import type { DashboardData } from '../application/useCommunityDashboard.ts';
 import { meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
+import { useRoute } from 'vue-router';
 import { formatDate, percent } from '../application/dashboardWidgets.ts';
 
 // What a dashboard widget shows under its title: its figures and chart, or its skeleton while they load
 const props = defineProps<{ widget: Widget; state: 'failed' | 'loading' | 'ready'; figures: ReturnType<typeof useDashboardFigures>; data: DashboardData }>();
 
 const DAY = 86_400_000;
+
+// Rows open their own issue, category or debtor, above the link the whole widget is
+const community = `/communities/${useRoute().params.id as string}`;
 
 const { monthLabels, openSummary, ageLegend, categories, oldest, voted, unassigned, claims, resolution, flow, registration, census, obligations, delinquency, debtors, balance, budget, meeting, week } = props.figures;
 
@@ -238,7 +242,9 @@ function ago(date: Timestamp) {
 	<template v-else-if="widget.key === 'categories'">
 		<ul v-if="categories.length" class="meters">
 			<li v-for="category in categories" :key="category.id" :style="{ '--bar': `var(--color-issue-cat-${category.color}-accent)` }">
-				<span class="text">{{ category.name }}</span>
+				<RouterLink class="text" :to="`${community}/issues?category=${encodeURIComponent(category.id)}`">
+					{{ category.name }}
+				</RouterLink>
 				<span class="meter">
 					<span :style="{ width: `${percent(category.total, categories[0].total)}%` }" />
 				</span>
@@ -254,7 +260,9 @@ function ago(date: Timestamp) {
 	<template v-else-if="widget.key === 'oldest'">
 		<ul v-if="oldest.length" class="rows">
 			<li v-for="issue in oldest" :key="issue.id">
-				<span class="text">{{ issue.title }}</span>
+				<RouterLink class="text" :to="`${community}/issues/${issue.id}`">
+					{{ issue.title }}
+				</RouterLink>
 				<span class="age" :class="{ warn: issue.days >= 14 }">{{ issue.days }} días</span>
 			</li>
 		</ul>
@@ -267,7 +275,9 @@ function ago(date: Timestamp) {
 	<template v-else-if="widget.key === 'voted'">
 		<ol v-if="voted.length" class="rows">
 			<li v-for="issue in voted" :key="issue.id">
-				<span class="text">{{ issue.title }}</span>
+				<RouterLink class="text" :to="`${community}/issues/${issue.id}`">
+					{{ issue.title }}
+				</RouterLink>
 				<span class="muted">{{ issue.votesScore }}</span>
 			</li>
 		</ol>
@@ -299,8 +309,10 @@ function ago(date: Timestamp) {
 	<!-- The properties owing the most -->
 	<template v-else-if="widget.key === 'debtors'">
 		<ol v-if="debtors.length" class="rows">
-			<li v-for="debtor in debtors" :key="debtor.name">
-				<span class="text">{{ debtor.name }}</span>
+			<li v-for="debtor in debtors" :key="debtor.propertyId">
+				<RouterLink class="text" :to="`${community}/statements/${debtor.propertyId}`">
+					{{ debtor.name }}
+				</RouterLink>
 				<span class="warn">{{ formatCents(debtor.amount) }}</span>
 			</li>
 		</ol>
@@ -619,6 +631,25 @@ function ago(date: Timestamp) {
 		overflow: hidden;
 		color: var(--color-gray-8);
 		text-overflow: ellipsis;
+	}
+}
+
+// Over the widget's stretched link, so a row opens its own page
+a.text {
+	position: relative;
+	z-index: 2;
+	border-radius: var(--lnx-radius-1);
+	text-decoration: none;
+
+	&:hover {
+		color: var(--color-primary);
+		text-decoration: underline;
+	}
+
+	&:focus-visible {
+		// Inside: the list clips what overflows
+		outline: 2px solid var(--color-primary);
+		outline-offset: -2px;
 	}
 }
 

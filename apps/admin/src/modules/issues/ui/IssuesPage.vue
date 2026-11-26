@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Issue, IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import type { LocationQuery, LocationQueryRaw } from 'vue-router';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { getCommonAreas } from '@gobernansa/shared/domain/community.ts';
 import { findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
-import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxTextarea } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxSelect, LnxTextarea } from 'lnxjs-components';
 import { computed, ref, useTemplateRef } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import FormCard from '@/app/ux/FormCard.vue';
 import { newId } from '@/app/ux/navigation.ts';
@@ -20,23 +22,65 @@ import IssueAge from './IssueAge.vue';
 const props = defineProps<{ id: string }>();
 
 const PAGE_SIZE = 20;
+// ponytail: sorting or filtering here reads up to this many (newest first) and does it in the page; a query per view if a
+// community ever has more unresolved than this
+const WHOLE_MAX = 300;
+const UNRESOLVED: IssueStatus[] = ['open', 'in_progress'];
+const sortOptions = [{ value: '', label: 'Más antiguas' }, { value: 'newest', label: 'Más recientes' }, { value: 'votes', label: 'Más votadas' }];
+const onlyOptions = [{ value: '', label: 'Todas' }, { value: 'unassigned', label: 'Sin proveedor' }, { value: 'claims', label: 'Con siniestro' }];
 
+const route = useRoute();
 const router = useRouter();
 const { user: me } = useAuth();
 
-const status = ref<IssueStatus>();
+// The view is in the URL, so the dashboard's links and a reload open it as it was. Kept alive, it only follows its own
+const path = route.path;
+const query = computed<LocationQuery>(previous => route.path === path ? route.query : previous ?? {});
 const max = ref(PAGE_SIZE);
-const { data: issues, pending, error } = useIssues(props.id, status, max);
 
-function filter(value?: IssueStatus) {
-	status.value = value;
+// Defaults are '' and left out of the URL. One replace for every change, as two in a row keep only the last
+function setView(changes: Record<string, string>) {
 	max.value = PAGE_SIZE;
+	const next: LocationQueryRaw = { ...route.query };
+	for (const [key, value] of Object.entries(changes)) {
+		next[key] = value || undefined;
+	}
+	void router.replace({ query: next });
 }
+
+// One key of the view: '' when missing or not one of its values (any, without a list); setting it changes the URL
+function param(key: string, values?: string[]) {
+	return computed({
+		get: () => {
+			const value = query.value[key];
+			return typeof value === 'string' && (!values || values.includes(value)) ? value : '';
+		},
+		set: value => setView({ [key]: value }),
+	});
+}
+
+// Like the Bandeja: unresolved and the longest waiting first, unless the URL says otherwise
+const status = param('status', ['all', ...issueStatus.map(({ value }) => value)]);
+const sort = param('sort', ['newest', 'votes']);
+const only = param('only', ['unassigned', 'claims']);
+const category = param('category');
+const filtered = computed(() => !!(status.value || only.value || category.value));
+
+const statuses = computed(() => status.value === 'all' ? undefined : status.value ? [status.value as IssueStatus] : UNRESOLVED);
+// Newest first pages from the server; any other order or filter needs them all
+const whole = computed(() => sort.value !== 'newest' || !!only.value || !!category.value);
+const { data: fetched, pending, error } = useIssues(props.id, statuses, computed(() => whole.value ? WHOLE_MAX : max.value));
+
+const issues = computed(() => {
+	const list = fetched.value.filter(issue => (only.value !== 'unassigned' || !issue.provider) && (only.value !== 'claims' || !!issue.insuranceClaim) && (!category.value || issue.category === category.value));
+	return sort.value === 'newest' ? list : sort.value === 'votes' ? list.toSorted((a, b) => b.votesScore - a.votesScore) : list.toReversed();
+});
 
 // Its categories and common areas, as neighbours see them. Read once with the page, the defaults and a typed place until then
 const community = ref<Community>();
 loadCommunity(props.id).then(loaded => community.value = loaded, () => {});
 const categories = computed(() => getIssueCategories(community.value));
+const categoryOptions = computed(() => [{ value: '', label: 'Todas' }, ...categories.value.map(({ id, name }) => ({ value: id, label: name }))]);
 const areas = computed(() => community.value && getCommonAreas(community.value));
 const statusLabels = Object.fromEntries(issueStatus.map(({ value, label }) => [value, label]));
 const thisYear = new Date().getFullYear();
@@ -122,12 +166,12 @@ function create() {
 		<fieldset class="categories">
 			<legend>Categoría</legend>
 			<label
-				v-for="category in categories"
-				:key="category.id"
-				:style="issueCategoryStyle(category)"
+				v-for="option in categories"
+				:key="option.id"
+				:style="issueCategoryStyle(option)"
 			>
-				<input v-model="form.category" type="radio" class="sr-only" name="category" :value="category.id" required>
-				<span><LnxIcon :icon="category.icon" :size="16" />{{ category.name }}</span>
+				<input v-model="form.category" type="radio" class="sr-only" name="category" :value="option.id" required>
+				<span><LnxIcon :icon="option.icon" :size="16" />{{ option.name }}</span>
 			</label>
 		</fieldset>
 		<div class="fields">
@@ -150,21 +194,50 @@ function create() {
 	</FormCard>
 
 	<LnxRadioGroup
-		class="filters"
-		:model-value="status ?? ''"
-		:options="[{ value: '', label: 'Todas' }, ...issueStatus]"
+		v-model="status"
+		class="statuses"
+		:options="[{ value: '', label: 'Sin resolver' }, ...issueStatus, { value: 'all', label: 'Todas' }]"
 		hide-legend
-		@update:model-value="value => filter((value || undefined) as IssueStatus | undefined)"
 	>
 		Estado
 		<template #option="{ option }">
-			<i v-if="option.value" :style="{ background: `var(--color-issue-status-${option.value})` }" />{{ option.label }}
+			<i v-if="option.value && option.value !== 'all'" :style="{ background: `var(--color-issue-status-${option.value})` }" />{{ option.label }}
 		</template>
 	</LnxRadioGroup>
 
+	<div class="filters">
+		<LnxSelect v-model.convert="sort" :options="sortOptions" :convert-fn="option => option.value">
+			Orden
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ sortOptions.find(option => option.value === value)?.label }}
+			</template>
+		</LnxSelect>
+		<LnxSelect v-model.convert="category" :options="categoryOptions" :convert-fn="option => option.value">
+			Categoría
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ categoryOptions.find(option => option.value === value)?.label }}
+			</template>
+		</LnxSelect>
+		<LnxSelect v-model.convert="only" :options="onlyOptions" :convert-fn="option => option.value">
+			Mostrar
+			<template #option="{ option }">
+				{{ option.label }}
+			</template>
+			<template #optionInput="{ value }">
+				{{ onlyOptions.find(option => option.value === value)?.label }}
+			</template>
+		</LnxSelect>
+	</div>
+
 	<section class="card list-card" :aria-busy="pending && !issues.length">
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 
 		<ul v-if="pending && !issues.length" class="list" aria-hidden="true">
@@ -230,11 +303,17 @@ function create() {
 			</li>
 		</TransitionGroup>
 		<p v-else class="hint">
-			No hay incidencias{{ status ? ' con este estado' : '' }}.
+			No hay incidencias {{ filtered ? 'con estos filtros' : 'sin resolver' }}.
+			<LnxButton v-if="filtered" mode="clear" class="lnx-size-small" @click="setView({ status: '', only: '', category: '' })">
+				Limpiar filtros
+			</LnxButton>
+		</p>
+		<p v-if="whole && fetched.length >= WHOLE_MAX" class="hint">
+			Se han tenido en cuenta las {{ WHOLE_MAX }} más recientes.
 		</p>
 
 		<LnxButton
-			v-if="issues.length >= max"
+			v-if="!whole && fetched.length >= max"
 			mode="outline"
 			:is-loading="pending"
 			@click="max += PAGE_SIZE"
@@ -309,13 +388,24 @@ function create() {
 	}
 }
 
-.filters {
-	margin-bottom: var(--lnx-spacing-4);
+.statuses {
+	margin-bottom: var(--lnx-spacing-3);
 
 	i {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
+	}
+}
+
+.filters {
+	margin-bottom: var(--lnx-spacing-4);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-3);
+
+	> * {
+		width: 220px;
 	}
 }
 

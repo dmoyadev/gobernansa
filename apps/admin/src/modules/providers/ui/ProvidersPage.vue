@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Provider, ProviderCategory, ProviderRating } from '@gobernansa/shared/domain/provider.ts';
 import type { ProviderForm } from '../application/providerActions.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { formatIban } from '@gobernansa/shared/domain/community.ts';
 import { averageRating, providerCategories } from '@gobernansa/shared/domain/provider.ts';
@@ -8,6 +9,7 @@ import { managesCommunity } from '@gobernansa/shared/domain/user.ts';
 import { Timestamp } from 'firebase/firestore';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, LnxTextarea, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, ref, useTemplateRef, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { contains, needle, searchable, searchWords } from '@/app/useSearchHighlight.ts';
 import BackButton from '@/app/ux/BackButton.vue';
 import FormCard from '@/app/ux/FormCard.vue';
@@ -30,7 +32,20 @@ const communityNames = computed(() => new Map(communities.value.map(community =>
 const categoryOptions = Object.entries(providerCategories).map(([value, { label }]) => ({ value: value as ProviderCategory, label }));
 const filterOptions: { value: ProviderCategory | ''; label: string }[] = [{ value: '', label: 'Todas' }, ...categoryOptions];
 
-const category = ref<ProviderCategory | ''>('');
+const route = useRoute();
+const router = useRouter();
+const path = route.path;
+// In the URL, so a reload or a shared link keeps it. Kept alive, the page only follows its own
+const category = computed({
+	get: (previous?: ProviderCategory | '') => {
+		if (route.path !== path) {
+			return previous ?? '';
+		}
+		const value = route.query.category;
+		return typeof value === 'string' && value in providerCategories ? value as ProviderCategory : '';
+	},
+	set: value => void router.replace({ query: { ...route.query, category: value || undefined } }),
+});
 const search = ref('');
 // What each one is found by, prepared when they change rather than at every key
 const searchTexts = computed(() => new Map(providers.value.map(provider => [
@@ -126,8 +141,10 @@ function save() {
 	});
 }
 
+// Asks only when the toast can't undo it: ratings by others or communities this user doesn't manage
 async function remove(provider: Provider) {
-	if (!await ask({ title: `¿Eliminar ${provider.name} del directorio de todas sus comunidades?`, confirmText: 'Eliminar', variant: 'danger' })) {
+	const canUndo = canRestoreProvider(provider, me.value);
+	if (!canUndo && !await ask({ title: `¿Eliminar ${provider.name} del directorio de todas sus comunidades?`, message: 'No se podrá deshacer.', confirmText: 'Eliminar', variant: 'danger' })) {
 		return;
 	}
 
@@ -137,7 +154,7 @@ async function remove(provider: Provider) {
 	void optimistic(deleteProvider(provider.id), {
 		done: 'Proveedor eliminado',
 		failed: 'No se ha podido eliminar',
-		revert: canRestoreProvider(provider, me.value) ? () => restoreProvider(provider) : undefined,
+		revert: canUndo ? () => restoreProvider(provider) : undefined,
 	});
 }
 
@@ -174,7 +191,7 @@ async function refreshRatings(providerId: string, keepDraft = false) {
 			rating.value = { score: mine?.score ?? 5, comment: mine?.comment ?? '' };
 		}
 	} catch (e) {
-		ratingsError.value = `No se han podido cargar las valoraciones: ${(e as Error).message}`;
+		ratingsError.value = `No se han podido cargar las valoraciones: ${errorMessage(e)}`;
 	} finally {
 		ratingsLoading.value = false;
 	}
@@ -318,7 +335,7 @@ useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestS
 		</div>
 
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 
 		<ul v-if="loading && !providers.length" class="list" aria-busy="true" aria-label="Cargando proveedores">

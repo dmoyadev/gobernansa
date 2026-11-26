@@ -2,12 +2,14 @@
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { LnxButton, LnxIcon } from 'lnxjs-components';
 import { useTemplateRef } from 'vue';
+import { useUnreadNotices } from '@/modules/events/application/useUnreadNotices.ts';
 import TheToolbar from './TheToolbar.vue';
 
 // Shown in the toolbar on scroll, the route title by default. With back, a button to the previous page instead of the logo
 defineProps<{ title?: string; back?: string }>();
 
 const { user } = useAuth();
+const { unread } = useUnreadNotices();
 const $header = useTemplateRef('$header');
 </script>
 
@@ -19,9 +21,11 @@ const $header = useTemplateRef('$header');
 				to="/notices"
 				mode="clear"
 				shape="circle"
-				aria-label="Avisos"
+				class="bell"
+				:aria-label="unread ? 'Avisos, hay nuevos' : 'Avisos'"
 			>
 				<LnxIcon icon="lucide:bell" />
+				<span v-if="unread" class="dot" />
 			</LnxButton>
 		</TheToolbar>
 
@@ -54,6 +58,21 @@ header {
 			align-items: center;
 			padding: 0 48px 0 calc(32px + var(--lnx-spacing-3));
 		}
+	}
+}
+
+.bell {
+	position: relative;
+
+	.dot {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		width: 9px;
+		height: 9px;
+		border: 2px solid var(--color-gray-0);
+		border-radius: var(--lnx-radius-circle);
+		background: var(--lnx-color-danger);
 	}
 }
 </style>

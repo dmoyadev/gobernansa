@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Account, JournalLine, ManualEntry } from '@gobernansa/shared/domain/accounting.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { isBalanced, sortedAccounts } from '@gobernansa/shared/domain/accounting.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
@@ -102,7 +103,7 @@ async function submit() {
 		await props.save(draft.id, { date: draft.date, concept: draft.concept.trim(), lines }, draft.existing);
 		cancel();
 	} catch (e) {
-		formError.value = `No se ha podido guardar: ${(e as Error).message}`;
+		formError.value = failure('No se ha podido guardar', e);
 	} finally {
 		saving.value = false;
 	}

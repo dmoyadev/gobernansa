@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { IssueCategory, IssueCategoryColor } from '@gobernansa/shared/domain/issue.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { DEFAULT_ISSUE_CATEGORIES, getIssueCategories, issueCategoryColors, issueCategoryIcons, issueCategoryStyle } from '@gobernansa/shared/domain/issue.ts';
 import { LnxButton, LnxIcon, LnxInput, useConfirm } from 'lnxjs-components';
 import { ref, toRaw, useTemplateRef } from 'vue';
@@ -39,7 +40,7 @@ function load() {
 			categories.value = structuredClone(getIssueCategories(community));
 			loadError.value = undefined;
 		})
-		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
+		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${errorMessage(e)}`)
 		.finally(() => loading.value = false);
 }
 

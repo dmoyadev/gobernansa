@@ -2,9 +2,11 @@
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Invitation, Role, User } from '@gobernansa/shared/domain/user.ts';
 import type { PrintedLetter } from './AccessLetterPrint.vue';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { assignableRoles, formatInviteCode, newInviteCode, roles } from '@gobernansa/shared/domain/user.ts';
-import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxRadioGroup, LnxSelect, useConfirm } from 'lnxjs-components';
+import { normalize } from '@gobernansa/shared/utils/helpers.ts';
+import { LnxButton, LnxCheckbox, LnxIcon, LnxInput, LnxKbd, LnxRadioGroup, LnxSelect, useConfirm, useShortcut } from 'lnxjs-components';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
 import BackButton from '@/app/ux/BackButton.vue';
 import FormCard from '@/app/ux/FormCard.vue';
@@ -41,6 +43,18 @@ const roleSelectOptions = computed(() => roleOptions.value.map(value => ({ value
 // Managers first, then by name. An office's staff aren't listed among the administrators: they follow its owner's
 // communities and its owner manages them, on Equipo
 const sortedPeople = computed(() => people.value.filter(person => communityId || !person.officeId).sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || a.name.localeCompare(b.name, 'es')));
+
+// Accents and case ignored, every word in their name, email or role
+const search = ref('');
+const searchElement = useTemplateRef<HTMLElement>('searchElement');
+useShortcut('/', () => searchElement.value?.querySelector('input')?.focus(), { description: 'Buscar cuentas' });
+const shownPeople = computed(() => {
+	const words = normalize(search.value).split(' ').filter(Boolean);
+	return sortedPeople.value.filter((person) => {
+		const text = normalize([person.name, person.email, roles[person.role]?.label].filter(Boolean).join(' '));
+		return words.every(word => text.includes(word));
+	});
+});
 
 // Never themselves, and only roles they could give
 function canEdit(person: User & { id: string }) {
@@ -265,8 +279,13 @@ function cancel(invitation: Invitation & { id: string }) {
 	<section class="card">
 		<h2>{{ communityId ? 'Cuentas' : 'Con acceso' }}</h2>
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
+		<div v-if="sortedPeople.length" ref="searchElement" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Nombre, email o rol">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
 
 		<ul v-if="loading && !people.length" class="list" aria-busy="true">
 			<li v-for="width in [38, 52, 30, 45]" :key="width" class="person">
@@ -278,8 +297,8 @@ function cancel(invitation: Invitation & { id: string }) {
 				<span class="lnx-skeleton lnx-skeleton--small" style="width: 96px" />
 			</li>
 		</ul>
-		<TransitionGroup v-else-if="sortedPeople.length" tag="ul" name="row" class="list lnx-appear">
-			<li v-for="person in sortedPeople" :key="person.id" class="person">
+		<TransitionGroup v-else-if="shownPeople.length" tag="ul" name="row" class="list lnx-appear">
+			<li v-for="person in shownPeople" :key="person.id" class="person">
 				<div class="who">
 					<strong :style="communityId ? { viewTransitionName: `person-${person.id}` } : undefined">{{ person.name }}<template v-if="person.id === me?.id"> (tú)</template></strong>
 					<small>{{ person.email || 'Entra con su carta de acceso' }}</small>
@@ -336,7 +355,7 @@ function cancel(invitation: Invitation & { id: string }) {
 			</li>
 		</TransitionGroup>
 		<p v-else class="hint">
-			Aún no hay cuentas.
+			{{ sortedPeople.length ? 'Nadie coincide con la búsqueda.' : 'Aún no hay cuentas.' }}
 		</p>
 	</section>
 
@@ -401,6 +420,11 @@ function cancel(invitation: Invitation & { id: string }) {
 
 .card {
 	margin-bottom: var(--lnx-spacing-5);
+}
+
+.search {
+	width: 320px;
+	max-width: 100%;
 }
 
 .list {

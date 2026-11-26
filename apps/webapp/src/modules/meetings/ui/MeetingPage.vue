@@ -3,14 +3,16 @@ import type { AgendaItem, MeetingAttendance, VoteChoice } from '@gobernansa/shar
 import type { MeetingNotice, SignerRole } from '@gobernansa/shared/domain/minutes.ts';
 import type { Property } from '@gobernansa/shared/domain/property.ts';
 import type { Timestamp } from 'firebase/firestore';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { attendanceStatus, isApproved, meetingStatus, meetingTypes, tallyVotes, voteChoices } from '@gobernansa/shared/domain/meeting.ts';
 import { dissentDeadline, minutesHash, noticeKinds, signerRoles } from '@gobernansa/shared/domain/minutes.ts';
 import { formatCoefficient } from '@gobernansa/shared/domain/property.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import SignaturePad from '@gobernansa/shared/ui/SignaturePad.vue';
-import { LnxButton, LnxIcon, LnxInput, useConfirm } from 'lnxjs-components';
+import { LnxButton, LnxIcon, LnxInput, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
+import { QUEUED_MESSAGE } from '@/app/infrastructure/offline.ts';
 import MainLayout from '@/app/ui/MainLayout.vue';
 import TheToolbar from '@/app/ui/TheToolbar.vue';
 import { useUserProperties } from '@/modules/community/application/useUserProperties.ts';
@@ -22,23 +24,27 @@ const ask = useConfirm();
 
 const { user } = useAuth();
 const { userProperties } = useUserProperties();
-const { meeting, loading, attendance, ballots, minutes, callNotice, minutesNotice, answerAttendance, vote, signMinutes, markNotice, dissent } = useMeeting(() => props.id);
+const { meeting, loading, loadError, attendance, ballots, minutes, callNotice, minutesNotice, answerAttendance, vote, signMinutes, markNotice, dissent } = useMeeting(() => props.id);
 
 const votableItems = computed(() => meeting.value?.agenda.filter(item => item.votable) ?? []);
 const canVote = computed(() => !!meeting.value?.votingOpen && meeting.value.status !== 'cancelled' && !user.value?.blocked);
 
-const error = ref<string>();
 const busy = ref<string>();
 
-// Each action shows its own error, and logs it to know why it failed (e.g. the security rules)
-async function run(key: string, action: () => Promise<unknown>, errorMessage: string) {
+// Each action says what failed in a toast, where it's seen whatever part of the agenda the user is at, and logs it to
+// know why (e.g. the security rules)
+async function run(key: string, action: () => Promise<unknown>, failed: string, done?: string) {
 	busy.value = key;
-	error.value = undefined;
 	try {
-		await action();
-	} catch (e) {
-		reportError(e, { action: errorMessage });
-		error.value = errorMessage;
+		// An attendance answer can wait for the connection
+		if (await action() === true) {
+			toast(`Respuesta guardada. ${QUEUED_MESSAGE}`);
+		} else if (done) {
+			toast(done, { variant: 'success' });
+		}
+	} catch (error) {
+		reportError(error, { action: failed });
+		toast(`${failed}. ${errorMessage(error)}`, { variant: 'danger' });
 	} finally {
 		busy.value = undefined;
 	}
@@ -58,11 +64,11 @@ function answer(status: MeetingAttendance['status']) {
 		return;
 	}
 	delegating.value = false;
-	void run(status, async () => answerAttendance(status), 'No se ha podido guardar tu respuesta. Inténtalo de nuevo.');
+	void run(status, async () => answerAttendance(status), 'No se ha podido guardar tu respuesta');
 }
 
 function delegate() {
-	void run('delegated', async () => answerAttendance('delegated', delegateName.value.trim()), 'No se ha podido guardar la delegación. Inténtalo de nuevo.');
+	void run('delegated', async () => answerAttendance('delegated', delegateName.value.trim()), 'No se ha podido guardar la delegación', 'Delegación guardada');
 }
 
 /* Votes */
@@ -71,7 +77,7 @@ function myChoice(item: AgendaItem, property: Property) {
 }
 
 function onVote(item: AgendaItem, property: Property, choice: VoteChoice) {
-	void run(`${item.id}_${property.id}_${choice}`, async () => vote(item, property, choice), 'No se ha podido votar. Revisa tu conexión e inténtalo de nuevo.');
+	void run(`${item.id}_${property.id}_${choice}`, async () => vote(item, property, choice), 'No se ha podido votar');
 }
 
 function results(item: AgendaItem) {
@@ -92,8 +98,11 @@ const myRole = computed(() => {
 });
 const signature = ref('');
 
-function sign() {
-	void run('sign', async () => signMinutes(myRole.value!, signature.value), 'No se ha podido firmar el acta. Inténtalo de nuevo.');
+// Asked first, like disagreeing: once signed the slot is locked
+async function sign() {
+	if (await ask({ title: '¿Firmar el acta?', message: 'Una vez firmada no se puede cambiar.', confirmText: 'Firmar' })) {
+		void run('sign', async () => signMinutes(myRole.value!, signature.value), 'No se ha podido firmar el acta', 'Acta firmada');
+	}
 }
 
 // Computed again from what's stored, so a copy changed by hand would show
@@ -118,16 +127,18 @@ watch(notices, (loaded) => {
 }, { immediate: true });
 
 function acknowledge(notice: MeetingNotice) {
-	void run(`receipt_${notice.id}`, async () => markNotice(notice, 'receivedAt'), 'No se ha podido acusar recibo. Inténtalo de nuevo.');
+	void run(`receipt_${notice.id}`, async () => markNotice(notice, 'receivedAt'), 'No se ha podido guardar');
 }
+
+const reload = () => location.reload();
 
 function canDissent(notice: MeetingNotice) {
 	return Date.now() < dissentDeadline(notice).getTime();
 }
 
 async function onDissent(notice: MeetingNotice, item: AgendaItem) {
-	if (await ask({ title: `¿Manifestar tu discrepancia con «${item.title}»?`, message: 'No se puede deshacer.', confirmText: 'Manifestar discrepancia' })) {
-		void run(`dissent_${item.id}`, async () => dissent(notice, item.id), 'No se ha podido registrar tu discrepancia. Inténtalo de nuevo.');
+	if (await ask({ title: `¿No estás de acuerdo con «${item.title}»?`, message: 'Quedará anotado y no se puede deshacer.', confirmText: 'No estoy de acuerdo' })) {
+		void run(`dissent_${item.id}`, async () => dissent(notice, item.id), 'No se ha podido guardar');
 	}
 }
 </script>
@@ -170,7 +181,6 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 						</dt>
 						<dd>
 							<a :href="meeting.link" target="_blank" rel="noopener">Unirse a la junta</a>
-							<small v-if="!meeting.place" class="hint">Las juntas solo en línea están pendientes de regulación general en la LPH.</small>
 						</dd>
 					</div>
 				</dl>
@@ -184,7 +194,7 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 					<LnxIcon icon="lucide:signature" :size="16" />
 					Firmar acta
 				</LnxButton>
-				<small class="hint">Firma electrónica simple: se guarda tu trazo con tu cuenta y la hora del servidor.</small>
+				<small class="hint">Se guarda tu firma con tu nombre y la hora.</small>
 			</section>
 
 			<section v-if="minutes">
@@ -205,10 +215,14 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 							</figcaption>
 						</figure>
 					</div>
-					<p v-if="minutes.hash" class="hash">
-						<LnxIcon :icon="verified ? 'lucide:shield-check' : 'lucide:shield'" :size="16" />
-						<span>Huella SHA-256 <code>{{ minutes.hash }}</code>{{ verified ? '. Coincide con el texto y las firmas.' : '' }}</span>
-					</p>
+					<!-- What it means first; the fingerprint, for whoever wants to check it -->
+					<details v-if="minutes.hash" class="hash">
+						<summary>
+							<LnxIcon :icon="verified ? 'lucide:shield-check' : 'lucide:shield'" :size="16" />
+							{{ verified ? 'Acta sellada: nadie la ha cambiado desde que se firmó' : 'Acta sellada' }}
+						</summary>
+						<p>Huella SHA-256 del texto y las firmas: <code>{{ minutes.hash }}</code></p>
+					</details>
 				</div>
 			</section>
 
@@ -217,25 +231,29 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 				<p>Te la notificamos el {{ formatDay(notice.sentAt) }}.</p>
 				<p v-if="notice.receivedAt" class="done">
 					<LnxIcon icon="lucide:check" :size="16" />
-					Acusaste recibo el {{ formatDay(notice.receivedAt) }}.
+					Confirmaste que la recibiste el {{ formatDay(notice.receivedAt) }}.
 				</p>
 				<template v-else>
 					<LnxButton class="lnx-size-small" :is-loading="busy === `receipt_${notice.id}`" :disabled="!!busy" @click="acknowledge(notice)">
 						<LnxIcon icon="lucide:mail-check" :size="16" />
-						Acuso recibo
+						{{ notice.kind === 'call' ? 'He recibido la convocatoria' : 'He recibido el acta' }}
 					</LnxButton>
 					<small class="hint">Confirma que la has recibido. Queda como prueba de la entrega.</small>
 				</template>
 
 				<div v-if="notice.kind === 'minutes' && notice.absent" class="dissent">
 					<p>
-						No asististe ni te representaron. Si no estás de acuerdo con algún acuerdo, dilo antes del {{ dateTimeFormat.format(dissentDeadline(notice)) }}:
-						si no, tu voto cuenta a favor (art. 17.8 LPH).
+						No fuiste a la junta ni delegaste tu voto. Si no estás de acuerdo con algo de lo que se decidió, dilo antes del
+						{{ dateTimeFormat.format(dissentDeadline(notice)) }}. Si no dices nada, tu voto cuenta a favor.
 					</p>
+					<details class="more">
+						<summary>Más información</summary>
+						<p>Lo dice el artículo 17.8 de la Ley de Propiedad Horizontal: quien no asiste tiene 30 días para mostrar su desacuerdo.</p>
+					</details>
 					<div v-for="item in meeting.agenda.filter(entry => notice.items.includes(entry.id))" :key="item.id" class="dissent-item">
 						<span>{{ item.title }}</span>
-						<small v-if="notice.dissent[item.id]">Discrepancia registrada el {{ formatDay(notice.dissent[item.id]!) }}</small>
-						<small v-else-if="notice.recordedDissent?.[item.id]">La administración anotó tu discrepancia, recibida el {{ formatDay(notice.recordedDissent[item.id]!.receivedOn) }}</small>
+						<small v-if="notice.dissent[item.id]">Dijiste que no estás de acuerdo el {{ formatDay(notice.dissent[item.id]!) }}</small>
+						<small v-else-if="notice.recordedDissent?.[item.id]">La administración anotó que no estás de acuerdo, recibido el {{ formatDay(notice.recordedDissent[item.id]!.receivedOn) }}</small>
 						<LnxButton
 							v-else-if="canDissent(notice)"
 							class="lnx-size-small"
@@ -244,7 +262,7 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 							:disabled="!!busy"
 							@click="onDissent(notice, item)"
 						>
-							Manifestar mi discrepancia
+							No estoy de acuerdo
 						</LnxButton>
 					</div>
 					<small v-if="!canDissent(notice)" class="hint">El plazo terminó el {{ dateTimeFormat.format(dissentDeadline(notice)) }}.</small>
@@ -352,11 +370,6 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 					Tu cuenta no puede votar ahora mismo.
 				</small>
 			</section>
-
-			<p v-if="error" class="error" role="alert">
-				<LnxIcon icon="lucide:circle-alert" :size="16" />
-				{{ error }}
-			</p>
 		</template>
 
 		<template v-else-if="loading">
@@ -364,6 +377,16 @@ async function onDissent(notice: MeetingNotice, item: AgendaItem) {
 			<span class="lnx-skeleton" />
 			<span class="lnx-skeleton" style="width: 70%" />
 		</template>
+
+		<!-- The listener stops on an error, so trying again is loading the page again -->
+		<div v-else-if="loadError" class="empty" role="alert">
+			<LnxIcon icon="lucide:wifi-off" :size="32" />
+			<h3>No se ha podido cargar la junta</h3>
+			<p>{{ errorMessage(loadError) }}</p>
+			<LnxButton mode="clear" @click="reload()">
+				Reintentar
+			</LnxButton>
+		</div>
 
 		<div v-else class="empty">
 			<LnxIcon icon="lucide:search-x" :size="32" />
@@ -498,12 +521,22 @@ h2 {
 	}
 }
 
-.hash {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--lnx-spacing-2);
+.hash,
+.more {
 	color: var(--color-gray-6);
 	font-size: var(--lnx-font-size-small);
+
+	summary {
+		display: flex;
+		align-items: center;
+		gap: var(--lnx-spacing-2);
+		min-height: 44px;
+		cursor: pointer;
+	}
+
+	p {
+		color: var(--color-gray-6);
+	}
 
 	code {
 		overflow-wrap: anywhere;
@@ -639,20 +672,12 @@ h2 {
 	}
 }
 
-.notice,
-.error {
+.notice {
 	display: flex;
 	align-items: flex-start;
 	gap: var(--lnx-spacing-2);
 	font-size: var(--lnx-font-size-small);
-}
-
-.notice {
 	color: var(--color-gray-8);
-}
-
-.error {
-	color: var(--lnx-color-danger);
 }
 
 .hint {

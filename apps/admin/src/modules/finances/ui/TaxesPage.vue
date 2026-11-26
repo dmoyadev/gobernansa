@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { IncomeKind, ManualEntry } from '@gobernansa/shared/domain/accounting.ts';
 import type { Declarant } from '@gobernansa/shared/domain/aeat.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { incomeAmounts, incomeKinds } from '@gobernansa/shared/domain/accounting.ts';
 import { attributeIncome, incomeTotals, model184File, model190File, model347File, operations347, provinceCode, taxDeadlines, taxIdProblem, THRESHOLD_184, THRESHOLD_347, withholdings } from '@gobernansa/shared/domain/aeat.ts';
 import { checkAeat } from '@gobernansa/shared/domain/fileChecks.ts';
@@ -64,9 +65,9 @@ async function load(refresh = false) {
 		error.value = loaded.community ? undefined : 'No existe esta comunidad.';
 	} catch (e) {
 		if (cache.has(wanted)) {
-			toast(`No se ha podido actualizar: ${(e as Error).message}`, { variant: 'danger' });
+			toast(failure('No se ha podido actualizar', e), { variant: 'danger' });
 		} else {
-			error.value = `No se han podido cargar los datos: ${(e as Error).message}`;
+			error.value = failure('No se han podido cargar los datos', e);
 		}
 	} finally {
 		if (wanted === year.value) {
@@ -235,7 +236,7 @@ async function saveIncome() {
 		toast('Ingreso añadido');
 		await load(true);
 	} catch (e) {
-		incomeError.value = `No se ha podido guardar: ${(e as Error).message}`;
+		incomeError.value = failure('No se ha podido guardar', e);
 	} finally {
 		savingIncome.value = false;
 	}
@@ -252,7 +253,7 @@ async function removeIncome(entry: ManualEntry) {
 			},
 		});
 	} catch (e) {
-		toast(`No se ha podido borrar: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se ha podido borrar', e), { variant: 'danger' });
 	}
 }
 
@@ -267,7 +268,7 @@ async function addDeadlines() {
 		const added = await addTaxDeadlines(props.id, deadlines.value.filter(deadline => new Date(`${deadline.due}T23:59`) >= new Date()));
 		toast(added ? `${added} ${added === 1 ? 'plazo añadido' : 'plazos añadidos'} a las obligaciones` : 'Los plazos ya estaban en las obligaciones');
 	} catch (e) {
-		toast(`No se han podido añadir: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se han podido añadir', e), { variant: 'danger' });
 	} finally {
 		addingDeadlines.value = false;
 	}
@@ -314,6 +315,9 @@ useShortcut('d', () => downloads[model.value](), { description: 'Descargar el fi
 
 	<p v-if="error" class="error card" role="alert">
 		{{ error }}
+		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+			Reintentar
+		</LnxButton>
 	</p>
 
 	<template v-else>

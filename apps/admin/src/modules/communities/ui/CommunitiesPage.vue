@@ -3,6 +3,7 @@ import { computed, reactive, ref, useTemplateRef, watch } from 'vue';
 </script>
 
 <script setup lang="ts">
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { readsOnly } from '@gobernansa/shared/domain/user.ts';
 import { normalize } from '@gobernansa/shared/utils/helpers.ts';
@@ -90,7 +91,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 	</header>
 
 	<p v-if="error" class="error" role="alert">
-		No se han podido cargar las comunidades: {{ error.message }}
+		No se han podido cargar las comunidades: {{ errorMessage(error) }}
 	</p>
 
 	<ul v-else-if="loading" class="list" aria-busy="true">

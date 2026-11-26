@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BankMovement, MatchCandidate } from '@gobernansa/shared/domain/bank.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { demoMovements, norma43 } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { Timestamp } from 'firebase/firestore';
@@ -50,7 +51,7 @@ async function sync(connect = false) {
 		consenting.value = false;
 		toast(added.length ? `${added.length} movimientos simulados nuevos` : 'No hay movimientos nuevos');
 	} catch (e) {
-		feedError.value = `No se ha podido sincronizar: ${(e as Error).message}`;
+		feedError.value = failure('No se ha podido sincronizar', e);
 	} finally {
 		syncing.value = false;
 	}
@@ -71,7 +72,7 @@ async function disconnect() {
 			},
 		});
 	} catch (e) {
-		feedError.value = `No se ha podido desconectar: ${(e as Error).message}`;
+		feedError.value = failure('No se ha podido desconectar', e);
 	}
 }
 

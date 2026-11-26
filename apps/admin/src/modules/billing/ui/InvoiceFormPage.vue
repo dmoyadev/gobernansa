@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FeeInvoice } from '@gobernansa/shared/domain/billing.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { feeInvoiceAmounts } from '@gobernansa/shared/domain/billing.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { isValidNif, normalizeTaxId } from '@gobernansa/shared/domain/fiscal.ts';
@@ -43,7 +44,7 @@ onMounted(async () => {
 			loadError.value = 'No existe esta factura.';
 		}
 	} catch (e) {
-		loadError.value = `No se ha podido cargar la factura: ${(e as Error).message}`;
+		loadError.value = `No se ha podido cargar la factura: ${errorMessage(e)}`;
 	} finally {
 		loading.value = false;
 	}
@@ -150,7 +151,7 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 	</header>
 
 	<p v-if="loadError || officeError || communitiesError" class="error" role="alert">
-		{{ loadError ?? `No se han podido cargar: ${(officeError ?? communitiesError)?.message}` }}
+		{{ loadError ?? `No se han podido cargar: ${errorMessage(officeError ?? communitiesError)}` }}
 	</p>
 	<div v-else-if="loading" class="card" aria-busy="true" aria-label="Cargando">
 		<span v-for="width in [60, 80, 50]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />

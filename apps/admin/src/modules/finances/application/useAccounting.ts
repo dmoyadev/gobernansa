@@ -26,6 +26,18 @@ function closingRef(communityId: string, year: number) {
 	return doc(db, 'communities', communityId, 'fiscalYears', String(year));
 }
 
+// Why deleting something dated so is asked first: one of its years is closed, its books kept as they were, or that
+// couldn't be checked. 1 read per year
+export async function closedYearWarning(communityId: string, dates: (Timestamp | null | undefined)[]) {
+	const years = new Set(dates.flatMap(at => at ? [at.toDate().getFullYear()] : []));
+	try {
+		const snapshots = await Promise.all(Array.from(years, async year => getDoc(closingRef(communityId, year))));
+		return snapshots.some(snapshot => snapshot.exists()) ? 'Su ejercicio está cerrado: cambiarán unas cuentas ya cerradas.' : undefined;
+	} catch {
+		return 'No se ha podido comprobar si su ejercicio está cerrado.';
+	}
+}
+
 function chartRef(communityId: string) {
 	return doc(db, 'communities', communityId, 'accounting', 'chart');
 }

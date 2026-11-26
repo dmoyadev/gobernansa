@@ -44,10 +44,14 @@ const weekFull = computed(() => {
 	return !!area.value?.maxPerWeek && myBookings.value.filter(({ areaId: id, date: day }) => id === areaId.value && day >= week.from && day <= week.to).length >= area.value.maxPerWeek;
 });
 
+// The listeners stop on an error, so trying again is loading the page again
+const loadFailed = computed(() => !!(dayBookings.error.value || myBookings.error.value));
+const reload = () => location.reload();
+
 // Why it can't be paid here, the same checks as the bookings page
 const unavailable = computed(() => {
 	if (dayBookings.error.value || myBookings.error.value) {
-		return 'No se han podido cargar las reservas. Recarga la página.';
+		return 'No se han podido cargar las reservas. Revisa tu conexión.';
 	}
 	if (loading.value) {
 		return undefined;
@@ -121,6 +125,14 @@ async function pay(checkout: Checkout) {
 					<LnxIcon icon="lucide:file-check" />
 				</template>
 				Ver el justificante
+			</LnxButton>
+		</template>
+		<template v-else-if="loadFailed" #unavailable>
+			<LnxButton class="lnx-size-large" is-block @click="reload()">
+				<template #prefix>
+					<LnxIcon icon="lucide:refresh-cw" />
+				</template>
+				Reintentar
 			</LnxButton>
 		</template>
 

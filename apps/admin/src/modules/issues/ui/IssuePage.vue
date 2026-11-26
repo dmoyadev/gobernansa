@@ -2,11 +2,12 @@
 import type { IssueSuggestion } from '@gobernansa/shared/application/writing.ts';
 import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { IssueStatus } from '@gobernansa/shared/domain/issue.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { claimStatus, findIssueCategory, getIssueAge, getIssueCategories, issueCategoryStyle, issueLocationTypes, issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { isVideoUrl } from '@gobernansa/shared/domain/media.ts';
-import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
-import { computed, defineAsyncComponent, reactive, ref } from 'vue';
+import { LnxButton, LnxIcon } from 'lnxjs-components';
+import { computed, defineAsyncComponent, onActivated, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { newId } from '@/app/ux/navigation.ts';
@@ -22,8 +23,6 @@ import IssueHistory from './IssueHistory.vue';
 import WorkOrderPanel from './WorkOrderPanel.vue';
 
 const props = defineProps<{ id: string; issueId: string }>();
-
-const ask = useConfirm();
 
 const router = useRouter();
 const { user: me } = useAuth();
@@ -96,27 +95,37 @@ const providerMail = computed(() => {
 	return `mailto:${email}?subject=${encodeURIComponent(`Incidencia: ${issue.value.title}`)}&body=${encodeURIComponent(body)}`;
 });
 
-async function deleteIssue() {
-	if (await ask({ title: '¿Borrar esta incidencia?', message: 'Dejará de verse en la app.', confirmText: 'Borrar', variant: 'danger' })) {
-		const uid = me.value!.id;
-		void optimistic(remove(uid), {
-			done: 'Incidencia borrada',
-			failed: 'No se ha podido borrar',
-			revert: async () => restore(uid),
-		});
-		void router.push(`/communities/${props.id}/issues`);
-	}
+// Back to the list it was opened from, the Bandeja or the community's, with its filters; the community's otherwise
+function origin() {
+	const previous = window.history.state?.back as string | null | undefined;
+	const list = `/communities/${props.id}/issues`;
+	return previous && [list, '/issues'].includes(router.resolve(previous).path) ? previous : list;
+}
+const backTo = ref(origin());
+const fromInbox = computed(() => backTo.value.startsWith('/issues'));
+// Kept alive, it can be opened again from the other list
+onActivated(() => backTo.value = origin());
+
+// No confirmation: the toast's undo brings it back
+function deleteIssue() {
+	const uid = me.value!.id;
+	void optimistic(remove(uid), {
+		done: 'Incidencia borrada',
+		failed: 'No se ha podido borrar',
+		revert: async () => restore(uid),
+	});
+	void router.push(backTo.value);
 }
 </script>
 
 <template>
 	<header class="page-header">
-		<BackButton :to="`/communities/${id}/issues`" label="Volver a incidencias" />
-		<span>Incidencias</span>
+		<BackButton :to="backTo" :label="fromInbox ? 'Volver a la bandeja' : 'Volver a incidencias'" />
+		<span>{{ fromInbox ? 'Bandeja' : 'Incidencias' }}</span>
 	</header>
 
 	<p v-if="error" class="error" role="alert">
-		No se ha podido cargar: {{ error.message }}
+		No se ha podido cargar: {{ errorMessage(error) }}
 	</p>
 	<p v-else-if="!loading && (!issue || issue.deletedAt)" class="hint">
 		Esta incidencia no existe o se ha borrado.

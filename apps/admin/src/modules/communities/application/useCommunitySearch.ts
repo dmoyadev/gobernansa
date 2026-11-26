@@ -275,6 +275,7 @@ export function useCommunitySearch(communityId: MaybeRefOrGetter<string>, commun
 		loading.value = false;
 	}
 
+	// Without loadIndex, only the sections and the community doc: what the ⌘K palette searches, without reading anything
 	const entries = computed(() => {
 		const current = toValue(community);
 		return [
@@ -288,7 +289,7 @@ export function useCommunitySearch(communityId: MaybeRefOrGetter<string>, commun
 		return rank(entries.value, text);
 	}
 
-	return { search, loadIndex, loading };
+	return { search, loadIndex, loading, entries };
 }
 
 // The census of every community the office has, to find a neighbour without knowing where they live. Read the first time it's

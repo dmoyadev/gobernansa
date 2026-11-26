@@ -6,6 +6,7 @@ import { outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { collection, doc, getDoc, getDocs, getFirestore, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { computed } from 'vue';
 import { useCollection } from 'vuefire';
+import { requireOnline } from '@/app/infrastructure/offline.ts';
 
 // What the test checkout gives back, only the card's brand and last digits
 export interface Checkout {
@@ -54,6 +55,7 @@ export function useMyCharges() {
 
 // What's left of it, after any entregas a cuenta
 export async function payMyCharge(communityId: string, uid: string, charge: Charge, checkout: Checkout) {
+	requireOnline();
 	const db = getFirestore();
 	const { ref, data, payment } = preparePayment(db, communityId, uid, outstanding(charge), { chargeId: charge.id }, checkout);
 	const batch = writeBatch(db);

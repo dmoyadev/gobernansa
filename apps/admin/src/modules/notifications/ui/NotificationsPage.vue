@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Event } from '@gobernansa/shared/domain/event.ts';
 import type { NotificationForm } from '../application/useNotifications.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { eventTypes } from '@gobernansa/shared/domain/event.ts';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, LnxTextarea, useConfirm } from 'lnxjs-components';
+import { LnxButton, LnxDatePicker, LnxIcon, LnxInput, LnxSelect, LnxTextarea } from 'lnxjs-components';
 import { ref, useTemplateRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
@@ -15,8 +16,6 @@ import { toInputDate } from '@/modules/communities/domain/communityForm.ts';
 import { deleteNotification, loadNotification, restoreNotification, saveNotification, useNotifications } from '../application/useNotifications.ts';
 
 const props = defineProps<{ id: string }>();
-
-const ask = useConfirm();
 
 const PAGE_SIZE = 20;
 
@@ -97,11 +96,8 @@ function save() {
 	});
 }
 
-async function remove(notification: Event) {
-	if (!await ask({ title: `¿Borrar «${notification.title}»?`, confirmText: 'Borrar', variant: 'danger' })) {
-		return;
-	}
-
+// No confirmation: the toast's undo puts it back as it was
+function remove(notification: Event) {
 	if (editingId.value === notification.id) {
 		close();
 	}
@@ -159,7 +155,7 @@ async function remove(notification: Event) {
 	<section class="card" :aria-busy="pending">
 		<h2>Publicados</h2>
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 
 		<ul v-if="pending && !notifications.length" class="list">

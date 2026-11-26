@@ -3,6 +3,7 @@ import type { Community } from '@gobernansa/shared/domain/community.ts';
 import type { Charge } from '@gobernansa/shared/domain/finance.ts';
 import type { Remittance, RemittanceItem, ReturnReason } from '@gobernansa/shared/domain/sepa.ts';
 import type { RemittanceData } from '../application/useRemittances.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { checkSepa } from '@gobernansa/shared/domain/fileChecks.ts';
 import { outstanding } from '@gobernansa/shared/domain/finance.ts';
@@ -11,7 +12,7 @@ import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { creditorId, remittanceStatuses, remittanceXml, returnReasons, sepaDateTime, sepaId } from '@gobernansa/shared/domain/sepa.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { Timestamp } from 'firebase/firestore';
-import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast, useConfirm } from 'lnxjs-components';
+import { LnxButton, LnxCheckbox, LnxDatePicker, LnxIcon, LnxInput, LnxKbd, LnxSelect, toast } from 'lnxjs-components';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { downloadFile } from '@/app/ux/download.ts';
 import FormCard from '@/app/ux/FormCard.vue';
@@ -23,11 +24,10 @@ import { useFileCheck } from '../application/useFileCheck.ts';
 import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
 import { createRemittance, deleteRemittance, loadRemittances, MAX_REMITTANCE_ITEMS, returnDebit, setRemittanceStatus } from '../application/useRemittances.ts';
 import FileCheck from './FileCheck.vue';
+import { useListSearch } from './listSearch.ts';
 import ReturnsReport from './ReturnsReport.vue';
 
 const props = defineProps<{ id: string }>();
-
-const ask = useConfirm();
 
 const ALL = '';
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium' });
@@ -47,7 +47,7 @@ async function load() {
 		[community.value, remittances.value] = await Promise.all([loadCommunity(props.id), loadRemittances(props.id)]);
 		loadError.value = undefined;
 	} catch (e) {
-		loadError.value = `No se han podido cargar las remesas: ${(e as Error).message}`;
+		loadError.value = failure('No se han podido cargar las remesas', e);
 	} finally {
 		loading.value = false;
 	}
@@ -212,7 +212,7 @@ async function save(id: string, data: RemittanceData, xml: string) {
 		toast(`Remesa ${data.reference} generada, súbela a la banca online`);
 		return true;
 	} catch (e) {
-		formError.value = `No se ha podido generar: ${(e as Error).message}`;
+		formError.value = failure('No se ha podido generar', e);
 		return false;
 	} finally {
 		generating.value = false;
@@ -223,6 +223,10 @@ async function save(id: string, data: RemittanceData, xml: string) {
 
 const busyId = ref<string>();
 const actionError = ref<string>();
+
+// By reference or by what went in: a property, its account holder or a concept
+const { search, matches } = useListSearch('Buscar en las remesas', useTemplateRef<HTMLElement>('searchBox'));
+const shownRemittances = computed(() => remittances.value.filter(remittance => matches(remittance.reference, ...remittance.items.flatMap(item => [item.propertyName, item.mandate.debtorName, item.concept]))));
 
 function replace(remittance: Remittance) {
 	remittances.value = remittances.value.map(other => other.id === remittance.id ? remittance : other);
@@ -238,7 +242,7 @@ async function run(id: string, action: () => Promise<void>) {
 	try {
 		await action();
 	} catch (e) {
-		actionError.value = `No se ha podido hacer: ${(e as Error).message}`;
+		actionError.value = failure('No se ha podido hacer', e);
 	} finally {
 		busyId.value = undefined;
 	}
@@ -257,10 +261,8 @@ async function advance(remittance: Remittance) {
 	});
 }
 
+// Not asked: only one not sent to the bank yet can be, and undoing it makes it again as it was
 async function remove(remittance: Remittance) {
-	if (!await ask({ title: `¿Borrar la remesa ${remittance.reference}?`, message: 'Sus recibos podrán ir en otra.', confirmText: 'Borrar', variant: 'danger' })) {
-		return;
-	}
 	await run(remittance.id, async () => {
 		await deleteRemittance(props.id, remittance);
 		remittances.value = remittances.value.filter(other => other.id !== remittance.id);
@@ -351,7 +353,7 @@ const returns = useTemplateRef('returns');
 		@cancel="close()"
 	>
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
-			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
+			{{ failure('No se han podido cargar', propertiesError ?? chargesError) }}
 		</p>
 		<p v-if="creditorProblem" class="warning">
 			<LnxIcon icon="lucide:triangle-alert" />
@@ -442,7 +444,15 @@ const returns = useTemplateRef('returns');
 		<h2>Remesas</h2>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+				Reintentar
+			</LnxButton>
 		</p>
+		<div v-if="remittances.length" ref="searchBox" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Referencia, propiedad o titular">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
 		<p v-if="actionError" class="error" role="alert">
 			{{ actionError }}
 		</p>
@@ -458,8 +468,8 @@ const returns = useTemplateRef('returns');
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="remittances.length" class="list lnx-appear">
-			<li v-for="remittance in remittances" :key="remittance.id" class="item">
+		<ul v-else-if="shownRemittances.length" class="list lnx-appear">
+			<li v-for="remittance in shownRemittances" :key="remittance.id" class="item">
 				<div class="row">
 					<button type="button" class="what ux-row" :aria-expanded="openId === remittance.id" @click="openId = openId === remittance.id ? undefined : remittance.id">
 						<strong class="tabular">{{ remittance.reference }}</strong>
@@ -579,6 +589,9 @@ const returns = useTemplateRef('returns');
 				</div>
 			</li>
 		</ul>
+		<p v-else-if="remittances.length" class="hint">
+			Ninguna remesa coincide con «{{ search }}».
+		</p>
 		<p v-else class="hint">
 			Aún no hay remesas.
 		</p>

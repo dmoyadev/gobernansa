@@ -4,8 +4,9 @@ import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { issueStatus } from '@gobernansa/shared/domain/issue.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
+import { LnxButton, LnxIcon, toast, useConfirm } from 'lnxjs-components';
 import { computed, ref, toRef } from 'vue';
+import { QUEUED_MESSAGE } from '@/app/infrastructure/offline.ts';
 import { useIssueComments } from '../application/useIssueComments.ts';
 
 const props = defineProps<{ issue: Issue }>();
@@ -30,8 +31,11 @@ async function send() {
 	sending.value = true;
 	error.value = undefined;
 	try {
-		await addComment(text);
+		const queued = await addComment(text);
 		message.value = '';
+		if (queued) {
+			toast(`Comentario guardado. ${QUEUED_MESSAGE}`);
+		}
 	} catch (e) {
 		reportError(e, { action: 'Enviar el comentario' });
 		error.value = 'No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.';

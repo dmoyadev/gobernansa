@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Mail } from '@gobernansa/shared/domain/mail.ts';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { deliveryStates, mailKinds, mailStatus, statusOf } from '@gobernansa/shared/domain/mail.ts';
-import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
-import { LnxButton, LnxIcon, LnxSelect } from 'lnxjs-components';
-import { computed, ref, shallowRef, watch } from 'vue';
+import { normalize, timeAgo } from '@gobernansa/shared/utils/helpers.ts';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd, LnxSelect, useShortcut } from 'lnxjs-components';
+import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import BackButton from '@/app/ux/BackButton.vue';
 import { onRevalidate } from '@/app/ux/navigation.ts';
 import { useCommunities } from '@/modules/communities/application/useCommunities.ts';
@@ -19,7 +21,21 @@ const isSuperadmin = user.value?.role === 'superadmin';
 const managedIds = user.value?.role === 'admin' ? user.value.communityIds ?? [] : [user.value?.communityId ?? ''].filter(Boolean);
 // ponytail: past 30 communities one 'in' can't take them all, so they're seen one at a time; merge several queries if a portfolio gets there
 const canSeeAll = isSuperadmin || managedIds.length <= MAX_IN;
-const communityId = ref(canSeeAll ? '' : managedIds[0]);
+const route = useRoute();
+const router = useRouter();
+const path = route.path;
+// In the URL, so a reload or a shared link keeps it: one the user manages, the first when they can't see all at once.
+// Kept alive, the page only follows its own
+const communityId = computed({
+	get: (previous?: string) => {
+		if (route.path !== path) {
+			return previous ?? '';
+		}
+		const value = route.query.community;
+		return typeof value === 'string' && (isSuperadmin || managedIds.includes(value)) ? value : canSeeAll ? '' : managedIds[0];
+	},
+	set: value => void router.replace({ query: { ...route.query, community: value || undefined } }),
+});
 const communityOptions = computed(() => [
 	...(canSeeAll ? [{ value: '', label: 'Todas' }] : []),
 	...communities.value.map(community => ({ value: community.id, label: community.name || 'Sin nombre' })),
@@ -53,7 +69,7 @@ async function load(more = false) {
 		hasMore.value = page.more;
 	} catch (e) {
 		if (current === latestLoad) {
-			error.value = (e as Error).message;
+			error.value = errorMessage(e);
 		}
 	} finally {
 		if (current === latestLoad) {
@@ -67,6 +83,18 @@ onRevalidate(() => load());
 
 const open = ref<string>();
 const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle: 'short' });
+
+// Within the pages read: accents and case ignored, every word in its subject, recipients, community or kind
+const search = ref('');
+const searchElement = useTemplateRef<HTMLElement>('searchElement');
+useShortcut('/', () => searchElement.value?.querySelector('input')?.focus(), { description: 'Buscar en el correo' });
+const shownMails = computed(() => {
+	const words = normalize(search.value).split(' ').filter(Boolean);
+	return mails.value.filter((mail) => {
+		const text = normalize([mail.message.subject, ...mail.to, mail.communityId && communityNames.value.get(mail.communityId), mailKinds[mail.kind]?.label].filter(Boolean).join(' '));
+		return words.every(word => text.includes(word));
+	});
+});
 </script>
 
 <template>
@@ -87,6 +115,11 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	</p>
 
 	<div class="filters">
+		<div ref="searchElement">
+			<LnxInput v-model="search" type="search" placeholder="Asunto, destinatario o tipo">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
 		<LnxSelect
 			v-model.convert="communityId"
 			:options="communityOptions"
@@ -105,6 +138,9 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	<section class="card" :aria-busy="loading && !mails.length">
 		<p v-if="error" class="error" role="alert">
 			No se ha podido cargar: {{ error }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="load()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<ul v-if="loading && !mails.length" class="list">
@@ -118,8 +154,8 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 				</div>
 			</li>
 		</ul>
-		<ul v-else-if="mails.length" class="list lnx-appear">
-			<li v-for="mail in mails" :key="mail.id" class="mail">
+		<ul v-else-if="shownMails.length" class="list lnx-appear">
+			<li v-for="mail in shownMails" :key="mail.id" class="mail">
 				<button type="button" class="row" :aria-expanded="open === mail.id" @click="open = open === mail.id ? undefined : mail.id">
 					<LnxIcon :icon="mailKinds[mail.kind]?.icon ?? 'lucide:mail'" :title="mailKinds[mail.kind]?.label" />
 					<span class="what">
@@ -173,6 +209,12 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 				</div>
 			</li>
 		</ul>
+		<p v-else-if="search && mails.length" class="hint">
+			Nada de lo cargado coincide con la búsqueda.
+			<template v-if="hasMore">
+				Carga más para buscar también en los anteriores.
+			</template>
+		</p>
 		<p v-else-if="!error" class="hint">
 			Aún no hay correos.
 		</p>
@@ -213,6 +255,9 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 
 .filters {
 	margin-bottom: var(--lnx-spacing-4);
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lnx-spacing-3);
 
 	> * {
 		width: 260px;

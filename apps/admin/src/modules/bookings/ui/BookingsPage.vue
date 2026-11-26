@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Booking } from '@gobernansa/shared/domain/booking.ts';
 import type { BookingSettings, CommonArea } from '@gobernansa/shared/domain/community.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { bookingTotal, getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getCommonAreas, WEEKDAYS } from '@gobernansa/shared/domain/community.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
@@ -73,7 +74,7 @@ function load() {
 			}
 			loadError.value = undefined;
 		})
-		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${e.message}`)
+		.catch((e: Error) => loadError.value = `No se ha podido cargar la comunidad: ${errorMessage(e)}`)
 		.finally(() => loading.value = false);
 }
 
@@ -256,7 +257,7 @@ async function cancel(booking: Booking) {
 				</div>
 			</header>
 			<p v-if="error" class="error" role="alert">
-				No se han podido cargar: {{ error.message }}
+				No se han podido cargar: {{ errorMessage(error) }}
 			</p>
 			<!-- The slots come from the settings, so the table is there at once and only its bookings arrive -->
 			<p class="hint">
@@ -333,7 +334,7 @@ async function cancel(booking: Booking) {
 				Las reservas de esta semana que cuestan algo y las fianzas aún sin devolver. Lo cobrado va a «Otros ingresos de gestión» en la contabilidad, y las fianzas a «Fianzas recibidas» hasta que se devuelven.
 			</p>
 			<p v-if="depositsError" class="error" role="alert">
-				No se han podido cargar las fianzas: {{ depositsError.message }}
+				No se han podido cargar las fianzas: {{ errorMessage(depositsError) }}
 			</p>
 			<ul v-if="paidBookings.length" class="payments">
 				<li v-for="booking in paidBookings" :key="booking.id">

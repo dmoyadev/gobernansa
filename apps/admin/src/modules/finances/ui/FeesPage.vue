@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Charge, Expense, FeeMonths, FeePlan } from '@gobernansa/shared/domain/finance.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { feeBatchId, feePeriodicities, MIN_RESERVE_PERCENT, minReserve, planFees, reserveUsed } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, totalCoefficient } from '@gobernansa/shared/domain/property.ts';
@@ -40,7 +41,7 @@ async function load() {
 			loadError.value = undefined;
 		}
 	} catch (e) {
-		loadError.value = `No se han podido cargar las cuotas: ${(e as Error).message}`;
+		loadError.value = failure('No se han podido cargar las cuotas', e);
 	} finally {
 		loading.value = false;
 	}
@@ -140,7 +141,7 @@ async function issue() {
 		toast('Cuotas emitidas');
 	} catch (e) {
 		// Those issued before the failure are kept, issuing again issues the rest
-		issueError.value = `No se han podido emitir todas: ${(e as Error).message}. Vuelve a emitir para completar las que faltan.`;
+		issueError.value = `${failure('No se han podido emitir todas', e)} Vuelve a emitir para completar las que faltan.`;
 	} finally {
 		issuing.value = false;
 		await load();
@@ -166,7 +167,7 @@ async function annul() {
 	try {
 		fees.value = await loadFees(props.id, year.value, true);
 	} catch (e) {
-		toast(`No se han podido anular: ${(e as Error).message}`, { variant: 'danger' });
+		toast(failure('No se han podido anular', e), { variant: 'danger' });
 		return;
 	} finally {
 		annulling.value = false;
@@ -218,7 +219,10 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 	</header>
 
 	<p v-if="budgetError || propertiesError || loadError" class="error" role="alert">
-		{{ loadError ?? `No se ha podido cargar: ${(budgetError ?? propertiesError)?.message}` }}
+		{{ loadError ?? failure('No se ha podido cargar', budgetError ?? propertiesError) }}
+		<LnxButton v-if="loadError" mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+			Reintentar
+		</LnxButton>
 	</p>
 
 	<form ref="issueForm" class="card" @submit.prevent="issue()">

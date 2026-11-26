@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { Booking } from '@gobernansa/shared/domain/booking.ts';
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { bookingId, getSlots, getWeek, toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { getBookableAreas } from '@gobernansa/shared/domain/community.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { remote } from '@gobernansa/shared/infrastructure/remoteConfig.ts';
 import { FirebaseError } from 'firebase/app';
-import { LnxButton, LnxIcon, useConfirm } from 'lnxjs-components';
+import { LnxButton, LnxIcon, toast, useConfirm } from 'lnxjs-components';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import MainLayout from '@/app/ui/MainLayout.vue';
@@ -66,6 +67,9 @@ watch(days, () => {
 
 const { dayBookings, myBookings, book, cancel } = useBookings(date);
 const loadError = computed(() => dayBookings.error.value || myBookings.error.value);
+// Until both are in, a slot can't be told free from taken, nor the week's limit known
+const checking = computed(() => dayBookings.pending.value || myBookings.pending.value);
+const reload = () => location.reload();
 
 const blocked = computed(() => !!user.value?.blocked);
 
@@ -127,7 +131,6 @@ const feeTotal = computed(() => fee.value.price + fee.value.deposit);
 const canPayOnline = computed(() => userCommunity.value?.onlinePayments === 'test' && remote.payments);
 
 const busy = ref(false);
-const message = ref<string>();
 
 // Booked owed or free, paid ones are booked from the pay wizard
 async function confirm() {
@@ -136,27 +139,25 @@ async function confirm() {
 	}
 	// The limit may have been reached from another tab or device since the slot was picked
 	if (weekFull.value) {
-		message.value = `Ya has llegado al máximo de reservas semanales en ${area.value.name}.`;
+		toast(`Ya has llegado al máximo de reservas semanales en ${area.value.name}.`, { variant: 'danger' });
 		selected.value = undefined;
 		return;
 	}
 
 	busy.value = true;
-	message.value = undefined;
 	try {
 		// Only the times: the slot shown also carries its state, which isn't stored
 		await book({ areaId: area.value.id, date: date.value, from: selected.value.from, to: selected.value.to }, fee.value);
+		const { name } = area.value;
 		selected.value = undefined;
-		if (feeTotal.value) {
-			message.value = 'Reservada. Queda pendiente de pago: págalo a la administración.';
-		}
+		toast(feeTotal.value ? `${name} reservada. Queda pendiente de pago: págalo a la administración.` : `${name} reservada.`, { variant: 'success' });
 		// Its ticket is waiting there
 		show('mine');
 	} catch (e) {
 		// The rules turn down a slot that's already booked, someone got it first
-		message.value = e instanceof FirebaseError && e.code === 'permission-denied'
-			? 'Esa franja acaba de reservarse.'
-			: 'No se ha podido reservar. Inténtalo de nuevo.';
+		toast(e instanceof FirebaseError && e.code === 'permission-denied'
+			? 'Esa franja acaba de reservarse. Elige otra.'
+			: `No se ha podido reservar. ${errorMessage(e)}`, { variant: 'danger' });
 		selected.value = undefined;
 	} finally {
 		busy.value = false;
@@ -168,11 +169,11 @@ async function remove(booking: Booking) {
 		return;
 	}
 
-	message.value = undefined;
 	try {
 		await cancel(booking);
-	} catch {
-		message.value = 'No se ha podido anular. Inténtalo de nuevo.';
+		toast('Reserva anulada.', { variant: 'success' });
+	} catch (error) {
+		toast(`No se ha podido anular. ${errorMessage(error)}`, { variant: 'danger' });
 	}
 }
 
@@ -215,11 +216,11 @@ const month = computed(() => new Date(`${date.value}T00:00`).toLocaleDateString(
 			<LnxIcon icon="lucide:lock" :size="18" />
 			Tu cuenta está bloqueada por la administración: puedes ver las reservas, pero no reservar.
 		</p>
-		<p v-if="message" class="error" role="alert">
-			{{ message }}
-		</p>
 		<p v-if="loadError" class="error" role="alert">
-			No se han podido cargar las reservas. Recarga la página.
+			No se han podido cargar las reservas. {{ errorMessage(loadError) }}
+			<LnxButton mode="clear" class="lnx-size-small" @click="reload()">
+				Reintentar
+			</LnxButton>
 		</p>
 
 		<div
@@ -287,7 +288,7 @@ const month = computed(() => new Date(`${date.value}T00:00`).toLocaleDateString(
 								type="button"
 								class="slot"
 								:class="[slot.state, { selected: selected?.from === slot.from, past: slot.past }]"
-								:disabled="blocked || slot.past || slot.state === 'taken' || weekFull"
+								:disabled="blocked || slot.past || slot.state === 'taken' || weekFull || checking"
 								:aria-pressed="selected?.from === slot.from"
 								@click="selected = selected?.from === slot.from ? undefined : slot"
 							>
@@ -302,6 +303,9 @@ const month = computed(() => new Date(`${date.value}T00:00`).toLocaleDateString(
 									</template>
 									<template v-else-if="slot.past">
 										Pasada
+									</template>
+									<template v-else-if="checking">
+										Comprobando…
 									</template>
 									<template v-else>
 										Libre

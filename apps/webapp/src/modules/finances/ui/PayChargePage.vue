@@ -44,9 +44,11 @@ watch(() => user.value?.communityId, async (communityId) => {
 const amount = computed(() => charge.value ? outstanding(charge.value) : 0);
 
 // Why it can't be paid here, the same checks as the Pagar button of the list
+const reload = () => location.reload();
+
 const unavailable = computed(() => {
 	if (loadError.value) {
-		return 'No se ha podido cargar el recibo. Recarga la página.';
+		return 'No se ha podido cargar el recibo. Revisa tu conexión.';
 	}
 	if (loading.value || !userCommunity.value) {
 		return undefined;
@@ -100,6 +102,15 @@ async function pay(checkout: Checkout) {
 					<LnxIcon icon="lucide:file-check" />
 				</template>
 				Ver el justificante
+			</LnxButton>
+		</template>
+		<!-- Loaded once, so trying again is loading the page again -->
+		<template v-else-if="loadError" #unavailable>
+			<LnxButton class="lnx-size-large" is-block @click="reload()">
+				<template #prefix>
+					<LnxIcon icon="lucide:refresh-cw" />
+				</template>
+				Reintentar
 			</LnxButton>
 		</template>
 

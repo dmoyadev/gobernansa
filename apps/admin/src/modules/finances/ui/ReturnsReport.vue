@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Remittance, RemittanceItem, ReturnMatch, ReturnReason } from '@gobernansa/shared/domain/sepa.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { decodeText } from '@gobernansa/shared/domain/bank.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
@@ -77,7 +78,7 @@ async function applyReport() {
 			},
 		});
 	} catch (e) {
-		reportError.value = `Se han registrado ${undos.length} y la siguiente ha fallado: ${(e as Error).message}`;
+		reportError.value = failure(`Se han registrado ${undos.length} y la siguiente ha fallado`, e);
 		// Those registered now show as such, trying again only registers the rest
 		report.value = { name, matches: matchReturns(matches.map(match => match.line), props.remittances) };
 	} finally {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '@gobernansa/shared/application/errors.ts';
 import { meetingStatus, meetingTypes } from '@gobernansa/shared/domain/meeting.ts';
 import { LnxIcon } from 'lnxjs-components';
 import { computed } from 'vue';
@@ -24,7 +25,7 @@ const dateFormat = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeSty
 
 	<section class="card" :aria-busy="pending && !meetings.length">
 		<p v-if="error" class="error" role="alert">
-			No se han podido cargar: {{ error.message }}
+			No se han podido cargar: {{ errorMessage(error) }}
 		</p>
 
 		<ul v-if="pending && !meetings.length" class="list">

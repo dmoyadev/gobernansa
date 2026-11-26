@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Expense, PaymentMethod, VatRate } from '@gobernansa/shared/domain/finance.ts';
 import type { ExpenseData } from '../application/useFinances.ts';
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { invoiceAmounts, isOverdue, MIN_RESERVE_PERCENT, minReserve, paymentMethods, vatRates, withholdings } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents, toCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient, splitByCoefficient } from '@gobernansa/shared/domain/property.ts';
@@ -13,6 +14,7 @@ import NewButton from '@/app/ux/NewButton.vue';
 import { useNewForm } from '@/app/ux/newForm.ts';
 import { optimistic } from '@/app/ux/toast.ts';
 import { useProviders } from '@/modules/providers/application/useProviders.ts';
+import { closedYearWarning } from '../application/useAccounting.ts';
 import { addExpense, deleteExpense, restoreExpense, saveBudget, toDueDate, useBudget, useCommunityProperties, useExpenses } from '../application/useFinances.ts';
 
 const props = defineProps<{ id: string }>();
@@ -226,8 +228,20 @@ useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestS
 
 const sortedExpenses = computed(() => [...expenses.value].sort((a, b) => b.date.toMillis() - a.date.toMillis()));
 
+// Why deleting it reaches past this list, so it's asked first. Otherwise undoing it puts it back as it was
+async function deleteWarning(expense: Expense) {
+	if (expense.paymentOrderId) {
+		return 'Está en una orden de pago al banco.';
+	}
+	if (expense.bankMovementId) {
+		return 'Está conciliado con un movimiento del banco.';
+	}
+	return closedYearWarning(props.id, [expense.date, expense.paidAt]);
+}
+
 async function remove(expense: Expense) {
-	if (!await ask({ title: `¿Borrar ${expense.invoiceNumber ? `la factura ${expense.invoiceNumber}` : 'el gasto'} «${expense.concept}»?`, confirmText: 'Borrar', variant: 'danger' })) {
+	const warning = await deleteWarning(expense);
+	if (warning && !await ask({ title: `¿Borrar ${expense.invoiceNumber ? `la factura ${expense.invoiceNumber}` : 'el gasto'} «${expense.concept}»?`, message: warning, confirmText: 'Borrar', variant: 'danger' })) {
 		return;
 	}
 	// What it had, to put it back as it was
@@ -263,7 +277,7 @@ async function remove(expense: Expense) {
 	<form class="card" @submit.prevent="save()">
 		<h2>Partidas de {{ year }}</h2>
 		<p v-if="budgetLoadError" class="error" role="alert">
-			No se ha podido cargar: {{ budgetLoadError.message }}
+			{{ failure('No se ha podido cargar', budgetLoadError) }}
 		</p>
 		<ul v-if="budgetPending && !items.length" class="items" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [70, 55, 62]" :key="width" class="budget-item">
@@ -492,7 +506,7 @@ async function remove(expense: Expense) {
 	<section class="card">
 		<h2>Gastos de {{ year }}</h2>
 		<p v-if="expensesError" class="error" role="alert">
-			No se han podido cargar: {{ expensesError.message }}
+			{{ failure('No se han podido cargar', expensesError) }}
 		</p>
 		<ul v-if="expensesPending && !sortedExpenses.length" class="list" aria-busy="true" aria-label="Cargando">
 			<li v-for="width in [60, 45, 70, 50]" :key="width" class="item">

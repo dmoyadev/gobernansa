@@ -4,6 +4,7 @@ import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { doc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, startAfter, where, writeBatch } from 'firebase/firestore';
 import { computed, effectScope, ref, shallowRef, watch } from 'vue';
 import { useCurrentUser } from 'vuefire';
+import { sendWrite } from '@/app/infrastructure/offline.ts';
 import { communityCollection, mapFirestoreDoc } from '@/app/infrastructure/useFirestoreDocument.ts';
 import { useUserCommunity } from '@/modules/community/application/useUserCommunity.ts';
 import { getAuthorKey } from './authorKey.ts';
@@ -77,13 +78,14 @@ export function useCreateIssue() {
 			deletedAt: null,
 		});
 		batch.set(doc(issueRef, 'private', 'author'), { uid });
-		await batch.commit();
+		// Offline it's kept on the device and sent when the connection is back
+		const queued = await sendWrite(batch.commit(), 'Crear la incidencia');
 		const { id } = issueRef;
 
 		// The list and the user's stats fetch again next time they're shown, so the new issue shows up
 		fetchedAt = 0;
 		invalidateUserActivity();
-		return id;
+		return { id, queued };
 	}
 
 	return { createIssue };

@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { failure } from '@gobernansa/shared/application/errors.ts';
 import { isOverdue, outstanding } from '@gobernansa/shared/domain/finance.ts';
 import { formatCents } from '@gobernansa/shared/domain/money.ts';
 import { formatCoefficient } from '@gobernansa/shared/domain/property.ts';
-import { LnxButton, LnxIcon } from 'lnxjs-components';
-import { computed } from 'vue';
+import { LnxButton, LnxIcon, LnxInput, LnxKbd } from 'lnxjs-components';
+import { computed, useTemplateRef } from 'vue';
 import { useCommunityProperties, useUnpaidCharges } from '../application/useFinances.ts';
+import { useListSearch } from './listSearch.ts';
 
 const props = defineProps<{ id: string }>();
 
@@ -29,6 +31,10 @@ const totalPending = computed(() => rows.value.reduce((sum, row) => sum + row.pe
 const debtors = computed(() => rows.value.filter(row => row.balance).length);
 const loading = computed(() => (propertiesPending.value || chargesPending.value) && !rows.value.length);
 
+// The totals stay those of the whole community
+const { search, matches } = useListSearch('Buscar en los estados de cuenta', useTemplateRef<HTMLElement>('searchBox'));
+const shownRows = computed(() => rows.value.filter(row => matches(row.property.name, row.property.ownerName)));
+
 function print() {
 	window.print();
 }
@@ -45,7 +51,7 @@ function print() {
 
 	<section class="card">
 		<p v-if="propertiesError || chargesError" class="error" role="alert">
-			No se han podido cargar: {{ (propertiesError ?? chargesError)?.message }}
+			{{ failure('No se han podido cargar', propertiesError ?? chargesError) }}
 		</p>
 		<p class="print-only">
 			Saldos de los propietarios a {{ today }}
@@ -69,10 +75,16 @@ function print() {
 			</div>
 		</div>
 
+		<div ref="searchBox" class="search">
+			<LnxInput v-model="search" type="search" placeholder="Propiedad o propietario">
+				Buscar <LnxKbd combo="/" />
+			</LnxInput>
+		</div>
+
 		<div v-if="loading" class="lines" aria-busy="true" aria-label="Cargando">
 			<span v-for="width in [90, 80, 95, 70]" :key="width" class="lnx-skeleton" :style="{ width: `${width}%` }" />
 		</div>
-		<table v-else-if="rows.length" class="lnx-appear">
+		<table v-else-if="shownRows.length" class="lnx-appear">
 			<thead>
 				<tr>
 					<th>Propiedad</th>
@@ -90,7 +102,7 @@ function print() {
 				</tr>
 			</thead>
 			<tbody>
-				<tr v-for="row in rows" :key="row.property.id">
+				<tr v-for="row in shownRows" :key="row.property.id">
 					<td>
 						<RouterLink :to="`/communities/${id}/statements/${row.property.id}`">
 							{{ row.property.name }}
@@ -112,6 +124,9 @@ function print() {
 				</tr>
 			</tbody>
 		</table>
+		<p v-else-if="rows.length" class="hint">
+			Ninguna propiedad coincide con «{{ search }}».
+		</p>
 		<p v-else class="hint">
 			Aún no hay propiedades. Añádelas en el censo.
 		</p>
@@ -142,6 +157,10 @@ function print() {
 	strong {
 		font-size: var(--lnx-font-size-title);
 	}
+}
+
+.search {
+	margin-top: var(--lnx-spacing-4);
 }
 
 .lines {
@@ -194,7 +213,8 @@ table {
 }
 
 @media print {
-	.page-header {
+	.page-header,
+	.search {
 		display: none;
 	}
 
