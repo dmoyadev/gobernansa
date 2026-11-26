@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { ErrorGroup, ErrorSample } from '@gobernansa/shared/domain/errors.ts';
-import type { Timestamp as FirestoreTimestamp } from 'firebase/firestore';
-import { errorApps, errorKinds, hasReturned } from '@gobernansa/shared/domain/errors.ts';
+import { errorApps, errorKinds, errorSeverities, errorSeverity, hasReturned } from '@gobernansa/shared/domain/errors.ts';
 import { roles } from '@gobernansa/shared/domain/user.ts';
 import { auth } from '@gobernansa/shared/infrastructure/firebase.ts';
 import { RELEASE } from '@gobernansa/shared/infrastructure/monitoring.ts';
@@ -10,6 +9,7 @@ import { LnxButton, LnxIcon, LnxInput, LnxSelect, toast } from 'lnxjs-components
 import { computed, ref, watch } from 'vue';
 import { optimistic } from '@/app/ux/toast.ts';
 import { loadGroupSamples, updateErrorGroups } from '../application/errors.ts';
+import { errorReport, formatTime as format, SOURCES } from '../domain/report.ts';
 
 // One group of the Errores page: its samples, with what the user did before, and what the team does with it
 const props = defineProps<{
@@ -21,15 +21,7 @@ const props = defineProps<{
 	patch: (ids: string[], changes: Partial<ErrorGroup>) => void;
 }>();
 
-const SOURCES: Record<string, string> = {
-	vue: 'Componente',
-	window: 'Script',
-	promise: 'Promesa sin capturar',
-	router: 'Navegación',
-	action: 'Acción',
-	manual: 'Página',
-	quota: 'Cuota',
-};
+const severity = computed(() => errorSeverity(props.group));
 
 // All those merged into it, not only the ones loaded in the list: what's done to it is done to them
 const merged = ref<ErrorGroup[]>(props.group.merged);
@@ -97,22 +89,21 @@ function merge() {
 	change({ ...values, ...(resolvedAt ? { resolvedAt: serverTimestamp(), seenSinceResolved: false } : {}) }, { ...values, ...(resolvedAt ? { resolvedAt: Timestamp.now(), seenSinceResolved: false } : {}) }, { done: 'Errores fusionados', failed: 'No se han podido fusionar' });
 }
 
-async function copy(text: string) {
+async function copy(text: string, done: string, failed: string) {
 	try {
 		await navigator.clipboard.writeText(text);
-		toast('Pila copiada');
+		toast(done);
 	} catch {
-		toast('No se ha podido copiar la pila', { variant: 'danger' });
+		toast(failed, { variant: 'danger' });
 	}
 }
-
-const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'medium' });
-const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDate()) : '—';
 </script>
 
 <template>
 	<div class="detail">
 		<dl>
+			<dt>Gravedad</dt>
+			<dd>{{ errorSeverities[severity.level].label }} · {{ severity.reason }}</dd>
 			<dt>Tipo</dt>
 			<dd>
 				{{ errorKinds[group.kind] }}<template v-if="group.kind === 'firebase'">
@@ -149,6 +140,11 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 		</dl>
 
 		<div v-if="!resolving" class="actions">
+			<!-- With its samples, once they're loaded -->
+			<LnxButton mode="outline" class="lnx-size-small" :disabled="loading" @click="copy(errorReport(group, merged, samples), 'Copiado: el error, sus muestras y qué hacer', 'No se ha podido copiar')">
+				<LnxIcon icon="lucide:clipboard-copy" />
+				Copiar para corregir
+			</LnxButton>
 			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" class="lnx-size-small" @click="resolving = true">
 				<LnxIcon icon="lucide:check" />
 				Resolver
@@ -259,7 +255,7 @@ const format = (time?: FirestoreTimestamp) => time ? dateFormat.format(time.toDa
 
 			<h4>
 				Pila
-				<LnxButton v-if="sample.stack" mode="clear" class="lnx-size-small" @click="copy(sample.stack)">
+				<LnxButton v-if="sample.stack" mode="clear" class="lnx-size-small" @click="copy(sample.stack, 'Pila copiada', 'No se ha podido copiar la pila')">
 					<LnxIcon icon="lucide:copy" />
 					Copiar
 				</LnxButton>

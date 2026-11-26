@@ -5,6 +5,7 @@
 </p>
 
 gobernança es una plataforma para gestionar comunidades de propietarios. Los despachos de administradores de fincas llevan sus comunidades desde el admin, y los vecinos tienen una webapp para incidencias, juntas, recibos y reservas.
+
 ## Repositorio
 
 Monorepo con workspaces de npm. Cada carpeta tiene su README.
@@ -37,8 +38,7 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 | Comando | Qué hace |
 | --- | --- |
 | `npm run dev` | Emuladores, seed desde cero y las dos apps |
-| `npm run dev:webapp`, `dev:admin`, `dev:landing` | Solo esa app, o la landing |
-| `npm run emulators` | Solo los emuladores |
+| `npm run dev:webapp`, `dev:admin`, `dev:landing`, `emulators` | Solo esa app, la landing o los emuladores |
 | `npm run doctor` | Comprueba que el equipo tiene lo que necesita `npm run dev` |
 | `npm run check` | ESLint y tipos de las dos apps, en paralelo |
 | `npm run lint` | ESLint arreglando lo que pueda |
@@ -53,7 +53,7 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 
 ## Despliegue
 
-- **Cada push a `main`:** CI despliega las reglas de Firestore, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing` o el tema, construye la landing y la publica en GitHub Pages.
+- **Cada push a `main`:** CI despliega las reglas de Firestore, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing` o el tema, la publica en GitHub Pages (una vez hecho [A3](docs/v1.md#a3)).
 - **Cada pull request:** la webapp y el admin en un canal de vista previa.
 - **A mano:** los índices, las reglas de Storage y las functions ([docs/setup.md](docs/setup.md)).
 

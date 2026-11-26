@@ -73,9 +73,46 @@ export function hasReturned(group: Pick<ErrorGroup, 'status' | 'resolvedAt' | 'l
 	return group.status === 'resolved' && !!group.resolvedAt && !!group.lastSeen && group.lastSeen.toMillis() > group.resolvedAt.toMillis();
 }
 
-// The rest of the failures are urgent only once they come back after being resolved
-export function isUrgent(group: Pick<ErrorGroup, 'status' | 'resolvedAt' | 'lastSeen' | 'code'>) {
-	return hasReturned(group) || (group.status === 'new' && URGENT_CODES.includes(group.code));
+export type ErrorSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+// The most severe first, the order of the Errores page
+export const errorSeverities: Record<ErrorSeverity, { label: string; icon: string }> = {
+	critical: { label: 'Crítico', icon: 'lucide:siren' },
+	high: { label: 'Grave', icon: 'lucide:triangle-alert' },
+	medium: { label: 'Moderado', icon: 'lucide:circle-alert' },
+	low: { label: 'Leve', icon: 'lucide:info' },
+};
+
+const URGENT_REASONS: Record<string, string> = {
+	'resource-exhausted': 'Se ha agotado la cuota de Firestore',
+	'permission-denied': 'Las reglas rechazan lo que hace el código',
+	'failed-precondition': 'Falta un índice de Firestore',
+};
+// Sessions that sent a sample, which errorSampleRate (ROB-5) can lower: a rough count of the people it hit
+const MANY_SESSIONS = 10;
+const SEVERAL_SESSIONS = 3;
+
+/*
+ * Gravedad, from what the group already has, so it costs no reads: the first rule that applies. What asks for doing
+ * something now (MON-2), then how many people it hit. A screen that doesn't load for one or two is usually a tab opened
+ * before a deploy
+ */
+export function errorSeverity(group: Pick<ErrorGroup, 'status' | 'resolvedAt' | 'lastSeen' | 'code' | 'kind' | 'count' | 'sessions'>): { level: ErrorSeverity; reason: string } {
+	if (hasReturned(group)) {
+		return { level: 'critical', reason: 'Ha vuelto después de resolverlo' };
+	}
+	if (URGENT_CODES.includes(group.code)) {
+		return { level: 'critical', reason: URGENT_REASONS[group.code] };
+	}
+	if (group.sessions >= SEVERAL_SESSIONS) {
+		return { level: group.sessions >= MANY_SESSIONS ? 'critical' : 'high', reason: `Afecta a ${group.sessions} sesiones` };
+	}
+	if (group.kind === 'carga') {
+		return { level: 'low', reason: 'Suele ser una pestaña abierta antes de desplegar' };
+	}
+	return group.count > 1
+		? { level: 'medium', reason: `Se ha repetido ${group.count} veces` }
+		: { level: 'low', reason: 'Ha pasado una sola vez' };
 }
 
 export const errorStatus: Record<ErrorStatus, { label: string; icon: string }> = {

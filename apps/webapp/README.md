@@ -9,7 +9,7 @@ npm run dev:webapp   # https://localhost:5400, contra lo que diga .env.local
 ## Organización
 
 - `src/app/`: lo de toda la app. El router, `App.vue`, las páginas sueltas (inicio, acciones, legal, 404), el layout y la cabecera (`ui/`), Storage y los ayudantes de Firestore (`infrastructure/`).
-- `src/modules/<módulo>/`: `application/` lee y escribe en Firebase, `ui/` son las páginas y componentes y `domain/` lo que solo usa esta app. El dominio común está en `packages/shared/domain`.
+- `src/modules/<módulo>/`: `application/`, `ui/` y `domain/`, como dicen las [convenciones](../../docs/desarrollo.md#convenciones).
 - `public/sw.js` es el service worker, escrito a mano. `public/firebase-messaging-sw.js` recibe las notificaciones push.
 - Se importa de `src` como `@/…` y de shared como `@gobernansa/shared/…`.
 

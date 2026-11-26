@@ -63,11 +63,17 @@ const IOS_VERSION = /OS (\d+)[._](\d+)/;
 const ANDROID_VERSION = /Android (\d+)/;
 const SPACES = /\s+/g;
 const QUOTED = /(["'`])(?:(?!\1).)*\1|«[^»]*»|“[^”]*”/g;
+// Quoted, a property or a chain of them is code and says what failed (reading 'toDate'); anything else may be what the
+// user typed
+const PROPERTIES = /^[\w$]+(?:\.[\w$]+)*$/;
 const ID = /\b(?=[\w-]*\d)[\w-]{12,}\b/g;
 const NUMBER = /\d+/g;
 const VITE_HASH = /-[\w-]{8}(?=\.(?:js|css)\b)/g;
-// Minified names change from one build to the next: e.map is not a function
+// Minified names change from one build to the next: e.map is not a function, evaluating 'e.items'. Only the variable's,
+// the properties keep theirs
 const MINIFIED = /[\w$.]+(?= is not (?:a function|iterable|defined)| is (?:undefined|null)\b)/g;
+const VARIABLE = /^[\w$]+/;
+const OBJECT = /^[\w$]+(?=\.)/;
 const PERSONAL_DATA: [RegExp, string][] = [
 	[/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '<email>'],
 	[/\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]{4}){3,7}(?:[ -]?[A-Z0-9]{1,3})?\b/g, '<iban>'],
@@ -374,8 +380,11 @@ async function fingerprint(parts: string[]) {
 function normalize(message: string) {
 	return clean(message)
 		.replace(VITE_HASH, '')
-		.replace(QUOTED, '<texto>')
-		.replace(MINIFIED, '<x>')
+		.replace(QUOTED, (quoted) => {
+			const inner = quoted.slice(1, -1);
+			return inner.length <= 60 && PROPERTIES.test(inner) ? `${quoted[0]}${inner.replace(OBJECT, '<x>')}${quoted.at(-1)}` : '<texto>';
+		})
+		.replace(MINIFIED, chain => chain.replace(VARIABLE, '<x>'))
 		.replace(ID, '<id>')
 		.replace(NUMBER, '<n>')
 		.slice(0, 500);

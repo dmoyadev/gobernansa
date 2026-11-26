@@ -1,6 +1,6 @@
 # Alta de un despacho nuevo
 
-Para v1 el alta la haces tú, con el despacho delante o por videollamada ([B4.3](v1.md#b4) de [v1.md](v1.md)). Lleva una hora si el censo está en Excel. Al terminar, el despacho ya trabaja solo: crea, importa y archiva sus comunidades e invita a su equipo y a los vecinos.
+Para v1 el alta la haces tú, con el despacho delante o por videollamada ([B4.3](v1.md#b4)). Lleva una hora si el censo está en Excel. Al terminar, el despacho ya trabaja solo: crea, importa y archiva sus comunidades e invita a su equipo y a los vecinos.
 
 ## Antes de la cita
 
@@ -16,16 +16,16 @@ Pide al despacho:
 2. El nombre y el email del titular, con el rol **Administración**. No marques comunidades: las suyas las crea él.
 3. Deja marcado el envío por email. Mientras el correo esté en modo de prueba ([B2](v1.md#b2)), avísale tú de que entre en el admin con ese email: le llega el enlace para entrar.
 
-Su cuenta es el despacho: su id es el del despacho, y los empleados que invite cuelgan de él.
+Su uid es el id del despacho, y los empleados que invite cuelgan de él.
 
 ## 2. Los datos del despacho (el titular)
 
-**Honorarios** → **Datos fiscales del despacho**. Con esto factura sus honorarios a las comunidades (y Verifactu encadena desde la primera factura). Si no factura desde gobernança, puede dejarlo para más adelante.
+**Honorarios** → **Datos fiscales del despacho**. Con esto factura sus honorarios a las comunidades, con Verifactu desde la primera factura; si no factura desde gobernança, puede esperar.
 
 ## 3. Sus comunidades (el titular)
 
 - **Varias de golpe:** **Importar comunidades** desde la lista de comunidades, con el censo de todas en un fichero. Reconoce cada comunidad por su CIF o su nombre; las que no existen se crean.
-- **Una a una:** **Nuevo** en la lista de comunidades.
+- **Una a una:** **Nueva comunidad** en la lista de comunidades.
 
 Cada comunidad nueva abre con **Puesta en marcha**, que se tacha sola:
 1. **Datos fiscales**: el CIF y el IBAN de la comunidad.
@@ -35,7 +35,7 @@ Cada comunidad nueva abre con **Puesta en marcha**, que se tacha sola:
 
 Haz la primera con él y deja que haga la segunda solo mientras miras.
 
-Los vecinos sin email se invitan igual, marcando **No tiene email**: se imprime una hoja con un código para entrar desde su móvil, que el despacho entrega en mano o en la junta. Sirve una vez; si lo pierde o cambia de móvil, se le imprime otro desde **Invitaciones pendientes** o con una invitación nueva. La app le irá recordando que añada un email desde su perfil: en cuanto lo hace, entra como cualquier otro vecino.
+Los vecinos sin email reciben una carta con un código y un QR, que el despacho entrega en mano o en la junta ([B2.4](v1.md#b2)): **Vecinos y gestores** → **Cartas de acceso** imprime las de los propietarios e inquilinos sin cuenta y une cada cuenta a su casa (una suelta: **Invitar a alguien** como **Vecino**). El código abre su cuenta en cualquier móvil, y la app le pide un email (**Añade tu email**) por si pierde la carta.
 
 ## 4. Su equipo (el titular)
 
@@ -44,7 +44,7 @@ Los vecinos sin email se invitan igual, marcando **No tiene email**: se imprime 
 - **Contable**: todo en las comunidades, también cerrar el ejercicio y los honorarios.
 - **Solo lectura**: ve todas las comunidades del despacho, sin cambiar nada.
 
-Todos ven las comunidades del despacho, también las que se creen después de invitarlos.
+Todos ven las comunidades del despacho, también las que se creen después.
 
 ## 5. Comprobar antes de irte
 
@@ -57,5 +57,5 @@ Todos ven las comunidades del despacho, también las que se creen después de in
 
 - **No le llega el enlace:** que mire el spam; si no, vuelve a invitar desde **Invitaciones pendientes**.
 - **Una comunidad sale repetida al importar:** el CIF del fichero no coincide con el de la ficha. Corrige uno de los dos y vuelve a importar.
-- **Un vecino sin email no puede entrar:** el código ya se usó o tiene una errata. Cancela su invitación, invítalo de nuevo y quita su cuenta vieja si la tenía.
+- **Un vecino pierde su carta:** si no la usó, cancélala en **Invitaciones pendientes** y saldrá otra en **Cartas de acceso**. Si la usó, desvincula su cuenta en **Propiedades** y quítalo de las cuentas.
 - **«Está archivada»:** el fichero trae una comunidad archivada. Se recupera desde su configuración.

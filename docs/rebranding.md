@@ -58,7 +58,7 @@ Todos en SVG vectorial: texto convertido a trazos (sin `<text>`), sin imágenes 
 | `apps/landing/img/cartera.png` | 800×500 | Admin, Panel de cartera, con el despacho de 40 comunidades |
 | `apps/landing/img/vecino.jpg` | 390×800 | Webapp, inicio del Piso 1A |
 
-El `README.md` enlaza `apps/webapp/public/screenshot.png` y `screenshot.gif`, que no están en el repo: o se rehacen, o el README pasa a usar estas dos capturas.
+✅ **Capturas rotas del README** (17/11/2026): el README nuevo ya no enlaza `screenshot.png` ni `screenshot.gif`.
 
 ---
 
@@ -98,7 +98,7 @@ Los pasos 5 y 6 pueden ir antes del merge: un dominio propio conectado sirve la 
 
 ## 3. Lo que cambio yo en el repo
 
-Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones del paquete compartido.
+Unas 300 menciones del nombre en unos 65 ficheros (la mitad, en `docs/`), más unas 800 importaciones del paquete compartido.
 
 ### 3.1 Textos visibles
 
@@ -109,17 +109,17 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `apps/webapp/public/sw.js` | Título por defecto de las notificaciones push |
 | `apps/webapp/src/app/router.ts` | Título de la pestaña (y «… DEMO» en otros entornos) |
 | `apps/webapp/src/app/LegalPage.vue` | Cuatro menciones del aviso legal y la privacidad |
-| `apps/webapp/src/modules/auth/ui/ProfilePage.vue` | «gobernança v1.x · release» al pie del perfil |
-| `apps/webapp/src/modules/auth/ui/LoginPage.vue`, `shared/ui/TheToolbar.vue`, `modules/workorders/ui/WorkOrderPage.vue` | `alt` del logo |
+| `apps/webapp/src/modules/auth/ui/ProfilePage.vue` | «gobernança v1.x · release» al pie y el aviso de email repetido |
+| `apps/webapp/src/app/ui/TheToolbar.vue`, `modules/workorders/ui/WorkOrderPage.vue` | `alt` del logo |
 | `apps/admin/index.html` | `description`, `og:site_name`, `og:title`, `og:description`, `og:image:alt`, `apple-mobile-web-app-title` («gob. admin»), `<title>` |
 | `apps/admin/public/manifest.webmanifest` | `name`, `short_name`, `description` |
 | `apps/admin/src/app/router.ts` | Título de la pestaña |
 | `apps/admin/src/app/AdminLayout.vue` | `alt` del logo, «Instalar gobernança admin como app», aviso de cuenta sin permisos |
-| `apps/admin/src/app/LegalPage.vue` | Cinco menciones |
+| `apps/admin/src/app/LegalPage.vue` | Seis menciones |
 | `apps/admin/src/modules/auth/ui/LoginPage.vue` | `alt` y «Gestiona las comunidades de gobernança» |
-| `apps/admin/src/modules/communities/ui/CommunitiesPage.vue` | Los dos mensajes de lista vacía |
-| `apps/admin/src/modules/people/ui/PeoplePage.vue` | Dos textos de la invitación |
-| `apps/admin/src/modules/properties/ui/CensusImportPage.vue` | Dos textos de la importación |
+| `apps/admin/src/modules/communities/ui/CommunitiesPage.vue` | El mensaje de lista vacía |
+| `apps/admin/src/modules/people/ui/PeoplePage.vue`, `TeamPage.vue` | Dos textos de la invitación en cada una |
+| `apps/admin/src/modules/people/ui/AccountsPage.vue` | La pregunta al quitar una cuenta |
 | `apps/admin/src/modules/properties/ui/PropertiesPage.vue` | Filtro y placeholder «Sin cuenta en gobernança» |
 | `apps/admin/src/modules/mail/application/mail.ts` | Textos de las invitaciones (asunto, título, cuerpo y botón) |
 | `apps/admin/src/modules/obligations/ui/ObligationsPage.vue` | `PRODID` del calendario `.ics` |
@@ -127,7 +127,7 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 | `packages/shared/domain/user.ts` | Rol «Equipo gobernança» |
 | `packages/shared/domain/verifactu.ts` | `NombreSistemaInformatico` (D1), `IdSistemaInformatico` (D7). `NombreRazon` pasa a ser la razón social del productor cuando exista ([EMP-1](competencia.md#emp-1)) |
 | `apps/functions/index.js` | «Solo el equipo de gobernança puede restaurar versiones», el error de restaurar en el Historial |
-| `apps/landing/index.html` | `<title>`, `og:title`, `aria-label` y `alt` del logo, la notificación «gobernança · ahora», la ventana «gobernança admin», la «g» de los dos iconos de app de las notificaciones y el icono en miniatura que imita el aro coral del isotipo |
+| `apps/landing/index.html`, `src/sections/faq.js` | El correo redactado del FAQ, `<title>`, `og:title`, `aria-label` y `alt` del logo, la notificación «gobernança · ahora», la ventana «gobernança admin», la «g» de los dos iconos de app de las notificaciones y el icono en miniatura que imita el aro coral del isotipo |
 
 ### 3.2 Logos e imágenes
 
@@ -145,7 +145,7 @@ Unas 190 menciones del nombre en unos 60 ficheros, más unas 700 importaciones d
 
 | Dónde | Qué |
 |---|---|
-| `apps/admin/src/modules/mail/application/mail.ts` | `WEBAPP_URL` por defecto: el enlace de las invitaciones, partes de trabajo y «Ver como vecino» en producción |
+| `apps/admin/src/modules/mail/application/mail.ts` | `WEBAPP_URL` por defecto: el enlace de las invitaciones, partes de trabajo y «Ver como un vecino» en producción |
 | `apps/webapp/index.html`, `apps/admin/index.html` | `og:url` y `og:image`, del `web.app` al dominio propio |
 | `.env.example`, `README.md` | Las URLs de ejemplo y del proyecto |
 | `scripts/seed/data/meetings.js`, `errors.js` | Las URLs del seed |
@@ -158,18 +158,18 @@ Nadie los ve; los cambio para que el código diga un solo nombre.
 
 | Dónde | Qué | Efecto |
 |---|---|---|
-| `package.json` (raíz, las tres de `apps/` y `packages/` y la de `apps/functions/`, `@gobernansa/functions`) y todas las importaciones `@gobernansa/shared/…` | Pasa a `@<slug>/…` | Regenero `package-lock.json` con `npm install` |
+| `package.json` (raíz, las cuatro de `apps/` y `packages/shared`) y todas las importaciones `@gobernansa/shared/…` | Pasa a `@<slug>/…` | Regenero `package-lock.json` con `npm install` |
 | `.firebaserc` | Alias y sitios del proyecto de demo | Solo la demo, que aún no existe (T9). Producción se queda |
 | `CommunityDashboard.vue`, `CommunityPage.vue`, `CommunitySetup.vue` | Claves `gobernansa.admin.*` del navegador | Quien había reordenado su panel lo ve una vez como viene de serie |
 | `ObligationsPage.vue` | `UID` de los eventos `.ics` (`@gobernansa`) | Quien ya importó un `.ics` vería el evento repetido; sin clientes todavía, no importa |
 | `scripts/backup/*.js` y sus valores por defecto en `.env.example` | Carpeta de copias, carpeta de la clave, etiqueta de launchd, prefijo de los ficheros, mensajes | **Obliga a hacer T11 el mismo día** |
 | `scripts/seed/seed.js`, `scripts/backup/*.js`, `scripts/symbolicate.js`, `scripts/demo.js` | IDs por defecto del emulador y el de la demo local (`demo-gobernansa`) y carpeta temporal | Ninguno |
 | `scripts/seed/data/*.js`, `README.md` del seed | «Equipo gobernança», textos de correo, semilla de los enlaces de la demo | Ninguno: el seed lo regenera todo |
-| `firestore.rules` y comentarios del código | Unos diez comentarios | Ninguno: las reglas no cambian |
+| `firebase/firestore.rules` y comentarios del código | Unos diez comentarios | Ninguno: las reglas no cambian |
 
 ### 3.5 Documentación
 
-`README.md`, `docs/competencia.md`, `docs/setup.md`, `docs/datos.md`, `docs/v1.md` ([A2](v1.md#a2) queda como hecha) y `docs/fiabilidad.md`. Los IDs que no cambian (sección 1) se quedan como están.
+Los `README.md`, `docs/competencia.md`, `docs/setup.md`, `docs/datos.md`, `docs/v1.md` ([A2](v1.md#a2) queda como hecha) y `docs/fiabilidad.md`. Los IDs de la sección 1 se quedan.
 
 ---
 
@@ -320,7 +320,7 @@ Justo después del merge, y antes de la siguiente copia, porque el código pasar
 ### T13. Fuera del repo
 
 - `design/Diseño.sketch`: el logo nuevo, para tenerlo como fuente.
-- Bot de Telegram del formulario de la landing: aún sin configurar (`BOT` vacío), así que créalo directamente con el nombre nuevo en @BotFather.
+- Bot de Telegram del formulario de la landing: ya existe (`BOT` en `contact.js`). Renómbralo en @BotFather con `/setname`; el token no cambia.
 - Gestor de contraseñas: entradas de Firebase, de la clave de copias y de `DEMO_PASSWORD`.
 - Firma de correo, LinkedIn, tarjetas, la presentación y el vídeo de la demo ([F](v1.md#f)).
 - Google Search Console, cuando la landing esté en `<dominio>`: añade la propiedad del dominio.

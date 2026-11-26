@@ -1,6 +1,6 @@
 # Desarrollo
 
-Cómo arrancar el proyecto en local, qué escucha en cada puerto, las convenciones y qué hacer cuando algo falla. La configuración del proyecto real de Firebase está en [setup.md](setup.md), y los roles y el modelo de datos en [datos.md](datos.md).
+Cómo arrancar el proyecto en local, sus puertos, las convenciones y qué hacer cuando algo falla. El proyecto real de Firebase está en [setup.md](setup.md); los roles y los datos, en [datos.md](datos.md).
 
 ## Requisitos
 
@@ -19,7 +19,7 @@ Cómo arrancar el proyecto en local, qué escucha en cada puerto, las convencion
 3. `npm run doctor`. Comprueba Node, Java, las dependencias, `.env.local`, los puertos y los hooks, y dice cómo arreglar lo que falte.
 4. `npm run dev`. Arranca los emuladores, carga el seed desde cero y sirve las dos apps. Los datos se borran cada vez que se para.
 
-Para entrar, las cuentas están en [`scripts/seed/data/cast.js`](../scripts/seed/data/cast.js) y todas usan `DEMO_PASSWORD`. Para el admin, el despacho «Fincas Jaén»; para la webapp, cualquier vecino de la comunidad `comm1`. El emulador de Auth no envía correos: el enlace de acceso sale en la terminal de los emuladores, y `http://127.0.0.1:5501/emulator/v1/projects/dmoyadev-gobernansa/oobCodes` lista los últimos. Ábrelo en el mismo navegador donde lo pediste, que es donde queda guardado el correo.
+Para entrar, las cuentas están en [`scripts/seed/data/cast.js`](../scripts/seed/data/cast.js) y todas usan `DEMO_PASSWORD`. Para el admin, el despacho «Fincas Jaén»; para la webapp, cualquier vecino de la comunidad `comm1`. El emulador de Auth no envía correos: el enlace de acceso sale en la terminal de los emuladores, y `http://127.0.0.1:5501/emulator/v1/projects/dmoyadev-gobernansa/oobCodes` lista los últimos.
 
 <a id="puertos"></a>
 
@@ -36,7 +36,7 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 | 5500 | Interfaz de los emuladores: datos, cuentas y logs |
 | 5501 · 5502 · 5504 · 5505 | Emuladores de Auth, Firestore, Storage y Functions |
 | 5503 · 5506 … 5509 | Uso interno de los emuladores: el websocket de Firestore, el hub, los logs, Eventarc y Cloud Tasks |
-| 5511 … 5517 | Emuladores de la demo local: los mismos, diez por encima |
+| 5511 … 5517 | Emuladores de la demo local, diez por encima: Auth, Firestore, Storage y los internos (sin Functions ni interfaz) |
 
 <a id="emuladores"></a>
 
@@ -57,10 +57,10 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 
 - **Antes**: Java 21 en el `PATH` y `DEMO_PASSWORD` en `.env.local`, la contraseña de todas las cuentas. La primera vez en un equipo necesita internet una vez, para descargar los jars de los emuladores; el script avisa cuando falta alguno.
 - **Puertos**, aparte de los de `npm run dev`, para que puedan correr a la vez (ver [Puertos](#puertos)). El proyecto es `demo-gobernansa`, que solo existe en los emuladores.
-- **Qué hace**: arranca los emuladores de Auth, Firestore y Storage, carga el seed con sus fotos, compila las dos apps contra ellos con la dirección de red del portátil y las sirve por http en todas las interfaces, pasando las rutas de los emuladores por la dirección de cada página. Muestra las dos direcciones, un QR de la webapp y las cuentas. El admin se abre en `http://localhost:5403` en el portátil, no en la dirección de red: copiar enlaces y `crypto` necesitan localhost.
+- **Qué hace**: arranca los emuladores de Auth, Firestore y Storage, carga el seed con sus fotos, compila las dos apps contra ellos con la dirección de red del portátil y las sirve por http en todas las interfaces, con las rutas de los emuladores bajo la de cada página. Muestra las dos direcciones, un QR de la webapp y las cuentas. El admin se abre en `http://localhost:5403` en el portátil, no en la dirección de red: copiar enlaces y `crypto` necesitan localhost.
 - **Sin functions**: el Historial no registra cambios ni puede restaurar ahí, y lo dice; **Acciones** sí se llena.
 - **`npm run demo:reset`** carga otra vez los datos mientras corre, sin cerrar la sesión de nadie. Ctrl+C o cerrar la terminal lo para todo. Un reinicio completo cierra la sesión de los móviles, y un cambio de red lo necesita, porque la dirección va en el build.
-- **Proxy**: quita `HTTP(S)_PROXY` a los emuladores; con uno puesto, las reglas de Storage no podían leer Firestore y se rechazaba toda subida.
+- **Proxy**: quita `HTTP(S)_PROXY` a los emuladores; con él, las reglas de Storage no leían Firestore y rechazaban toda subida.
 - **Red**: mientras corre, cualquiera en esa red llega a los emuladores. Los datos son inventados, pero mejor el punto de acceso del móvil que la wifi de invitados de un cliente.
 
 ## Antes de cada commit
@@ -74,8 +74,9 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 
 - **Mensajes de commit:** una línea, `<emoji> [ámbito] Descripción`, en inglés.
 - **Idioma:** el código y sus comentarios en inglés; los textos de las apps y los docs, en español.
-- **Dónde va cada cosa:** el dominio común en `packages/shared/domain`; en cada app, `src/modules/<módulo>/` con `application/` (lo que lee y escribe en Firebase), `ui/` (páginas y componentes) y `domain/` (lo que solo usa esa app); lo de toda la app, en `src/app/`. La UI no llama a Firestore directamente: ESLint lo marca como error. Una app tampoco importa de la otra: lo común va en `packages/shared`.
-- **Páginas y formularios:** una página no pasa de unas 800 líneas; una tarjeta grande va a su propio componente al lado, con los estilos de la página en un parcial compartido (`<style lang="scss" scoped src="./bank.scss" />`). En el panel, todo formulario de crear o editar es `FormCard` (`src/app/ux/`), y la cabecera, las tarjetas, los campos y los botones del pie salen de `page.scss`, igual en todas las pantallas.
+- **Dónde va cada cosa:** el dominio común en `packages/shared/domain`; en cada app, `src/modules/<módulo>/` con `application/` (lo que lee y escribe en Firebase), `ui/` (páginas y componentes) y `domain/` (lo de esa app sola), y lo de toda la app en `src/app/`. Firestore en `ui/` es un error de ESLint; importar de la otra app, un aviso: lo común va en `packages/shared`.
+- **Páginas y formularios:** una página no pasa de unas 800 líneas; una tarjeta grande va a su propio componente al lado, con los estilos de la página en un parcial compartido (`<style lang="scss" scoped src="./bank.scss" />`). En el panel, todo formulario de crear o editar es `FormCard` abierto con `useNewForm` (`src/app/ux/`), y la cabecera, las tarjetas, los campos y los botones del pie salen de `page.scss`.
+- **Referencias de Firestore:** las referencias y los cursores de las consultas van en `shallowRef`, no en `ref`; con `ref`, la caché sin conexión fallaba en producción.
 - **Identificadores:** las tareas de los docs ([B5](v1.md#b5), [ROB-2](fiabilidad.md#rob-2)…) llevan un ancla `<a id="…">` y siempre se enlazan.
 - **Las reglas son producción:** cada push a `main` despliega `firebase/firestore.rules`. Los índices, las reglas de Storage y las functions van a mano ([setup.md](setup.md)).
 
@@ -87,11 +88,10 @@ Las apps van en el 540x, las vistas del build en el 541x y los emuladores en el 
 | El emulador de Firestore falla con valores nulos | Arráncalo con `npm run emulators` o `npm run dev`, no con `firebase emulators:start`: el script pone Java en inglés, y en español falla |
 | Los emuladores dicen `Port … is not open`, o una app sale en otro puerto | Hay otro `npm run dev` o unos emuladores abiertos. `lsof -i :5502` (o el puerto que sea) para encontrarlo y cerrarlo |
 | El seed dice «No responden los emuladores» | Arranca antes `npm run emulators`, o usa `npm run dev`, que hace las dos cosas |
-| Faltan datos o están a medias en los emuladores | `npm run seed:emulators -- --reset` lo carga todo otra vez |
-| Las fotos de incidencias y partes no salen en local | El emulador de Storage no estaba cuando corrió el seed: `npm run seed:emulators -- --reset` |
+| Faltan datos o fotos de incidencias y partes en los emuladores | `npm run seed:emulators -- --reset` lo carga todo otra vez, con el emulador de Storage arrancado |
 | Un cambio no aparece en el navegador | Vite a veces sirve el módulo viejo por la «ç» del nombre de la carpeta. Reinicia el servidor de Vite; se arregla del todo renombrando la carpeta local a `gobernansa` |
 | El navegador no se fía del certificado de `https://localhost` | La autoridad de mkcert no llegó a instalarse, por ejemplo porque se canceló la contraseña. Borra `~/.vite-plugin-mkcert` y arranca otra vez |
-| El enlace de acceso no entra en los emuladores | Ábrelo en el mismo navegador donde lo pediste, y que sea el último que salió |
+| El enlace de acceso no entra en los emuladores | Ábrelo en el mismo navegador donde lo pediste (ahí queda el correo), y que sea el último que salió |
 | En producción, una consulta falla pidiendo un índice | Añádelo a `firebase/firestore.indexes.json` y despliégalo a mano ([índices](setup.md#indices)). Los emuladores no los necesitan |
 | Tras desplegar se sigue viendo la versión anterior | Es el service worker: recarga dos veces |
 | Un error de producción tiene la pila ilegible | `pbpaste \| npm run symbolicate -- <versión>`, con la versión que muestra **Errores** ([MON-10](fiabilidad.md#mon-10)) |

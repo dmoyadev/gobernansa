@@ -10,6 +10,7 @@
 | [datos.md](datos.md) | Roles y modelo de datos, y cómo funciona cada parte de la gestión |
 | [desarrollo.md](desarrollo.md) | Arrancar, puertos, emuladores, demo local, convenciones y problemas habituales |
 | [speech.md](speech.md), [demo.md](demo.md) | La visita a un despacho y el guion de la demo |
+| [recorrido.md](recorrido.md) | Recorrido de pruebas de la landing, la webapp y el admin (L, W, A, X) |
 | [alta-despacho.md](alta-despacho.md) | Dar de alta un despacho nuevo |
 | [rebranding.md](rebranding.md) | El cambio de nombre y logo |
 
@@ -17,5 +18,6 @@
 
 - En español, como los textos de las apps.
 - Cada tarea tiene un ID estable ([B5](v1.md#b5), [ROB-2](fiabilidad.md#rob-2)…) con su ancla `<a id="…">`, y siempre se enlaza. Las secciones a las que se enlaza llevan también su ancla, para que renombrarlas no rompa nada.
-- Al cerrar una tarea, se cuenta en su documento y se quita de [pendiente.md](pendiente.md).
+- Estado de cada tarea: ✅ hecha; 🔶 hecha en el código, pero falta un paso fuera de él (consola, plan de pago, una prueba con datos reales), que se dice siempre; sin marca, abierta. Lo hecho lleva su fecha y cómo se resolvió, en una o dos frases.
+- Al cerrar una tarea, se marca en su documento y se quita de [pendiente.md](pendiente.md).
 - Sin subcarpetas: el código enlaza a estos ficheros por su ruta.

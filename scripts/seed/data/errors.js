@@ -59,7 +59,7 @@ function trail(at, entries) {
 const chromeStack = (raw, base, chunks) => [raw, ...chunks.map(([chunk, line, column]) => `    at ${base}/${chunk}.js:${line}:${column}`)].join('\n');
 const safariStack = (base, chunks) => chunks.map(([chunk, line, column]) => `@${base}/${chunk}.js:${line}:${column}`).join('\n');
 
-// message is already normalized (markers for quoted texts, numbers and ids), as the group keeps it; each sample has the
+// message is already normalized (markers for quoted user texts, numbers and ids), as the group keeps it; each sample has the
 // raw one. Samples [at, uid, release, route, extra]: communityId is the page's in the admin, the user's in the webapp
 const groups = [
 	{
@@ -132,8 +132,7 @@ const groups = [
 		app: 'webapp',
 		kind: 'js',
 		code: 'js',
-		message: 'Cannot read properties of undefined (reading <texto>)',
-		raw: 'Cannot read properties of undefined (reading \'toDate\')',
+		message: 'Cannot read properties of undefined (reading \'toDate\')',
 		file: 'IssuesDetailPage.js',
 		count: 14,
 		sessions: 4,
@@ -155,8 +154,7 @@ const groups = [
 		app: 'webapp',
 		kind: 'js',
 		code: 'js',
-		message: 'Cannot read properties of null (reading <texto>)',
-		raw: 'Cannot read properties of null (reading \'paidAt\')',
+		message: 'Cannot read properties of null (reading \'paidAt\')',
 		file: 'ChargesPage.js',
 		count: 6,
 		sessions: 2,
@@ -177,8 +175,7 @@ const groups = [
 		app: 'webapp',
 		kind: 'js',
 		code: 'js',
-		message: 'Cannot read properties of null (reading <texto>)',
-		raw: 'Cannot read properties of null (reading \'paidAt\')',
+		message: 'Cannot read properties of null (reading \'paidAt\')',
 		file: 'ReceiptPage.js',
 		count: 3,
 		sessions: 2,
@@ -264,8 +261,7 @@ const groups = [
 		app: 'admin',
 		kind: 'js',
 		code: 'js',
-		message: 'Cannot read properties of undefined (reading <texto>)',
-		raw: 'Cannot read properties of undefined (reading \'signedAt\')',
+		message: 'Cannot read properties of undefined (reading \'signedAt\')',
 		file: 'MeetingPage.js',
 		count: 12,
 		sessions: 4,

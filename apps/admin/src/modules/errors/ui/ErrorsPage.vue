@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ErrorGroup } from '@gobernansa/shared/domain/errors.ts';
 import type { QueryDocumentSnapshot, Timestamp } from 'firebase/firestore';
-import { errorApps, errorStatus, hasReturned, isUrgent } from '@gobernansa/shared/domain/errors.ts';
+import { errorApps, errorSeverities, errorSeverity, errorStatus, hasReturned } from '@gobernansa/shared/domain/errors.ts';
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
 import { timeAgo } from '@gobernansa/shared/utils/helpers.ts';
 import { LnxButton, LnxIcon, LnxSelect, toast, useConfirm } from 'lnxjs-components';
@@ -118,7 +118,10 @@ watch([status, app, code, release], () => load(), { immediate: true });
 // Coming back reads the first page again
 onRevalidate(() => load());
 
-// A group shows with the ones merged into it when they're loaded too, as one: their counts added and the latest time
+const SEVERITY_ORDER = Object.keys(errorSeverities);
+
+// A group shows with the ones merged into it when they're loaded too, as one: their counts added and the latest time.
+// The most severe first
 const shown = computed(() => {
 	// A group can be in more than one of the lists
 	const all = [...new Map([...resolved.value, ...urgent.value, ...groups.value].map(group => [group.id, group])).values()];
@@ -128,7 +131,7 @@ const shown = computed(() => {
 		.map((group) => {
 			const merged = all.filter(other => other.mergedInto === group.id);
 			const family = [group, ...merged];
-			return {
+			const together = {
 				...group,
 				merged,
 				count: family.reduce((total, item) => total + item.count, 0),
@@ -137,11 +140,11 @@ const shown = computed(() => {
 				releases: [...new Set(family.flatMap(item => item.releases))].sort(),
 				routes: [...new Set(family.flatMap(item => item.routes))],
 			};
+			return { ...together, severity: errorSeverity(together) };
 		})
 		// With the pending ones, only the resolved that came back
 		.filter(group => status.value !== 'new' || group.status === 'new' || hasReturned(group))
-		.sort((a, b) => Number(hasReturned(b)) - Number(hasReturned(a))
-			|| Number(isUrgent(b)) - Number(isUrgent(a))
+		.sort((a, b) => SEVERITY_ORDER.indexOf(a.severity.level) - SEVERITY_ORDER.indexOf(b.severity.level)
 			|| (b.lastSeen?.toMillis() ?? 0) - (a.lastSeen?.toMillis() ?? 0));
 });
 
@@ -217,7 +220,7 @@ async function clean() {
 
 	<template v-else>
 		<p class="hint">
-			Los fallos que ven los usuarios de las dos apps, agrupados. Primero los que han vuelto tras resolverlos y los urgentes. Esta versión del admin es la {{ RELEASE }}.<template v-if="backup?.at && !backupLate">
+			Los fallos que ven los usuarios de las dos apps, agrupados y ordenados por gravedad; al abrir uno se ve por qué. Esta versión del admin es la {{ RELEASE }}.<template v-if="backup?.at && !backupLate">
 				Última copia de seguridad: {{ timeAgo(backup.at.toDate()) }}, {{ backup.documents.toLocaleString('es') }} documentos.
 			</template>
 		</p>
@@ -299,9 +302,10 @@ async function clean() {
 							</small>
 						</span>
 						<span class="counts">
-							<span v-if="isUrgent(group) && !hasReturned(group)" class="urgent">
-								<LnxIcon icon="lucide:triangle-alert" :size="14" />
-								Urgente
+							<!-- What's resolved or ignored needs nothing, unless it came back -->
+							<span v-if="group.status === 'new' || hasReturned(group)" class="severity" :class="`is-${group.severity.level}`" :title="group.severity.reason">
+								<LnxIcon :icon="errorSeverities[group.severity.level].icon" :size="14" />
+								{{ errorSeverities[group.severity.level].label }}
 							</span>
 							<span :title="`${group.sessions} ${group.sessions === 1 ? 'sesión afectada' : 'sesiones afectadas'}`">
 								{{ group.count }} {{ group.count === 1 ? 'vez' : 'veces' }}
@@ -447,7 +451,7 @@ async function clean() {
 }
 
 .status,
-.urgent {
+.severity {
 	padding: 2px var(--lnx-spacing-2);
 	border-radius: 999px;
 	font-size: var(--lnx-font-size-legal);
@@ -480,9 +484,26 @@ async function clean() {
 	}
 }
 
-.urgent {
-	background: #fee2e2;
-	color: #991b1b;
+.severity {
+	&.is-critical {
+		background: #fee2e2;
+		color: #991b1b;
+	}
+
+	&.is-high {
+		background: #ffedd5;
+		color: #9a3412;
+	}
+
+	&.is-medium {
+		background: #e0f2fe;
+		color: #075985;
+	}
+
+	&.is-low {
+		background: var(--color-gray-2);
+		color: var(--color-gray-7);
+	}
 }
 
 @media (max-width: 640px) {

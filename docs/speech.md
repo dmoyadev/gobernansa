@@ -1,8 +1,8 @@
 # Speech para la visita a un despacho
 
-Borrador del 14/11/2026 del bloque [E](v1.md#e) de v1.md. Es el texto que dices antes y después de la demo ([F](v1.md#f)), unos cinco minutos hablados en total, más la demo. No se lee: se ensaya hasta que salga con tus palabras. Lo que va entre corchetes se rellena antes de la primera visita.
+Borrador del 14/11/2026 del bloque [E](v1.md#e) de v1.md. Es lo que dices antes y después de la demo ([F](v1.md#f)): unos cinco minutos, más la demo. No se lee: se ensaya hasta que salga con tus palabras. Lo que va entre corchetes se rellena antes de la primera visita.
 
-Cosas que conviene tener en cuenta al usarlo:
+Al usarlo:
 - **Se pregunta más de lo que se afirma.** Cada parte abre con una pregunta. Lo que te contesten es lo que luego enseñas en la demo, en ese orden si puedes.
 - **El nombre puede cambiar** ([rebranding.md](rebranding.md)). Donde pone «gobernança», el que sea entonces.
 - **Las marcas ⚠️** son frases que hoy no son ciertas del todo y dependen de un bloque de la v1. Hasta que esté hecho, se dice la versión de la nota.
@@ -13,7 +13,7 @@ Cosas que conviene tener en cuenta al usarlo:
 
 > Gracias por recibirme. Os robo media hora: diez minutos de contaros y de preguntaros, quince de enseñaros cómo funciona con una comunidad de ejemplo, y el resto para lo que queráis preguntar. Si en algún momento algo no os interesa, me lo decís y paso.
 
-Ten ya abiertos el admin en el portátil y la webapp en el móvil, con la sesión iniciada en la demo ([F](v1.md#f), «Montaje»). No se enseñan hasta el punto 4.
+Ten ya abiertos el admin en el portátil y la webapp en el móvil, con la sesión iniciada ([demo.md](demo.md), «Preparación»). No se enseñan hasta el punto 4.
 
 ## 1. El problema, en sus palabras (1 minuto)
 
@@ -25,7 +25,7 @@ Tres preguntas, una detrás de otra, dejando que contesten. Apunta lo que digan.
 
 > ¿Vuestros vecinos tienen ya una app? ¿La usan?
 
-Si contestan que sí a la última, la mayoría será la del portal de su programa. No la critiques tú: pregunta qué les dicen los vecinos de ella. Las notas de las tiendas hablan solas (TucomunidApp y TuAdministrador, 2,1★; [competencia.md](competencia.md), sección 1), pero suena mejor si lo dicen ellos.
+Si dicen que sí, casi siempre será la del portal de su programa. No la critiques: pregunta qué opinan los vecinos. Las notas de las tiendas hablan solas (TucomunidApp y TuAdministrador, 2,1★; [competencia.md](competencia.md), sección 1), pero suena mejor dicho por ellos.
 
 Cierre de la parte:
 
@@ -51,7 +51,7 @@ La última frase es la respuesta anticipada a «¿sois una persona sola?». Dich
 
 > Y la tercera son los vecinos: cada vez más esperan poder ver sus recibos y avisar de una avería desde el móvil, como hacen con el banco.
 
-Antes de cada visita, comprueba que las fechas de Verifactu y el estado de la reforma de la LPH siguen igual ([competencia.md](competencia.md), sección 2: las fechas no están contrastadas con el BOE).
+Antes de cada visita, comprueba las fechas de Verifactu y el estado de la reforma de la LPH ([competencia.md](competencia.md), sección 2: no están contrastadas con el BOE).
 
 ## 4. La demo (12–15 minutos)
 
@@ -59,7 +59,7 @@ Transición:
 
 > Mejor que contároslo, os lo enseño con una comunidad de ejemplo de [tu ciudad]. Os cuento una historia: un vecino avisa de una humedad, y seguimos lo que pasa hasta que se arregla. Luego el dinero y la junta.
 
-El guion, clic a clic, está en [demo.md](demo.md). Vuelve a lo que te contestaron en el punto 1: si lo que más les duele son las llamadas, alarga las incidencias; si es el cobro, la remesa y la morosidad.
+El guion, clic a clic, está en [demo.md](demo.md). Vuelve a lo que contestaron en el punto 1: si les duelen las llamadas, alarga las incidencias; si es el cobro, la remesa y la morosidad.
 
 ## 5. Lo que no hacemos todavía (1 minuto)
 
@@ -67,7 +67,7 @@ Se dice antes de que pregunten, sin que suene a disculpa. Sale de la tabla de [A
 
 > Os cuento también lo que no está, para que no os lo encontréis después.
 
-> Hay cosas que funcionan de punta a punta pero que tienen un coste por uso, y se activan cuando un despacho empieza: el pago con tarjeta y Bizum, el envío de correos, el correo certificado y el burofax, la conexión directa con el banco y el envío de Verifactu. En la app llevan la etiqueta «Modo de prueba», para que nadie se confunda.
+> Hay cosas que funcionan de punta a punta, pero tienen un coste por uso y se activan cuando un despacho empieza: el pago con tarjeta y Bizum, el envío de correos, el correo certificado y el burofax, la conexión directa con el banco y el envío de Verifactu. En la app llevan la etiqueta «Modo de prueba», para que nadie se confunda.
 
 > Y hay cosas que no existen: la presentación de los modelos en Hacienda la seguís haciendo vosotros, con el fichero que genera gobernança. No hay app en las tiendas: se instala desde el navegador, como una app. Y de momento solo está en castellano.
 
@@ -99,9 +99,9 @@ Una frase, y la prueba si la piden. La tabla con lo que hace falta para cada una
 Prueba: «Exportar en un ZIP» en la configuración ([B8](v1.md#b8)). ⚠️ Mencionar la empresa o el autónomo cuando exista ([EMP-1](competencia.md#emp-1)).
 
 **«¿Dónde están los datos? ¿Cumple el RGPD?»**
-> En los servidores de Google, y firmamos con vosotros el contrato de encargado del tratamiento.
+> En los servidores de Google. Firmamos con vosotros el contrato de encargado del tratamiento.
 
-⚠️ Hasta [A4.2](v1.md#a4) y [A4.6](v1.md#a4): «El contrato de encargado os lo paso antes de meter un solo dato real». La base de datos de producción está en Madrid (comprobado el 16/11/2026, [B1](v1.md#b1)), pero no digas «todo en la UE» hasta que lo estén también las fotos y vídeos ([GAR-3](competencia.md#gar-3)) y hasta saber qué responder por las cuentas de acceso, que Firebase no deja elegir dónde se guardan ([A4.8](v1.md#a4)).
+⚠️ Hasta [A4.2](v1.md#a4) ([EMP-2](competencia.md#emp-2)), di: «Estoy preparando el contrato de encargado, el análisis de riesgos y el procedimiento ante una brecha. Os los paso antes de meter un solo dato real» ([EMP-5](competencia.md#emp-5), [EMP-6](competencia.md#emp-6)). La base de datos está en Madrid ([B1](v1.md#b1)). No digas «todo en la UE» hasta que lo estén las fotos y vídeos ([GAR-3](competencia.md#gar-3): falta el bucket) y sepas qué decir de las cuentas de acceso ([A4.8](v1.md#a4)). Doble factor, aún no ([GAR-4](competencia.md#gar-4)).
 
 **«Ya tengo Gesfincas, TAAF…»**
 > No hace falta que lo dejéis. Podéis empezar por la app del vecino y las incidencias y seguir con vuestro programa para la contabilidad. El censo se importa pegándolo desde un Excel, y el diario se exporta a ContaPlus.
@@ -139,7 +139,7 @@ Prueba: la página «Equipo» ([B3](v1.md#b3)).
 
 ⚠️ Hasta que la copia diaria esté activada ([B5](v1.md#b5)), no digas «copias diarias». Di «hago copias de los datos de las comunidades y las he restaurado para comprobarlas».
 
-Y nunca digas «copias completas», tampoco después de B5: no llevan las fotos y vídeos, las cuentas ni el Historial de acciones.
+Nunca digas «copias completas», ni después de [B5](v1.md#b5): no llevan fotos, vídeos, cuentas ni las acciones del Historial.
 
 ---
 

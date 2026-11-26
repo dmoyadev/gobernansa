@@ -36,7 +36,7 @@ Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursi
 
 **Móvil, María:**
 1. Pestaña **Nuevo** → «Dar aviso de una incidencia».
-2. «¿Qué ha pasado?» → **Mantenimiento**. «¿Dónde ha pasado?» → **Zonas comunes**.
+2. «¿Qué ha pasado?» → **Mantenimiento**. «¿Dónde ha pasado?» → **Garaje**, en «Zonas comunes».
 3. En «Cuéntanos más», escribe: *sale mucha agua del techo del garaje*.
    - Aparece «¿Es de …?» y el consejo urgente: «Si puedes, cierra la llave de paso del agua».
    - *— La app le sugiere la categoría y le dice qué hacer mientras llega alguien. No decide por él: si se equivoca, pulsa «Cambiar».*
@@ -49,7 +49,7 @@ Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursi
 7. Tarjeta **Proveedor** → «Fontanería Hermanos Ortiz» → **Asignar**. La incidencia pasa sola a «Actuando».
 8. Tarjeta **Parte de trabajo** → **Crear enlace**.
    - *— Esto se lo mandáis al fontanero por WhatsApp. No necesita cuenta ni instalar nada.*
-   - Pulsa **Copiar enlace**, no **WhatsApp**: los teléfonos del seed son inventados y no hay internet. Pásalo al móvil con el portapapeles compartido entre portátil y móvil y ábrelo en el navegador 1, como si fueras el fontanero. Si no llega, ábrelo en el portátil, con la foto guardada también en él.
+   - Pulsa **Copiar enlace**, no **WhatsApp**: los teléfonos del seed son inventados y no hay internet. Pásalo al móvil con el portapapeles compartido y ábrelo en el navegador 1, como si fueras el fontanero. Si no llega, ábrelo en el portátil, con la foto también en él.
 
 **Móvil, el fontanero:**
 9. «Parte de trabajo» → **Aceptar y programar visita** → «Día» mañana, «Hora» 10:00 → **Confirmar visita**.
@@ -68,7 +68,7 @@ Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursi
 
 **Portátil, Residencial Los Olivos → Finanzas:**
 1. **Presupuesto** → año **2027**. Añade dos o tres partidas (limpieza, ascensor, seguro) → **Poner el mínimo** en el fondo de reserva → **Guardar presupuesto**.
-   - El de 2026 ya está emitido. Por eso se enseña con el año que viene, que es además lo que tocaría preparar ahora.
+   - El de 2026 ya está emitido: se enseña el del año que viene, que es lo que tocaría preparar ahora.
 2. **Cuotas y fondo de reserva** → 2027, «Periodicidad» trimestral → **Emitir N recibos**.
    - *— Del presupuesto a los recibos de cada propietario, por su coeficiente. Un clic.*
 3. **Remesas** → **Nueva remesa** → «Vencidos hasta» hoy, «Fecha de cargo» dentro de unos días → **Generar y descargar**.
@@ -79,7 +79,7 @@ Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursi
    - *— Cuando el banco os devuelve un recibo, lo importáis con el fichero del banco o lo apuntáis aquí, y vuelve a pendiente solo.*
    - La importación por fichero (pain.002 o camt.054) existe, pero no hay un fichero de ejemplo para la demo.
 6. **Morosidad**: «Antigüedad de la deuda» por tramos y los intereses de demora ya calculados.
-7. En «Deudores», María Núñez → **Carta de reclamación** → nivel «Segundo aviso».
+7. En «Deudores», el icono **Carta de reclamación** de María Núñez → «Nivel» **Segundo aviso**.
    - *— La carta sale con la deuda, los intereses y la referencia a la ley. La imprimís o la mandáis por email.*
    - No pulses el burofax: está en modo de prueba.
 
@@ -97,9 +97,9 @@ Lo que va entre comillas «así» es lo que pone en pantalla. Lo que va en cursi
    - Si preguntan, **Nueva junta** enseña el formulario: «Convocatoria», «Orden del día», **Añadir punto** y «Se vota».
 
 **Móvil, María:**
-2. **Comunidad** → Juntas → la junta → **Acuso recibo**.
+2. **Comunidad** → en «Participa», la fila con el título de la junta → la junta → **Acuso recibo**.
 3. En el «Orden del día», vota un punto: **A favor**.
-   - Si quieres enseñar la delegación: «¿Vas a asistir?» → «Delego mi voto» → elige a Carmen → **Guardar delegación**.
+   - Si quieres enseñar la delegación: «¿Vas a asistir?» → «Delego mi voto» → escribe *Carmen Ruiz* → **Guardar delegación**.
    - *— Vota una vez por propiedad, y el voto pesa por su coeficiente.*
 
 **Portátil:**
@@ -148,8 +148,8 @@ Vuelve al punto 5 del [speech](speech.md): lo que no hacemos todavía.
 
 ## No enseñar
 
-- Errores, Rendimiento, Correo (el buzón de salida en modo de prueba), Honorarios y Verifactu, la conciliación del banco (datos simulados), el burofax y el pago con tarjeta.
-- El Historial: solo lo ve el superadmin, y la demo local no arranca las funciones, así que no guarda los cambios ni restaura versiones.
+- Correo (el buzón de salida en modo de prueba), Honorarios y Verifactu, la conciliación del banco (datos simulados), el burofax y el pago con tarjeta.
+- Errores e Historial: solo los ve el superadmin. Además, la demo local no arranca las funciones: el Historial no guarda nada.
 - En el móvil, la webapp va por `http`: no hay copiar, compartir, instalar la app ni notificaciones push.
 - Andrés Molina, del Piso 3A, está bloqueado en el seed: no entres con él.
 - Cada desvío es una pregunta que no vas a responder bien. Si te lo piden, «lo vemos al final» y lo apuntas.

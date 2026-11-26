@@ -10,41 +10,36 @@ Cada perfil de `users/{uid}` tiene un `role`. Las reglas lo aplican, y `packages
 
 | Rol | Quién | Comunidades | Puede |
 | --- | --- | --- | --- |
-| `superadmin` | El equipo de gobernança | Todas | Todo: crear comunidades, invitar a administradores y asignarles comunidades |
-| `admin` | Un administrador de fincas | Los ids de `communityIds` | Editar esas comunidades, invitar y quitar a sus gestores y vecinos |
+| `superadmin` | El equipo de gobernança | Todas | Todo, también **Administradores**, **Cuentas**, **Errores** e **Historial** |
+| `admin` | Alguien de un despacho | Los ids de `communityIds` | Crear comunidades, editar las suyas e invitar y quitar a sus gestores y vecinos, según su `officeRole` |
 | `manager` | Quien lleva la comunidad, p. ej. su presidente | Su `communityId` | Editarla e invitar o quitar a sus vecinos. En la webapp, cambiar el estado de las incidencias y gestionar los eventos |
-| `user` | Un vecino | Su `communityId` | Usar la webapp |
+| `user` | Un vecino | Su `communityId`, más `otherCommunityIds` si tiene casa en otras | Usar la webapp |
 
-En el admin cada uno solo abre lo que gestiona: el equipo, todo; los administradores, sus comunidades, y los gestores, la suya. **Nueva comunidad**, **Administradores** y **Cuentas** son del equipo. **Cuentas** lista las de cualquier rol y comunidad y cambia de cada una el nombre, el rol, la comunidad o las comunidades que administra y el bloqueo; también envía un enlace para crear una contraseña nueva y quita el perfil. El email de acceso y la cuenta de Auth solo los cambia el Admin SDK, así que esperan a las functions. Los vecinos tienen una pantalla con los gestores y administradores de su comunidad para pedir acceso, así que las reglas les dejan leer esos perfiles (y solo esos). Nadie cambia su propio rol: los administradores dan los roles de gestor y vecino en sus comunidades, y los gestores solo el de vecino en la suya. `communityId` es donde vive cada uno (`''` para los administradores que no viven en ninguna); en la webapp, gestionar su propia comunidad también exige vivir en ella.
+Un despacho es su titular y quien invita desde **Equipo**. Su id (`officeId`) es el uid del titular, y cada miembro tiene un `officeRole`: `owner` (Titular: todo, también el equipo y archivar comunidades), `accountant` (Contable: también cierra ejercicios y factura honorarios), `clerk` (Oficial: el día a día, sin eso) o `viewer` (Solo lectura). Sin `officeRole`, el despacho es suyo. Una comunidad que crea un despacho se asigna a todo él en el mismo lote.
+
+En el admin cada uno solo abre lo que gestiona. **Cuentas** (del equipo) lista hasta 300 por rol y comunidad y cambia de cada una el nombre, el rol, la comunidad o las comunidades que administra y el bloqueo; también envía un enlace para crear una contraseña nueva y quita el perfil. El email de acceso y la cuenta de Auth solo los cambia el Admin SDK, así que esperan a las [functions](setup.md#functions). Los vecinos tienen una pantalla con los gestores y administradores de su comunidad para pedir acceso, así que las reglas les dejan leer esos perfiles (y solo esos). Nadie cambia su propio rol: los administradores (salvo Solo lectura) dan los roles de gestor y vecino en sus comunidades, y los gestores solo el de vecino en la suya. `communityId` es donde vive cada uno (`''` para los administradores que no viven en ninguna); en la webapp, gestionar su propia comunidad también exige vivir en ella.
 
 <a id="invitaciones"></a>
 
 ### Invitaciones
 
-Las cuentas se añaden desde el admin (**Vecinos y gestores** de una comunidad, o **Administradores** para el equipo) invitando a un correo, que se guarda como `invitations/{correo en minúsculas}` con el nombre, el rol y la comunidad. Con **Enviar invitación por email** (marcado por defecto), se pone a la vez en cola un correo con el enlace a su app (la webapp para los vecinos, el admin para los demás); ver [correo saliente](#correo). La persona entra en la app con ese correo, y en su primer acceso se crea su perfil a partir de la invitación, que luego se borra. Solo pueden recogerla los correos verificados, como los de los enlaces de acceso; las cuentas con contraseña creadas en la consola no lo están.
+Las cuentas se añaden desde el admin (**Vecinos y gestores** de una comunidad, **Equipo** para un despacho o **Administradores** para el equipo) invitando a un correo, que se guarda como `invitations/{correo en minúsculas}` con el nombre, el rol y la comunidad. Con **Enviar invitación por email** (marcado por defecto), se pone a la vez en cola un correo con el enlace a su app (la webapp para los vecinos, el admin para los demás); ver [correo saliente](#correo). La persona entra en la app con ese correo, y en su primer acceso se crea su perfil a partir de la invitación, que luego se borra. Solo pueden recogerla los correos verificados, como los de los enlaces de acceso; las cuentas con contraseña creadas en la consola no lo están.
+
+Un vecino sin correo recibe una carta con un código de 10 caracteres ([B2.4](v1.md#b2)): la invitación usa el código como id (`byCode`, y `propertyIds` o `tenantOf` para vincularlo a su casa), y entra con una cuenta `<código>@codigo.gobernansa.dmoya.dev`. Su perfil guarda `inviteCode`; quien ya tiene perfil y usa un código lo guarda en `joinedWith`, y el inmueble que reclama, en `claimedWith`.
 
 Un correo que ya tiene perfil no recibe invitaciones: su rol se cambia desde la lista. Quitar a alguien borra su perfil, no su cuenta de acceso, así que una invitación nueva le devuelve el acceso.
 
-<a id="cuatro-roles"></a>
-
-### Paso a los cuatro roles
-
-Antes, `admin` significaba todas las comunidades. Tras el push que despliega estas reglas, en **Firebase console → Firestore → users**:
-
-1. Tu perfil (y el de cualquier otra persona del equipo): cambia `role` de `admin` a `superadmin`. Hasta entonces el admin no le muestra ninguna comunidad.
-2. Cualquier otro `admin`: añade `communityIds` (un array de textos) con los ids de las comunidades que gestiona. Deja su `communityId` si vive en una, o ponlo a `''`.
-3. Los gestores y vecinos no necesitan nada.
-
-Las consultas nuevas solo usan filtros de igualdad, que Firestore sirve sin índices compuestos.
+<a id="cuatro-roles"></a>✅ **Paso a los cuatro roles** (29/10/2026): el equipo pasó a `superadmin` y cada `admin` recibió sus `communityIds` en la consola.
 
 <a id="comunidad"></a>
 
 ## Datos de la comunidad
 
-Los edita desde el admin quien gestiona cada comunidad (ver [roles](#roles)); solo el equipo las crea. La webapp solo los lee. Una comunidad todavía se borra desde la consola, junto con sus incidencias, usuarios e inmuebles. Se guardan en `communities/{communityId}`:
+Los edita desde el admin quien gestiona cada comunidad (ver [roles](#roles)), y la crean el equipo o un despacho (`officeId`). La webapp solo los lee. Archivarla (`archivedAt`) es del equipo o del titular; borrarla, junto con sus incidencias, usuarios e inmuebles, sigue siendo desde la consola. Se guardan en `communities/{communityId}`:
 
 ```text
-cif, iban, bank
+name, address, constructionYear, cif, iban, bank, bic, sepaSuffix, commonAreas, bookingFees
+bankFeed { mode: 'demo' }, onlinePayments 'test'   el banco y la pasarela de prueba
 contacts[]     { type: admin | president | janitor | insurance | elevator | cleaning | gardening | other,
                  name, phone?, whatsapp?, email?,
                  schedule?: [{ days: [1..7], from: 'HH:MM', to: 'HH:MM' }] }
@@ -81,8 +76,9 @@ communities/{communityId}/issues/{issueId}
   votes/{issueId}_{propertyId}            { propertyId, voterId (su propietario), score: 1 | -1, votedAt }
   private/author                          { uid }, quién la creó, escrito con ella y nunca cambiado
   comments/{commentId}                    { type: message | status, message, status?, authorId, authorName, authorRole? }
-users/{uid}                               perfil, creado a partir de su invitación en el primer acceso
-invitations/{email}                       { email, name, role, communityId, communityIds?, invitedBy, invitedAt }
+users/{uid}                               perfil, creado a partir de su invitación (o su código) en el primer acceso
+invitations/{email o código}              { email, name, role, communityId, communityIds?, officeId?, officeRole?, invitedBy, invitedAt,
+                                            byCode?, propertyIds? (≤ 50), tenantOf? }
 users/{uid}/documents/{id}                documentos de un inmueble (la lista)
 users/{uid}/documentFiles/{id}            su contenido, hasta 1 MB cada uno
 users/{uid}/devices/{token}               dispositivos con las notificaciones push activadas
@@ -102,7 +98,7 @@ Solo lo sabe la administración. La incidencia no tiene `createdBy` y los cambio
 Todo lo que sigue corre en el navegador y lo aplica [`firestore.rules`](../firebase/firestore.rules), sin Cloud Functions ni tareas programadas, así que funciona en el plan gratuito. Solo las fotos de los proveedores necesitan Storage, en Blaze ([Storage](setup.md#storage)). Los tipos están en `packages/shared/domain`.
 
 ```text
-properties/{id}                                 censo: name, type, coefficient (%), ownerUid ('' sin cuenta), ownerName, ownerEmail, ownerNif, ownerPhone (≤ 40), tenantName, tenantEmail
+properties/{id}                                 censo: name, type, coefficient (%), ownerUid ('' sin cuenta), ownerName, ownerEmail, ownerNif, ownerPhone (≤ 40), tenantName, tenantEmail, tenantUid, claimedWith, mandate
 providers/{id}                                  directorio compartido por communityIds, con ratingSum / ratingCount
   ratings/{uid}                                 { score 1–5, comment, communityId, authorId, authorName }
 events/{id}                                     también los comunicados: las copias de uno enviado a varias comunidades comparten broadcastId
@@ -123,9 +119,12 @@ communities/{c}/obligations/{id}                IEE, ascensor, extintores, legio
 communities/{c}/bookings/{areaId}_{date}_{from} un turno solo se reserva una vez: su id convierte una segunda reserva en un cambio que las reglas rechazan
 communities/{c}/activity/{id}                   quién cambió qué, escrito con cada cambio desde el admin, nunca editado
 users/{uid}.blocked                             un vecino bloqueado puede leer, pero no crear incidencias, comentar, votar, reservar ni responder a las juntas
+communities/{c}/payments, debtCases, remittances, paymentOrders, bankMovements, journalEntries, fiscalYears, accounting
+                                                cobros en línea, morosidad, remesas, transferencias, banco y contabilidad
+offices/{id}  + invoices, verifactu             datos fiscales y honorarios del despacho; lo lee el despacho, lo escriben titular y contable
 ```
 
-Lo que el plan gratuito deja fuera, y cómo se cubre:
+Las de vigilancia (`errors`, `ops`, `vitals`, `audit`, `actions`) se explican en [setup.md](setup.md) y [fiabilidad.md](fiabilidad.md). Lo que el plan gratuito deja fuera, y cómo se cubre:
 
 - **Avisos de vencimiento** (obligaciones): no hay servidor que envíe correos, así que salen en el admin (la página de obligaciones y el panel de la cartera), y cada obligación se puede añadir al calendario del propio administrador como un `.ics` con su recordatorio.
 - **Certificados y actas en PDF**: se imprimen desde el navegador («Guardar como PDF»); el admin oculta su marco al imprimir.
@@ -134,35 +133,35 @@ Lo que el plan gratuito deja fuera, y cómo se cubre:
 
 Los recuentos del panel de la cartera usan consultas de agregación, que cuestan una lectura por cada 1.000 documentos contados.
 
-«Ver como vecino» abre la webapp con `?viewAs=<communityId>`: quien gestiona esa comunidad la ve en solo lectura, como la vería un vecino. El admin necesita `VITE_WEBAPP_URL` (la dirección de la webapp, `https://gobernansa.dmoya.dev` si falta), y hay que entrar en la webapp con la misma cuenta.
+«Ver como vecino» abre la webapp con `?viewAs=<communityId>`: quien gestiona esa comunidad la ve en solo lectura, como un vecino, entrando con la misma cuenta. El admin necesita `VITE_WEBAPP_URL` (`https://gobernansa.dmoya.dev` si falta).
 
 <a id="censo"></a>
 
 ### Importación del censo
 
-Desde **Vecinos → Propiedades → Importar censo** de una comunidad, su censo llega de un `.xlsx`, un CSV o TSV (`;`, `,` o tabulador, UTF-8 o Windows-1252) o de celdas pegadas desde Excel o Google Sheets. El `.xlsx` se descomprime y se lee en el navegador (`packages/shared/utils/xlsx.ts`, con `DecompressionStream` y `DOMParser`), con los porcentajes y las fechas como los muestra Excel; los `.xls` binarios antiguos no se leen, y la página pide guardarlos como `.xlsx` o CSV. La fila de cabecera y cada columna se deducen de los títulos y se pueden cambiar. Luego cada fila se compara con el censo por el nombre del inmueble, sin distinguir mayúsculas, acentos, espacios ni puntuación: nueva, cambio (solo lo que rellena el fichero; una celda vacía nunca borra nada), sin cambios o error (sin nombre o repetido; coeficiente, NIF, IBAN, correo o fecha del mandato no válidos), y la página avisa cuando los coeficientes no suman 100 %. La revisión lista primero los errores de cada comunidad y muestra hasta 200 filas hasta **Mostrar … filas más**; se comprueban e importan todas igualmente. **Descargar plantilla** da un CSV con los títulos esperados.
+Desde **Vecinos → Propiedades → Importar censo** de una comunidad, el censo llega de un `.xlsx`, un CSV o TSV (`;`, `,` o tabulador, UTF-8 o Windows-1252) o de celdas pegadas desde Excel o Google Sheets. El `.xlsx` se lee en el navegador (`packages/shared/utils/xlsx.ts`, con `DecompressionStream` y `DOMParser`), con porcentajes y fechas como los muestra Excel; los `.xls` antiguos no, y la página pide guardarlos como `.xlsx` o CSV. La cabecera y las columnas se deducen de los títulos y se pueden cambiar. Cada fila se compara con el censo por el nombre del inmueble, sin distinguir mayúsculas, acentos, espacios ni puntuación: nueva, cambio (solo lo que rellena el fichero; una celda vacía nunca borra), sin cambios o error (sin nombre o repetido; coeficiente, NIF, IBAN, correo o fecha del mandato no válidos). La página avisa si los coeficientes no suman 100 %, lista primero los errores y muestra 200 filas hasta **Mostrar … filas más** (se importan todas). **Descargar plantilla** da un CSV con los títulos esperados.
 
-Desde la lista de comunidades, **Importar comunidades** acepta el mismo fichero con una columna **Comunidad** (y, si se quiere, su CIF, dirección e IBAN). Cada comunidad del fichero se empareja con una existente por CIF y luego por nombre. El equipo de gobernança crea las que no existen (sin `constructionYear` ni administradores, que se asignan después desde **Administradores**); los administradores solo importan en las suyas.
+Desde la lista de comunidades, **Importar comunidades** acepta el mismo fichero con una columna **Comunidad** (y, si se quiere, su CIF, dirección e IBAN). Cada comunidad del fichero se empareja con una existente por CIF y luego por nombre; las archivadas se reconocen y no se importan hasta recuperarlas. El equipo y los despachos (salvo Solo lectura) crean las que no existen, sin `constructionYear`; las de un despacho llevan su `officeId` y quedan asignadas a todo él.
 
 ```text
 properties/{id}     los campos que escribe la página de propiedades; las nuevas con ownerUid ''
   mandate           a partir de IBAN + referencia del mandato + fecha de firma: { reference, debtorName (el propietario), iban, signedAt,
                     status: 'active', firstRemittanceId: 'migrated' }
-communities/{id}    las creadas: { name, address, cif?, iban?, createdAt, createdBy, updatedAt, updatedBy }
+communities/{id}    las creadas: { name, address, cif?, iban?, officeId?, createdAt, createdBy, updatedAt, updatedBy }
 ```
 
 - **No se borra nada**: los inmuebles que faltan en el fichero se listan y se quedan como están. Los propietarios con cuenta conservan el nombre y el correo de la cuenta.
-- **Mandatos migrados**: `firstRemittanceId: 'migrated'` (como si una remesa hubiera llevado su primer adeudo) hace recurrente (RCUR) su primer adeudo desde aquí, como pide SEPA para los mandatos traídos de otro programa. Un IBAN sin la referencia y la fecha de su mandato no se guarda, porque los inmuebles no tienen dónde, y la fila lo dice. Los teléfonos van a `ownerPhone`, tal cual (una fila con uno de más de 40 caracteres es un error).
+- **Mandatos migrados**: `firstRemittanceId: 'migrated'` hace recurrente (RCUR) su primer adeudo desde aquí, como pide SEPA para los mandatos traídos de otro programa. Un IBAN sin la referencia y la fecha de su mandato no se guarda (los inmuebles no tienen dónde), y la fila lo dice. Los teléfonos van a `ownerPhone`, tal cual (una fila con uno de más de 40 caracteres es un error).
 - **Escrituras**: lotes de hasta 497 inmuebles más su entrada de actividad (y la comunidad creada con la suya), dentro de las 500 escrituras de un lote. Si uno falla, lo escrito se queda y el fichero se compara otra vez, así que importarlo de nuevo solo escribe lo que falta.
-- **Invitaciones**, opcionales: cada propietario con correo y sin cuenta se invita como vecino con el `invite()` de la página de personas, una invitación y una entrada de actividad cada uno, saltándose los correos que ya tienen perfil o invitación en la comunidad. Como en la página de personas, **Enviar invitación por email** (marcado por defecto) pone también en cola el correo de cada invitación (ver [correo saliente](#correo)).
-- **Reglas**: lo cubren las de `properties` (un coeficiente numérico y `ownerPhone` un texto de hasta 40 caracteres), `communities` (que solo crea `superadmin`), `invitations`, `mail` y `activity`.
-- **Lecturas**: una consulta de los inmuebles de cada comunidad (`communityId ==`) al leer el fichero, y otra al volver a la página o después de importar; al invitar, una de sus usuarios y una de sus invitaciones, más la comunidad una vez por invitación enviada por correo (`invite()` la lee para su nombre). Solo igualdades, sin índice nuevo. No se paga ni se envía nada a ningún sitio, así que no hay modo de prueba.
+- **Invitaciones**, opcionales: cada propietario con correo y sin cuenta se invita como vecino con `invite()` (`people/application/usePeople.ts`), una invitación y una entrada de actividad cada uno, saltándose los correos que ya tienen perfil o invitación en la comunidad. **Enviar invitación por email** (marcado por defecto) pone también en cola su correo ([correo saliente](#correo)).
+- **Reglas**: lo cubren las de `properties` (un coeficiente numérico y `ownerPhone` un texto de hasta 40 caracteres), `communities` (las crean el equipo y los despachos), `invitations`, `mail` y `activity`.
+- **Lecturas**: los inmuebles de cada comunidad (`communityId ==`) al leer el fichero y al terminar; al invitar, sus usuarios y sus invitaciones, más la comunidad por cada correo (`invite()` lee su nombre). Solo igualdades. No se paga ni se envía nada fuera, así que no hay modo de prueba.
 
 <a id="entregas"></a>
 
 ### Entregas a cuenta e intereses de demora
 
-Desde **Recibos**, el despacho anota cobros parciales de un cargo pendiente que no está domiciliado (importe, fecha, efectivo / transferencia / tarjeta / otro, nota) y los deshace uno a uno. Lo pendiente es el importe menos lo cobrado, y todo lo que muestra o suma deuda lo usa: la lista de cargos, los extractos (cada entrega en su línea), la antigüedad de la deuda, las cartas de reclamación, el monitorio, el certificado de pagos, el resumen de Finanzas, el panel de la comunidad y la cartera, los candidatos del banco, las exportaciones de saldos y deudores (la de cargos añade una columna **Cobrado a cuenta**), los adeudos de una remesa nueva y **Mis recibos** de los vecinos, cuyo pago de prueba paga lo pendiente. El diario contabiliza cada entrega en su fecha (a 570 Caja si es en efectivo, si no a 572 Bancos) y el resto el día en que se pagó el cargo. Los cargos sin estos campos funcionan como antes.
+Desde **Recibos**, el despacho anota cobros parciales de un cargo pendiente que no está domiciliado (importe, fecha, efectivo / transferencia / tarjeta / otro, nota) y los deshace uno a uno. Lo pendiente es el importe menos lo cobrado, y lo usa todo lo que muestra o suma deuda, de los extractos (cada entrega en su línea) y el monitorio a las remesas nuevas y **Mis recibos**, cuyo pago de prueba paga lo pendiente; la exportación de cargos añade **Cobrado a cuenta**. El diario contabiliza cada entrega en su fecha (a 570 Caja si es en efectivo, si no a 572 Bancos) y el resto el día en que se pagó el cargo. Los cargos sin estos campos funcionan como antes.
 
 Los intereses de demora son un ajuste de cada comunidad, desactivado por defecto, que se edita en **Morosidad**: el tipo anual y los días de gracia. Son intereses simples sobre lo pendiente de cada cargo vencido, día a día, desde su vencimiento más la gracia hasta hoy (u otro día elegido), sobre un año de 365 días y redondeados al céntimo por cargo. La página recuerda que necesitan la aprobación de la junta o de los estatutos y que el interés legal del dinero lo fija cada año la Ley de Presupuestos; el 3,25 % solo se ofrece como valor de partida. **Generar recibo de intereses** emite un cargo con los intereses de un deudor (batchId `interest`, contabilizado en 769 Otros ingresos financieros), con vencimiento a 15 días, que se cobra como cualquier otro y no genera intereses.
 
@@ -178,14 +177,14 @@ charges/{id}.interest          un recibo de intereses: { chargeIds, to: 'YYYY-MM
 - **Pagado**: un cargo se marca pagado el día de la última entrega cuando estas llegan a su importe. Uno marcado como pagado a mano o en línea conserva lo que cubrió: se marca pendiente antes de deshacer una entrega. Anular las cuotas pendientes de un año deja las que tienen entregas.
 - **Domiciliados**: una remesa adeuda lo pendiente de cada cargo, y mientras el cargo está en ella no se puede añadir ni deshacer ninguna entrega. Una devolución guarda lo adeudado (`returns[].amount`; las antiguas, sin él, adeudaron el importe entero), que el diario contabiliza como cobrado y devuelto.
 - **Sin cobrar dos veces**: los intereses se calculan a partir de los cargos, nunca se guardan, y un recibo de intereses dice hasta cuándo se liquidaron sus cargos, así que el siguiente empieza ahí. Los intereses aún no liquidados cuando se paga un cargo dejan de contar.
-- **Lecturas**: anotar o deshacer una entrega lee el cargo una vez (una transacción). La página de morosidad lee la comunidad y, con los intereses activados, los recibos de intereses una vez (`batchId ==`); los libros añaden una consulta `collectionYears array-contains`, y el resumen suma `amount` y `collected` en la misma agregación. Solo filtros de un campo, sin índice nuevo.
+- **Lecturas**: anotar o deshacer una entrega lee el cargo una vez (una transacción). La página de morosidad lee la comunidad y, con los intereses activados, los recibos de intereses una vez (`batchId ==`); los libros añaden una consulta `collectionYears array-contains`, y el resumen suma `amount` y `collected` en la misma agregación, que necesita su índice compuesto sobre `charges` (`paidAt`, `amount`, `collected`, en [`firestore.indexes.json`](../firebase/firestore.indexes.json), desplegado a mano: [índices](setup.md#indices)).
 - **Sin cubrir**: el widget de dinero del panel de la comunidad aún cuenta como cobrado en un mes el importe entero de los cargos pagados en él, entregas incluidas.
 
 <a id="partes"></a>
 
 ### Partes de trabajo
 
-Con un proveedor asignado a una incidencia, la administración crea un enlace para él (**Parte de trabajo** en la incidencia) y se lo envía por WhatsApp (un enlace `wa.me`, sin API), por correo (en cola en el [correo saliente](#correo) al crearlo, si el directorio tiene el del proveedor, o con `mailto`) o copiado. El proveedor abre `/gremio/<token>` en la webapp sin cuenta: ve el trabajo, sus fotos, la dirección con un enlace al mapa y el contacto de la administración, y lo acepta o lo rechaza (con un motivo), programa la visita y lo marca como hecho con una nota y fotos (subidas a Storage; ocultas sin bucket, ver [Storage](setup.md#storage)). La página de la incidencia muestra sus respuestas en directo; una vez hecho, ofrece marcar la incidencia como resuelta, y una visita programada se puede publicar a los vecinos como comentario (se ofrece una vez por fecha de visita: una que ya está entre los comentarios de la incidencia no se ofrece otra vez).
+Con un proveedor asignado a una incidencia, la administración crea un enlace para él (**Parte de trabajo** en la incidencia) y se lo envía por WhatsApp (un enlace `wa.me`, sin API), por correo (en cola en el [correo saliente](#correo) al crearlo, si el directorio tiene el del proveedor, o con `mailto`) o copiado. El proveedor abre `/gremio/<token>` en la webapp sin cuenta: ve el trabajo, sus fotos, la dirección con un enlace al mapa y el contacto de la administración, y lo acepta o lo rechaza (con un motivo), programa la visita y lo marca como hecho con una nota y fotos (subidas a Storage; ocultas sin bucket, ver [Storage](setup.md#storage)). La página de la incidencia muestra sus respuestas en directo; una vez hecho, ofrece marcarla como resuelta, y ofrece publicar a los vecinos cada fecha de visita que aún no esté entre sus comentarios.
 
 ```text
 workOrders/{token}   communityId, issueId, community { name, address }, issue { title, description, category, location, assets },
@@ -222,8 +221,8 @@ meetings/{m}/notices/{kind}_{uid}  kind call | minutes, uid ('' sin cuenta, y en
 ```
 
 - **Firma electrónica simple**: el trazo dibujado (un trazado SVG de números enteros en una caja de 400×150, hasta 20.000 caracteres) más la cuenta con la sesión abierta (`byUid`, `byEmail`) y la hora del servidor. `byUid` no coincide con `uid` cuando se firmó en persona en la pantalla de la administración.
-- **Reglas**: quien gestiona la comunidad escribe el texto y los firmantes del acta, solo sin firmas en el resultado y no una vez firmada por los dos. Cada firma solo se puede añadir en su hueco vacío, por la persona que figura o por quien gestiona la comunidad, con la fecha del servidor, y los vecinos bloqueados no pueden. El sellado, una vez firmada por los dos y por quien gestiona la comunidad o uno de los dos firmantes, pone un `hash` de 64 caracteres hexadecimales y `closedAt` (la hora del servidor); desde entonces nada puede cambiarla. Un firmante solo añade su propio uid a `minutesSigned` de la junta, nada más de ella. Los vecinos leen el acta si son uno de sus firmantes o una vez enviada a los propietarios (una lectura más de la junta). Los avisos los crea quien gestiona la comunidad, que después solo añade o retira una entrada de `recordedDissent`: un acuerdo votado cada vez del aviso del acta de un propietario ausente, recibida un día que no es futuro, firmada y fechada por el servidor. Cada propietario lee solo los suyos (por su id; solo la administración los lista), pone `readAt` y `receivedAt` una vez, y añade una discrepancia por acuerdo votado mientras esté ausente y dentro de los 30 días desde `sentAt`, con la fecha del servidor. Los propietarios bloqueados también: bloquear frena el spam, no sus derechos como propietarios.
-- **Modo de prueba**: la notificación certificada (correo certificado / burofax) no envía nada; cada aviso recibe una referencia inventada `PRUEBA-BF…`, y el admin la marca como prueba. Los propietarios sin cuenta solo tienen ese canal (y el correo, si el censo tiene el suyo), así que el admin los lista para imprimir el acta y enviarla por correo postal. Cada propietario con correo en el censo la recibe también por correo, con el texto del acta (ver [correo saliente](#correo)). Un proveedor certificado real se añadiría en `sendNotices()` de `apps/admin/src/modules/meetings/application/useMeetings.ts`, el único sitio donde se crean los avisos.
+- **Reglas**: quien gestiona la comunidad escribe el texto y los firmantes del acta, sin firmas en el resultado y no una vez firmada por los dos. Cada firma va en su hueco vacío, por quien figura o por quien gestiona la comunidad, con la fecha del servidor; los vecinos bloqueados no firman. El sellado, una vez firmada por los dos, lo hace quien gestiona la comunidad o un firmante: un `hash` de 64 caracteres hexadecimales y `closedAt` del servidor, y ya nada puede cambiarla. Un firmante solo añade su uid a `minutesSigned`. Los vecinos leen el acta si son uno de sus firmantes o una vez enviada a los propietarios (una lectura más de la junta). Los avisos los crea quien gestiona la comunidad, que después solo añade o retira una entrada de `recordedDissent` (un acuerdo votado cada vez, en el aviso del acta de un ausente, recibida un día no futuro, firmada y fechada por el servidor). Cada propietario lee solo los suyos (por su id; solo la administración los lista), pone `readAt` y `receivedAt` una vez, y añade una discrepancia por acuerdo votado mientras esté ausente y dentro de los 30 días desde `sentAt`, con la fecha del servidor. Los propietarios bloqueados también: bloquear frena el spam, no sus derechos como propietarios.
+- **Modo de prueba**: la notificación certificada (correo certificado / burofax) no envía nada; cada aviso recibe una referencia inventada `PRUEBA-BF…`, y el admin la marca como prueba. Los propietarios sin cuenta solo tienen ese canal (y el correo, si el censo lo tiene), así que el admin los lista para enviarles el acta impresa por correo postal. Quien tiene correo en el censo la recibe también por correo, con su texto ([correo saliente](#correo)). Un proveedor certificado real se añadiría en `sendNotices()` de `apps/admin/src/modules/meetings/application/useMeetings.ts`, el único sitio donde se crean los avisos.
 - **Lecturas**: el admin escucha el acta mientras la junta está celebrada, y sus avisos una vez enviado alguno; la webapp, solo el acta cuando el usuario puede leerla y sus propios avisos por id. La lista de juntas muestra **Firma del acta** (a un firmante que no está en `minutesSigned`) o **Acta enviada** a partir de la propia junta, sin lecturas de más. Solo igualdades, sin índice nuevo.
 - **Juntas telemáticas**: las juntas solo en línea están pendientes de regulación general en la LPH, así que el admin y la webapp lo dicen cuando una junta tiene enlace y no lugar, y el admin sugiere dar también un lugar.
 
@@ -255,9 +254,9 @@ communities/{c}/payments/{id}.bankMovementId   el movimiento del abono que lo in
 
 ### Sugerencias y redacción automática
 
-Cuatro ayudas que corren en el navegador y no envían nada a ningún sitio (`packages/shared/application/writing.ts`, que solo se carga cuando una página lo necesita). Cada una usa la API del propio navegador en el dispositivo cuando la tiene, y si no una versión básica con reglas y plantillas, y una etiqueta dice cuál corrió: **En tu dispositivo** o **Básico**.
+Cuatro ayudas que corren en el navegador sin enviar nada fuera (`packages/shared/application/writing.ts`, cargado solo cuando hace falta). Cada una usa la API del navegador en el dispositivo si la hay, o una versión básica con reglas y plantillas, y una etiqueta dice cuál: **En tu dispositivo** o **Básico**.
 
-- **Sugerencia de incidencia**: a partir del título y la descripción, la categoría, el gremio del proveedor y la urgencia (baja, normal, alta, urgente) con su motivo, más qué hacer en el acto ante gas, fuego, personas atrapadas en el ascensor, riesgo eléctrico, caída de materiales o una fuga de agua. En **Nueva incidencia** de la webapp, ofrece la categoría como una etiqueta que el vecino puede aceptar (nunca la cambia sola) y muestra ese consejo; en la página de la incidencia del admin, muestra la urgencia y lista primero los proveedores de ese gremio: la versión básica en cuanto se abre la incidencia, y la del dispositivo, donde la hay, una vez por incidencia y texto mientras el admin sigue abierto. Básica: una tabla de palabras clave en español, sin acentos. En el dispositivo: `LanguageModel` de Chrome con un esquema JSON, comprobado contra las categorías, los gremios y las urgencias (el nivel alto o urgente de las reglas se mantiene como mínimo).
+- **Sugerencia de incidencia**: a partir del título y la descripción, la categoría, el gremio y la urgencia (baja, normal, alta, urgente) con su motivo, y qué hacer en el acto ante gas, fuego, personas atrapadas en el ascensor, riesgo eléctrico, caída de materiales o una fuga de agua. En **Nueva incidencia** de la webapp ofrece la categoría como una etiqueta que el vecino acepta o no, con ese consejo; en la incidencia del admin, la urgencia y primero los proveedores de ese gremio (la básica al abrirla; la del dispositivo, una vez por incidencia y texto). Básica: palabras clave en español, sin acentos. En el dispositivo: `LanguageModel` con un esquema JSON, comprobado contra categorías, gremios y urgencias (el alto o urgente de las reglas queda como mínimo).
 - **Resumir**, en la página de la incidencia del admin: de tres a cinco puntos a partir de los comentarios ya cargados (sin lecturas, sin los ocultos). Básica: el aviso, los cambios de estado, la pregunta de un vecino sin respuesta detrás y los últimos mensajes. En el dispositivo: `Summarizer` (puntos clave).
 - **Redactar a partir de unos puntos**, en **Comunicados**: el título y la descripción a partir de unas líneas y un tono (informativo, urgente, recordatorio), para revisar antes de enviar. Básica: una plantilla cortés con los puntos. En el dispositivo: `Writer`, que se descarta si añade, cambia u omite una cifra.
 - **Mejorar redacción**, en el acta mientras se puede editar: solo aparece cuando el navegador tiene `Rewriter`. Línea a línea; una línea cuya nueva versión cambia una cifra o pierde un nombre se queda como estaba, y la página dice cuántas; **Deshacer** devuelve el texto. No se guarda nada hasta **Guardar acta**.
@@ -266,8 +265,8 @@ Cuatro ayudas que corren en el navegador y no envían nada a ningún sitio (`pac
 no se guarda nada: ni colección, ni campo, ni regla
 ```
 
-- **Las APIs del navegador**: Summarizer, Writer, Rewriter y la Prompt API (`LanguageModel`) que trae Chrome, pedidas en español. Cada una se detecta antes de usarla, y cualquier fallo vuelve a la versión básica. El primer clic que necesita una descarga sus ficheros al dispositivo (unos GB, una vez) y muestra el progreso; las sugerencias al escribir o al abrir una incidencia solo usan lo ya descargado.
-- **Configuración**: ninguna para la versión básica. Donde Chrome aún no ofrece una API a todas las webs, necesita el token de la prueba de origen de esa API (gratuito, de la página de pruebas de origen de Chrome) como `<meta http-equiv="origin-trial">` en el `index.html` de cada app, o su opción en `chrome://flags`; sin él, las páginas usan **Básico**.
+- **Las APIs del navegador**: Summarizer, Writer, Rewriter y la Prompt API (`LanguageModel`) de Chrome, en español. Cada una se detecta antes de usarla, y cualquier fallo vuelve a la básica. El primer clic que necesita una descarga sus ficheros (unos GB, una vez) con su progreso; las sugerencias automáticas solo usan lo ya descargado.
+- **Configuración**: ninguna para la básica. Donde Chrome aún no abre una API a todas las webs, hace falta el token gratuito de su prueba de origen como `<meta http-equiv="origin-trial">` en el `index.html` de cada app, o su opción en `chrome://flags`; sin él, **Básico**.
 - **Coste**: nada de pago ni llamadas de red, así que no hay modo de prueba.
 
 <a id="correo"></a>
@@ -294,10 +293,10 @@ mail/{id}   to[], cc[]?, bcc[]?, replyTo?, message { subject, text, html }   los
 
 - **El correo**: `renderMail()` en `packages/shared/domain/mail.ts` genera el HTML (estilos en línea y tablas de maquetación, que los clientes de correo muestran, `lang="es"`, el nombre de gobernança, un título, párrafos y listas, un botón con su enlace escrito también, la comunidad en el pie) y su versión en texto plano. Las direcciones del censo y del directorio que no lo parecen se saltan, porque una haría fallar el lote entero. Las respuestas van a quien lo envió, salvo que la acción dé otra dirección.
 - **Reglas**: solo lo crea quien gestiona su `communityId` (los del equipo, `''`, el equipo), solo con esos campos, de 1 a 50 direcciones en total, un `x@y` sin espacios por entrada, `replyTo` de hasta 254 caracteres, un asunto de hasta 300, texto de hasta 200.000 y HTML de hasta 400.000 caracteres, `createdBy` quien llama y `createdAt` la hora del servidor. Lo lee quien gestiona la comunidad. Nadie los cambia ni los borra desde las apps: solo la extensión escribe `delivery`, con permisos de administrador que se saltan las reglas.
-- **Lecturas**: la página lee 25 cada vez, una vez (sin escucha), con **Cargar más**: todos para el equipo; para los demás, `communityId in` sus comunidades (eligiéndolas de una en una a partir de 30, el límite de `in` en Firestore), o `communityId ==` la elegida. Los ids empiezan por la hora invertida (`mailId()`), así que por id va primero lo más nuevo y estos filtros no necesitan índice compuesto. Cada uno muestra su estado (Prueba, o Pendiente, Enviado y Error según `delivery.state`), los detalles de entrega y una vista previa en un iframe aislado (sin scripts; sus enlaces abren en otra pestaña). Notificar una junta lee la comunidad una vez y, para el acta, su texto una vez; los avisos van luego en lotes de hasta 240 propietarios y unos 8 MB, porque cada correo puede llevar un acta larga.
+- **Lecturas**: la página lee 25 cada vez, sin escucha, con **Cargar más**: todos para el equipo; para los demás, `communityId in` sus comunidades (de una en una a partir de 30, el límite de `in`) o `==` la elegida. Los ids empiezan por la hora invertida (`mailId()`), así que el orden por id pone primero lo más nuevo sin índice compuesto. Cada uno muestra su estado (Prueba, o Pendiente, Enviado y Error según `delivery.state`), la entrega y una vista previa en un iframe aislado (sin scripts; los enlaces abren otra pestaña). Notificar una junta lee la comunidad una vez y, para el acta, su texto una vez; los avisos van luego en lotes de hasta 240 propietarios y unos 8 MB, porque cada correo puede llevar un acta larga.
 - **Modo de prueba**: `mode` guarda cómo se puso en cola, así que los del modo de prueba muestran **Prueba** para siempre. La extensión solo actúa sobre los documentos escritos mientras está instalada, así que esos nunca los envía; instálala y cambia `VITE_MAIL_MODE` a la vez, porque desde entonces envía cada correo nuevo, sea cual sea su modo.
 
-Para enviarlos de verdad (la extensión corre en Cloud Functions, que necesitan el plan Blaze, y un proveedor SMTP):
+Para enviarlos de verdad ([FUN-2](competencia.md#fun-2) · [B2](v1.md#b2); la extensión corre en Cloud Functions, que necesitan el plan Blaze, y un proveedor SMTP):
 
 1. Elige un proveedor SMTP (Brevo, Mailgun, Amazon SES, SendGrid…) y verifica allí el dominio de envío, añadiendo sus registros SPF, DKIM y DMARC en el DNS del dominio, o los correos acabarán en spam.
 2. **Firebase console → Upgrade** del proyecto a Blaze, con una alerta de presupuesto.
@@ -308,4 +307,4 @@ Para enviarlos de verdad (la extensión corre en Cloud Functions, que necesitan 
    - Users and templates collections: vacíos
 4. Pon `VITE_MAIL_MODE='extension'` en `.env.local` y, para el despliegue, como secreto de GitHub `VITE_MAIL_MODE`, que los dos workflows de `.github/workflows` pasan al build ([secretos](setup.md#secretos)), y despliega. Las acciones dejan de decir que es una prueba, y la página muestra la entrega de cada uno.
 
-Antes de activarlo, ten en cuenta que las reglas no pueden limitar lo que dice un correo ni cuántos se ponen en cola: cualquier gestor de una comunidad puede poner en cola su propio HTML a hasta 50 direcciones por correo, que saldría desde el dominio del proyecto. Las reglas no pueden limitar la frecuencia, así que, si preocupa, una Cloud Function que genere las plantillas a partir del `kind` y los ids (en vez de fiarse del HTML guardado) lo cierra una vez en el plan de pago.
+Antes de activarlo: las reglas no limitan lo que dice un correo ni cuántos se ponen en cola, así que cualquier gestor puede enviar su propio HTML a hasta 50 direcciones por correo desde el dominio del proyecto. Si preocupa, una Cloud Function que genere las plantillas a partir del `kind` y los ids, sin fiarse del HTML guardado, lo cierra en el plan de pago.
