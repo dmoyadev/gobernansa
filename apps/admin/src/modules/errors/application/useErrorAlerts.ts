@@ -27,6 +27,11 @@ export async function countErrorAlerts() {
 		)));
 		errorAlerts.value = snapshot.data().count;
 	} catch (error) {
+		// On opening, the profile comes from the offline cache first: someone no longer in the team (Cuentas) is still
+		// superadmin there until the server answers and stops this. The rules are right, so it isn't an error to report
+		if ((error as { code?: string }).code === 'permission-denied') {
+			return;
+		}
 		reportError(error, { action: 'No se han podido contar los errores nuevos' });
 	}
 }
