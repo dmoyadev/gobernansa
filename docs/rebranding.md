@@ -151,7 +151,7 @@ Unas 300 menciones del nombre en unos 65 ficheros (la mitad, en `docs/`), más u
 | `.env.example`, `README.md` | Las URLs de ejemplo y del proyecto |
 | `scripts/seed/data/meetings.js`, `errors.js` | Las URLs del seed |
 
-El chequeo de CI (`firebase-hosting-merge.yml`) sigue con las direcciones `web.app`: no cambian nunca.
+El chequeo de CI (`firebase-hosting.yml`) sigue con las direcciones `web.app`: no cambian nunca.
 
 ### 3.4 Identificadores internos
 

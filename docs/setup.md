@@ -1,6 +1,6 @@
 # Configuración de Firebase
 
-Lo que necesita el proyecto real para que todo funcione. CI despliega las dos webs y las reglas de Firestore; lo demás (las reglas de Storage, los índices y las functions) se configura o se despliega a mano. Los roles y el modelo de datos están en [datos.md](datos.md), y los emuladores y la demo local, en [desarrollo.md](desarrollo.md).
+Lo que necesita el proyecto real para que todo funcione. CI despliega las dos webs, las reglas de Firestore y sus índices; lo demás (las reglas de Storage y las functions) se configura o se despliega a mano. Los roles y el modelo de datos están en [datos.md](datos.md), y los emuladores y la demo local, en [desarrollo.md](desarrollo.md).
 
 <a id="reglas"></a>
 
@@ -34,7 +34,7 @@ CI no despliega `storage.rules`: tras cada cambio, `npx firebase deploy --only s
 
 ## 2. Índices
 
-Todos están en `firebase/firestore.indexes.json`. CI no los despliega, así que producción los recibe a mano, también en el plan gratuito, cada vez que el fichero cambia:
+Todos están en `firebase/firestore.indexes.json`, y cada push a `main` los despliega con las reglas, antes que las apps. Uno creado solo en la consola se queda: sin terminal, el CLI nunca borra ninguno. A mano, para tenerlos antes del push:
 
 ```bash
 npx firebase deploy --only firestore:indexes --project dmoyadev-gobernansa
@@ -82,23 +82,23 @@ Para activarlo, con el proyecto ya en Blaze:
 1. **Firebase console → Storage → Get started:** **production mode** (el de prueba deja el bucket abierto a cualquiera 30 días) y una ubicación en la UE ([GAR-3](competencia.md#gar-3)), p. ej. `europe-southwest1` (Madrid). No se puede cambiar después.
 2. En seguida, las reglas: `npx firebase deploy --only storage --project dmoyadev-gobernansa`.
 3. Ese primer despliegue pide que las reglas de Storage puedan leer Firestore (el rol **Firebase Rules Firestore Service Agent**): acéptalo, o se rechazará toda subida.
-4. El bucket (`storageBucket` en **Project settings → Your apps**) en el secreto `VITE_FIREBASE_STORAGE_BUCKET` ([secretos](#secretos)), sustituyendo cualquier valor anterior, y descomenta su línea en `.github/workflows/firebase-hosting-merge.yml` y `firebase-hosting-pull-request.yml`. El siguiente despliegue ya muestra los selectores.
+4. El bucket (`storageBucket` en **Project settings → Your apps**) en el secreto `VITE_FIREBASE_STORAGE_BUCKET` ([secretos](#secretos)), sustituyendo cualquier valor anterior, y descomenta su línea en `.github/workflows/firebase-hosting.yml`. El siguiente despliegue ya muestra los selectores.
 5. Vuelve a desplegar las [functions](#functions), aunque no hayan cambiado: toman el nombre del bucket al desplegarse, y `purgeOldMedia` no hace nada sin él.
 
 <a id="secretos"></a>
 
 ## 4. Secretos de GitHub para el despliegue
 
-Se añaden en **GitHub → Settings → Secrets and variables → Actions**. Además de la configuración web de Firebase (`VITE_FIREBASE_*`) y `VITE_ENV_NAME`, los workflows pasan:
+Se añaden en **GitHub → Settings → Secrets and variables → Actions**. Además de la configuración web de Firebase (`VITE_FIREBASE_*`) y `VITE_ENV_NAME`, el workflow pasa:
 
 | Secreto | Valor |
 | --- | --- |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `storageBucket` en **Project settings → Your apps**. Su línea está comentada en los dos workflows hasta que exista el bucket ([Storage](#storage)) |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `storageBucket` en **Project settings → Your apps**. Su línea está comentada en el workflow hasta que exista el bucket ([Storage](#storage)) |
 | `VITE_FIREBASE_VAPID_KEY` | **Project settings → Cloud Messaging → Web Push certificates** |
 | `VITE_MAIL_MODE` | `demo` (o sin poner) hasta instalar la extensión de correo; luego, `extension` ([correo saliente](datos.md#correo)) |
 | `VITE_APP_CHECK_KEY` | El id de la clave de reCAPTCHA de [App Check](#app-check); sin poner, sin App Check |
 
-Las reglas se despliegan con la misma cuenta de servicio que Hosting (`FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA`). En **Google Cloud console → IAM**, esa cuenta (`github-action-…@dmoyadev-gobernansa.iam.gserviceaccount.com`) necesita los roles **Firebase Rules Admin** y **Service Usage Consumer**, o el paso de las reglas falla por permisos.
+Las reglas y los índices se despliegan con la misma cuenta de servicio que Hosting (`FIREBASE_SERVICE_ACCOUNT_DMOYADEV_GOBERNANSA`). En **Google Cloud console → IAM**, esa cuenta (`github-action-…@dmoyadev-gobernansa.iam.gserviceaccount.com`) necesita los roles **Firebase Rules Admin**, **Cloud Datastore Index Admin** y **Service Usage Consumer**, o ese paso falla por permisos y no despliega nada.
 
 <a id="hosting"></a>
 

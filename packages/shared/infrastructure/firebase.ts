@@ -25,15 +25,18 @@ const db = initializeFirestore(firebaseApp, emulators ? {} : { localCache: persi
 // Photos and videos of issues and work orders. Needs Firebase's paid plan in the real project (docs/setup.md#storage)
 const storage = getStorage(firebaseApp);
 
+// How far above npm run dev's ports (firebase.json) the emulators listen: 20 with npm run dev:isolated (scripts/demo.js)
+const emulatorsOffset = Number(import.meta.env.VITE_EMULATORS_OFFSET ?? 0);
+
 /*
- * Where an emulator listens. In development, straight to it. In the local demo (npm run demo, scripts/demo.js) the page is
- * served over http on the laptop's network address, and its own server forwards the emulators' paths to them: that way
- * phones on the same wifi reach them too, whatever the address is that day
+ * Where the emulator on npm run dev's `port` listens. In development, straight to it. In the local demo (npm run demo,
+ * scripts/demo.js) the page is served over http on the laptop's network address, and its own server forwards the
+ * emulators' paths to them: that way phones on the same wifi reach them too, whatever the address is that day
  */
 function emulatorAt(port: number) {
 	return location.protocol === 'http:'
 		? { host: location.hostname, port: Number(location.port) || 80 }
-		: { host: '127.0.0.1', port };
+		: { host: '127.0.0.1', port: port + emulatorsOffset };
 }
 
 // All or none: emulator auth tokens are rejected by the real Firestore and Storage

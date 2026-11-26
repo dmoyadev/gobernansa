@@ -13,7 +13,7 @@ A mano, en la consola, en GitHub, en tu equipo o con un móvil:
 | ID | Qué falta |
 | --- | --- |
 | [ROB-2](fiabilidad.md#rob-2) · [B5](v1.md#b5) | Activar la copia diaria en tu equipo (`npm run backup -- --schedule`). Hasta entonces, `npm run purge -- --delete` una vez al mes. Y comprobar que el equipo tiene FileVault activado y que la clave de las copias está en el gestor de contraseñas |
-| [GAR-1](competencia.md#gar-1) · [B12](v1.md#b12) · [C3](v1.md#c3) | Desplegar a mano los índices ([índices](setup.md#indices)): sin ellos fallan en producción los filtros del Historial y las sumas de recibos y gastos (cifras de la comunidad, resumen de Finanzas y Liquidación) |
+| [GAR-1](competencia.md#gar-1) · [B12](v1.md#b12) · [C3](v1.md#c3) | Dar a la cuenta de servicio de CI el rol **Cloud Datastore Index Admin** ([secretos](setup.md#secretos)), para que el próximo push a `main` despliegue los [índices](setup.md#indices): sin ellos fallan en producción los filtros del Historial y las sumas de recibos y gastos (cifras de la comunidad, resumen de Finanzas y Liquidación) |
 | — | Cambiar el token del bot de Telegram del formulario de la landing: va en su JS público, cualquiera puede usarlo. Con [INF-1](competencia.md#inf-1), mandarlo desde una function |
 | [GAR-1](competencia.md#gar-1) · [B12](v1.md#b12) | Restaurar una versión desde el Historial con el emulador de functions, que arranca `npm run dev` |
 | [DAT-2](competencia.md#dat-2) · [B3](v1.md#b3) | Lo que falta probar cambiando de cuenta: despacho (sus comunidades en Honorarios, su Equipo, aceptar una invitación), presidente (firmar el acta, ver honorarios sin editarlos), vecino con código y vecino bloqueado |

@@ -89,7 +89,7 @@ Los guarda `packages/shared/infrastructure/monitoring.ts` en `errors/{huella}`, 
 
 **Estado:** 🔶 Hecho en el workflow el 04/11/2026; falta verlo en un despliegue.
 
-El último paso de `firebase-hosting-merge.yml` («Check both sites») pide las dos webs y el primer JS de cada una, y comprueba que llega como JavaScript: por la reescritura de Hosting, un fichero que falta responde 200 con el `index.html`. Si algo falla, el workflow falla y GitHub avisa por email. Si se sospecha una caída de Firebase, status.firebase.google.com.
+El último paso de `firebase-hosting.yml` en cada push a `main` («Check both sites») pide las dos webs y el primer JS de cada una, y comprueba que llega como JavaScript: por la reescritura de Hosting, un fichero que falta responde 200 con el `index.html`. Si algo falla, el workflow falla y GitHub avisa por email. Si se sospecha una caída de Firebase, status.firebase.google.com.
 
 Sin hacer, por si hiciera falta: la misma comprobación programada cada pocas horas en GitHub Actions. Si el repositorio es privado, gasta minutos del cupo gratuito.
 

@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
@@ -15,7 +16,8 @@ export default defineConfig({
 		alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }, // Import from src as '@/...'
 	},
 	server: {
-		proxy: { '/v0/b': 'http://127.0.0.1:5504' }, // Photos from the Storage emulator, saved with relative addresses
+		// Photos from the Storage emulator, saved with relative addresses. npm run dev:isolated's is 20 above (scripts/demo.js)
+		proxy: { '/v0/b': `http://127.0.0.1:${5504 + Number(process.env.VITE_EMULATORS_OFFSET ?? 0)}` },
 	},
 	plugins: [
 		// lnxjs-components' base.css imports Google Fonts the theme replaces (typography.scss): dropped, so no IP reaches Google

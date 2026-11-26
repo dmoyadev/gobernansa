@@ -39,8 +39,11 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 | --- | --- |
 | `npm run dev` | Emuladores, seed desde cero y las dos apps |
 | `npm run dev:webapp`, `dev:admin`, `dev:landing`, `emulators` | Solo esa app, la landing o los emuladores |
+| `npm run dev:isolated` | Un segundo entorno con sus propios emuladores y datos, junto a `npm run dev` ([docs/desarrollo.md](docs/desarrollo.md#entorno-aislado)) |
+| `npm run db -- get <ruta>` | Lee o escribe datos de los emuladores, nunca del proyecto real |
 | `npm run doctor` | Comprueba que el equipo tiene lo que necesita `npm run dev` |
 | `npm run check` | ESLint y tipos de las dos apps, en paralelo |
+| `npm run check:rules` | Comprueba las reglas de Firestore en un emulador propio |
 | `npm run lint` | ESLint arreglando lo que pueda |
 | `npm run build` | Build de producción de las dos apps y la landing |
 | `npm run clean` | Borra builds, cachés de Vite y logs |
@@ -53,9 +56,9 @@ npm run dev                  # emuladores con el seed, webapp en https://localho
 
 ## Despliegue
 
-- **Cada push a `main`:** CI despliega las reglas de Firestore, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing` o el tema, la publica en GitHub Pages (una vez hecho [A3](docs/v1.md#a3)).
+- **Cada push a `main`:** CI comprueba y despliega las reglas de Firestore y sus índices, la webapp y el admin en Firebase Hosting y, si cambia `apps/landing` o el tema, la publica en GitHub Pages (una vez hecho [A3](docs/v1.md#a3)).
 - **Cada pull request:** la webapp y el admin en un canal de vista previa.
-- **A mano:** los índices, las reglas de Storage y las functions ([docs/setup.md](docs/setup.md)).
+- **A mano:** las reglas de Storage y las functions ([docs/setup.md](docs/setup.md)).
 
 ## Documentación
 

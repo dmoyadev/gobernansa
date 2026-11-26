@@ -6,6 +6,9 @@ Scripts de Node que se lanzan con `npm run` desde la raíz. Los que tocan Fireba
 | --- | --- | --- |
 | [`seed/`](seed/README.md) | `npm run seed`, `seed:emulators`, `seed:demo` | Carga los datos de prueba: tres comunidades con datos para cada pantalla |
 | `demo.js` | `npm run demo`, `demo:reset` | La demo comercial en el portátil, sin internet, con sus propios puertos ([docs/demo.md](../docs/demo.md)) |
+| `demo.js --dev` | `npm run dev:isolated` | Un segundo entorno de desarrollo con sus propios emuladores y datos, junto a `npm run dev` ([entorno aislado](../docs/desarrollo.md#entorno-aislado)) |
+| `db.js` | `npm run db` | Lee y escribe documentos de los emuladores (`get`, `set`, `update`, `delete`); `--isolated` o `--demo` para los de esos entornos |
+| `check-rules.js` | `npm run check:rules` | Comprueba `firebase/firestore.rules` en un emulador de Firestore propio, y CI antes de desplegarlas |
 | `deploy-demo.js` | `npm run deploy:demo` | Compila y despliega las apps, las reglas y los índices en el proyecto de demo. Nunca toca producción |
 | `backup/backup.js` | `npm run backup` | Copia cifrada de todo Firestore en `~/Documents/Backups/gobernansa` y borrado de lo caducado. `-- --schedule` la programa cada día |
 | `backup/restore.js` | `npm run restore` | Restaura una copia en los emuladores, nunca en producción |

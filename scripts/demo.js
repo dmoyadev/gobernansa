@@ -1,5 +1,7 @@
 // The sales demo on this laptop alone, with no internet: the emulators with the seed's data, and both apps built against
-// them and served on the local network, so a phone on the same wifi opens the webapp. npm run demo:reset loads the data again
+// them and served on the local network, so a phone on the same wifi opens the webapp. npm run demo:reset loads the data again.
+// npm run dev:isolated (--dev) is the same stack for development: Vite's dev servers, on https with hot reload and on this
+// laptop only, so a second branch or a check runs without touching npm run dev's data
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, networkInterfaces } from 'node:os';
@@ -8,17 +10,22 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import { renderUnicodeCompact } from 'uqr';
-import { build, preview } from 'vite';
+import { build, createServer, preview } from 'vite';
 import { uids, users } from './seed/data/cast.js';
 
+const DEV = process.argv.includes('--dev');
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 // The built apps, the emulators' config and their log, out of the repo's way
-const DIR = join(ROOT, 'node_modules/.demo');
+const DIR = join(ROOT, DEV ? 'node_modules/.isolated' : 'node_modules/.demo');
 const LOG = join(DIR, 'emulators.log');
 const PROJECT = 'demo-gobernansa';
 const BUCKET = `${PROJECT}.appspot.com`;
-// Next to npm run dev's, so both can run at once: the apps after its 5400 and 5401, the emulators ten above its 550x
-const PORTS = { webapp: 5402, admin: 5403, auth: 5511, firestore: 5512, websocket: 5513, storage: 5514, hub: 5516, logging: 5517 };
+// Next to npm run dev's, so all three can run at once: the apps after its 5400 and 5401 (and the landing's 5404), the emulators
+// ten (the demo) or twenty (dev:isolated) above its 550x. The apps find them with VITE_EMULATORS_OFFSET (firebase.ts emulatorAt)
+const OFFSET = DEV ? 20 : 10;
+const PORTS = { webapp: DEV ? 5405 : 5402, admin: DEV ? 5406 : 5403, ...Object.fromEntries(Object.entries({ auth: 5501, firestore: 5502, websocket: 5503, storage: 5504, hub: 5506, logging: 5507 }).map(([name, port]) => [name, port + OFFSET])) };
+const NAME = DEV ? 'npm run dev:isolated' : 'La demo';
+const RESET = DEV ? 'npm run dev:isolated -- --reset' : 'npm run demo:reset';
 const APPS = ['webapp', 'admin'];
 // Who's who in docs/demo.md
 const CAST = [[uids.office, 'admin, en el portátil'], [uids.maria, 'webapp, navegador 1 del móvil'], [uids.carmen, 'webapp, navegador 2 del móvil']];
@@ -47,7 +54,7 @@ async function seed() {
 	const code = await new Promise(resolve => child.on('exit', resolve));
 	// null when a signal stopped it halfway
 	if (code !== 0) {
-		throw new Error('No se han podido cargar los datos de la demo');
+		throw new Error('No se han podido cargar los datos del seed');
 	}
 }
 
@@ -60,7 +67,7 @@ async function startEmulators() {
 		throw new Error('Los emuladores necesitan Java: instala un JDK (brew install openjdk@21) y ponlo en el PATH');
 	}
 	if (await answers(PORTS.firestore)) {
-		throw new Error('La demo ya está en marcha en otra terminal. Para dejar sus datos como nuevos: npm run demo:reset');
+		throw new Error(`${NAME} ya está en marcha en otra terminal. Para dejar sus datos como nuevos: ${RESET}`);
 	}
 	// Downloaded by firebase the first time they start, the only time it needs internet
 	const cache = process.env.FIREBASE_EMULATORS_PATH || join(homedir(), '.cache/firebase/emulators');
@@ -115,10 +122,11 @@ async function startEmulators() {
 	throw new Error(`Los emuladores no responden tras un minuto:\n${logTail()}`);
 }
 
-// Built against the emulators, whatever .env.local says: the variables already set win over its files
-async function buildApps(webappUrl) {
+// Against these emulators, whatever .env.local says: the variables already set win over its files
+function pointAtEmulators(webappUrl) {
 	Object.assign(process.env, {
 		VITE_FIREBASE_EMULATORS: 'true',
+		VITE_EMULATORS_OFFSET: String(OFFSET),
 		VITE_FIREBASE_API_KEY: 'demo-api-key',
 		VITE_FIREBASE_PROJECT_ID: PROJECT,
 		VITE_FIREBASE_STORAGE_BUCKET: BUCKET,
@@ -127,8 +135,12 @@ async function buildApps(webappUrl) {
 		VITE_APP_CHECK_KEY: '',
 		VITE_WEBAPP_URL: webappUrl,
 		VITE_MAIL_MODE: 'demo',
-		VITE_RELEASE: 'demo',
 	});
+}
+
+async function buildApps(webappUrl) {
+	pointAtEmulators(webappUrl);
+	process.env.VITE_RELEASE = 'demo';
 	await Promise.all(APPS.map(async app => build({
 		root: join(ROOT, 'apps', app),
 		configFile: join(ROOT, 'apps', app, 'vite.config.ts'),
@@ -163,6 +175,21 @@ async function serveApps() {
 	}
 }
 
+// npm run dev:isolated: on https like npm run dev, so the emulators are reached straight at their ports
+async function serveDev() {
+	pointAtEmulators(`https://localhost:${PORTS.webapp}`);
+	for (const app of APPS) {
+		const server = await createServer({
+			root: join(ROOT, 'apps', app),
+			configFile: join(ROOT, 'apps', app, 'vite.config.ts'),
+			mode: 'localhost',
+			logLevel: 'warn',
+			server: { port: PORTS[app], strictPort: true },
+		});
+		servers.push(await server.listen());
+	}
+}
+
 let stopping = false;
 async function stop(code = 0) {
 	// Once, however many times Ctrl+C is pressed
@@ -184,25 +211,26 @@ async function stop(code = 0) {
 	process.exit(code);
 }
 
+function printAccounts() {
+	console.log(`\n${bold('Cuentas')} ${dim('· con la contraseña DEMO_PASSWORD de .env.local')}`);
+	for (const [uid, where] of CAST) {
+		const user = users.find(person => person.uid === uid);
+		console.log(`  ${user.name.padEnd(14)} ${user.email.padEnd(30)} ${DEV ? '' : dim(where)}`.trimEnd());
+	}
+}
+
 async function main() {
 	if (process.argv.includes('--reset')) {
 		if (!await answers(PORTS.firestore)) {
-			throw new Error('La demo no está en marcha: arráncala con npm run demo');
+			throw new Error(`${NAME} no está en marcha: arráncalo con ${DEV ? 'npm run dev:isolated' : 'npm run demo'}`);
 		}
 		await seed();
-		console.log(styleText('green', '\n✔ Datos de la demo como nuevos. Las sesiones abiertas siguen'));
+		console.log(styleText('green', '\n✔ Datos como nuevos. Las sesiones abiertas siguen'));
 		return;
 	}
 	if (!process.env.DEMO_PASSWORD) {
-		throw new Error('Falta DEMO_PASSWORD en .env.local: es la contraseña de todas las cuentas de la demo');
+		throw new Error('Falta DEMO_PASSWORD en .env.local: es la contraseña de todas las cuentas del seed');
 	}
-
-	// Where the phone finds this laptop, the first address on a network that isn't a self-assigned one
-	const ip = Object.values(networkInterfaces()).flat().find(address => address.family === 'IPv4' && !address.internal && !address.address.startsWith('169.254.'))?.address;
-	if (!ip) {
-		console.warn(styleText('yellow', '⚠ El portátil no está en ninguna red: el móvil no podrá abrir la webapp. Conéctalo a la wifi (o al punto de acceso del móvil) y vuelve a arrancar'));
-	}
-	const webappUrl = `http://${ip ?? '127.0.0.1'}:${PORTS.webapp}`;
 	mkdirSync(DIR, { recursive: true });
 	// Also when the terminal is closed: the emulators run apart and would be left holding the ports
 	for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
@@ -213,6 +241,23 @@ async function main() {
 	await startEmulators();
 	console.log(`${styleText('green', '✔')} Emuladores ${dim(`· Auth ${PORTS.auth}, Firestore ${PORTS.firestore}, Storage ${PORTS.storage}`)}`);
 	await seed();
+
+	if (DEV) {
+		await serveDev();
+		console.log(`\n${styleText('green', '✔')} ${bold('Listo, aparte de npm run dev')}`);
+		console.log(`  Webapp   ${bold(`https://localhost:${PORTS.webapp}`)}`);
+		console.log(`  Admin    ${bold(`https://localhost:${PORTS.admin}`)}`);
+		printAccounts();
+		console.log(dim(`\nSus datos: npm run db -- --isolated <orden>. ${RESET} los deja como nuevos. Ctrl+C para todo. Registro de los emuladores: ${LOG}`));
+		return;
+	}
+
+	// Where the phone finds this laptop, the first address on a network that isn't a self-assigned one
+	const ip = Object.values(networkInterfaces()).flat().find(address => address.family === 'IPv4' && !address.internal && !address.address.startsWith('169.254.'))?.address;
+	if (!ip) {
+		console.warn(styleText('yellow', '⚠ El portátil no está en ninguna red: el móvil no podrá abrir la webapp. Conéctalo a la wifi (o al punto de acceso del móvil) y vuelve a arrancar'));
+	}
+	const webappUrl = `http://${ip ?? '127.0.0.1'}:${PORTS.webapp}`;
 	console.log(dim('\nConstruyendo la webapp y el admin…'));
 	await buildApps(webappUrl);
 	await serveApps();
@@ -222,11 +267,7 @@ async function main() {
 	console.log(`  Admin, en el portátil   ${bold(`http://localhost:${PORTS.admin}`)}`);
 	console.log(`  Webapp, en el móvil     ${bold(webappUrl)} ${dim('(en la misma wifi que el portátil)')}\n`);
 	console.log(renderUnicodeCompact(webappUrl, { border: 2 }));
-	console.log(`\n${bold('Cuentas')} ${dim('· con la contraseña DEMO_PASSWORD de .env.local')}`);
-	for (const [uid, where] of CAST) {
-		const user = users.find(person => person.uid === uid);
-		console.log(`  ${user.name.padEnd(14)} ${user.email.padEnd(30)} ${dim(where)}`);
-	}
+	printAccounts();
 	console.log(dim(`\nnpm run demo:reset deja los datos como nuevos sin cerrar las sesiones. Ctrl+C para todo. Registro de los emuladores: ${LOG}`));
 }
 
