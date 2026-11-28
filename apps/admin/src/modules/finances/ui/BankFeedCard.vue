@@ -126,28 +126,28 @@ function downloadSample() {
 		</div>
 
 		<footer class="form-actions">
-			<LnxButton mode="clear" class="lnx-size-small" :disabled="!account" @click="downloadSample()">
+			<LnxButton mode="clear" size="sm" :disabled="!account" @click="downloadSample()">
 				<LnxIcon icon="lucide:file-down" />
 				Descargar extracto de ejemplo (Norma 43)
 			</LnxButton>
 			<template v-if="feed">
-				<LnxButton mode="clear" class="lnx-size-small" @click="disconnect()">
+				<LnxButton mode="clear" size="sm" @click="disconnect()">
 					Desconectar
 				</LnxButton>
-				<LnxButton class="lnx-size-small" :is-loading="syncing" :disabled="!account" @click="sync()">
+				<LnxButton size="sm" :is-loading="syncing" :disabled="!account" @click="sync()">
 					<LnxIcon icon="lucide:refresh-cw" />
 					Sincronizar
 				</LnxButton>
 			</template>
 			<template v-else-if="consenting">
-				<LnxButton mode="clear" class="lnx-size-small" @click="consenting = false">
+				<LnxButton mode="clear" size="sm" @click="consenting = false">
 					Cancelar
 				</LnxButton>
-				<LnxButton class="lnx-size-small" :is-loading="syncing" :disabled="!account" @click="sync(true)">
+				<LnxButton size="sm" :is-loading="syncing" :disabled="!account" @click="sync(true)">
 					Autorizar en el banco de pruebas
 				</LnxButton>
 			</template>
-			<LnxButton v-else class="lnx-size-small" :disabled="!account || loading" @click="consenting = true">
+			<LnxButton v-else size="sm" :disabled="!account || loading" @click="consenting = true">
 				<LnxIcon icon="lucide:plug" />
 				Conectar banco
 			</LnxButton>

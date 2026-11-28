@@ -244,7 +244,7 @@ function exportCsv() {
 	<section class="card" :aria-busy="(loading || communitiesLoading) && !issues.length">
 		<div v-if="error || communitiesError" class="error" role="alert">
 			<p>No se han podido cargar. {{ errorMessage(error ?? communitiesError) }}</p>
-			<LnxButton mode="outline" class="lnx-size-small" @click="load">
+			<LnxButton mode="outline" size="sm" @click="load">
 				Reintentar
 			</LnxButton>
 		</div>
@@ -257,7 +257,7 @@ function exportCsv() {
 			>
 				<span class="tabular">{{ filtered.length }} {{ filtered.length === 1 ? 'incidencia' : 'incidencias' }}</span>
 			</LnxCheckbox>
-			<LnxButton mode="clear" class="lnx-size-small" @click="exportCsv">
+			<LnxButton mode="clear" size="sm" @click="exportCsv">
 				<LnxIcon icon="lucide:download" />
 				Exportar CSV
 			</LnxButton>
@@ -302,14 +302,14 @@ function exportCsv() {
 			<p class="hint">
 				No hay incidencias con estos filtros.
 			</p>
-			<LnxButton v-if="isFiltered" mode="clear" class="lnx-size-small" @click="setView({ status: '', community: '', age: '', zone: '' })">
+			<LnxButton v-if="isFiltered" mode="clear" size="sm" @click="setView({ status: '', community: '', age: '', zone: '' })">
 				Limpiar filtros
 			</LnxButton>
 		</div>
 
 		<div v-if="selectedIssues.length" class="bulk lnx-appear">
 			<strong class="tabular">{{ selectedIssues.length }} {{ selectedIssues.length === 1 ? 'seleccionada' : 'seleccionadas' }}</strong>
-			<LnxButton mode="clear" class="lnx-size-small" @click="selected = new Set()">
+			<LnxButton mode="clear" size="sm" @click="selected = new Set()">
 				Quitar selección
 			</LnxButton>
 			<span>Pasar a</span>
@@ -317,7 +317,7 @@ function exportCsv() {
 				v-for="option in issueStatus"
 				:key="option.value"
 				mode="outline"
-				class="lnx-size-small"
+				size="sm"
 				:disabled="selectedIssues.every(issue => issue.status === option.value)"
 				@click="changeSelected(option.value)"
 			>

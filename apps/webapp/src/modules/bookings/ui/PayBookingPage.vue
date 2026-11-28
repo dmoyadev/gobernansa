@@ -120,7 +120,7 @@ async function pay(checkout: Checkout) {
 		:pay="pay"
 	>
 		<template v-if="booking?.paidAt && booking.uid === user?.id" #unavailable>
-			<LnxButton :to="`/neighborhood/bookings/${booking.id}/receipt`" class="lnx-size-large" is-block>
+			<LnxButton :to="`/neighborhood/bookings/${booking.id}/receipt`" size="lg" is-block>
 				<template #prefix>
 					<LnxIcon icon="lucide:file-check" />
 				</template>
@@ -128,7 +128,7 @@ async function pay(checkout: Checkout) {
 			</LnxButton>
 		</template>
 		<template v-else-if="loadFailed" #unavailable>
-			<LnxButton class="lnx-size-large" is-block @click="reload()">
+			<LnxButton size="lg" is-block @click="reload()">
 				<template #prefix>
 					<LnxIcon icon="lucide:refresh-cw" />
 				</template>

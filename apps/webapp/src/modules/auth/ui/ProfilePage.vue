@@ -3,7 +3,6 @@ import type { UserDocument } from '../domain/user.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { propertyTypeIcons } from '@gobernansa/shared/domain/property.ts';
 import { RELEASE, reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import TiltCard from '@gobernansa/shared/ui/TiltCard.vue';
 import { LnxButton, LnxIcon, LnxInput, LnxRadioGroup, LnxSwitch, useConfirm } from 'lnxjs-components';
 import { computed, onMounted, ref } from 'vue';
@@ -348,7 +347,7 @@ async function savePassword() {
 						:disabled="uploading"
 						@change="upload"
 					>
-					<LnxIcon :icon="uploading ? 'lucide:loader-circle' : 'lucide:upload'" :class="{ spin: uploading }" />
+					<LnxIcon :icon="uploading ? 'lucide:loader-circle' : 'lucide:upload'" :spin="uploading" />
 					{{ uploading ? 'Subiendo…' : 'Elegir archivo' }}
 				</label>
 				<small class="hint">PDF o imagen de hasta 1 MB. Solo tú y tu administración podréis verlo.</small>
@@ -432,10 +431,10 @@ async function savePassword() {
 						<form @submit.prevent="savePassword()">
 							<!-- Lets password managers know whose password it is -->
 							<input class="sr-only" type="email" autocomplete="username" :value="user?.email" readonly tabindex="-1" aria-hidden="true">
-							<LnxInput v-model="password" v-password-toggle type="password" autocomplete="new-password" required>
+							<LnxInput v-model="password" type="password" autocomplete="new-password" required>
 								Nueva contraseña
 							</LnxInput>
-							<LnxInput v-model="passwordRepeat" v-password-toggle type="password" autocomplete="new-password" required>
+							<LnxInput v-model="passwordRepeat" type="password" autocomplete="new-password" required>
 								Repítela
 							</LnxInput>
 							<p v-if="passwordMessage" :class="passwordMessage.error ? 'error' : 'success'" role="status">
@@ -666,16 +665,6 @@ li.row {
 	&:has(:focus-visible) {
 		outline: 2px solid var(--color-primary-light);
 		outline-offset: 2px;
-	}
-}
-
-.spin {
-	animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-	to {
-		transform: rotate(360deg);
 	}
 }
 

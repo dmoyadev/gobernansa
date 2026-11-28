@@ -181,7 +181,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	<header class="page-header">
 		<BackButton to="/" label="Volver" />
 		<h1>Historial</h1>
-		<LnxButton mode="outline" class="lnx-size-small" :is-loading="current.loading.value" @click="current.load()">
+		<LnxButton mode="outline" size="sm" :is-loading="current.loading.value" @click="current.load()">
 			<LnxIcon icon="lucide:refresh-cw" />
 			Actualizar
 		</LnxButton>
@@ -283,7 +283,7 @@ const dateFormat = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle:
 	<section class="card" :aria-busy="current.loading.value && !current.items.value.length">
 		<p v-if="current.error.value" class="error" role="alert">
 			No se ha podido cargar: {{ current.error.value }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="current.load()">
+			<LnxButton mode="clear" size="sm" @click="current.load()">
 				Reintentar
 			</LnxButton>
 		</p>

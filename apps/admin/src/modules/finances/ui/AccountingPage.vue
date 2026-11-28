@@ -269,11 +269,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 				{{ value }}
 			</template>
 		</LnxSelect>
-		<LnxButton mode="outline" class="lnx-size-small" :disabled="!ledger" @click="exportCsv()">
+		<LnxButton mode="outline" size="sm" :disabled="!ledger" @click="exportCsv()">
 			<LnxIcon icon="lucide:file-spreadsheet" />
 			CSV
 		</LnxButton>
-		<LnxButton class="lnx-size-small" :disabled="!ledger" @click="print()">
+		<LnxButton size="sm" :disabled="!ledger" @click="print()">
 			<LnxIcon icon="lucide:printer" />
 			Imprimir
 		</LnxButton>
@@ -282,7 +282,7 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 
 	<p v-if="error" class="error" role="alert">
 		{{ error }}
-		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+		<LnxButton mode="clear" size="sm" @click="error = undefined; loading = true; load()">
 			Reintentar
 		</LnxButton>
 	</p>
@@ -303,11 +303,11 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 						<template v-if="closed && closedAt"> · cerrado el {{ dateFormat.format(closedAt) }}</template>
 						· {{ (closed ? closing!.result : proposedClosing.result) >= 0 ? 'excedente' : 'déficit' }} de {{ formatCents(Math.abs(closed ? closing!.result : proposedClosing.result)) }}
 					</span>
-					<LnxButton v-if="closed && keepsBooks(user)" mode="clear" class="lnx-size-small" :is-loading="closingBusy" @click="reopen()">
+					<LnxButton v-if="closed && keepsBooks(user)" mode="clear" size="sm" :is-loading="closingBusy" @click="reopen()">
 						<LnxIcon icon="lucide:lock-open" />
 						Reabrir
 					</LnxButton>
-					<LnxButton v-else-if="!closed && keepsBooks(user)" class="lnx-size-small" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
+					<LnxButton v-else-if="!closed && keepsBooks(user)" size="sm" :is-loading="closingBusy" :disabled="!entries.length" @click="close()">
 						<LnxIcon icon="lucide:lock" />
 						Cerrar el ejercicio
 					</LnxButton>
@@ -370,10 +370,10 @@ const closedAt = computed(() => (closing.value?.createdAt as Timestamp | undefin
 							<div class="entry-title">
 								<span>{{ entry.concept }} <small>{{ entryKinds[entry.kind] }}</small></span>
 								<span v-if="entry.manualId && !closed" class="entry-actions no-print">
-									<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="openEntry(manualOf(entry))">
+									<LnxButton mode="clear" size="sm" shape="circle" aria-label="Editar" title="Editar" @click="openEntry(manualOf(entry))">
 										<LnxIcon icon="lucide:pencil" />
 									</LnxButton>
-									<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeEntry(entry)">
+									<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeEntry(entry)">
 										<LnxIcon icon="lucide:trash-2" />
 									</LnxButton>
 								</span>

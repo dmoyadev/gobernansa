@@ -232,11 +232,11 @@ useEventListener(window, 'pointerup', disarm);
 			<p id="edit-help">
 				Arrastra cada tarjeta por su asa, o muévela con las flechas, y cambia su tamaño con su botón.
 			</p>
-			<LnxButton mode="clear" class="lnx-size-small" @click="resetLayout()">
+			<LnxButton mode="clear" size="sm" @click="resetLayout()">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Restablecer
 			</LnxButton>
-			<LnxButton ref="doneButton" class="lnx-size-small" @click="stopEditing()">
+			<LnxButton ref="doneButton" size="sm" @click="stopEditing()">
 				<LnxIcon icon="lucide:check" />
 				Listo
 			</LnxButton>
@@ -278,7 +278,8 @@ useEventListener(window, 'pointerup', disarm);
 					<LnxButton
 						mode="clear"
 						shape="circle"
-						class="handle lnx-size-small"
+						class="handle"
+						size="sm"
 						:data-handle="tile.key"
 						:aria-label="`Mover ${tile.title}`"
 						:title="`Mover ${tile.title}`"
@@ -291,7 +292,7 @@ useEventListener(window, 'pointerup', disarm);
 					<LnxButton
 						mode="clear"
 						shape="circle"
-						class="lnx-size-small"
+						size="sm"
 						:aria-label="`Cambiar tamaño de ${tile.title} (ahora ${sizeLabels[tile.size]}, pasará a ${sizeLabels[nextSize(tile)]})`"
 						:title="`Cambiar tamaño de ${tile.title} (ahora ${sizeLabels[tile.size]}, pasará a ${sizeLabels[nextSize(tile)]})`"
 						@click="resize(index)"

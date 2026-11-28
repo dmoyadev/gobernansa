@@ -62,7 +62,7 @@ function result(item: AgendaItem) {
 						<LnxButton
 							v-for="choice in choices"
 							:key="choice"
-							class="lnx-size-small"
+							size="sm"
 							:mode="ballotOf(item, property)?.choice === choice ? undefined : 'outline'"
 							@click="vote(item, property, choice)"
 						>
@@ -71,7 +71,7 @@ function result(item: AgendaItem) {
 						<LnxButton
 							v-if="ballotOf(item, property)"
 							mode="clear"
-							class="lnx-size-small"
+							size="sm"
 							shape="circle"
 							variant="danger"
 							aria-label="Anular voto"

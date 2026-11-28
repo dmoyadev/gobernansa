@@ -212,7 +212,7 @@ function persist(next: CommonArea[], summary: string, done: string, revert?: () 
 					</small>
 				</span>
 				<div class="actions">
-					<LnxButton v-if="area.booking" :to="`/communities/${id}/locations/${area.id}`" mode="outline" class="lnx-size-small">
+					<LnxButton v-if="area.booking" :to="`/communities/${id}/locations/${area.id}`" mode="outline" size="sm">
 						<LnxIcon icon="lucide:calendar-clock" />
 						Reservas
 					</LnxButton>

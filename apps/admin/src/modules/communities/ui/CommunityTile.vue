@@ -110,7 +110,7 @@ async function copy(label: string, value: string) {
 			</RouterLink>
 		</CommunityBusinessCard>
 		<div v-if="tile.size === 4" class="card-actions">
-			<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" class="lnx-size-small" @click="copy(label, value)">
+			<LnxButton v-for="{ label, value } in copyable" :key="label" mode="outline" size="sm" @click="copy(label, value)">
 				<LnxIcon :icon="copied === label ? 'lucide:check' : 'lucide:copy'" />
 				{{ copied === label ? 'Copiado' : `Copiar ${label}` }}
 			</LnxButton>

@@ -36,7 +36,7 @@ function markPaid(invoice: Expense) {
 <template>
 	<header class="page-header">
 		<h1>Facturas pendientes</h1>
-		<LnxButton :to="`/communities/${id}/payments`" mode="clear" class="lnx-size-small">
+		<LnxButton :to="`/communities/${id}/payments`" mode="clear" size="sm">
 			<LnxIcon icon="lucide:send" />
 			Pagar por transferencia
 		</LnxButton>
@@ -94,7 +94,7 @@ function markPaid(invoice: Expense) {
 					<strong>{{ formatCents(payableAmount(invoice)) }}</strong>
 					<small v-if="invoice.withholding">total {{ formatCents(invoice.amount) }}, retención {{ formatCents(invoice.withholding) }}</small>
 				</div>
-				<LnxButton mode="clear" class="lnx-size-small" @click="markPaid(invoice)">
+				<LnxButton mode="clear" size="sm" @click="markPaid(invoice)">
 					<LnxIcon icon="lucide:check" />
 					Marcar pagada
 				</LnxButton>

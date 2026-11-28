@@ -73,7 +73,7 @@ watch(name, async () => {
 				<LnxIcon icon="lucide:arrow-left" :size="16" aria-hidden="true" />
 				<span>{{ name || 'Comunidad' }}</span>
 			</RouterLink>
-			<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Cambiar de comunidad" title="Cambiar de comunidad" @click="switchCommunity()">
+			<LnxButton mode="clear" shape="circle" size="sm" aria-label="Cambiar de comunidad" title="Cambiar de comunidad" @click="switchCommunity()">
 				<LnxIcon icon="lucide:chevrons-up-down" :size="16" />
 			</LnxButton>
 		</div>

@@ -253,7 +253,7 @@ async function share() {
 							v-for="option in issueStatus.filter(({ value }) => value !== issue!.status)"
 							:key="option.value"
 							mode="outline"
-							class="lnx-size-small"
+							size="sm"
 							:style="{ '--lnx-button-color': `var(--color-issue-status-${option.value})` }"
 							:is-loading="changingStatus === option.value"
 							:disabled="!!changingStatus"

@@ -51,7 +51,7 @@ function areaOf(id: string) {
 					<div class="ticket-actions">
 						<LnxButton
 							v-if="!blocked && canPayOnline && booking.paidAt === null"
-							class="lnx-size-small"
+							size="sm"
 							:to="`/neighborhood/bookings/${booking.id}/pay`"
 						>
 							Pagar
@@ -100,7 +100,7 @@ function areaOf(id: string) {
 					v-if="booking.paidAt"
 					mode="clear"
 					shape="circle"
-					class="lnx-size-small"
+					size="sm"
 					:to="`/neighborhood/bookings/${booking.id}/receipt`"
 					:aria-label="`Justificante de la reserva del ${formatDay(booking.date)}`"
 				>

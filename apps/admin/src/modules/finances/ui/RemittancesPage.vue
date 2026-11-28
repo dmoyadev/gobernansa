@@ -322,7 +322,7 @@ const returns = useTemplateRef('returns');
 <template>
 	<header class="page-header">
 		<h1>Remesas</h1>
-		<LnxButton class="lnx-size-small" mode="outline" :disabled="loading" @click="returns?.open()">
+		<LnxButton size="sm" mode="outline" :disabled="loading" @click="returns?.open()">
 			<LnxIcon icon="lucide:file-input" />
 			Importar devoluciones
 			<LnxKbd combo="i" />
@@ -444,7 +444,7 @@ const returns = useTemplateRef('returns');
 		<h2>Remesas</h2>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+			<LnxButton mode="clear" size="sm" @click="loadError = undefined; load()">
 				Reintentar
 			</LnxButton>
 		</p>
@@ -480,13 +480,13 @@ const returns = useTemplateRef('returns');
 					</button>
 					<span class="chip" :class="{ ok: remittance.status === 'collected' }">{{ remittanceStatuses[remittance.status] }}</span>
 					<div class="item-actions">
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
+						<LnxButton mode="clear" size="sm" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(remittance)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
 						<LnxButton
 							v-if="remittance.status !== 'collected'"
 							mode="clear"
-							class="lnx-size-small"
+							size="sm"
 							:is-loading="busyId === remittance.id"
 							:disabled="remittance.status === 'sent' && remittance.collectionDate > today"
 							:title="remittance.status === 'sent' && remittance.collectionDate > today ? `Se puede marcar cobrada desde el día del cargo, el ${remittance.collectionDate.split('-').reverse().join('/')}` : undefined"
@@ -497,7 +497,7 @@ const returns = useTemplateRef('returns');
 						<LnxButton
 							v-if="remittance.status === 'generated'"
 							mode="clear"
-							class="lnx-size-small"
+							size="sm"
 							shape="circle"
 							variant="danger"
 							aria-label="Borrar"
@@ -541,7 +541,7 @@ const returns = useTemplateRef('returns');
 								<LnxButton
 									v-if="remittance.status !== 'generated' && !item.returned && returning !== item.chargeId"
 									mode="clear"
-									class="lnx-size-small"
+									size="sm"
 									@click="startReturn(item)"
 								>
 									Devolución

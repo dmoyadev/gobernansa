@@ -105,7 +105,8 @@ function authorName(comment: IssueComment) {
 					</div>
 					<LnxButton
 						v-if="isMine(comment)"
-						class="delete lnx-size-small"
+						class="delete"
+						size="sm"
 						mode="clear"
 						variant="grayscale"
 						shape="circle"

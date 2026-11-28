@@ -160,11 +160,11 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), { description: 'E
 	<header class="page-header">
 		<BackButton to="/" label="Volver a comunidades" />
 		<h1>Honorarios</h1>
-		<LnxButton to="/billing/registry" mode="clear" class="lnx-size-small">
+		<LnxButton to="/billing/registry" mode="clear" size="sm">
 			<LnxIcon icon="lucide:shield-check" />
 			Registro Verifactu
 		</LnxButton>
-		<LnxButton to="/billing/office" mode="clear" class="lnx-size-small">
+		<LnxButton to="/billing/office" mode="clear" size="sm">
 			<LnxIcon icon="lucide:briefcase" />
 			Datos fiscales
 		</LnxButton>
@@ -269,7 +269,7 @@ useShortcut('mod+enter', () => runForm.value?.requestSubmit(), { description: 'E
 		</div>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="load()">
+			<LnxButton mode="clear" size="sm" @click="load()">
 				Reintentar
 			</LnxButton>
 		</p>

@@ -370,7 +370,7 @@ watch(() => communities.value.map(community => community.id).join(), () => {
 
 	h2 {
 		margin-bottom: var(--lnx-spacing-3);
-		font-size: var(--lnx-font-size-subtitle);
+		font-size: var(--lnx-font-size-big);
 	}
 
 	mark {

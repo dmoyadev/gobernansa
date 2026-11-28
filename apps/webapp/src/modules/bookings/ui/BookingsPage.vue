@@ -218,7 +218,7 @@ const month = computed(() => new Date(`${date.value}T00:00`).toLocaleDateString(
 		</p>
 		<p v-if="loadError" class="error" role="alert">
 			No se han podido cargar las reservas. {{ errorMessage(loadError) }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="reload()">
+			<LnxButton mode="clear" size="sm" @click="reload()">
 				Reintentar
 			</LnxButton>
 		</p>

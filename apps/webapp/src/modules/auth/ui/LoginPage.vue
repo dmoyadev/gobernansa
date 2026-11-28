@@ -2,7 +2,6 @@
 import useAuth, { authErrorMessage } from '@gobernansa/shared/application/useAuth.ts';
 import { parseInviteCode } from '@gobernansa/shared/domain/user.ts';
 import { reportError } from '@gobernansa/shared/infrastructure/monitoring.ts';
-import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import { LnxButton, LnxIcon, LnxInput } from 'lnxjs-components';
 import { onBeforeMount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -168,7 +167,6 @@ async function resetPassword() {
 
 				<LnxInput
 					v-model="password"
-					v-password-toggle
 					type="password"
 					:has-error="!!errorLogin"
 					:disabled="loading"

@@ -97,7 +97,7 @@ function transferConcept(charge: Charge) {
 
 		<p v-if="loadError" class="error" role="alert">
 			No se han podido cargar tus recibos. {{ errorMessage(loadError) }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="reload()">
+			<LnxButton mode="clear" size="sm" @click="reload()">
 				Reintentar
 			</LnxButton>
 		</p>
@@ -130,7 +130,7 @@ function transferConcept(charge: Charge) {
 						<strong class="tabular">{{ formatCents(outstanding(charge)) }}</strong>
 						<LnxButton
 							v-if="canPay && !charge.remittanceId && outstanding(charge) > 0"
-							class="lnx-size-small"
+							size="sm"
 							:to="`/neighborhood/charges/${charge.id}/pay`"
 						>
 							Pagar
@@ -156,7 +156,7 @@ function transferConcept(charge: Charge) {
 						<dt>IBAN</dt>
 						<dd class="tabular">
 							{{ formatIban(userCommunity.iban) }}
-							<LnxButton mode="clear" shape="circle" class="lnx-size-small" :aria-label="copied === 'IBAN' ? 'IBAN copiado' : 'Copiar IBAN'" @click="copy('IBAN', userCommunity.iban.replace(SPACES_REGEX, ''))">
+							<LnxButton mode="clear" shape="circle" size="sm" :aria-label="copied === 'IBAN' ? 'IBAN copiado' : 'Copiar IBAN'" @click="copy('IBAN', userCommunity.iban.replace(SPACES_REGEX, ''))">
 								<LnxIcon :icon="copied === 'IBAN' ? 'lucide:check' : 'lucide:copy'" />
 							</LnxButton>
 						</dd>
@@ -193,7 +193,7 @@ function transferConcept(charge: Charge) {
 			<p v-else-if="paid" class="empty">
 				Aún no tienes recibos pagados.
 			</p>
-			<LnxButton v-else mode="outline" class="lnx-size-small" :is-loading="paidLoading" @click="showPaid()">
+			<LnxButton v-else mode="outline" size="sm" :is-loading="paidLoading" @click="showPaid()">
 				<LnxIcon icon="lucide:history" />
 				Ver pagados y justificantes
 			</LnxButton>

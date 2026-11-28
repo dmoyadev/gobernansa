@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import useAuth, { authErrorMessage } from '@gobernansa/shared/application/useAuth.ts';
-import { vPasswordToggle } from '@gobernansa/shared/ui/passwordToggle.ts';
 import { LnxButton, LnxIcon, LnxInput, LnxKbd, useShortcut } from 'lnxjs-components';
 import { onBeforeMount, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -90,7 +89,6 @@ useShortcut('mod+enter', () => {
 
 			<LnxInput
 				v-model="password"
-				v-password-toggle
 				type="password"
 				:autocomplete="creating ? 'new-password' : 'current-password'"
 				:disabled="loading"

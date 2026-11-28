@@ -195,7 +195,7 @@ async function clean() {
 	<header class="page-header">
 		<BackButton to="/" label="Volver" />
 		<h1>Errores</h1>
-		<LnxButton mode="outline" class="lnx-size-small" :is-loading="cleaning" @click="clean()">
+		<LnxButton mode="outline" size="sm" :is-loading="cleaning" @click="clean()">
 			<LnxIcon icon="lucide:eraser" />
 			Limpiar caducadas
 		</LnxButton>

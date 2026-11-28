@@ -258,7 +258,7 @@ function print() {
 		</h1>
 		<span v-if="meeting" class="status" :class="`status--${meeting.status}`">{{ meetingStatus[meeting.status] }}</span>
 		<!-- The ordinary one approves the accounts of the year before: the liquidación to attach to the convocatoria -->
-		<LnxButton v-if="meeting?.type === 'ordinary'" mode="outline" class="lnx-size-small" @click="router.push(`/communities/${id}/annual-report?year=${meeting.date.toDate().getFullYear() - 1}`)">
+		<LnxButton v-if="meeting?.type === 'ordinary'" mode="outline" size="sm" @click="router.push(`/communities/${id}/annual-report?year=${meeting.date.toDate().getFullYear() - 1}`)">
 			<LnxIcon icon="lucide:file-chart-column" />
 			Liquidación {{ meeting.date.toDate().getFullYear() - 1 }}
 		</LnxButton>
@@ -345,13 +345,13 @@ function print() {
 						<LnxCheckbox v-model="item.votable" class="check">
 							Se vota
 						</LnxCheckbox>
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Subir" title="Subir" :disabled="index === 0" @click="moveItem(index, -1)">
+						<LnxButton mode="clear" size="sm" shape="circle" aria-label="Subir" title="Subir" :disabled="index === 0" @click="moveItem(index, -1)">
 							<LnxIcon icon="lucide:arrow-up" />
 						</LnxButton>
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Bajar" title="Bajar" :disabled="index === form.agenda.length - 1" @click="moveItem(index, 1)">
+						<LnxButton mode="clear" size="sm" shape="circle" aria-label="Bajar" title="Bajar" :disabled="index === form.agenda.length - 1" @click="moveItem(index, 1)">
 							<LnxIcon icon="lucide:arrow-down" />
 						</LnxButton>
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Quitar punto" title="Quitar punto" @click="form.agenda.splice(index, 1)">
+						<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Quitar punto" title="Quitar punto" @click="form.agenda.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 						</LnxButton>
 					</div>
@@ -446,7 +446,7 @@ function print() {
 								· {{ formatPercent(coefficientByOwner[entry.uid] ?? 0) }}
 							</small>
 						</div>
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" @click="unrecordAttendance(entry)">
+						<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Quitar" title="Quitar" @click="unrecordAttendance(entry)">
 							<LnxIcon icon="lucide:x" />
 						</LnxButton>
 					</li>
@@ -497,11 +497,11 @@ function print() {
 			<section v-if="meeting.status !== 'held' || minutes === null" class="card">
 				<header class="minutes-header screen-only">
 					<h2>Acta</h2>
-					<LnxButton mode="outline" class="lnx-size-small" @click="copyMinutes()">
+					<LnxButton mode="outline" size="sm" @click="copyMinutes()">
 						<LnxIcon :icon="copied ? 'lucide:check' : 'lucide:copy'" />
 						{{ copied ? 'Copiado' : 'Copiar texto' }}
 					</LnxButton>
-					<LnxButton class="lnx-size-small" @click="print()">
+					<LnxButton size="sm" @click="print()">
 						<LnxIcon icon="lucide:printer" />
 						Imprimir o guardar PDF
 					</LnxButton>

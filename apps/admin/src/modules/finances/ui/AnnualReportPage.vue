@@ -216,7 +216,7 @@ useShortcut('p', print, { description: 'Imprimir la liquidación', enabled: () =
 
 	<p v-if="error" class="error" role="alert">
 		{{ error }}
-		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+		<LnxButton mode="clear" size="sm" @click="error = undefined; loading = true; load()">
 			Reintentar
 		</LnxButton>
 	</p>

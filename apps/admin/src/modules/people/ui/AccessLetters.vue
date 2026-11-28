@@ -109,11 +109,11 @@ async function send(letter: Letter) {
 					</div>
 					<span class="badge">{{ letter.code ? 'Preparada' : 'Sin preparar' }}</span>
 					<div v-if="canInvite" class="person-actions">
-						<LnxButton mode="clear" class="lnx-size-small" :disabled="busy" @click="print([letter])">
+						<LnxButton mode="clear" size="sm" :disabled="busy" @click="print([letter])">
 							<LnxIcon icon="lucide:printer" />
 							Imprimir
 						</LnxButton>
-						<LnxButton v-if="letter.email" mode="clear" class="lnx-size-small" :disabled="busy" @click="send(letter)">
+						<LnxButton v-if="letter.email" mode="clear" size="sm" :disabled="busy" @click="send(letter)">
 							<LnxIcon icon="lucide:mail" />
 							Enviar desde tu correo
 						</LnxButton>

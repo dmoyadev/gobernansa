@@ -145,7 +145,7 @@ section {
 
 	h2 {
 		color: var(--color-gray-9);
-		font-size: var(--lnx-font-size-subtitle);
+		font-size: var(--lnx-font-size-big);
 	}
 
 	h3 {

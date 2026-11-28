@@ -353,7 +353,7 @@ async function remove(order: PaymentOrder) {
 		<h2>Órdenes de pago</h2>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+			<LnxButton mode="clear" size="sm" @click="loadError = undefined; load()">
 				Reintentar
 			</LnxButton>
 		</p>
@@ -383,16 +383,16 @@ async function remove(order: PaymentOrder) {
 					</button>
 					<span class="chip" :class="{ ok: order.status === 'executed' }">{{ paymentOrderStatuses[order.status] }}</span>
 					<div class="item-actions">
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(order)">
+						<LnxButton mode="clear" size="sm" shape="circle" aria-label="Descargar fichero" title="Descargar fichero" @click="download(order)">
 							<LnxIcon icon="lucide:download" />
 						</LnxButton>
-						<LnxButton v-if="order.status === 'generated'" mode="clear" class="lnx-size-small" :is-loading="busyId === order.id" @click="execute(order)">
+						<LnxButton v-if="order.status === 'generated'" mode="clear" size="sm" :is-loading="busyId === order.id" @click="execute(order)">
 							Marcar ejecutada
 						</LnxButton>
 						<LnxButton
 							v-if="order.status === 'generated'"
 							mode="clear"
-							class="lnx-size-small"
+							size="sm"
 							shape="circle"
 							variant="danger"
 							aria-label="Borrar"

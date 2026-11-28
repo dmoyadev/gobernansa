@@ -17,7 +17,7 @@ const props = defineProps<{ id: string }>();
 
 const typeOptions = Object.entries(propertyTypeLabels).map(([value, label]) => ({ value: value as Property['type'], label }));
 const types = Object.keys(propertyTypeLabels) as Property['type'][];
-const typeFilters = [{ value: '', label: 'Todas' }, ...types.map(type => ({ value: type, label: propertyTypeLabels[type] }))];
+const typeFilters = [{ value: '' as const, label: 'Todas' }, ...types.map(type => ({ value: type, label: propertyTypeLabels[type] }))];
 
 const { data: properties, pending, error } = useProperties(props.id);
 // Owners with an account are picked from the community's, the rest are typed in
@@ -232,10 +232,10 @@ function ownerLabel(property: Property) {
 							</small>
 						</div>
 						<div class="item-actions">
-							<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
+							<LnxButton mode="clear" size="sm" shape="circle" aria-label="Editar" title="Editar" @click="edit(property)">
 								<LnxIcon icon="lucide:pencil" />
 							</LnxButton>
-							<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
+							<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(property)">
 								<LnxIcon icon="lucide:trash-2" />
 							</LnxButton>
 						</div>

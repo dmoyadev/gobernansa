@@ -69,7 +69,7 @@ watch(() => loaded.value && done.value === steps.value.length, finished => finis
 				</h2>
 				<p>{{ done }} de {{ steps.length }} hechos. Se van tachando solos.</p>
 			</div>
-			<LnxButton class="lnx-size-small" mode="clear" variant="grayscale" @click="close()">
+			<LnxButton size="sm" mode="clear" variant="grayscale" @click="close()">
 				Ocultar
 			</LnxButton>
 		</header>

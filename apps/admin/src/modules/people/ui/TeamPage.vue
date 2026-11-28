@@ -194,7 +194,7 @@ function cancel(invitation: Invitation & { id: string }) {
 						{{ officeRoles[value as OfficeRole]?.label }}
 					</template>
 				</LnxSelect>
-				<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="remove(person)">
+				<LnxButton mode="clear" size="sm" variant="danger" @click="remove(person)">
 					<LnxIcon icon="lucide:trash-2" />
 					Quitar
 				</LnxButton>
@@ -215,11 +215,11 @@ function cancel(invitation: Invitation & { id: string }) {
 				</div>
 				<span class="badge">{{ officeRoles[invitation.officeRole ?? 'clerk'].label }}</span>
 				<div class="person-actions">
-					<LnxButton mode="clear" class="lnx-size-small" @click="resend(invitation)">
+					<LnxButton mode="clear" size="sm" @click="resend(invitation)">
 						<LnxIcon icon="lucide:mail" />
 						Reenviar
 					</LnxButton>
-					<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="cancel(invitation)">
+					<LnxButton mode="clear" size="sm" variant="danger" @click="cancel(invitation)">
 						<LnxIcon icon="lucide:x" />
 						Cancelar
 					</LnxButton>

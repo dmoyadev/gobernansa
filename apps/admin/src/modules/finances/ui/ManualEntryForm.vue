@@ -156,7 +156,7 @@ defineExpose({ open, cancel });
 				</LnxInput>
 				<LnxButton
 					mode="clear"
-					class="lnx-size-small"
+					size="sm"
 					shape="circle"
 					variant="danger"
 					aria-label="Quitar línea"
@@ -169,7 +169,7 @@ defineExpose({ open, cancel });
 			</li>
 		</ul>
 		<div>
-			<LnxButton mode="clear" class="lnx-size-small" @click="editor.lines.push(emptyLine())">
+			<LnxButton mode="clear" size="sm" @click="editor.lines.push(emptyLine())">
 				<LnxIcon icon="lucide:plus" />
 				Añadir línea
 			</LnxButton>

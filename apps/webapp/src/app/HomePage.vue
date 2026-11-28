@@ -200,7 +200,8 @@ async function showMyIssues() {
 			<header>
 				<h2>Contactos rápidos</h2>
 				<LnxButton
-					class="btn-all lnx-size-small"
+					class="btn-all"
+					size="sm"
 					to="/neighborhood#contacts"
 					mode="clear"
 					variant="grayscale"
@@ -219,7 +220,8 @@ async function showMyIssues() {
 					<span class="contact-actions">
 						<LnxButton
 							v-if="contact.whatsapp"
-							class="whatsapp lnx-size-small"
+							class="whatsapp"
+							size="sm"
 							:href="getWhatsappLink(contact.whatsapp)"
 							target="_blank"
 							rel="noopener"
@@ -233,7 +235,7 @@ async function showMyIssues() {
 							v-if="contact.phone"
 							:href="getPhoneLink(contact.phone)"
 							shape="circle"
-							class="lnx-size-small"
+							size="sm"
 							:aria-label="`Llamar a ${contact.name}`"
 						>
 							<LnxIcon icon="lucide:phone" />
@@ -247,7 +249,8 @@ async function showMyIssues() {
 			<header>
 				<h2>Actividad reciente</h2>
 				<LnxButton
-					class="btn-all lnx-size-small"
+					class="btn-all"
+					size="sm"
 					to="/notices"
 					mode="clear"
 					variant="grayscale"

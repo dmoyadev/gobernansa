@@ -89,7 +89,7 @@ useEventListener(window, 'keydown', (event) => {
 			<LnxButton
 				v-if="claim && !claimForm"
 				mode="clear"
-				class="lnx-size-small"
+				size="sm"
 				@click="openClaimForm()"
 			>
 				<LnxIcon icon="lucide:pencil" />

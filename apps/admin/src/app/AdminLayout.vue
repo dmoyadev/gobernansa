@@ -157,7 +157,7 @@ const KEPT_PAGES = 6;
 			<small>Versión {{ RELEASE }} · <RouterLink to="/legal">Legal</RouterLink></small>
 		</span>
 		<!-- Only while the browser offers it, not once installed -->
-		<LnxButton v-if="canInstall" mode="clear" class="lnx-size-small" title="Instalar gobernança admin como app" @click="install()">
+		<LnxButton v-if="canInstall" mode="clear" size="sm" title="Instalar gobernança admin como app" @click="install()">
 			<LnxIcon icon="lucide:monitor-down" />
 			Instalar
 		</LnxButton>
@@ -176,7 +176,7 @@ const KEPT_PAGES = 6;
 					<LnxIcon icon="lucide:building-2" :size="16" aria-hidden="true" />
 					<span>{{ communityName || 'Comunidad' }}</span>
 				</RouterLink>
-				<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Cambiar de comunidad" title="Cambiar de comunidad" @click="openPalette('switch')">
+				<LnxButton mode="clear" shape="circle" size="sm" aria-label="Cambiar de comunidad" title="Cambiar de comunidad" @click="openPalette('switch')">
 					<LnxIcon icon="lucide:chevrons-up-down" :size="16" />
 				</LnxButton>
 			</div>

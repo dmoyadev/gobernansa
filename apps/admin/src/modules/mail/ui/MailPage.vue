@@ -138,7 +138,7 @@ const shownMails = computed(() => {
 	<section class="card" :aria-busy="loading && !mails.length">
 		<p v-if="error" class="error" role="alert">
 			No se ha podido cargar: {{ error }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="load()">
+			<LnxButton mode="clear" size="sm" @click="load()">
 				Reintentar
 			</LnxButton>
 		</p>

@@ -111,8 +111,8 @@ nav {
 		// colours, the accent would hide it on its own background
 		&.router-link-active:not(.cta, .home),
 		&.router-link-exact-active:not(.cta) {
-			--lnx-button-color: var(--color-secondary-accent) !important;
-			color: var(--color-secondary-accent) !important;
+			--lnx-button-color: var(--color-secondary-accent);
+			color: var(--color-secondary-accent);
 			font-weight: var(--font-weight-bold);
 		}
 

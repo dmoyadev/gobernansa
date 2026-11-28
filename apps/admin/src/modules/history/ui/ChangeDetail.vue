@@ -161,15 +161,15 @@ async function restore(side: 'before' | 'after') {
 		</table>
 
 		<div class="actions">
-			<LnxButton mode="outline" class="lnx-size-small" @click="emit('versions', change.path)">
+			<LnxButton mode="outline" size="sm" @click="emit('versions', change.path)">
 				<LnxIcon icon="lucide:layers" />
 				Versiones de este documento
 			</LnxButton>
-			<LnxButton v-if="change.before" mode="outline" class="lnx-size-small" :disabled="!!blocked || !!restoring" :is-loading="restoring === 'before'" :title="blocked" @click="restore('before')">
+			<LnxButton v-if="change.before" mode="outline" size="sm" :disabled="!!blocked || !!restoring" :is-loading="restoring === 'before'" :title="blocked" @click="restore('before')">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				{{ change.op === 'delete' ? 'Recuperar el documento' : 'Restaurar la versión anterior' }}
 			</LnxButton>
-			<LnxButton v-if="change.after" mode="outline" class="lnx-size-small" :disabled="!!blocked || !!restoring" :is-loading="restoring === 'after'" :title="blocked" @click="restore('after')">
+			<LnxButton v-if="change.after" mode="outline" size="sm" :disabled="!!blocked || !!restoring" :is-loading="restoring === 'after'" :title="blocked" @click="restore('after')">
 				<LnxIcon icon="lucide:history" />
 				Restaurar esta versión
 			</LnxButton>

@@ -111,11 +111,11 @@ useShortcut('mod+enter', () => {
 						{{ comment.message }}
 					</p>
 					<div class="moderation">
-						<LnxButton mode="clear" class="lnx-size-small" @click="toggleHidden(comment)">
+						<LnxButton mode="clear" size="sm" @click="toggleHidden(comment)">
 							<LnxIcon :icon="comment.hiddenAt ? 'lucide:eye' : 'lucide:eye-off'" />
 							{{ comment.hiddenAt ? 'Mostrar' : 'Ocultar' }}
 						</LnxButton>
-						<LnxButton v-if="authorOf(comment)" mode="clear" class="lnx-size-small" @click="toggleBlocked(comment)">
+						<LnxButton v-if="authorOf(comment)" mode="clear" size="sm" @click="toggleBlocked(comment)">
 							<LnxIcon :icon="authorOf(comment)?.blocked ? 'lucide:user-check' : 'lucide:user-x'" />
 							{{ authorOf(comment)?.blocked ? 'Desbloquear vecino' : 'Bloquear vecino' }}
 						</LnxButton>

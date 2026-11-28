@@ -6,8 +6,6 @@ import mkcert from 'vite-plugin-mkcert';
 import vueDevTools from 'vite-plugin-vue-devtools';
 import icons from '../../packages/shared/build/icons.ts';
 
-const GOOGLE_FONTS_IMPORT = /@import\s*["']https:\/\/fonts\.googleapis\.com[^"']*["'];?/g;
-
 export default defineConfig({
 	envDir: '../..', // Both apps share the .env files at the root of the repo
 	build: { sourcemap: 'hidden' }, // Maps to read production errors (MON-10), never linked from the code: CI keeps them apart and deploys without them
@@ -19,12 +17,6 @@ export default defineConfig({
 		proxy: { '/v0/b': `http://127.0.0.1:${5504 + Number(process.env.VITE_EMULATORS_OFFSET ?? 0)}` },
 	},
 	plugins: [
-		// lnxjs-components' base.css imports Google Fonts the theme replaces (typography.scss): dropped, so no IP reaches Google
-		{
-			name: 'drop-google-fonts',
-			enforce: 'pre',
-			transform: (code, id) => id.includes('lnxjs-components/dist/base.css') ? code.replace(GOOGLE_FONTS_IMPORT, '') : undefined,
-		},
 		vue({
 			template: {
 				compilerOptions: {

@@ -273,7 +273,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), {
 		<CommunityDocumentFields v-else v-model="newDocument" />
 
 		<template #status>
-			<LnxButton v-if="section === 'contacts'" mode="clear" class="lnx-size-small add-schedule" @click="addSchedule(newContact)">
+			<LnxButton v-if="section === 'contacts'" mode="clear" class="add-schedule" size="sm" @click="addSchedule(newContact)">
 				<LnxIcon icon="lucide:clock" />
 				Añadir horario
 			</LnxButton>
@@ -383,11 +383,11 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), {
 					<CommunityContactFields v-model="form.contacts[index]" />
 
 					<div class="item-actions">
-						<LnxButton mode="clear" class="lnx-size-small" @click="addSchedule(contact)">
+						<LnxButton mode="clear" size="sm" @click="addSchedule(contact)">
 							<LnxIcon icon="lucide:clock" />
 							Añadir horario
 						</LnxButton>
-						<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="form.contacts.splice(index, 1)">
+						<LnxButton mode="clear" size="sm" variant="danger" @click="form.contacts.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 							Quitar contacto
 						</LnxButton>
@@ -406,7 +406,7 @@ useShortcut('mod+enter', () => formElement.value?.requestSubmit(), {
 					</legend>
 					<CommunityDocumentFields v-model="form.documents[index]" />
 					<div class="item-actions">
-						<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="form.documents.splice(index, 1)">
+						<LnxButton mode="clear" size="sm" variant="danger" @click="form.documents.splice(index, 1)">
 							<LnxIcon icon="lucide:trash-2" />
 							Quitar documento
 						</LnxButton>

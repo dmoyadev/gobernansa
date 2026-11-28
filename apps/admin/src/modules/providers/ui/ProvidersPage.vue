@@ -373,11 +373,11 @@ useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestS
 					<small class="tabular">({{ provider.ratingCount }})</small>
 				</button>
 				<div class="provider-actions">
-					<LnxButton mode="clear" class="lnx-size-small" @click="edit(provider)">
+					<LnxButton mode="clear" size="sm" @click="edit(provider)">
 						<LnxIcon icon="lucide:pencil" />
 						Editar
 					</LnxButton>
-					<LnxButton v-if="canDelete(provider)" mode="clear" class="lnx-size-small" variant="danger" @click="remove(provider)">
+					<LnxButton v-if="canDelete(provider)" mode="clear" size="sm" variant="danger" @click="remove(provider)">
 						<LnxIcon icon="lucide:trash-2" />
 						Eliminar
 					</LnxButton>
@@ -392,7 +392,7 @@ useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestS
 
 				<div v-if="openedId === provider.id" class="ratings wide">
 					<form class="rate" @submit.prevent="rate(provider)">
-						<LnxRadioGroup v-model="rating.score" :options="[1, 2, 3, 4, 5].map(n => ({ value: n, label: String(n), icon: 'lucide:star' }))">
+						<LnxRadioGroup v-model="rating.score" :options="([1, 2, 3, 4, 5] as const).map(n => ({ value: n, label: String(n), icon: 'lucide:star' }))">
 							Tu valoración
 						</LnxRadioGroup>
 						<LnxTextarea v-model="rating.comment" rows="2">
@@ -402,7 +402,7 @@ useShortcut('mod+enter', () => document.activeElement?.closest('form')?.requestS
 							<p v-if="ratingsError" class="error" role="alert">
 								{{ ratingsError }}
 							</p>
-							<LnxButton type="submit" class="lnx-size-small">
+							<LnxButton type="submit" size="sm">
 								<LnxIcon icon="lucide:star" />
 								Valorar
 								<LnxKbd combo="mod+enter" />

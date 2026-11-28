@@ -141,7 +141,7 @@ async function remove(property: Property) {
 		<h2>Acreedor</h2>
 		<p v-if="communityError" class="error" role="alert">
 			{{ communityError }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="communityError = undefined; load()">
+			<LnxButton mode="clear" size="sm" @click="communityError = undefined; load()">
 				Reintentar
 			</LnxButton>
 		</p>
@@ -216,7 +216,7 @@ async function remove(property: Property) {
 						{{ mandateStatuses[property.mandate.status] }}
 					</span>
 					<span v-else class="chip">Sin mandato</span>
-					<LnxButton mode="clear" class="lnx-size-small" @click="editingId === property.id ? editingId = undefined : edit(property)">
+					<LnxButton mode="clear" size="sm" @click="editingId === property.id ? editingId = undefined : edit(property)">
 						{{ editingId === property.id ? 'Cerrar' : property.mandate ? 'Editar' : 'Añadir' }}
 					</LnxButton>
 				</div>

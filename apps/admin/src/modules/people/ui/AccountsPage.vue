@@ -208,15 +208,15 @@ async function remove(account: User & { id: string }) {
 					<span class="badge">{{ roles[account.role]?.label }}</span>
 				</span>
 				<div v-if="account.id !== me?.id" class="actions">
-					<LnxButton mode="clear" class="lnx-size-small" @click="edit(account)">
+					<LnxButton mode="clear" size="sm" @click="edit(account)">
 						<LnxIcon icon="lucide:pencil" />
 						Editar
 					</LnxButton>
-					<LnxButton v-if="account.email" mode="clear" class="lnx-size-small" @click="sendReset(account)">
+					<LnxButton v-if="account.email" mode="clear" size="sm" @click="sendReset(account)">
 						<LnxIcon icon="lucide:key-round" />
 						Contraseña nueva
 					</LnxButton>
-					<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="remove(account)">
+					<LnxButton mode="clear" size="sm" variant="danger" @click="remove(account)">
 						<LnxIcon icon="lucide:trash-2" />
 						Quitar
 					</LnxButton>

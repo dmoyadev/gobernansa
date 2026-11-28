@@ -321,7 +321,7 @@ async function remove(broadcast: Broadcast) {
 		<h2>Enviados a las comunidades elegidas</h2>
 		<p v-if="recentError" class="error" role="alert">
 			{{ recentError }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="loadRecent()">
+			<LnxButton mode="clear" size="sm" @click="loadRecent()">
 				Reintentar
 			</LnxButton>
 		</p>
@@ -351,7 +351,7 @@ async function remove(broadcast: Broadcast) {
 						{{ broadcast.copies.map(copy => communityNames.get(copy.communityId) ?? copy.communityId).join(', ') }}
 					</small>
 				</div>
-				<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
+				<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Borrar de todas" title="Borrar de todas" @click="remove(broadcast)">
 					<LnxIcon icon="lucide:trash-2" />
 				</LnxButton>
 			</li>

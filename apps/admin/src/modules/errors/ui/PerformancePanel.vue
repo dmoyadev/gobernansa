@@ -148,7 +148,7 @@ const percent = new Intl.NumberFormat('es', { style: 'percent' });
 	margin-bottom: var(--lnx-spacing-5);
 
 	h2 {
-		font-size: var(--lnx-font-size-subtitle);
+		font-size: var(--lnx-font-size-big);
 	}
 }
 

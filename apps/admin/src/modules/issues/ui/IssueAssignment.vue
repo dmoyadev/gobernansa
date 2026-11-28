@@ -6,7 +6,7 @@ import type { useIssue } from '../application/useIssues.ts';
 import useAuth from '@gobernansa/shared/application/useAuth.ts';
 import { toDateString } from '@gobernansa/shared/domain/booking.ts';
 import { providerCategories } from '@gobernansa/shared/domain/provider.ts';
-import { LnxButton, LnxDatePicker, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, useEventListener } from 'lnxjs-components';
+import { LnxAvatar, LnxButton, LnxDatePicker, LnxIcon, LnxKbd, LnxSelect, LnxTextarea, useEventListener } from 'lnxjs-components';
 import { computed, ref, watch } from 'vue';
 import { optimistic } from '@/app/ux/toast.ts';
 
@@ -29,7 +29,6 @@ const props = defineProps<{
 const editingAssignment = defineModel<boolean>('editing', { required: true });
 
 const { user: me } = useAuth();
-const SPACES_REGEX = /\s+/;
 
 // Filled with what's saved each time it changes, also after saving
 const assignment = ref({ providerId: '', expectedAt: '', note: '' });
@@ -71,8 +70,6 @@ function saveAssignment() {
 	});
 }
 
-const initials = (name: string) => name.split(SPACES_REGEX).slice(0, 2).map(word => word[0]?.toUpperCase()).join('');
-
 const quickDates = [{ label: 'Hoy', days: 0 }, { label: 'Mañana', days: 1 }, { label: 'En 3 días', days: 3 }, { label: 'En una semana', days: 7 }];
 
 function setExpectedIn(days: number) {
@@ -103,7 +100,7 @@ useEventListener(window, 'keydown', (event) => {
 			<LnxButton
 				v-if="issue.provider && !editingAssignment"
 				mode="clear"
-				class="lnx-size-small"
+				size="sm"
 				@click="editingAssignment = true"
 			>
 				<LnxIcon icon="lucide:pencil" />
@@ -113,18 +110,19 @@ useEventListener(window, 'keydown', (event) => {
 
 		<template v-if="issue.provider && !editingAssignment">
 			<div class="provider">
-				<span class="avatar">{{ initials(issue.provider.name) }}</span>
+				<!-- Decorative: the name is next to it -->
+				<LnxAvatar :name="issue.provider.name" alt="" :size="44" />
 				<div>
 					<strong>{{ issue.provider.name }}</strong>
 					<small v-if="assignedProvider">{{ providerCategories[assignedProvider.category]?.label }}</small>
 				</div>
 			</div>
 			<div class="quick-actions">
-				<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" class="lnx-size-small">
+				<LnxButton v-if="assignedProvider?.phone" :href="`tel:${assignedProvider.phone}`" mode="outline" size="sm">
 					<LnxIcon icon="lucide:phone" />
 					Llamar
 				</LnxButton>
-				<LnxButton v-if="providerMail" :href="providerMail" mode="outline" class="lnx-size-small">
+				<LnxButton v-if="providerMail" :href="providerMail" mode="outline" size="sm">
 					<LnxIcon icon="lucide:mail" />
 					Enviar aviso
 				</LnxButton>
@@ -214,17 +212,9 @@ useEventListener(window, 'keydown', (event) => {
 	}
 }
 
-.avatar {
-	display: flex;
-	flex-shrink: 0;
-	align-items: center;
-	justify-content: center;
-	width: 44px;
-	height: 44px;
-	border-radius: 50%;
-	background: var(--color-primary);
+.lnx-avatar {
+	--lnx-avatar-bg: var(--color-primary);
 	color: var(--color-primary-accent);
-	font-weight: var(--lnx-font-weight-bold);
 }
 
 .quick-actions {

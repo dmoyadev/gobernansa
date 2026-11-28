@@ -220,7 +220,7 @@ const balance = computed(() => opening.value + collected.value - usedTotal.value
 
 	<p v-if="budgetError || propertiesError || loadError" class="error" role="alert">
 		{{ loadError ?? failure('No se ha podido cargar', budgetError ?? propertiesError) }}
-		<LnxButton v-if="loadError" mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+		<LnxButton v-if="loadError" mode="clear" size="sm" @click="loadError = undefined; load()">
 			Reintentar
 		</LnxButton>
 	</p>

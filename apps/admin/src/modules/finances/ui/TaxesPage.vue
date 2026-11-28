@@ -315,7 +315,7 @@ useShortcut('d', () => downloads[model.value](), { description: 'Descargar el fi
 
 	<p v-if="error" class="error card" role="alert">
 		{{ error }}
-		<LnxButton mode="clear" class="lnx-size-small" @click="error = undefined; loading = true; load()">
+		<LnxButton mode="clear" size="sm" @click="error = undefined; loading = true; load()">
 			Reintentar
 		</LnxButton>
 	</p>
@@ -429,7 +429,7 @@ useShortcut('d', () => downloads[model.value](), { description: 'Descargar el fi
 							{{ formatCents(incomeAmounts(entry).gross) }}
 							<small v-if="incomeAmounts(entry).withholding" class="hint">retenido {{ formatCents(incomeAmounts(entry).withholding) }}</small>
 						</span>
-						<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeIncome(entry)">
+						<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="removeIncome(entry)">
 							<LnxIcon icon="lucide:trash-2" />
 						</LnxButton>
 					</li>

@@ -109,7 +109,7 @@ async function submit() {
 			<LnxInput v-model="cvc" inputmode="numeric" autocomplete="off" placeholder="123" maxlength="4" required>
 				CVC
 			</LnxInput>
-			<LnxButton class="wide lnx-size-small" mode="clear" @click="useTestCard()">
+			<LnxButton class="wide" size="sm" mode="clear" @click="useTestCard()">
 				Usar la tarjeta de prueba
 			</LnxButton>
 		</div>

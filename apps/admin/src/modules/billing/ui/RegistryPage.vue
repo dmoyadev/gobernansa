@@ -65,7 +65,7 @@ function downloadYear() {
 	<header class="page-header">
 		<BackButton to="/billing" label="Volver a honorarios" />
 		<h1>Registro Verifactu</h1>
-		<LnxButton mode="clear" class="lnx-size-small" :disabled="!records.length" @click="downloadYear()">
+		<LnxButton mode="clear" size="sm" :disabled="!records.length" @click="downloadYear()">
 			<LnxIcon icon="lucide:file-code" />
 			Descargar XML del año
 		</LnxButton>
@@ -98,7 +98,7 @@ function downloadYear() {
 		</div>
 		<p v-if="loadError" class="error" role="alert">
 			{{ loadError }}
-			<LnxButton mode="clear" class="lnx-size-small" @click="load()">
+			<LnxButton mode="clear" size="sm" @click="load()">
 				Reintentar
 			</LnxButton>
 		</p>

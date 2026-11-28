@@ -97,7 +97,7 @@ async function pay(checkout: Checkout) {
 		:pay="pay"
 	>
 		<template v-if="charge?.paidAt" #unavailable>
-			<LnxButton :to="`/neighborhood/charges/${charge.id}/receipt`" class="lnx-size-large" is-block>
+			<LnxButton :to="`/neighborhood/charges/${charge.id}/receipt`" size="lg" is-block>
 				<template #prefix>
 					<LnxIcon icon="lucide:file-check" />
 				</template>
@@ -106,7 +106,7 @@ async function pay(checkout: Checkout) {
 		</template>
 		<!-- Loaded once, so trying again is loading the page again -->
 		<template v-else-if="loadError" #unavailable>
-			<LnxButton class="lnx-size-large" is-block @click="reload()">
+			<LnxButton size="lg" is-block @click="reload()">
 				<template #prefix>
 					<LnxIcon icon="lucide:refresh-cw" />
 				</template>

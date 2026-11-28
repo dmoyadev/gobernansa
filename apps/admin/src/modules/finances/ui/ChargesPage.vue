@@ -432,11 +432,11 @@ async function remove(charge: Charge) {
 		<div class="section-head">
 			<h2>Morosidad</h2>
 			<div class="item-actions">
-				<LnxButton mode="clear" class="lnx-size-small" :disabled="!shownRows.length" @click="exportCsv()">
+				<LnxButton mode="clear" size="sm" :disabled="!shownRows.length" @click="exportCsv()">
 					<LnxIcon icon="lucide:download" />
 					Exportar CSV
 				</LnxButton>
-				<LnxButton :to="`/communities/${id}/arrears`" mode="clear" class="lnx-size-small">
+				<LnxButton :to="`/communities/${id}/arrears`" mode="clear" size="sm">
 					<LnxIcon icon="lucide:mail-warning" />
 					Antigüedad y reclamaciones
 				</LnxButton>
@@ -513,7 +513,7 @@ async function remove(charge: Charge) {
 					<LnxButton
 						:to="`/communities/${id}/statements/${row.property.id}`"
 						mode="clear"
-						class="lnx-size-small"
+						size="sm"
 						shape="circle"
 						aria-label="Estado de cuenta"
 						title="Estado de cuenta"
@@ -523,7 +523,7 @@ async function remove(charge: Charge) {
 					<LnxButton
 						:to="`/communities/${id}/charges/certificate/${row.property.id}`"
 						mode="clear"
-						class="lnx-size-small"
+						size="sm"
 						shape="circle"
 						aria-label="Certificado de pagos"
 						title="Certificado de pagos"
@@ -554,13 +554,13 @@ async function remove(charge: Charge) {
 							</div>
 							<strong class="tabular">{{ formatCents(charge.amount) }}</strong>
 							<div class="item-actions">
-								<LnxButton v-if="!charge.paidAt && !charge.remittanceId" mode="clear" class="lnx-size-small" :aria-expanded="collecting?.chargeId === charge.id" @click="openCollection(charge)">
+								<LnxButton v-if="!charge.paidAt && !charge.remittanceId" mode="clear" size="sm" :aria-expanded="collecting?.chargeId === charge.id" @click="openCollection(charge)">
 									Entrega a cuenta
 								</LnxButton>
-								<LnxButton v-if="!paidByCollections(charge) && !(charge.remittanceId && !charge.paidAt)" mode="clear" class="lnx-size-small" :is-loading="toggling.has(charge.id)" @click="togglePaid(charge)">
+								<LnxButton v-if="!paidByCollections(charge) && !(charge.remittanceId && !charge.paidAt)" mode="clear" size="sm" :is-loading="toggling.has(charge.id)" @click="togglePaid(charge)">
 									{{ charge.payment ? 'Anular pago de prueba' : charge.paidAt ? 'Marcar pendiente' : charge.collections?.length ? 'Marcar resto pagado' : 'Marcar pagado' }}
 								</LnxButton>
-								<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
+								<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(charge)">
 									<LnxIcon icon="lucide:trash-2" />
 								</LnxButton>
 							</div>
@@ -571,7 +571,7 @@ async function remove(charge: Charge) {
 									<LnxButton
 										v-if="!charge.remittanceId && (!charge.paidAt || paidByCollections(charge))"
 										mode="clear"
-										class="lnx-size-small"
+										size="sm"
 										shape="circle"
 										aria-label="Deshacer entrega"
 										title="Deshacer entrega"
@@ -610,10 +610,10 @@ async function remove(charge: Charge) {
 									<p v-if="collectError" class="error" role="alert">
 										{{ collectError }}
 									</p>
-									<LnxButton mode="clear" class="lnx-size-small" @click="collecting = undefined">
+									<LnxButton mode="clear" size="sm" @click="collecting = undefined">
 										Cancelar
 									</LnxButton>
-									<LnxButton type="submit" class="lnx-size-small" :is-loading="savingCollection">
+									<LnxButton type="submit" size="sm" :is-loading="savingCollection">
 										Registrar entrega
 									</LnxButton>
 								</footer>
@@ -623,7 +623,7 @@ async function remove(charge: Charge) {
 					<p v-else class="hint">
 						{{ history ? 'No tiene recibos.' : 'No tiene nada pendiente.' }}
 					</p>
-					<LnxButton v-if="!history" mode="clear" class="lnx-size-small" :is-loading="historyLoading" @click="loadHistory(row.property.id)">
+					<LnxButton v-if="!history" mode="clear" size="sm" :is-loading="historyLoading" @click="loadHistory(row.property.id)">
 						Ver también pagados
 					</LnxButton>
 				</div>
@@ -640,10 +640,10 @@ async function remove(charge: Charge) {
 			<span class="tabular">
 				<strong>{{ selectedCharges.length }} {{ selectedCharges.length === 1 ? 'seleccionado' : 'seleccionados' }}</strong> · {{ formatCents(selectedTotal) }}
 			</span>
-			<LnxButton mode="clear" class="lnx-size-small" @click="selected = new Set()">
+			<LnxButton mode="clear" size="sm" @click="selected = new Set()">
 				Quitar selección
 			</LnxButton>
-			<LnxButton class="lnx-size-small" @click="markSelectedPaid()">
+			<LnxButton size="sm" @click="markSelectedPaid()">
 				<LnxIcon icon="lucide:check-check" />
 				Marcar pagados
 			</LnxButton>

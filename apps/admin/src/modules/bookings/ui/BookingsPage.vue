@@ -244,14 +244,14 @@ async function cancel(booking: Booking) {
 			<header class="week-header">
 				<h2>Agenda semanal</h2>
 				<div class="week-nav">
-					<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Semana anterior" title="Semana anterior" @click="weekStart = addDays(weekStart, -7)">
+					<LnxButton mode="clear" shape="circle" size="sm" aria-label="Semana anterior" title="Semana anterior" @click="weekStart = addDays(weekStart, -7)">
 						<LnxIcon icon="lucide:chevron-left" />
 					</LnxButton>
 					<span class="week-label" aria-live="polite">{{ weekLabel }}</span>
-					<LnxButton mode="clear" shape="circle" class="lnx-size-small" aria-label="Semana siguiente" title="Semana siguiente" @click="weekStart = addDays(weekStart, 7)">
+					<LnxButton mode="clear" shape="circle" size="sm" aria-label="Semana siguiente" title="Semana siguiente" @click="weekStart = addDays(weekStart, 7)">
 						<LnxIcon icon="lucide:chevron-right" />
 					</LnxButton>
-					<LnxButton mode="outline" class="lnx-size-small" :disabled="dates.includes(today)" @click="weekStart = getWeek(today).from">
+					<LnxButton mode="outline" size="sm" :disabled="dates.includes(today)" @click="weekStart = getWeek(today).from">
 						Hoy
 					</LnxButton>
 				</div>
@@ -314,7 +314,7 @@ async function cancel(booking: Booking) {
 						<span class="tabular">{{ formatDay(booking.date, { weekday: 'short', day: 'numeric' }) }} · {{ booking.from }}–{{ booking.to }} · {{ booking.name }}</span>
 						<LnxButton
 							mode="clear"
-							class="lnx-size-small"
+							size="sm"
 							shape="circle"
 							variant="danger"
 							:aria-label="`Anular la reserva de ${booking.name}`"
@@ -353,10 +353,10 @@ async function cancel(booking: Booking) {
 						{{ booking.depositReturnedAt ? 'Fianza devuelta' : 'Fianza retenida' }}
 					</span>
 					<span class="item-actions">
-						<LnxButton mode="clear" class="lnx-size-small" @click="togglePaid(booking)">
+						<LnxButton mode="clear" size="sm" @click="togglePaid(booking)">
 							{{ booking.payment ? 'Anular pago de prueba' : booking.paidAt ? 'Marcar pendiente' : 'Marcar pagada' }}
 						</LnxButton>
-						<LnxButton v-if="booking.deposit && booking.paidAt" mode="clear" class="lnx-size-small" @click="toggleDeposit(booking)">
+						<LnxButton v-if="booking.deposit && booking.paidAt" mode="clear" size="sm" @click="toggleDeposit(booking)">
 							{{ booking.depositReturnedAt ? 'Retener fianza' : 'Devolver fianza' }}
 						</LnxButton>
 					</span>

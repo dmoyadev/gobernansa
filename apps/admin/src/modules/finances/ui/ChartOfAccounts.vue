@@ -85,7 +85,7 @@ async function removeAccount(account: Account) {
 					<LnxButton
 						v-if="account.custom && !closed"
 						mode="clear"
-						class="lnx-size-small"
+						size="sm"
 						shape="circle"
 						variant="danger"
 						aria-label="Borrar cuenta"

@@ -93,7 +93,7 @@ function formatDate(document: CommunityDocument) {
 					v-for="item in fiscalData.filter(({ label }) => label !== 'Banco')"
 					:key="item.label"
 					mode="outline"
-					class="lnx-size-small"
+					size="sm"
 					@click="copy(item.label, item.value)"
 				>
 					<LnxIcon :icon="copied === item.label ? 'lucide:check' : 'lucide:copy'" />
@@ -102,7 +102,7 @@ function formatDate(document: CommunityDocument) {
 				<LnxButton
 					v-if="canShare"
 					mode="outline"
-					class="lnx-size-small"
+					size="sm"
 					@click="share()"
 				>
 					<LnxIcon icon="lucide:share-2" />

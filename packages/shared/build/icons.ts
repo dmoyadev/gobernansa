@@ -26,6 +26,7 @@ const STANDINS: Record<string, string> = {
 	'chevron-left': 'chevron-left',
 	'chevron-right': 'chevron-right',
 	'clear': 'x',
+	'close': 'x',
 	'email': 'mail',
 	'external-link': 'external-link',
 	'eye': 'eye',

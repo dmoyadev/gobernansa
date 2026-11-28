@@ -33,8 +33,8 @@ watch(communities, async (ids) => {
 	gap: var(--lnx-spacing-2);
 
 	select {
-		min-height: 36px;
-		padding: 0 var(--lnx-spacing-2);
+		// Even padding, not a height: lnx's reset leaves the text at the top of a taller select
+		padding: var(--lnx-spacing-2);
 		border: 1px solid var(--color-gray-4);
 		border-radius: var(--lnx-radius-2);
 		background: var(--color-gray-0);

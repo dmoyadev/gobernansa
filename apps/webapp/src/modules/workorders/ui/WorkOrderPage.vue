@@ -166,17 +166,17 @@ async function send(status: WorkOrderStatus) {
 					</p>
 					<div class="actions">
 						<template v-if="workOrder.status === 'sent'">
-							<LnxButton class="lnx-size-large" is-block :is-loading="sending === 'accepted'" :disabled="!!sending" @click="send('accepted')">
+							<LnxButton size="lg" is-block :is-loading="sending === 'accepted'" :disabled="!!sending" @click="send('accepted')">
 								<LnxIcon icon="lucide:thumbs-up" />
 								Aceptar
 							</LnxButton>
-							<LnxButton mode="outline" class="lnx-size-large" is-block :disabled="!!sending" @click="open('scheduled')">
+							<LnxButton mode="outline" size="lg" is-block :disabled="!!sending" @click="open('scheduled')">
 								<LnxIcon icon="lucide:calendar-plus" />
 								Aceptar y programar visita
 							</LnxButton>
 						</template>
 						<template v-else>
-							<LnxButton class="lnx-size-large" is-block :disabled="!!sending" @click="open('done')">
+							<LnxButton size="lg" is-block :disabled="!!sending" @click="open('done')">
 								<LnxIcon icon="lucide:circle-check" />
 								Trabajo terminado
 							</LnxButton>
@@ -184,7 +184,7 @@ async function send(status: WorkOrderStatus) {
 							<LnxButton
 								v-if="workOrder.history.length < WORK_ORDER_LIMITS.steps - 1"
 								mode="outline"
-								class="lnx-size-large"
+								size="lg"
 								is-block
 								:disabled="!!sending"
 								@click="open('scheduled')"

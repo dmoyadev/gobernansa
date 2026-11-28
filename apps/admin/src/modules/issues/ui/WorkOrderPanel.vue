@@ -122,15 +122,15 @@ function notify() {
 		</p>
 
 		<div class="share">
-			<LnxButton mode="outline" class="lnx-size-small" @click="copy()">
+			<LnxButton mode="outline" size="sm" @click="copy()">
 				<LnxIcon icon="lucide:copy" />
 				Copiar enlace
 			</LnxButton>
-			<LnxButton v-if="whatsapp" :href="whatsapp" target="_blank" rel="noopener" mode="outline" class="lnx-size-small">
+			<LnxButton v-if="whatsapp" :href="whatsapp" target="_blank" rel="noopener" mode="outline" size="sm">
 				<LnxIcon icon="lucide:message-circle" />
 				WhatsApp
 			</LnxButton>
-			<LnxButton v-if="mail" :href="mail" mode="outline" class="lnx-size-small">
+			<LnxButton v-if="mail" :href="mail" mode="outline" size="sm">
 				<LnxIcon icon="lucide:mail" />
 				Email
 			</LnxButton>
@@ -183,11 +183,11 @@ function notify() {
 		</p>
 
 		<footer>
-			<LnxButton mode="clear" class="lnx-size-small" :disabled="creating" @click="create()">
+			<LnxButton mode="clear" size="sm" :disabled="creating" @click="create()">
 				<LnxIcon icon="lucide:refresh-cw" />
 				Nuevo enlace
 			</LnxButton>
-			<LnxButton mode="clear" class="lnx-size-small" variant="danger" @click="revoke()">
+			<LnxButton mode="clear" size="sm" variant="danger" @click="revoke()">
 				<LnxIcon icon="lucide:link-2-off" />
 				Anular
 			</LnxButton>

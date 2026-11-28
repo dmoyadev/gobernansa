@@ -191,7 +191,7 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 				</LnxInput>
 				<LnxButton
 					mode="clear"
-					class="lnx-size-small"
+					size="sm"
 					shape="circle"
 					aria-label="Quitar línea"
 					title="Quitar línea"
@@ -202,7 +202,7 @@ useShortcut('mod+enter', () => invoiceForm.value?.requestSubmit(), { description
 				</LnxButton>
 			</li>
 		</ul>
-		<LnxButton mode="clear" class="add lnx-size-small" @click="addLine()">
+		<LnxButton mode="clear" class="add" size="sm" @click="addLine()">
 			<LnxIcon icon="lucide:plus" />
 			Añadir línea
 		</LnxButton>

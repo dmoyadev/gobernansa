@@ -8,6 +8,10 @@
 	--lnx-color-danger: var(--color-secondary-accent);
 	--lnx-color-danger-accent: var(--color-gray-1);
 
+	/* Colored text: both already reach 4.5:1 on white (10.8 and 5.1), so not darkened with black as lnx does by default */
+	--lnx-color-primary-text: var(--color-primary);
+	--lnx-color-danger-text: var(--color-secondary-accent);
+
 	--lnx-color-gray-0: var(--color-gray-0);
 	--lnx-color-gray-1: var(--color-gray-1);
 	--lnx-color-gray-2: var(--color-gray-2);
@@ -26,7 +30,7 @@
 	--lnx-font-family-mono: var(--font-family-mono);
 
 	/* Buttons and fields share these, so they line up in a row */
-	--lnx-control-height: 32px;
+	--lnx-control-height-md: 32px;
 	--lnx-control-padding-x: var(--lnx-spacing-3);
 	--lnx-control-font-size: var(--lnx-font-size-body);
 }

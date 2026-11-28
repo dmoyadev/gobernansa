@@ -318,7 +318,7 @@ async function apply() {
 		<div class="actions">
 			<input ref="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv,text/plain" hidden @change="readFile">
 			<LnxButton :disabled="reading || importing" @click="fileInput?.click()">
-				<LnxIcon :icon="reading ? 'lucide:loader-circle' : 'lucide:upload'" :class="{ spin: reading }" />
+				<LnxIcon :icon="reading ? 'lucide:loader-circle' : 'lucide:upload'" :spin="reading" />
 				Elegir fichero
 				<LnxKbd combo="i" />
 			</LnxButton>
@@ -470,7 +470,8 @@ async function apply() {
 					</div>
 					<LnxButton
 						v-if="group.rows.length > PREVIEW_ROWS && !expanded.includes(groupKey(group))"
-						class="more lnx-size-small"
+						class="more"
+						size="sm"
 						mode="clear"
 						@click="expanded.push(groupKey(group))"
 					>
@@ -491,7 +492,7 @@ async function apply() {
 			</p>
 			<div class="actions">
 				<LnxButton :disabled="!remote.censusImport || importing || comparing || (!toWrite && !newCommunities)" @click="apply()">
-					<LnxIcon :icon="importing ? 'lucide:loader-circle' : 'lucide:check'" :class="{ spin: importing }" />
+					<LnxIcon :icon="importing ? 'lucide:loader-circle' : 'lucide:check'" :spin="importing" />
 					{{ importing ? (imported.length > 1 ? `Importando ${done + 1} de ${imported.length}…` : 'Importando…') : toWrite ? `Importar ${plural(toWrite, 'propiedad', 'propiedades')}` : 'Importar' }}
 				</LnxButton>
 				<LnxButton mode="clear" :disabled="importing" @click="source = undefined; pasted = ''">
@@ -650,15 +651,5 @@ table {
 
 .error {
 	font-size: var(--lnx-font-size-small);
-}
-
-.spin {
-	animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-	to {
-		transform: rotate(360deg);
-	}
 }
 </style>

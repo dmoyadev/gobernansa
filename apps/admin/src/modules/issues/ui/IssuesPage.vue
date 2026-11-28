@@ -101,6 +101,7 @@ function emptyForm() {
 }
 
 const form = ref(emptyForm());
+const placeOptions = [{ value: '' as const, label: 'Sin indicar' }, ...Object.entries(issueLocationTypes).map(([value, label]) => ({ value: value as keyof typeof issueLocationTypes, label }))];
 const formElement = useTemplateRef('formElement');
 const { open, show, close } = useNewForm(formElement);
 
@@ -178,7 +179,7 @@ function create() {
 			<LnxInput v-model="form.title" class="wide" :placeholder="defaultTitle(form.category)">
 				Título
 			</LnxInput>
-			<LnxRadioGroup v-model="form.place" class="wide" :options="[{ value: '', label: 'Sin indicar' }, ...Object.entries(issueLocationTypes).map(([value, label]) => ({ value, label }))]">
+			<LnxRadioGroup v-model="form.place" class="wide" :options="placeOptions">
 				Dónde
 			</LnxRadioGroup>
 			<LnxRadioGroup v-if="form.place === 'common_area' && areas?.length" v-model="form.reference" class="wide" :options="areas.map(area => ({ value: area.name, label: area.name, icon: area.icon }))">
@@ -304,7 +305,7 @@ function create() {
 		</TransitionGroup>
 		<p v-else class="hint">
 			No hay incidencias {{ filtered ? 'con estos filtros' : 'sin resolver' }}.
-			<LnxButton v-if="filtered" mode="clear" class="lnx-size-small" @click="setView({ status: '', only: '', category: '' })">
+			<LnxButton v-if="filtered" mode="clear" size="sm" @click="setView({ status: '', only: '', category: '' })">
 				Limpiar filtros
 			</LnxButton>
 		</p>

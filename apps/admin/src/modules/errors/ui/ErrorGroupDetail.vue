@@ -141,19 +141,19 @@ async function copy(text: string, done: string, failed: string) {
 
 		<div v-if="!resolving" class="actions">
 			<!-- With its samples, once they're loaded -->
-			<LnxButton mode="outline" class="lnx-size-small" :disabled="loading" @click="copy(errorReport(group, merged, samples), 'Copiado: el error, sus muestras y qué hacer', 'No se ha podido copiar')">
+			<LnxButton mode="outline" size="sm" :disabled="loading" @click="copy(errorReport(group, merged, samples), 'Copiado: el error, sus muestras y qué hacer', 'No se ha podido copiar')">
 				<LnxIcon icon="lucide:clipboard-copy" />
 				Copiar para corregir
 			</LnxButton>
-			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" class="lnx-size-small" @click="resolving = true">
+			<LnxButton v-if="group.status !== 'resolved' || hasReturned(group)" size="sm" @click="resolving = true">
 				<LnxIcon icon="lucide:check" />
 				Resolver
 			</LnxButton>
-			<LnxButton v-if="group.status === 'new'" mode="outline" class="lnx-size-small" @click="change({ status: 'ignored' }, { status: 'ignored' }, { done: 'Error ignorado', failed: 'No se ha podido ignorar' })">
+			<LnxButton v-if="group.status === 'new'" mode="outline" size="sm" @click="change({ status: 'ignored' }, { status: 'ignored' }, { done: 'Error ignorado', failed: 'No se ha podido ignorar' })">
 				<LnxIcon icon="lucide:eye-off" />
 				Ignorar
 			</LnxButton>
-			<LnxButton v-if="group.status !== 'new'" mode="outline" class="lnx-size-small" @click="change({ status: 'new' }, { status: 'new' }, { done: 'Error reabierto', failed: 'No se ha podido reabrir' })">
+			<LnxButton v-if="group.status !== 'new'" mode="outline" size="sm" @click="change({ status: 'new' }, { status: 'new' }, { done: 'Error reabierto', failed: 'No se ha podido reabrir' })">
 				<LnxIcon icon="lucide:rotate-ccw" />
 				Reabrir
 			</LnxButton>
@@ -167,7 +167,7 @@ async function copy(text: string, done: string, failed: string) {
 						{{ mergeOptions.find(option => option.value === value)?.label }}
 					</template>
 				</LnxSelect>
-				<LnxButton type="submit" mode="outline" class="lnx-size-small" :disabled="!mergeTarget">
+				<LnxButton type="submit" mode="outline" size="sm" :disabled="!mergeTarget">
 					<LnxIcon icon="lucide:merge" />
 					Fusionar
 				</LnxButton>
@@ -181,11 +181,11 @@ async function copy(text: string, done: string, failed: string) {
 				Nota
 			</LnxInput>
 			<div class="actions">
-				<LnxButton type="submit" class="lnx-size-small">
+				<LnxButton type="submit" size="sm">
 					<LnxIcon icon="lucide:check" />
 					Marcar como resuelto
 				</LnxButton>
-				<LnxButton mode="clear" class="lnx-size-small" @click="resolving = false">
+				<LnxButton mode="clear" size="sm" @click="resolving = false">
 					Cancelar
 				</LnxButton>
 			</div>
@@ -255,7 +255,7 @@ async function copy(text: string, done: string, failed: string) {
 
 			<h4>
 				Pila
-				<LnxButton v-if="sample.stack" mode="clear" class="lnx-size-small" @click="copy(sample.stack, 'Pila copiada', 'No se ha podido copiar la pila')">
+				<LnxButton v-if="sample.stack" mode="clear" size="sm" @click="copy(sample.stack, 'Pila copiada', 'No se ha podido copiar la pila')">
 					<LnxIcon icon="lucide:copy" />
 					Copiar
 				</LnxButton>
@@ -278,7 +278,7 @@ async function copy(text: string, done: string, failed: string) {
 
 	h3 {
 		margin-top: var(--lnx-spacing-2);
-		font-size: var(--lnx-font-size-base);
+		font-size: var(--lnx-font-size-body);
 	}
 
 	h4 {

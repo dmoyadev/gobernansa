@@ -323,7 +323,7 @@ function dropMovements(removed: BankMovement[]) {
 <template>
 	<header class="page-header">
 		<h1>Conciliación bancaria</h1>
-		<LnxButton class="lnx-size-small" @click="importer?.open()">
+		<LnxButton size="sm" @click="importer?.open()">
 			<LnxIcon icon="lucide:upload" />
 			Importar extracto
 			<LnxKbd combo="i" />
@@ -337,7 +337,7 @@ function dropMovements(removed: BankMovement[]) {
 
 	<p v-if="loadError" class="error" role="alert">
 		{{ loadError }}
-		<LnxButton mode="clear" class="lnx-size-small" @click="loadError = undefined; load()">
+		<LnxButton mode="clear" size="sm" @click="loadError = undefined; load()">
 			Reintentar
 		</LnxButton>
 	</p>
@@ -393,7 +393,7 @@ function dropMovements(removed: BankMovement[]) {
 	<section class="card">
 		<div class="section-head">
 			<h2>Por conciliar</h2>
-			<LnxButton v-if="safe.length > 1" class="lnx-size-small" :is-loading="acceptingSafe" :disabled="!!busyId" @click="acceptSafe()">
+			<LnxButton v-if="safe.length > 1" size="sm" :is-loading="acceptingSafe" :disabled="!!busyId" @click="acceptSafe()">
 				<LnxIcon icon="lucide:check-check" />
 				Aceptar las {{ safe.length }} sugerencias seguras
 			</LnxButton>
@@ -423,10 +423,10 @@ function dropMovements(removed: BankMovement[]) {
 					</div>
 					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
 					<div class="item-actions">
-						<LnxButton mode="clear" class="lnx-size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'match'" @click="openPanel(movement, 'match')">
+						<LnxButton mode="clear" size="sm" :aria-expanded="panel?.id === movement.id && panel.mode === 'match'" @click="openPanel(movement, 'match')">
 							Conciliar a mano
 						</LnxButton>
-						<LnxButton mode="clear" class="lnx-size-small" :aria-expanded="panel?.id === movement.id && panel.mode === 'ignore'" @click="openPanel(movement, 'ignore')">
+						<LnxButton mode="clear" size="sm" :aria-expanded="panel?.id === movement.id && panel.mode === 'ignore'" @click="openPanel(movement, 'ignore')">
 							Apartar
 						</LnxButton>
 					</div>
@@ -438,7 +438,7 @@ function dropMovements(removed: BankMovement[]) {
 						<span>{{ suggestions.get(movement.id)!.candidate.label }}</span>
 						<small>{{ safeIds.has(movement.id) ? 'Coinciden el importe y el nombre o la referencia' : suggestions.get(movement.id)!.score ? 'Coinciden el importe y alguna palabra del concepto' : 'Coincide el importe' }}</small>
 					</span>
-					<LnxButton class="lnx-size-small" :is-loading="busyId === movement.id" :disabled="acceptingSafe" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
+					<LnxButton size="sm" :is-loading="busyId === movement.id" :disabled="acceptingSafe" @click="accept(movement, suggestions.get(movement.id)!.candidate)">
 						Aceptar
 					</LnxButton>
 				</div>
@@ -467,7 +467,7 @@ function dropMovements(removed: BankMovement[]) {
 							Seleccionado {{ formatCents(pickedTotal()) }}<template v-if="pickedTotal() !== movement.amount"> · faltan {{ formatCents(movement.amount - pickedTotal()) }} para cuadrar</template>
 						</span>
 						<LnxButton
-							class="lnx-size-small"
+							size="sm"
 							:is-loading="busyId === movement.id"
 							:disabled="typeof pickedCandidate !== 'object' || pickedCandidate.amount !== movement.amount"
 							@click="acceptManual(movement)"
@@ -505,7 +505,7 @@ function dropMovements(removed: BankMovement[]) {
 						Registrarlo como gasto pagado
 					</LnxCheckbox>
 					<footer class="form-actions">
-						<LnxButton type="submit" class="lnx-size-small" :is-loading="busyId === movement.id">
+						<LnxButton type="submit" size="sm" :is-loading="busyId === movement.id">
 							Apartar
 						</LnxButton>
 					</footer>
@@ -534,7 +534,7 @@ function dropMovements(removed: BankMovement[]) {
 						</small>
 					</div>
 					<strong class="tabular amount" :class="{ in: movement.amount > 0 }">{{ formatCents(movement.amount) }}</strong>
-					<LnxButton mode="clear" class="lnx-size-small" :is-loading="busyId === movement.id" @click="undoDone(movement)">
+					<LnxButton mode="clear" size="sm" :is-loading="busyId === movement.id" @click="undoDone(movement)">
 						Deshacer
 					</LnxButton>
 				</div>

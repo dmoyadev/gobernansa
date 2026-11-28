@@ -1,11 +1,11 @@
 // Fingers, not a mouse: half the neighbours are older people on a modest phone, so buttons and fields are at least 44 px
 // tall (40 px the small ones, with text that doesn't drop to 12 px). The admin keeps the denser 32 px of custom-theme.scss
 :root {
-	--lnx-control-height: 44px;
-	--lnx-control-height-small: 40px;
+	--lnx-control-height-md: 44px;
+	--lnx-control-height-sm: 40px;
 }
 
-.lnx-size-small {
+.lnx-size-sm {
 	--lnx-control-font-size: var(--lnx-font-size-small);
 }
 

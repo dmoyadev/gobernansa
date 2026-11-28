@@ -310,14 +310,14 @@ function cancel(invitation: Invitation & { id: string }) {
 				</span>
 
 				<div v-if="communityId || canEdit(person)" class="person-actions">
-					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" class="lnx-size-small">
+					<LnxButton v-if="communityId" :to="`/communities/${communityId}/people/${person.id}/documents`" mode="clear" size="sm">
 						<LnxIcon icon="lucide:file-text" />
 						Documentos
 					</LnxButton>
 					<LnxButton
 						v-if="communityId && person.role === 'user' && canEdit(person) && !isSecondary(person)"
 						mode="clear"
-						class="lnx-size-small"
+						size="sm"
 						@click="toggleBlocked(person)"
 					>
 						<LnxIcon :icon="person.blocked ? 'lucide:shield-check' : 'lucide:shield-ban'" />
@@ -326,13 +326,13 @@ function cancel(invitation: Invitation & { id: string }) {
 					<LnxButton
 						v-if="canEdit(person) && communityId && roleOptions.includes('manager') && !isSecondary(person)"
 						mode="clear"
-						class="lnx-size-small"
+						size="sm"
 						@click="toggleManager(person)"
 					>
 						<LnxIcon :icon="person.role === 'manager' ? 'lucide:user-minus' : 'lucide:user-check'" />
 						{{ person.role === 'manager' ? 'Quitar gestión' : 'Hacer gestor' }}
 					</LnxButton>
-					<LnxButton v-if="canEdit(person)" mode="clear" class="lnx-size-small" variant="danger" @click="remove(person)">
+					<LnxButton v-if="canEdit(person)" mode="clear" size="sm" variant="danger" @click="remove(person)">
 						<LnxIcon icon="lucide:trash-2" />
 						{{ communityId ? 'Quitar de la comunidad' : 'Quitar acceso' }}
 					</LnxButton>
@@ -378,18 +378,18 @@ function cancel(invitation: Invitation & { id: string }) {
 				</div>
 				<span class="badge">{{ roles[invitation.role]?.label }}</span>
 				<div v-if="assignableRoles(me, invitation.communityId).includes(invitation.role)" class="person-actions">
-					<LnxButton v-if="invitation.byCode" mode="clear" class="lnx-size-small" @click="printCode(invitation)">
+					<LnxButton v-if="invitation.byCode" mode="clear" size="sm" @click="printCode(invitation)">
 						<LnxIcon icon="lucide:printer" />
 						Imprimir la carta
 					</LnxButton>
 					<!-- Neighbours' are letters now: one by email can't be used in the app -->
-					<LnxButton v-else-if="invitation.role !== 'user'" mode="clear" class="lnx-size-small" @click="resend(invitation)">
+					<LnxButton v-else-if="invitation.role !== 'user'" mode="clear" size="sm" @click="resend(invitation)">
 						<LnxIcon icon="lucide:mail" />
 						Reenviar invitación por email
 					</LnxButton>
 					<LnxButton
 						mode="clear"
-						class="lnx-size-small"
+						size="sm"
 						variant="danger"
 						@click="cancel(invitation)"
 					>

@@ -357,7 +357,7 @@ async function submit() {
 				</LnxInput>
 				<LnxButton
 					type="submit"
-					class="lnx-size-large"
+					size="lg"
 					is-block
 					:disabled="!otherPlace.trim()"
 				>
@@ -492,7 +492,7 @@ async function submit() {
 			<div class="send">
 				<LnxButton
 					type="submit"
-					class="lnx-size-large"
+					size="lg"
 					is-block
 					:is-loading="saving"
 					:disabled="saving || !!user?.blocked"

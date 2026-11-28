@@ -181,10 +181,10 @@ function remove(notification: Event) {
 					</p>
 				</div>
 				<div class="item-actions">
-					<LnxButton mode="clear" class="lnx-size-small" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
+					<LnxButton mode="clear" size="sm" shape="circle" aria-label="Editar" title="Editar" @click="edit(notification)">
 						<LnxIcon icon="lucide:pencil" />
 					</LnxButton>
-					<LnxButton mode="clear" class="lnx-size-small" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
+					<LnxButton mode="clear" size="sm" shape="circle" variant="danger" aria-label="Borrar" title="Borrar" @click="remove(notification)">
 						<LnxIcon icon="lucide:trash-2" />
 					</LnxButton>
 				</div>
